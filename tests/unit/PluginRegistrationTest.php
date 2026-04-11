@@ -5,10 +5,8 @@ declare(strict_types=1);
 namespace craftyhedge\craftbreakpointimages\tests\unit;
 
 use Codeception\Test\Unit;
-use Craft;
 use craftyhedge\craftbreakpointimages\models\Settings;
 use craftyhedge\craftbreakpointimages\Plugin;
-use craftyhedge\craftbreakpointimages\utilities\BreakpointImagesUtility;
 
 final class PluginRegistrationTest extends Unit
 {
@@ -28,16 +26,18 @@ final class PluginRegistrationTest extends Unit
         $this->assertInstanceOf(Settings::class, $plugin->getSettings());
     }
 
-    public function testUtilityTypeIsRegistered(): void
+    public function testPluginCpSectionNavIsConfigured(): void
     {
-        $utilityTypes = Craft::$app->getUtilities()->getAllUtilityTypes();
+        $plugin = Plugin::getInstance();
+        $cpNavItem = $plugin->getCpNavItem();
 
-        $this->assertTrue(in_array(BreakpointImagesUtility::class, $utilityTypes, true));
+        $this->assertTrue($plugin->hasCpSection);
+        $this->assertIsArray($cpNavItem);
+        $this->assertArrayHasKey('subnav', $cpNavItem);
+        $this->assertArrayHasKey('settings', $cpNavItem['subnav']);
+        $this->assertArrayHasKey('transforms', $cpNavItem['subnav']);
+        $this->assertSame('craft-breakpoint-images/settings', $cpNavItem['subnav']['settings']['url']);
+        $this->assertSame('craft-breakpoint-images/transforms', $cpNavItem['subnav']['transforms']['url']);
     }
 
-    public function testUtilityIdentityMethods(): void
-    {
-        $this->assertSame('breakpoint-images', BreakpointImagesUtility::id());
-        $this->assertNull(BreakpointImagesUtility::icon());
-    }
 }

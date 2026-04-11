@@ -5,12 +5,12 @@ namespace craftyhedge\craftbreakpointimages;
 use Craft;
 use craft\base\Model;
 use craft\base\Plugin as BasePlugin;
-use craft\events\RegisterComponentTypesEvent;
+use craft\events\RegisterUrlRulesEvent;
 use craft\helpers\App;
+use craft\helpers\UrlHelper;
 use craft\log\MonologTarget;
-use craft\services\Utilities;
+use craft\web\UrlManager;
 use craftyhedge\craftbreakpointimages\models\Settings;
-use craftyhedge\craftbreakpointimages\utilities\BreakpointImagesUtility;
 use Monolog\Formatter\LineFormatter;
 use Psr\Log\LogLevel;
 use yii\base\Event;
@@ -24,6 +24,7 @@ class Plugin extends BasePlugin
     public static ?self $plugin = null;
 
     public bool $hasCpSettings = true;
+    public bool $hasCpSection = true;
 
     public function init(): void
     {
@@ -34,10 +35,12 @@ class Plugin extends BasePlugin
         $this->registerLogTarget();
 
         Event::on(
-            Utilities::class,
-            Utilities::EVENT_REGISTER_UTILITIES,
-            static function(RegisterComponentTypesEvent $event): void {
-                $event->types[] = BreakpointImagesUtility::class;
+            UrlManager::class,
+            UrlManager::EVENT_REGISTER_CP_URL_RULES,
+            static function(RegisterUrlRulesEvent $event): void {
+                $event->rules['craft-breakpoint-images'] = 'craft-breakpoint-images/default/index';
+                $event->rules['craft-breakpoint-images/settings'] = 'craft-breakpoint-images/default/settings';
+                $event->rules['craft-breakpoint-images/transforms'] = 'craft-breakpoint-images/default/transforms';
             }
         );
 
@@ -62,6 +65,33 @@ class Plugin extends BasePlugin
     public static function debug(string $message): void
     {
         Craft::getLogger()->log($message, Logger::LEVEL_TRACE, self::LOG_CATEGORY);
+    }
+
+    public function getCpNavItem(): ?array
+    {
+        $item = parent::getCpNavItem();
+
+        if ($item === null) {
+            return null;
+        }
+
+        $item['subnav'] = [
+            'settings' => [
+                'label' => Craft::t('craft-breakpoint-images', 'Settings'),
+                'url' => 'craft-breakpoint-images/settings',
+            ],
+            'transforms' => [
+                'label' => Craft::t('craft-breakpoint-images', 'Transforms'),
+                'url' => 'craft-breakpoint-images/transforms',
+            ],
+        ];
+
+        return $item;
+    }
+
+    public function getSettingsResponse(): mixed
+    {
+        return Craft::$app->controller->redirect(UrlHelper::cpUrl('craft-breakpoint-images/settings'));
     }
 
     private function registerLogTarget(): void

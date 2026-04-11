@@ -1,0 +1,9 @@
+{% extends "_layouts/cp" %}
+{% set title = 'Settings'|t('craft-breakpoint-images') %}
+{% set selectedSubnavItem = selectedSubnavItem ?? 'settings' %}
+
+{% block content %}
+    {% include 'craft-breakpoint-images/settings' with {
+        settings: settings,
+    } only %}
+{% endblock %}
