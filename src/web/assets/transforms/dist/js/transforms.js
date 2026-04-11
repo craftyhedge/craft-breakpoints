@@ -1,7 +1,11 @@
 (() => {
     const BREAKPOINT_SAFETY_PX = 2;
+    const FIRST_BREAKPOINT_COLUMN_WIDTH_PX = 120;
+    const DRAG_SCROLL_THRESHOLD_PX = 4;
     const PROCESSING_QUERY_PARAM = '__bpiProcessing';
     const PREVIEW_FRAME_TAG = 'ifr' + 'ame';
+    const IMAGE_WAIT_SOFT_DEADLINE_MS = 4000;
+    const IMAGE_WAIT_POLL_MS = 250;
 
     const bpiProcessingManifest = window.bpiProcessingManifest || {};
 
@@ -18,6 +22,7 @@
         btnRun: document.getElementById('bpi-run-processing'),
         btnRerun: document.getElementById('bpi-rerun-processing'),
         btnRefresh: document.getElementById('bpi-refresh-preview'),
+        btnStop: document.getElementById('bpi-stop-processing'),
         btnClosePreview: document.getElementById('bpi-close-preview'),
         btnCopy: document.getElementById('bpi-copy-output')
     };
@@ -32,13 +37,37 @@
         lastResult: null,
         runCount: 0,
         busy: false,
-        previewVisible: false
+        stopRequested: false,
+        waitSoftLimitReached: false,
+        previewVisible: false,
+        previewHeightSyncRaf: null,
+        dragScrollSuppressClick: false,
+        dragScroll: {
+            active: false,
+            moved: false,
+            pointerId: null,
+            grid: null,
+            startX: 0,
+            startScrollLeft: 0
+        }
     };
 
     function setStatus(message) {
         if (elements.status) {
             elements.status.textContent = message;
         }
+    }
+
+    function setStopButtonVisibility(isVisible) {
+        if (!elements.btnStop) {
+            return;
+        }
+
+        const shouldShow = Boolean(isVisible) && state.waitSoftLimitReached === true;
+        elements.btnStop.hidden = !shouldShow;
+        elements.btnStop.disabled = !shouldShow;
+        elements.btnStop.style.display = shouldShow ? '' : 'none';
+        elements.btnStop.setAttribute('aria-hidden', shouldShow ? 'false' : 'true');
     }
 
     function getConfiguredBreakpoints() {
@@ -50,6 +79,40 @@
             .map((entry) => parseInt(String(entry), 10))
             .filter((bp) => Number.isFinite(bp) && bp > 0)
             .sort((a, b) => a - b);
+    }
+
+    function getEscapeBreakpointValue() {
+        const rawValue = bpiProcessingManifest?.breakpoints?.escape;
+        const parsed = parseInt(String(rawValue ?? ''), 10);
+
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+    }
+
+    function getBreakpointsForTransformConfig(transformConfig, breakpoints) {
+        const includeEscapeWidth = transformConfig?.includeEscapeWidth === true;
+        const escapeBreakpoint = getEscapeBreakpointValue();
+
+        if (includeEscapeWidth || escapeBreakpoint === null) {
+            return breakpoints;
+        }
+
+        return breakpoints.filter((breakpoint) => breakpoint !== escapeBreakpoint);
+    }
+
+    function getBreakpointsForObservedTransform(transformName, breakpoints, rowsByBreakpoint) {
+        const observed = breakpoints.filter((breakpoint) => {
+            const rows = rowsByBreakpoint?.[breakpoint] || rowsByBreakpoint?.[String(breakpoint)] || [];
+            return Array.isArray(rows) && rows.some((row) => row?.transform === transformName);
+        });
+
+        if (observed.length > 0) {
+            return observed;
+        }
+
+        const manifestTransforms = bpiProcessingManifest?.transforms || {};
+        const transformConfig = manifestTransforms[transformName] || {};
+
+        return getBreakpointsForTransformConfig(transformConfig, breakpoints);
     }
 
     function getFirstBreakpointMeasurementWidth() {
@@ -64,9 +127,6 @@
     function setButtonsDisabled(disabled) {
         if (elements.btnLoad) {
             elements.btnLoad.disabled = disabled;
-        }
-        if (elements.btnRun) {
-            elements.btnRun.disabled = disabled;
         }
         if (elements.btnRerun) {
             elements.btnRerun.disabled = disabled;
@@ -215,18 +275,15 @@
         target?.appendChild(style);
     }
 
-    async function waitForImagesToSettle(timeoutMs = 4000) {
+    async function waitForImagesToSettle({
+        softDeadlineMs = IMAGE_WAIT_SOFT_DEADLINE_MS,
+        pollMs = IMAGE_WAIT_POLL_MS,
+        shouldStop = () => false,
+        onSoftDeadline = null,
+        onWaitingTick = null,
+    } = {}) {
         const frameDocument = getFrameDocument();
-        const images = Array.from(frameDocument.querySelectorAll('picture[data-transform] img'));
-
-        if (!images.length) {
-            await new Promise((resolve) => requestAnimationFrame(resolve));
-            return;
-        }
-
-        // Lazy/offscreen images may never fire load during processing. Only wait on
-        // images that have started fetching so we do not hit timeout every breakpoint.
-        const candidates = images.filter((img) => {
+        const isActiveWaitCandidate = (img) => {
             if (img.complete) {
                 return false;
             }
@@ -236,31 +293,83 @@
             }
 
             return img.loading !== 'lazy';
-        });
+        };
 
-        const waiters = candidates.map((img) => new Promise((resolve) => {
-            if (img.complete && (img.naturalWidth > 0 || img.naturalHeight > 0 || img.currentSrc)) {
-                resolve();
-                return;
+        const getPendingImages = () => Array.from(frameDocument.querySelectorAll('picture[data-transform] img'))
+            .filter(isActiveWaitCandidate);
+
+        const startedAt = Date.now();
+        let softDeadlineReached = false;
+        let lastTickAt = 0;
+
+        if (!frameDocument.querySelector('picture[data-transform] img')) {
+            await new Promise((resolve) => requestAnimationFrame(resolve));
+            return {
+                aborted: false,
+                timedOut: false,
+                waitedMs: 0,
+                pendingCount: 0,
+            };
+        }
+
+        if (getPendingImages().length < 1) {
+            await new Promise((resolve) => requestAnimationFrame(resolve));
+            return {
+                aborted: false,
+                timedOut: false,
+                waitedMs: 0,
+                pendingCount: 0,
+            };
+        }
+
+        while (true) {
+            if (shouldStop()) {
+                const pendingNow = getPendingImages();
+                return {
+                    aborted: true,
+                    timedOut: softDeadlineReached,
+                    waitedMs: Date.now() - startedAt,
+                    pendingCount: pendingNow.length,
+                };
             }
 
-            const onDone = () => {
-                img.removeEventListener('load', onDone);
-                img.removeEventListener('error', onDone);
-                resolve();
-            };
+            const pending = getPendingImages();
+            if (!pending.length) {
+                break;
+            }
 
-            img.addEventListener('load', onDone, { once: true });
-            img.addEventListener('error', onDone, { once: true });
-        }));
+            const waitedMs = Date.now() - startedAt;
+            if (!softDeadlineReached && waitedMs >= softDeadlineMs) {
+                softDeadlineReached = true;
+                if (typeof onSoftDeadline === 'function') {
+                    onSoftDeadline({
+                        waitedMs,
+                        pendingCount: pending.length,
+                    });
+                }
+                lastTickAt = waitedMs;
+            }
 
-        await Promise.race([
-            Promise.all(waiters),
-            new Promise((resolve) => window.setTimeout(resolve, timeoutMs))
-        ]);
+            if (softDeadlineReached && typeof onWaitingTick === 'function' && (waitedMs - lastTickAt) >= 1000) {
+                onWaitingTick({
+                    waitedMs,
+                    pendingCount: pending.length,
+                });
+                lastTickAt = waitedMs;
+            }
+
+            await new Promise((resolve) => window.setTimeout(resolve, pollMs));
+        }
 
         await new Promise((resolve) => requestAnimationFrame(resolve));
         await new Promise((resolve) => requestAnimationFrame(resolve));
+
+        return {
+            aborted: false,
+            timedOut: softDeadlineReached,
+            waitedMs: Date.now() - startedAt,
+            pendingCount: 0,
+        };
     }
 
     function getPictureLoadKey(picture, index) {
@@ -354,7 +463,11 @@
 
         return images.map((img, index) => {
             const picture = img.closest('picture');
-            const source = picture?.querySelector(`source[data-bp-size="${breakpoint}"]`);
+            const source = getPrimarySourceForBreakpoint(picture, breakpoint);
+            if (!source) {
+                return null;
+            }
+
             const assetId = img.getAttribute('data-asset-id') || picture?.getAttribute('data-asset-id') || `unknown-${index}`;
             const enabled = source?.getAttribute('data-bp-enabled') !== 'false';
             const preloadKey = getPictureLoadKey(picture, index);
@@ -368,7 +481,7 @@
                 enabled,
                 isVisible: img.offsetWidth > 0 || img.offsetHeight > 0,
                 src: img.currentSrc || img.getAttribute('src') || '',
-                loaded: enabled ? (preloadLoaded ?? loadedFromElement) : true,
+                loaded: enabled ? Boolean(preloadLoaded || loadedFromElement) : true,
                 rendered: {
                     width: img.clientWidth || 0,
                     height: img.clientHeight || 0
@@ -383,7 +496,7 @@
                     autoDimension: source?.getAttribute('data-auto-dimension') || null
                 }
             };
-        });
+        }).filter((row) => row !== null);
     }
 
     function toPositiveIntOrNull(value) {
@@ -405,14 +518,14 @@
         return Array.from(names).sort();
     }
 
-    function buildCurrentProposal(transformName, breakpoints) {
+    function buildCurrentProposal(transformName, transformBreakpoints) {
         const manifestTransforms = bpiProcessingManifest?.transforms || {};
         const transformConfig = manifestTransforms[transformName] || {};
         const transformEntries = Array.isArray(transformConfig.transforms) ? transformConfig.transforms : [];
 
         return {
             includeEscapeWidth: transformConfig.includeEscapeWidth === true,
-            transforms: breakpoints.map((breakpoint, index) => {
+            transforms: transformBreakpoints.map((breakpoint, index) => {
                 const current = transformEntries[index] || {};
 
                 return {
@@ -450,25 +563,21 @@
         };
     }
 
-    function buildSuggestedProposal(transformName, breakpoints, rowsByBreakpoint, currentProposal) {
+    function buildSuggestedProposal(transformName, rowsByBreakpoint, currentProposal) {
         return {
             includeEscapeWidth: currentProposal.includeEscapeWidth,
-            transforms: breakpoints.map((breakpoint, index) => {
+            transforms: currentProposal.transforms.map((current, index) => {
+                const breakpoint = current.breakpoint;
                 const rows = (rowsByBreakpoint[breakpoint] || []).filter((row) => row.transform === transformName);
                 const suggestedDimensions = pickSuggestedDimensions(rows);
-                const current = currentProposal.transforms[index] || {
-                    width: null,
-                    height: null,
-                    enabled: true,
-                    autoDimension: null
-                };
+                const currentRow = currentProposal.transforms[index] || current;
 
                 return {
                     breakpoint,
-                    width: suggestedDimensions.width ?? current.width,
-                    height: suggestedDimensions.height ?? current.height,
-                    enabled: current.enabled,
-                    autoDimension: current.autoDimension
+                    width: suggestedDimensions.width ?? currentRow.width,
+                    height: suggestedDimensions.height ?? currentRow.height,
+                    enabled: currentRow.enabled,
+                    autoDimension: currentRow.autoDimension
                 };
             })
         };
@@ -507,8 +616,9 @@
         const transformNames = collectTransformNames(rowsByBreakpoint);
 
         transformNames.forEach((transformName) => {
-            const current = buildCurrentProposal(transformName, breakpoints);
-            const suggested = buildSuggestedProposal(transformName, breakpoints, rowsByBreakpoint, current);
+            const transformBreakpoints = getBreakpointsForObservedTransform(transformName, breakpoints, rowsByBreakpoint);
+            const current = buildCurrentProposal(transformName, transformBreakpoints);
+            const suggested = buildSuggestedProposal(transformName, rowsByBreakpoint, current);
             const edits = buildEdits(current, suggested);
 
             proposals[transformName] = {
@@ -807,8 +917,39 @@
         return 'bpi_dimension-mismatch';
     }
 
-    function renderBreakpointColumn(result, transformName, breakpoint, index) {
-        const breakpoints = Array.isArray(result?.breakpoints) ? result.breakpoints : [];
+    function getCurrentDimensionDisplay(value, autoDimension, dimension) {
+        if (autoDimension === dimension) {
+            return 'auto';
+        }
+
+        const parsed = Number(value);
+        if (Number.isFinite(parsed) && parsed > 0) {
+            return String(Math.round(parsed));
+        }
+
+        return '-';
+    }
+
+    function calculateBreakpointColumnWidths(breakpoints) {
+        const validBreakpoints = Array.isArray(breakpoints)
+            ? breakpoints
+                .map((breakpoint) => parseInt(String(breakpoint), 10))
+                .filter((breakpoint) => Number.isFinite(breakpoint) && breakpoint > 0)
+            : [];
+
+        if (validBreakpoints.length < 1) {
+            return {};
+        }
+
+        const firstBreakpoint = validBreakpoints[0];
+
+        return validBreakpoints.reduce((widths, breakpoint) => {
+            widths[String(breakpoint)] = (breakpoint / firstBreakpoint) * FIRST_BREAKPOINT_COLUMN_WIDTH_PX;
+            return widths;
+        }, {});
+    }
+
+    function renderBreakpointColumn(result, transformName, breakpoint, breakpointColumnWidths) {
         const currentRows = getTransformRowsForBreakpoint(result, transformName, breakpoint);
         const summary = summarizeBreakpointRows(currentRows);
         const currentProposalRows = result?.proposals?.[transformName]?.current?.transforms || [];
@@ -822,6 +963,10 @@
         const relativeWidth = breakpoint > 0
             ? Math.max(0, Math.min(100, (renderedWidth / breakpoint) * 100))
             : 0;
+        const breakpointColumnWidth = Math.max(
+            1,
+            Number(breakpointColumnWidths?.[String(breakpoint)]) || 0
+        );
         const aspectRatio = renderedWidth > 0 && renderedHeight > 0
             ? `${renderedWidth} / ${renderedHeight}`
             : '1 / 1';
@@ -838,6 +983,16 @@
             currentProposal.autoDimension || null,
             'height'
         );
+        const currentWidth = getCurrentDimensionDisplay(
+            currentProposal.width,
+            currentProposal.autoDimension || null,
+            'width'
+        );
+        const currentHeight = getCurrentDimensionDisplay(
+            currentProposal.height,
+            currentProposal.autoDimension || null,
+            'height'
+        );
 
         const hiddenBadge = summary.hiddenCount > 0
             ? `<span class="bpi_hidden-notice">Hidden ${summary.hiddenCount}</span>`
@@ -845,12 +1000,13 @@
         const unloadedBadge = summary.unloadedCount > 0
             ? `<span class="bpi-row-badge">Unloaded ${summary.unloadedCount}</span>`
             : '';
-        const escapeBadge = index === breakpoints.length - 1
+        const escapeBreakpoint = getEscapeBreakpointValue();
+        const escapeBadge = escapeBreakpoint !== null && breakpoint === escapeBreakpoint
             ? '<span class="bpi_escaped-notice">ESC</span>'
             : '';
 
         return `
-            <div class="bpi-breakpoint-column">
+            <div class="bpi-breakpoint-column" style="--bpi-breakpoint-column-width:${breakpointColumnWidth}px;">
                 <div class="bpi_breakpoint-size-heading">
                     <span>${breakpoint}px</span>
                     ${escapeBadge}
@@ -862,25 +1018,219 @@
                         <div class="bpi_breakpoint-result">
                             <div class="bpi_image-outer" style="--bpi-relative-width:${relativeWidth}%;">
                                 ${previewSrc
-                ? `<img src="${previewSrc}" alt="${escapeHtml(previewAlt)}" class="bpi_breakpoint-result-image" style="--bpi-aspect-ratio:${aspectRatio};">`
+                ? `<img src="${previewSrc}" alt="${escapeHtml(previewAlt)}" class="bpi_breakpoint-result-image" draggable="false" style="--bpi-aspect-ratio:${aspectRatio};">`
                 : `<div class="bpi_breakpoint-result-image" style="--bpi-aspect-ratio:${aspectRatio};"></div>`}
                             </div>
                         </div>
                     </div>
                 </div>
-                <div class="bpi_rendered-dimensions">
-                    <span>Rendered</span>
-                    <span class="bpi_rendered-info-container">
-                        <span class="bpi_rendered-dimension ${widthClass}">${renderedWidth || '-'}</span>
-                        <span>:</span>
-                        <span class="bpi_rendered-dimension ${heightClass}">${renderedHeight || '-'}</span>
-                    </span>
-                </div>
-                <div class="bpi-current-suggested">
-                    <div>Current ${formatDimensionPair(currentProposal.width, currentProposal.height, currentProposal.autoDimension || null)}</div>
+                <div class="bpi-dimension-table-wrap">
+                    <div class="bpi-dimension-matrix" role="table" aria-label="Rendered and current dimensions">
+                        <div class="bpi-dimension-row" role="row">
+                            <span class="bpi-dimension-icon bpi-dimension-icon-rendered" role="rowheader" title="Rendered" aria-label="Rendered">
+                                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                                    <rect x="2.5" y="3" width="11" height="8.5" rx="1.5"></rect>
+                                    <path d="M4.4 5.2h2"></path>
+                                    <path d="M3.5 10.8l3.1-2.8 2.2 2 2-1.6 2.2 2.4"></path>
+                                </svg>
+                            </span>
+                            <span class="bpi_rendered-dimension ${widthClass}" role="cell">${renderedWidth || '-'}</span>
+                            <span class="bpi_rendered-dimension ${heightClass}" role="cell">${renderedHeight || '-'}</span>
+                        </div>
+                        <div class="bpi-dimension-row" role="row">
+                            <span class="bpi-dimension-icon bpi-dimension-icon-current" role="rowheader" title="Current" aria-label="Current">
+                                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                                    <path d="M3 4h10"></path>
+                                    <path d="M3 8h10"></path>
+                                    <path d="M3 12h10"></path>
+                                    <path d="M6 3.1v1.8"></path>
+                                    <path d="M10 7.1v1.8"></path>
+                                    <path d="M7.5 11.1v1.8"></path>
+                                </svg>
+                            </span>
+                            <span class="bpi_current-dimension" role="cell">${escapeHtml(currentWidth)}</span>
+                            <span class="bpi_current-dimension" role="cell">${escapeHtml(currentHeight)}</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
+    }
+
+    function syncBreakpointPreviewHeights() {
+        if (!elements.visualResults) {
+            return;
+        }
+
+        const grids = Array.from(elements.visualResults.querySelectorAll('.bpi-breakpoint-grid'));
+        grids.forEach((grid) => {
+            const resultBlocks = Array.from(grid.querySelectorAll('.bpi_breakpoint-result'));
+            if (!resultBlocks.length) {
+                return;
+            }
+
+            resultBlocks.forEach((block) => {
+                block.style.removeProperty('min-height');
+            });
+
+            const tallest = Math.max(
+                0,
+                ...resultBlocks.map((block) => Math.ceil(block.getBoundingClientRect().height || 0))
+            );
+
+            if (tallest < 1) {
+                return;
+            }
+
+            resultBlocks.forEach((block) => {
+                block.style.minHeight = `${tallest}px`;
+            });
+        });
+
+        updateDragScrollability();
+    }
+
+    function updateDragScrollability() {
+        if (!elements.visualResults) {
+            return;
+        }
+
+        const grids = Array.from(elements.visualResults.querySelectorAll('.bpi-breakpoint-grid'));
+        grids.forEach((grid) => {
+            const isScrollable = (grid.scrollWidth - grid.clientWidth) > 1;
+            grid.classList.toggle('bpi-drag-scrollable', isScrollable);
+        });
+    }
+
+    function endDragScroll(pointerId = null) {
+        const drag = state.dragScroll;
+        if (!drag.active) {
+            return;
+        }
+
+        if (pointerId !== null && drag.pointerId !== pointerId) {
+            return;
+        }
+
+        if (drag.grid) {
+            drag.grid.classList.remove('bpi-drag-scrolling');
+
+            if (drag.pointerId !== null && drag.grid.hasPointerCapture?.(drag.pointerId)) {
+                try {
+                    drag.grid.releasePointerCapture(drag.pointerId);
+                } catch (_error) {
+                    // Ignore pointer capture release errors.
+                }
+            }
+        }
+
+        drag.active = false;
+        drag.moved = false;
+        drag.pointerId = null;
+        drag.grid = null;
+        drag.startX = 0;
+        drag.startScrollLeft = 0;
+    }
+
+    function setupDragToScroll() {
+        if (!elements.visualResults) {
+            return;
+        }
+
+        const interactiveSelector = 'a, button, input, select, textarea, label, [role="button"], .btn';
+
+        elements.visualResults.addEventListener('pointerdown', (event) => {
+            if (event.pointerType !== 'mouse' || event.button !== 0) {
+                return;
+            }
+
+            const grid = event.target.closest('.bpi-breakpoint-grid');
+            if (!grid || !elements.visualResults.contains(grid)) {
+                return;
+            }
+
+            if (!grid.classList.contains('bpi-drag-scrollable')) {
+                return;
+            }
+
+            if (event.target.closest(interactiveSelector)) {
+                return;
+            }
+
+            state.dragScroll.active = true;
+            state.dragScroll.moved = false;
+            state.dragScroll.pointerId = event.pointerId;
+            state.dragScroll.grid = grid;
+            state.dragScroll.startX = event.clientX;
+            state.dragScroll.startScrollLeft = grid.scrollLeft;
+
+            if (grid.setPointerCapture) {
+                try {
+                    grid.setPointerCapture(event.pointerId);
+                } catch (_error) {
+                    // Ignore pointer capture errors.
+                }
+            }
+        });
+
+        window.addEventListener('pointermove', (event) => {
+            const drag = state.dragScroll;
+            if (!drag.active || drag.pointerId !== event.pointerId || !drag.grid) {
+                return;
+            }
+
+            const deltaX = event.clientX - drag.startX;
+            if (!drag.moved && Math.abs(deltaX) < DRAG_SCROLL_THRESHOLD_PX) {
+                return;
+            }
+
+            if (!drag.moved) {
+                drag.moved = true;
+                drag.grid.classList.add('bpi-drag-scrolling');
+                state.dragScrollSuppressClick = true;
+            }
+
+            event.preventDefault();
+            drag.grid.scrollLeft = drag.startScrollLeft - deltaX;
+        }, { passive: false });
+
+        window.addEventListener('pointerup', (event) => {
+            endDragScroll(event.pointerId);
+        });
+
+        window.addEventListener('pointercancel', (event) => {
+            endDragScroll(event.pointerId);
+        });
+
+        elements.visualResults.addEventListener('dragstart', (event) => {
+            if (event.target.closest('.bpi_breakpoint-result-image')) {
+                event.preventDefault();
+            }
+        });
+
+        elements.visualResults.addEventListener('click', (event) => {
+            if (!state.dragScrollSuppressClick) {
+                return;
+            }
+
+            if (event.target.closest('.bpi-breakpoint-grid')) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+
+            state.dragScrollSuppressClick = false;
+        }, true);
+    }
+
+    function scheduleBreakpointPreviewHeightSync() {
+        if (state.previewHeightSyncRaf !== null) {
+            window.cancelAnimationFrame(state.previewHeightSyncRaf);
+        }
+
+        state.previewHeightSyncRaf = window.requestAnimationFrame(() => {
+            state.previewHeightSyncRaf = null;
+            syncBreakpointPreviewHeights();
+        });
     }
 
     function renderVisualResults(result) {
@@ -897,8 +1247,14 @@
         const cardsMarkup = transformNames.map((transformName) => {
             const transformAssetCount = result?.transforms?.[transformName]?.assetIds?.length || 0;
             const editsCount = result?.proposals?.[transformName]?.edits?.length || 0;
-            const breakpointColumns = (result.breakpoints || [])
-                .map((breakpoint, index) => renderBreakpointColumn(result, transformName, breakpoint, index))
+            const transformBreakpoints = getBreakpointsForObservedTransform(
+                transformName,
+                Array.isArray(result?.breakpoints) ? result.breakpoints : [],
+                result?._rowsByBreakpoint || {}
+            );
+            const breakpointColumnWidths = calculateBreakpointColumnWidths(transformBreakpoints);
+            const breakpointColumns = transformBreakpoints
+                .map((breakpoint) => renderBreakpointColumn(result, transformName, breakpoint, breakpointColumnWidths))
                 .join('');
 
             return `
@@ -913,6 +1269,18 @@
         }).join('');
 
         elements.visualResults.innerHTML = cardsMarkup;
+        scheduleBreakpointPreviewHeightSync();
+        window.setTimeout(scheduleBreakpointPreviewHeightSync, 120);
+
+        const images = Array.from(elements.visualResults.querySelectorAll('.bpi_breakpoint-result-image'));
+        images.forEach((image) => {
+            if (image instanceof HTMLImageElement && image.complete) {
+                return;
+            }
+
+            image.addEventListener('load', scheduleBreakpointPreviewHeightSync, { once: true });
+            image.addEventListener('error', scheduleBreakpointPreviewHeightSync, { once: true });
+        });
     }
 
     function renderResultReview(result) {
@@ -950,6 +1318,9 @@
         }
 
         state.busy = true;
+        state.stopRequested = false;
+        state.waitSoftLimitReached = false;
+        setStopButtonVisibility(false);
         setButtonsDisabled(true);
         setStatus('Preparing preview...');
 
@@ -961,11 +1332,30 @@
 
             const rowsByBreakpoint = {};
             for (const breakpoint of breakpoints) {
+                state.waitSoftLimitReached = false;
+                setStopButtonVisibility(false);
                 const measurementWidth = getMeasurementWidthForBreakpoint(breakpoint);
                 setStatus(`Processing ${breakpoint}px...`);
                 await setPreviewWidth(measurementWidth);
                 const preloadStates = await preloadBreakpointSources(breakpoint);
-                await waitForImagesToSettle();
+                const waitResult = await waitForImagesToSettle({
+                    shouldStop: () => state.stopRequested,
+                    onSoftDeadline: ({ pendingCount }) => {
+                        state.waitSoftLimitReached = true;
+                        setStopButtonVisibility(true);
+                        setStatus(`Waiting. Probably on transforms. ${pendingCount} image${pendingCount === 1 ? '' : 's'} still pending at ${breakpoint}px. Click Quit Waiting to stop.`);
+                    },
+                    onWaitingTick: ({ pendingCount, waitedMs }) => {
+                        setStatus(`Waiting. Probably on transforms. ${pendingCount} image${pendingCount === 1 ? '' : 's'} still pending at ${breakpoint}px (${Math.ceil(waitedMs / 1000)}s). Click Quit Waiting to stop.`);
+                    },
+                });
+
+                if (waitResult.aborted) {
+                    throw new Error('Processing stopped by user during image wait.');
+                }
+
+                state.waitSoftLimitReached = false;
+                setStopButtonVisibility(false);
                 rowsByBreakpoint[breakpoint] = extractRowsForBreakpoint(breakpoint, preloadStates);
             }
 
@@ -989,6 +1379,9 @@
             setStatus(`Error: ${error.message}`);
         } finally {
             state.busy = false;
+            state.stopRequested = false;
+            state.waitSoftLimitReached = false;
+            setStopButtonVisibility(false);
             setButtonsDisabled(false);
         }
     }
@@ -1039,6 +1432,18 @@
         });
     }
 
+    if (elements.btnStop) {
+        elements.btnStop.addEventListener('click', () => {
+            if (!state.busy) {
+                return;
+            }
+
+            state.stopRequested = true;
+            elements.btnStop.disabled = true;
+            setStatus('Stopping after the current wait check...');
+        });
+    }
+
     if (elements.btnOpenPreview) {
         elements.btnOpenPreview.addEventListener('click', () => {
             setPreviewVisibility(true);
@@ -1075,6 +1480,9 @@
     }
 
     setPreviewVisibility(false);
+    setStopButtonVisibility(false);
+    setupDragToScroll();
+    window.addEventListener('resize', scheduleBreakpointPreviewHeightSync);
     getConfiguredBreakpoints();
     void loadInitialPreview();
 })();

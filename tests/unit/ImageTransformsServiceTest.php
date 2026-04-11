@@ -19,6 +19,46 @@ final class ImageTransformsServiceTest extends Unit
         $this->assertSame('(min-width: 63.9375rem)', $service->sourceMediaQuery(1536, 1024, true));
     }
 
+    public function testBreakpointsExcludeEscapeByDefault(): void
+    {
+        $service = Plugin::getInstance()->getImageTransforms();
+
+        $breakpoints = $service->getBreakpointsForTemplate([
+            'transformName' => 'default',
+            'breakpoints' => [
+                'xs' => 480,
+                'md' => 768,
+            ],
+            'escapeWidth' => 1920,
+        ]);
+
+        $this->assertSame([
+            'xs' => 480,
+            'md' => 768,
+        ], $breakpoints);
+    }
+
+    public function testBreakpointsIncludeEscapeWhenTemplateOptsIn(): void
+    {
+        $service = Plugin::getInstance()->getImageTransforms();
+
+        $breakpoints = $service->getBreakpointsForTemplate([
+            'transformName' => 'default',
+            'breakpoints' => [
+                'xs' => 480,
+                'md' => 768,
+            ],
+            'escapeWidth' => 1920,
+            'includeEscapeWidth' => true,
+        ]);
+
+        $this->assertSame([
+            'xs' => 480,
+            'md' => 768,
+            'escape' => 1920,
+        ], $breakpoints);
+    }
+
     public function testDisabledBreakpointReturnsPlaceholderSources(): void
     {
         $service = Plugin::getInstance()->getImageTransforms();

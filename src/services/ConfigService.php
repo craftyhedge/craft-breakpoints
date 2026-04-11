@@ -49,7 +49,11 @@ class ConfigService extends Component
             return [];
         }
 
-        $escapeWidth = (int)($merged['escapeWidth'] ?? 1920);
+        if (!array_key_exists('escapeWidth', $merged)) {
+            return $breakpoints;
+        }
+
+        $escapeWidth = (int)$merged['escapeWidth'];
         if ($escapeWidth <= 0) {
             return $breakpoints;
         }

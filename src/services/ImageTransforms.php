@@ -496,12 +496,12 @@ class ImageTransforms extends Component
         }
 
         $namedTransform = $this->getNamedTransform($config);
-        if ($namedTransform !== null) {
-            $includeEscapeWidth = (bool)($namedTransform['includeEscapeWidth'] ?? false);
-            if ($breakpointName === 'escape' && $includeEscapeWidth === false) {
-                return true;
-            }
+        $includeEscapeWidth = $this->shouldIncludeEscapeWidth($config);
+        if ($breakpointName === 'escape' && $includeEscapeWidth === false) {
+            return true;
+        }
 
+        if ($namedTransform !== null) {
             if ($index !== null) {
                 $entry = $this->getTransformEntryByIndex($namedTransform, $index);
                 if ($entry !== null && isset($entry['enabled']) && $entry['enabled'] === false) {
@@ -767,17 +767,18 @@ class ImageTransforms extends Component
         }
 
         $breakpoints = $this->_plugin->getConfigService()->getBreakpoints($mergedConfig);
-        $namedTransform = $this->getNamedTransform($config);
-        if ($namedTransform === null) {
-            return $breakpoints;
-        }
-
-        $includeEscapeWidth = (bool)($namedTransform['includeEscapeWidth'] ?? false);
+        $includeEscapeWidth = $this->shouldIncludeEscapeWidth($config);
         if (!$includeEscapeWidth) {
             unset($breakpoints['escape']);
         }
 
         return $breakpoints;
+    }
+
+    private function shouldIncludeEscapeWidth(array $config): bool
+    {
+        return array_key_exists('includeEscapeWidth', $config)
+            && (bool)$config['includeEscapeWidth'] === true;
     }
 
     private function getTransformCacheKey(Asset $image, string $formatIndex, array $config): string

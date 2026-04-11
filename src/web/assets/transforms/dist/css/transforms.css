@@ -17,6 +17,26 @@
     flex-wrap: wrap;
 }
 
+.bpi-stop-processing {
+    border-color: #c73a2c;
+    background: #ffe9e7;
+    color: #7f1d13;
+}
+
+#bpi-stop-processing[hidden] {
+    display: none !important;
+}
+
+.bpi-stop-processing:hover {
+    border-color: #ab2f22;
+    background: #ffd5d1;
+    color: #65150d;
+}
+
+#bpi-run-processing {
+    opacity: 1;
+}
+
 .bpi-frame-pane,
 .bpi-output-pane {
     padding-top: 14px;
@@ -126,6 +146,7 @@
 .bpi-visual-results {
     display: grid;
     gap: 12px;
+    min-width: 0;
 }
 
 .bpi-transform-card {
@@ -133,6 +154,9 @@
     border-radius: 8px;
     background: #fff;
     padding: 10px;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
 }
 
 .bpi-transform-card-header {
@@ -153,12 +177,33 @@
 }
 
 .bpi-breakpoint-grid {
-    display: grid;
+    display: flex;
     gap: 10px;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    align-items: stretch;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+}
+
+.bpi-breakpoint-grid.bpi-drag-scrollable {
+    cursor: grab;
+}
+
+.bpi-breakpoint-grid.bpi-drag-scrolling {
+    cursor: grabbing;
+}
+
+.bpi-breakpoint-grid.bpi-drag-scrolling,
+.bpi-breakpoint-grid.bpi-drag-scrolling * {
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .bpi-breakpoint-column {
+    flex: 0 0 var(--bpi-breakpoint-column-width, 170px);
+    max-width: var(--bpi-breakpoint-column-width, 170px);
+    min-width: 0;
     border: 1px solid #e3e8ef;
     border-radius: 8px;
     background: #fafbfd;
@@ -207,6 +252,7 @@
 .bpi_breakpoint-result {
     min-height: 48px;
     display: flex;
+    width: 100%;
     align-items: flex-end;
 }
 
@@ -225,22 +271,73 @@
     background: linear-gradient(180deg, #d8e2ef, #bcc8d8);
     object-fit: cover;
     display: block;
+    -webkit-user-drag: none;
+    user-select: none;
 }
 
-.bpi_rendered-dimensions {
-    display: flex;
-    justify-content: space-between;
+.bpi-dimension-table-wrap {
+    padding: 5px 8px 9px;
+}
+
+.bpi-dimension-matrix {
+    display: inline-block;
+    width: fit-content;
+    max-width: 100%;
+    border: 1px solid #d7e0eb;
+    border-radius: 6px;
+    background: #fefefe;
+    overflow: hidden;
+}
+
+.bpi-dimension-row {
+    display: grid;
+    grid-template-columns: 18px max-content max-content;
     align-items: center;
-    padding: 6px 10px 10px;
-    font-size: 11px;
-    color: #4d5a6a;
+    column-gap: 6px;
+    padding: 4px 10px 4px 6px;
 }
 
-.bpi_rendered-info-container {
+.bpi-dimension-row + .bpi-dimension-row {
+    border-top: 1px solid #e4ebf3;
+}
+
+.bpi-dimension-icon {
+    width: 18px;
+    height: 18px;
     display: inline-flex;
-    gap: 4px;
     align-items: center;
-    font-weight: 600;
+    justify-content: center;
+    line-height: 1;
+}
+
+.bpi-dimension-icon svg {
+    width: 15px;
+    height: 15px;
+    display: block;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.bpi-dimension-icon-rendered {
+    color: #2b4d73;
+}
+
+.bpi-dimension-icon-current {
+    color: #4b5a6b;
+}
+
+.bpi_rendered-dimension,
+.bpi_current-dimension {
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+    color: #2a3645;
+    text-align: center;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
 }
 
 .bpi_rendered-dimension.bpi_dimension-match {
@@ -259,11 +356,8 @@
     color: #4e5c6c;
 }
 
-.bpi-current-suggested {
-    padding: 0 10px 10px;
-    color: #5f6d7d;
-    font-size: 11px;
-    line-height: 1.4;
+.bpi_current-dimension {
+    color: #5a6878;
 }
 
 .bpi-empty-state {

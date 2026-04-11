@@ -28,7 +28,6 @@ class ProcessingManifest extends Component
         }
 
         $breakpoints = $this->_plugin->getConfigService()->getBreakpoints();
-        unset($breakpoints['escape']);
 
         return [
             'schemaVersion' => 1,

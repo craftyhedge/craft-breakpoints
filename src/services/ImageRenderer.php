@@ -175,21 +175,16 @@ class ImageRenderer extends Component
             return '{}';
         }
 
-        $breakpoints = $this->_plugin->getConfigService()->getBreakpoints($config);
+        $breakpoints = $this->_plugin->getImageTransforms()->getBreakpointsForTemplate($config);
         $transformName = (string)($config['transformName'] ?? 'default');
         $transform = $this->_plugin->getTransforms()->getTransform($transformName);
         $entries = is_array($transform['transforms'] ?? null) ? $transform['transforms'] : [];
         $disableBreakpoints = is_array($config['disableBreakpoints'] ?? null) ? $config['disableBreakpoints'] : [];
-        $includeEscapeWidth = (bool)($transform['includeEscapeWidth'] ?? false);
 
         $states = [];
         $index = 0;
         foreach ($breakpoints as $breakpointName => $breakpointValue) {
             $enabled = true;
-
-            if ($breakpointName === 'escape' && !$includeEscapeWidth) {
-                $enabled = false;
-            }
 
             if (isset($entries[$index]) && is_array($entries[$index]) && array_key_exists('enabled', $entries[$index])) {
                 $enabled = $entries[$index]['enabled'] !== false;

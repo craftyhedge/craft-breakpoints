@@ -15,7 +15,7 @@ class Settings extends Model
         '2xl' => 1536,
     ];
 
-    public int $escapeWidth = 1920;
+    public int $escapeWidth = 0;
     public int $defaultWidth = 1600;
     public int $defaultHeight = 900;
 

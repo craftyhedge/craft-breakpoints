@@ -34,6 +34,26 @@ final class BreakpointConfigServiceTest extends Unit
         ], $breakpoints);
     }
 
+    public function testBreakpointsDoNotIncludeEscapeWhenEscapeWidthIsUnset(): void
+    {
+        $plugin = Plugin::getInstance();
+        $service = $plugin->getConfigService();
+
+        $breakpoints = $service->getBreakpoints([
+            'breakpoints' => [
+                'xs' => 480,
+                'sm' => 640,
+                '2xl' => 1536,
+            ],
+        ]);
+
+        $this->assertSame([
+            'xs' => 480,
+            'sm' => 640,
+            '2xl' => 1536,
+        ], $breakpoints);
+    }
+
     public function testPictureTemplatePathFallsBackWhenBlank(): void
     {
         $plugin = Plugin::getInstance();
