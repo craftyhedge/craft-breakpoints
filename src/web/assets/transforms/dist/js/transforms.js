@@ -8,26 +8,24 @@
     const IMAGE_WAIT_POLL_MS = 250;
 
     const bpiProcessingManifest = window.bpiProcessingManifest || {};
+    const ENTRY_URL_ACTION = 'craft-breakpoint-images/default/entry-url';
 
     const elements = {
-        url: document.getElementById('bpi-process-url'),
+        page: document.querySelector('.bpi-transforms-page'),
+        sourceEntry: document.getElementById('bpi-source-entry'),
         status: document.getElementById('bpi-status'),
         framePane: document.getElementById('bpi-frame-pane'),
         wrapper: document.getElementById('bpi-frame-wrapper'),
         warnings: document.getElementById('bpi-warnings'),
         visualResults: document.getElementById('bpi-visual-results'),
-        resultsMeta: document.getElementById('bpi-results-meta'),
         btnOpenPreview: document.getElementById('bpi-open-preview'),
-        btnLoad: document.getElementById('bpi-load-preview'),
         btnRun: document.getElementById('bpi-run-processing'),
-        btnRerun: document.getElementById('bpi-rerun-processing'),
-        btnRefresh: document.getElementById('bpi-refresh-preview'),
         btnStop: document.getElementById('bpi-stop-processing'),
         btnClosePreview: document.getElementById('bpi-close-preview'),
         btnCopy: document.getElementById('bpi-copy-output')
     };
 
-    if (!elements.url || !elements.wrapper) {
+    if (!elements.sourceEntry || !elements.wrapper) {
         return;
     }
 
@@ -41,7 +39,10 @@
         waitSoftLimitReached: false,
         previewVisible: false,
         previewHeightSyncRaf: null,
+        sourceSyncRaf: null,
+        selectedEntryId: null,
         dragScrollSuppressClick: false,
+        editPanelOpenTransforms: new Set(),
         dragScroll: {
             active: false,
             moved: false,
@@ -56,6 +57,25 @@
         if (elements.status) {
             elements.status.textContent = message;
         }
+    }
+
+    function setProcessingState(isProcessing) {
+        if (!elements.page) {
+            return;
+        }
+
+        elements.page.classList.toggle('is-processing', Boolean(isProcessing));
+    }
+
+    function updateCopyButtonVisibility() {
+        if (!elements.btnCopy) {
+            return;
+        }
+
+        const hasResult = state.lastResult !== null;
+        elements.btnCopy.hidden = !hasResult;
+        elements.btnCopy.disabled = !hasResult;
+        elements.btnCopy.setAttribute('aria-hidden', hasResult ? 'false' : 'true');
     }
 
     function setStopButtonVisibility(isVisible) {
@@ -125,14 +145,17 @@
     }
 
     function setButtonsDisabled(disabled) {
-        if (elements.btnLoad) {
-            elements.btnLoad.disabled = disabled;
+        const hasSourceSelection = getSelectedEntryId() !== null;
+        const runShouldDisable = disabled || !hasSourceSelection;
+        const openShouldDisable = disabled || state.previewVisible || !hasSourceSelection;
+
+        if (elements.btnRun) {
+            elements.btnRun.disabled = runShouldDisable;
+            elements.btnRun.classList.toggle('disabled', runShouldDisable);
         }
-        if (elements.btnRerun) {
-            elements.btnRerun.disabled = disabled;
-        }
-        if (elements.btnRefresh) {
-            elements.btnRefresh.disabled = disabled;
+        if (elements.btnOpenPreview) {
+            elements.btnOpenPreview.disabled = openShouldDisable;
+            elements.btnOpenPreview.classList.toggle('disabled', openShouldDisable);
         }
     }
 
@@ -144,17 +167,117 @@
             elements.framePane.classList.toggle('is-hidden', !state.previewVisible);
         }
 
-        if (elements.btnOpenPreview) {
-            elements.btnOpenPreview.disabled = state.previewVisible;
+        setButtonsDisabled(state.busy);
+    }
+
+    function scheduleSourceControlSync() {
+        if (state.sourceSyncRaf !== null) {
+            window.cancelAnimationFrame(state.sourceSyncRaf);
         }
+
+        state.sourceSyncRaf = window.requestAnimationFrame(() => {
+            state.sourceSyncRaf = null;
+            const selectedEntryId = getSelectedEntryId();
+            const sourceChanged = selectedEntryId !== state.selectedEntryId;
+            state.selectedEntryId = selectedEntryId;
+
+            setButtonsDisabled(state.busy);
+
+            if (!state.busy && sourceChanged) {
+                if (selectedEntryId) {
+                    setStatus('Source selected. Run Processing next.');
+                } else {
+                    setStatus('Select a source entry.');
+                }
+            }
+        });
+    }
+
+    function bindSourceSelectionSync() {
+        if (!elements.sourceEntry) {
+            return;
+        }
+
+        const observer = new MutationObserver(() => {
+            scheduleSourceControlSync();
+        });
+
+        observer.observe(elements.sourceEntry, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['value']
+        });
+
+        elements.sourceEntry.addEventListener('change', scheduleSourceControlSync);
+        elements.sourceEntry.addEventListener('click', () => {
+            window.setTimeout(scheduleSourceControlSync, 0);
+        });
     }
 
     function normalizeUrl(rawUrl) {
         const input = String(rawUrl || '').trim();
         if (!input) {
-            throw new Error('Source URL is required.');
+            throw new Error('Source entry URL is required.');
         }
         return new URL(input, window.location.origin).toString();
+    }
+
+    function parseEntryId(rawValue) {
+        const input = String(rawValue || '').trim();
+        if (!input) {
+            return null;
+        }
+
+        if (!/^\d+$/.test(input)) {
+            return null;
+        }
+
+        const parsed = parseInt(input, 10);
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+    }
+
+    function getSelectedEntryId() {
+        if (!elements.sourceEntry) {
+            return null;
+        }
+
+        const selectedElement = elements.sourceEntry.querySelector('.elements .element[data-id]');
+        if (selectedElement) {
+            const selectedId = parseEntryId(selectedElement.getAttribute('data-id'));
+            if (selectedId !== null) {
+                return selectedId;
+            }
+        }
+
+        const hiddenInputs = Array.from(elements.sourceEntry.querySelectorAll('input[type="hidden"][name="bpi-source-entry-id"]'));
+        for (let index = hiddenInputs.length - 1; index >= 0; index -= 1) {
+            const value = parseEntryId(hiddenInputs[index].value);
+            if (value !== null) {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
+    async function resolveSelectedEntryUrl() {
+        const entryId = getSelectedEntryId();
+        if (!entryId) {
+            throw new Error('Select a source entry first.');
+        }
+
+        if (typeof Craft === 'undefined' || typeof Craft.sendActionRequest !== 'function') {
+            throw new Error('Craft action request API is unavailable.');
+        }
+
+        const response = await Craft.sendActionRequest('POST', ENTRY_URL_ACTION, {
+            data: {
+                entryId,
+            },
+        });
+
+        return normalizeUrl(response?.data?.url || '');
     }
 
     function getOrCreatePreviewFrame() {
@@ -1097,9 +1220,20 @@
 
         const grids = Array.from(elements.visualResults.querySelectorAll('.bpi-breakpoint-grid'));
         grids.forEach((grid) => {
-            const isScrollable = (grid.scrollWidth - grid.clientWidth) > 1;
-            grid.classList.toggle('bpi-drag-scrollable', isScrollable);
+            updateGridScrollAffordance(grid);
         });
+    }
+
+    function updateGridScrollAffordance(grid) {
+        const maxScrollLeft = Math.max(0, grid.scrollWidth - grid.clientWidth);
+        const isScrollable = maxScrollLeft > 1;
+        const atStart = grid.scrollLeft <= 1;
+        const atEnd = grid.scrollLeft >= (maxScrollLeft - 1);
+
+        grid.classList.toggle('bpi-drag-scrollable', isScrollable);
+        grid.classList.toggle('bpi-scroll-fade-active', isScrollable);
+        grid.classList.toggle('bpi-scroll-fade-left', isScrollable && !atStart);
+        grid.classList.toggle('bpi-scroll-fade-right', isScrollable && !atEnd);
     }
 
     function endDragScroll(pointerId = null) {
@@ -1192,6 +1326,7 @@
 
             event.preventDefault();
             drag.grid.scrollLeft = drag.startScrollLeft - deltaX;
+            updateGridScrollAffordance(drag.grid);
         }, { passive: false });
 
         window.addEventListener('pointerup', (event) => {
@@ -1207,6 +1342,20 @@
                 event.preventDefault();
             }
         });
+
+        elements.visualResults.addEventListener('scroll', (event) => {
+            const target = event.target;
+            if (!target || typeof target.closest !== 'function') {
+                return;
+            }
+
+            const grid = target.closest('.bpi-breakpoint-grid');
+            if (!grid || !elements.visualResults.contains(grid)) {
+                return;
+            }
+
+            updateGridScrollAffordance(grid);
+        }, true);
 
         elements.visualResults.addEventListener('click', (event) => {
             if (!state.dragScrollSuppressClick) {
@@ -1233,6 +1382,65 @@
         });
     }
 
+    function slugifyTransformName(transformName) {
+        return String(transformName || 'transform')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '')
+            || 'transform';
+    }
+
+    function getEditPanelId(transformName) {
+        return `bpi-edit-panel-${slugifyTransformName(transformName)}`;
+    }
+
+    function setTransformEditPanelOpen(card, isOpen) {
+        const panel = card.querySelector('.bpi-transform-edit-panel');
+        const toggle = card.querySelector('.bpi-edit-panel-toggle');
+        if (!panel || !toggle) {
+            return;
+        }
+
+        card.classList.toggle('bpi-transform-card-edit-open', isOpen);
+        panel.hidden = !isOpen;
+        toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        toggle.textContent = isOpen ? 'Close options' : 'Edit options';
+    }
+
+    function setupEditPanelToggle() {
+        if (!elements.visualResults) {
+            return;
+        }
+
+        elements.visualResults.addEventListener('click', (event) => {
+            const toggle = event.target.closest('.bpi-edit-panel-toggle');
+            if (!toggle || !elements.visualResults.contains(toggle)) {
+                return;
+            }
+
+            const card = toggle.closest('.bpi-transform-card');
+            if (!card) {
+                return;
+            }
+
+            const transformName = card.getAttribute('data-transform') || '';
+            if (!transformName) {
+                return;
+            }
+
+            event.preventDefault();
+
+            const isOpen = state.editPanelOpenTransforms.has(transformName) === false;
+            if (isOpen) {
+                state.editPanelOpenTransforms.add(transformName);
+            } else {
+                state.editPanelOpenTransforms.delete(transformName);
+            }
+
+            setTransformEditPanelOpen(card, isOpen);
+        });
+    }
+
     function renderVisualResults(result) {
         if (!elements.visualResults) {
             return;
@@ -1256,14 +1464,27 @@
             const breakpointColumns = transformBreakpoints
                 .map((breakpoint) => renderBreakpointColumn(result, transformName, breakpoint, breakpointColumnWidths))
                 .join('');
+            const isEditPanelOpen = state.editPanelOpenTransforms.has(transformName);
+            const editPanelId = getEditPanelId(transformName);
 
             return `
-                <section class="bpi-transform-card" data-transform="${escapeHtml(transformName)}">
+                <section class="bpi-transform-card ${isEditPanelOpen ? 'bpi-transform-card-edit-open' : ''}" data-transform="${escapeHtml(transformName)}">
                     <header class="bpi-transform-card-header">
                         <div class="bpi-transform-name">${escapeHtml(transformName)}</div>
-                        <div class="bpi-transform-stats">${transformAssetCount} assets | ${editsCount} edits</div>
+                        <div class="bpi-transform-header-actions">
+                            <div class="bpi-transform-stats">${transformAssetCount} assets | ${editsCount} edits</div>
+                            <button
+                                type="button"
+                                class="btn small bpi-edit-panel-toggle"
+                                aria-expanded="${isEditPanelOpen ? 'true' : 'false'}"
+                                aria-controls="${editPanelId}"
+                            >${isEditPanelOpen ? 'Close options' : 'Edit options'}</button>
+                        </div>
                     </header>
                     <div class="bpi-breakpoint-grid">${breakpointColumns}</div>
+                    <section class="bpi-transform-edit-panel" id="${editPanelId}" ${isEditPanelOpen ? '' : 'hidden'}>
+                        <div class="bpi-transform-edit-panel-copy">Editing options will appear here.</div>
+                    </section>
                 </section>
             `;
         }).join('');
@@ -1286,17 +1507,11 @@
     function renderResultReview(result) {
         renderWarningsPanel(result);
         renderVisualResults(result);
-
-        if (elements.resultsMeta) {
-            const summary = result?.summary || {};
-            const warningCount = Number(summary.warningCount) || 0;
-            const warningsText = warningCount > 0 ? `${warningCount} warnings` : 'no warnings';
-            elements.resultsMeta.textContent = `${summary.assetCount || 0} assets, ${summary.breakpointCount || 0} breakpoints, ${warningsText}`;
-        }
     }
 
     function publishResult(result) {
         state.lastResult = result;
+        updateCopyButtonVisibility();
         renderResultReview(result);
 
         document.dispatchEvent(new CustomEvent('bpi:processing-result', {
@@ -1304,12 +1519,11 @@
         }));
     }
 
-    async function runProcessing(useRefresh = false) {
+    async function runProcessing() {
         if (state.busy) {
             return;
         }
 
-        const sourceUrl = elements.url.value;
         const breakpoints = getConfiguredBreakpoints();
 
         if (!breakpoints.length) {
@@ -1320,6 +1534,7 @@
         state.busy = true;
         state.stopRequested = false;
         state.waitSoftLimitReached = false;
+        setProcessingState(true);
         setStopButtonVisibility(false);
         setButtonsDisabled(true);
         setStatus('Preparing preview...');
@@ -1327,8 +1542,9 @@
         const startedAt = Date.now();
 
         try {
+            const sourceUrl = await resolveSelectedEntryUrl();
             getOrCreatePreviewFrame();
-            await ensurePreviewFrame(sourceUrl, useRefresh);
+            await ensurePreviewFrame(sourceUrl, false);
 
             const rowsByBreakpoint = {};
             for (const breakpoint of breakpoints) {
@@ -1381,48 +1597,26 @@
             state.busy = false;
             state.stopRequested = false;
             state.waitSoftLimitReached = false;
+            setProcessingState(false);
             setStopButtonVisibility(false);
             setButtonsDisabled(false);
         }
     }
 
-    if (elements.btnLoad) {
-        elements.btnLoad.addEventListener('click', async () => {
-            try {
-                setStatus('Loading preview...');
-                const firstMeasurementWidth = getFirstBreakpointMeasurementWidth();
-                if (firstMeasurementWidth !== null) {
-                    await setPreviewWidth(firstMeasurementWidth);
-                }
-                await ensurePreviewFrame(elements.url.value, false);
-                setStatus('Preview loaded. Ready to process.');
-            } catch (error) {
-                setStatus(`Error: ${error.message}`);
-            }
-        });
-    }
-
     if (elements.btnRun) {
         elements.btnRun.addEventListener('click', async () => {
-            await runProcessing(false);
-        });
-    }
-
-    if (elements.btnRerun) {
-        elements.btnRerun.addEventListener('click', async () => {
-            await runProcessing(false);
-        });
-    }
-
-    if (elements.btnRefresh) {
-        elements.btnRefresh.addEventListener('click', async () => {
-            await runProcessing(true);
+            await runProcessing();
         });
     }
 
     if (elements.btnCopy) {
         elements.btnCopy.addEventListener('click', async () => {
-            const text = JSON.stringify(state.lastResult || {}, null, 2);
+            if (!state.lastResult) {
+                setStatus('No structured output available yet.');
+                return;
+            }
+
+            const text = JSON.stringify(state.lastResult, null, 2);
             try {
                 await navigator.clipboard.writeText(text);
                 setStatus('Structured output copied to clipboard.');
@@ -1445,9 +1639,21 @@
     }
 
     if (elements.btnOpenPreview) {
-        elements.btnOpenPreview.addEventListener('click', () => {
+        elements.btnOpenPreview.addEventListener('click', async () => {
             setPreviewVisibility(true);
-            setStatus('Preview opened.');
+            try {
+                setStatus('Loading preview...');
+                const firstMeasurementWidth = getFirstBreakpointMeasurementWidth();
+                if (firstMeasurementWidth !== null) {
+                    await setPreviewWidth(firstMeasurementWidth);
+                }
+
+                const sourceUrl = await resolveSelectedEntryUrl();
+                await ensurePreviewFrame(sourceUrl, false);
+                setStatus('Preview opened.');
+            } catch (error) {
+                setStatus(`Error: ${error.message}`);
+            }
         });
     }
 
@@ -1460,9 +1666,9 @@
 
     async function loadInitialPreview() {
         getOrCreatePreviewFrame();
-        const initialUrl = String(elements.url.value || '').trim();
-        if (!initialUrl) {
-            setStatus('Enter a Source URL and click Load Preview.');
+        const entryId = getSelectedEntryId();
+        if (!entryId) {
+            setStatus('Select a source entry.');
             return;
         }
 
@@ -1472,16 +1678,23 @@
             if (firstMeasurementWidth !== null) {
                 await setPreviewWidth(firstMeasurementWidth);
             }
-            await ensurePreviewFrame(initialUrl, false);
-            setStatus('Preview loaded from Source URL.');
+            const sourceUrl = await resolveSelectedEntryUrl();
+            await ensurePreviewFrame(sourceUrl, false);
+            setStatus('Preview loaded from source entry.');
         } catch (error) {
             setStatus(`Error: ${error.message}`);
         }
     }
 
     setPreviewVisibility(false);
+    setProcessingState(false);
     setStopButtonVisibility(false);
+    updateCopyButtonVisibility();
+    state.selectedEntryId = getSelectedEntryId();
+    bindSourceSelectionSync();
+    setButtonsDisabled(false);
     setupDragToScroll();
+    setupEditPanelToggle();
     window.addEventListener('resize', scheduleBreakpointPreviewHeightSync);
     getConfiguredBreakpoints();
     void loadInitialPreview();

@@ -2,12 +2,15 @@
 
 namespace craftyhedge\craftbreakpointimages\controllers;
 
+use Craft;
+use craft\elements\Entry;
 use craft\helpers\UrlHelper;
 use craft\web\Controller;
 use craft\web\View;
 use craftyhedge\craftbreakpointimages\Plugin;
 use craftyhedge\craftbreakpointimages\web\assets\transforms\TransformsAsset;
 use yii\helpers\Json;
+use yii\web\BadRequestHttpException;
 use yii\web\Response;
 
 class DefaultController extends Controller
@@ -28,6 +31,19 @@ class DefaultController extends Controller
     public function actionTransforms(): Response
     {
         $manifest = Plugin::getInstance()->getProcessingManifest()->getManifest();
+        $siteId = Craft::$app->getSites()->getCurrentSite()->id;
+        $requestedEntryId = (int)($this->request->getQueryParam('entryId')
+            ?? $this->request->getQueryParam('id')
+            ?? 0);
+
+        $selectedSourceEntry = null;
+        if ($requestedEntryId > 0) {
+            $selectedSourceEntry = Entry::find()
+                ->id($requestedEntryId)
+                ->siteId($siteId)
+                ->status(null)
+                ->one();
+        }
 
         $this->view->registerAssetBundle(TransformsAsset::class);
         $this->view->registerJs(
@@ -38,6 +54,44 @@ class DefaultController extends Controller
         return $this->renderTemplate('craft-breakpoint-images/cp/transforms', [
             'selectedSubnavItem' => 'transforms',
             'processingManifest' => $manifest,
+            'selectedSourceEntries' => $selectedSourceEntry ? [$selectedSourceEntry] : [],
+        ]);
+    }
+
+    /**
+     * Returns an entry URL for the current site.
+     *
+     * @throws BadRequestHttpException if the request payload is invalid or the entry is not usable.
+     */
+    public function actionEntryUrl(): Response
+    {
+        $this->requireCpRequest();
+        $this->requireAcceptsJson();
+        $this->requirePostRequest();
+
+        $entryId = (int)$this->request->getRequiredBodyParam('entryId');
+        if ($entryId < 1) {
+            throw new BadRequestHttpException('Invalid entry ID.');
+        }
+
+        $siteId = Craft::$app->getSites()->getCurrentSite()->id;
+        $entry = Entry::find()
+            ->id($entryId)
+            ->siteId($siteId)
+            ->status(null)
+            ->one();
+
+        if (!$entry) {
+            throw new BadRequestHttpException('Entry not found for the current site.');
+        }
+
+        $entryUrl = $entry->getUrl();
+        if (!$entryUrl) {
+            throw new BadRequestHttpException('Selected entry does not have a front-end URL.');
+        }
+
+        return $this->asJson([
+            'url' => $entryUrl,
         ]);
     }
 }
