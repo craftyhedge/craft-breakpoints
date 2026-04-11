@@ -11,3 +11,4 @@
 /tests/_craft/storage/logs/
 /tests/_craft/storage/config-deltas/
 /tests/_support/_generated/
+.nocommit

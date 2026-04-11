@@ -1,9 +1,53 @@
 {% extends "_layouts/cp" %}
 {% set title = 'Transforms'|t('craft-breakpoint-images') %}
 {% set selectedSubnavItem = selectedSubnavItem ?? 'transforms' %}
+{% set defaultProcessUrl = 'https://portfolio.ddev.site/pages/thumbhash' %}
 
 {% block content %}
-    <div class="readable">
-        <p>{{ 'Transforms page is ready for implementation.'|t('craft-breakpoint-images') }}</p>
+    <div class="bpi-transforms-page">
+        <div class="bpi-controls-pane pane">
+            <h2>Transform Processing</h2>
+            <p class="light">
+                Load a same-origin page, process it at requested breakpoints, and produce structured output.
+            </p>
+
+            <div class="bpi-controls-grid">
+                <label for="bpi-process-url">Source URL</label>
+                <input id="bpi-process-url" class="text fullwidth" type="url" value="{{ defaultProcessUrl }}" placeholder="https://example.test/page" />
+            </div>
+
+            <div class="buttons bpi-controls-buttons">
+                <button id="bpi-open-preview" class="btn">Open Preview</button>
+                <button id="bpi-load-preview" class="btn">Load Preview</button>
+                <button id="bpi-run-processing" class="btn submit">Run Processing</button>
+                <button id="bpi-rerun-processing" class="btn">Re-Run</button>
+                <button id="bpi-refresh-preview" class="btn">Refresh Preview</button>
+            </div>
+
+            <p id="bpi-status" class="light" data-role="status">Idle</p>
+        </div>
+
+        <div id="bpi-frame-pane" class="bpi-frame-pane is-hidden">
+            <div class="bpi-frame-toolbar">
+                <strong>Preview</strong>
+            </div>
+            <div id="bpi-frame-wrapper" class="bpi-frame-wrapper" data-role="preview-wrapper">
+                <button id="bpi-close-preview" class="btn" type="button">Close Preview</button>
+            </div>
+        </div>
+
+        <div class="bpi-results-pane pane">
+            <div class="bpi-frame-toolbar">
+                <strong>Result Review</strong>
+                <span id="bpi-results-meta" class="light"></span>
+                <button id="bpi-copy-output" class="btn small" type="button">Copy JSON</button>
+            </div>
+            <div id="bpi-warnings" class="bpi-warning-list">
+                <div class="bpi-warning-item bpi-warning-item-neutral">Run processing to view warnings.</div>
+            </div>
+            <div id="bpi-visual-results" class="bpi-visual-results">
+                <div class="bpi-empty-state light">Breakpoint previews appear here after processing.</div>
+            </div>
+        </div>
     </div>
 {% endblock %}

@@ -1,0 +1,45 @@
+{
+    "default": {
+        "name": "default",
+        "transforms": [
+            {
+                "width": 480,
+                "height": null,
+                "enabled": true,
+                "autoDimension": null
+            },
+            {
+                "width": 640,
+                "height": null,
+                "enabled": true,
+                "autoDimension": null
+            },
+            {
+                "width": 768,
+                "height": null,
+                "enabled": true,
+                "autoDimension": null
+            },
+            {
+                "width": 1024,
+                "height": null,
+                "enabled": true,
+                "autoDimension": null
+            },
+            {
+                "width": 1280,
+                "height": null,
+                "enabled": true,
+                "autoDimension": null
+            },
+            {
+                "width": 1536,
+                "height": null,
+                "enabled": true,
+                "autoDimension": null
+            }
+        ],
+        "includeEscapeWidth": false,
+        "config": []
+    }
+}
