@@ -2,3 +2,6 @@
 /composer.lock
 /.idea/
 /.vscode/
+.github/skills
+.github/copilot-instructions.md
+.github/instructions/
