@@ -5,3 +5,9 @@
 .github/skills
 .github/copilot-instructions.md
 .github/instructions/
+/tests/.env
+/tests/_output/
+/tests/_craft/storage/runtime/
+/tests/_craft/storage/logs/
+/tests/_craft/storage/config-deltas/
+/tests/_support/_generated/

@@ -37,6 +37,46 @@ composer require craftyhedge/craft-breakpoint-images:@dev
 
 - `craft-breakpoint-images`
 
+## Testing
+
+This plugin uses Craft's standard Codeception-based test harness.
+
+See [TESTING.md](TESTING.md) for full local Docker database setup and troubleshooting.
+
+1. Install development dependencies:
+
+```bash
+composer install
+```
+
+2. Copy the test environment file:
+
+```bash
+cp tests/.env.example tests/.env
+```
+
+3. Run unit tests:
+
+```bash
+composer test
+```
+
+4. Run integration tests:
+
+```bash
+composer test:integration
+```
+
+## Static Analysis
+
+PHPStan is configured with Craft's plugin extension config.
+
+Run:
+
+```bash
+composer phpstan
+```
+
 ## Notes
 
 - This scaffold follows Craft CMS 5 docs conventions for plugin metadata, plugin class setup, and plugin settings.
