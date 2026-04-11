@@ -59,6 +59,48 @@ final class ImageTransformsServiceTest extends Unit
         ], $breakpoints);
     }
 
+    public function testBreakpointsIncludeEscapeWhenNamedTransformEnablesIt(): void
+    {
+        $this->withTemporaryTransforms([
+            'include-escape-test' => [
+                'name' => 'include-escape-test',
+                'includeEscapeWidth' => true,
+                'transforms' => [
+                    [
+                        'width' => 480,
+                        'height' => null,
+                        'enabled' => true,
+                        'autoDimension' => null,
+                    ],
+                    [
+                        'width' => 768,
+                        'height' => null,
+                        'enabled' => true,
+                        'autoDimension' => null,
+                    ],
+                ],
+                'config' => [],
+            ],
+        ], function(Plugin $plugin): void {
+            $service = $plugin->getImageTransforms();
+
+            $breakpoints = $service->getBreakpointsForTemplate([
+                'transformName' => 'include-escape-test',
+                'breakpoints' => [
+                    'xs' => 480,
+                    'md' => 768,
+                ],
+                'escapeWidth' => 1920,
+            ]);
+
+            $this->assertSame([
+                'xs' => 480,
+                'md' => 768,
+                'escape' => 1920,
+            ], $breakpoints);
+        });
+    }
+
     public function testDisabledBreakpointReturnsPlaceholderSources(): void
     {
         $service = Plugin::getInstance()->getImageTransforms();
@@ -107,6 +149,18 @@ final class ImageTransformsServiceTest extends Unit
         $this->assertStringContainsString(', ', $srcset);
     }
 
+    public function testDprRatiosIgnoreNonFiniteValuesAtRuntime(): void
+    {
+        $service = Plugin::getInstance()->getImageTransforms();
+        $method = new \ReflectionMethod($service, 'getDprRatios');
+
+        $ratios = $method->invoke($service, [
+            'dpr' => [INF, NAN, 2, 'text', -1, 0, 1],
+        ]);
+
+        $this->assertSame([1.0, 2.0], $ratios);
+    }
+
     public function testSourceAttributesContainWidthAndHeight(): void
     {
         $service = Plugin::getInstance()->getImageTransforms();
@@ -129,10 +183,7 @@ final class ImageTransformsServiceTest extends Unit
 
     public function testAutoDimensionHeightUsesDerivedHeight(): void
     {
-        $plugin = Plugin::getInstance();
-        $previousTransformsArray = $plugin->transformsArray;
-
-        $plugin->transformsArray = [
+        $this->withTemporaryTransforms([
             'auto-height-test' => [
                 'name' => 'auto-height-test',
                 'includeEscapeWidth' => false,
@@ -146,9 +197,7 @@ final class ImageTransformsServiceTest extends Unit
                 ],
                 'config' => [],
             ],
-        ];
-
-        try {
+        ], function(Plugin $plugin): void {
             $service = $plugin->getImageTransforms();
             $asset = $this->createMockAsset();
 
@@ -164,9 +213,7 @@ final class ImageTransformsServiceTest extends Unit
 
             $this->assertSame(500, $breakpointData['primarySourceAttributes']['width']);
             $this->assertSame(281, $breakpointData['primarySourceAttributes']['height']);
-        } finally {
-            $plugin->transformsArray = $previousTransformsArray;
-        }
+        });
     }
 
     public function testInitWidthAndHeightOverrideNamedTransformDimensions(): void
@@ -212,10 +259,7 @@ final class ImageTransformsServiceTest extends Unit
 
     public function testSecondaryFormatUsesNamedTransformConfigAndDprSrcset(): void
     {
-        $plugin = Plugin::getInstance();
-        $previousTransformsArray = $plugin->transformsArray;
-
-        $plugin->transformsArray = [
+        $this->withTemporaryTransforms([
             'secondary-dpr-test' => [
                 'name' => 'secondary-dpr-test',
                 'includeEscapeWidth' => false,
@@ -233,9 +277,7 @@ final class ImageTransformsServiceTest extends Unit
                     'quality' => 82,
                 ],
             ],
-        ];
-
-        try {
+        ], function(Plugin $plugin): void {
             $service = $plugin->getImageTransforms();
             $asset = $this->createMockAsset();
 
@@ -254,17 +296,12 @@ final class ImageTransformsServiceTest extends Unit
             $this->assertSame('image/webp', $breakpointData['secondarySourceAttributes']['type']);
             $this->assertStringContainsString('.webp 1x', $breakpointData['secondarySourceAttributes']['srcset']);
             $this->assertStringContainsString('.webp 2x', $breakpointData['secondarySourceAttributes']['srcset']);
-        } finally {
-            $plugin->transformsArray = $previousTransformsArray;
-        }
+        });
     }
 
     public function testNamedTransformFormatOverridesInlineFormatOptions(): void
     {
-        $plugin = Plugin::getInstance();
-        $previousTransformsArray = $plugin->transformsArray;
-
-        $plugin->transformsArray = [
+        $this->withTemporaryTransforms([
             'format-override-test' => [
                 'name' => 'format-override-test',
                 'includeEscapeWidth' => false,
@@ -281,9 +318,7 @@ final class ImageTransformsServiceTest extends Unit
                     'secondaryFormat' => 'jpg',
                 ],
             ],
-        ];
-
-        try {
+        ], function(Plugin $plugin): void {
             $service = $plugin->getImageTransforms();
             $asset = $this->createMockAsset();
 
@@ -305,8 +340,21 @@ final class ImageTransformsServiceTest extends Unit
 
             $this->assertSame('webp', $primary[0]['format']);
             $this->assertSame('jpg', $secondary[0]['format']);
+        });
+    }
+
+    private function withTemporaryTransforms(array $transforms, callable $callback): void
+    {
+        $plugin = Plugin::getInstance();
+        $store = $plugin->getTransformStore();
+        $previousTransforms = $store->getTransforms();
+
+        $store->replaceTransformsForRuntime($transforms);
+
+        try {
+            $callback($plugin);
         } finally {
-            $plugin->transformsArray = $previousTransformsArray;
+            $store->replaceTransformsForRuntime($previousTransforms);
         }
     }
 

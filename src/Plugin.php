@@ -16,11 +16,14 @@ use craft\web\UrlManager;
 use craft\web\View;
 use craft\web\twig\variables\CraftVariable;
 use craftyhedge\craftbreakpointimages\models\Settings;
+use craftyhedge\craftbreakpointimages\services\BreakpointPolicy;
 use craftyhedge\craftbreakpointimages\services\ConfigService;
 use craftyhedge\craftbreakpointimages\services\ImageRenderer;
 use craftyhedge\craftbreakpointimages\services\Images;
 use craftyhedge\craftbreakpointimages\services\ImageTransforms;
 use craftyhedge\craftbreakpointimages\services\ProcessingManifest;
+use craftyhedge\craftbreakpointimages\services\RenderContextBuilder;
+use craftyhedge\craftbreakpointimages\services\TransformStore;
 use craftyhedge\craftbreakpointimages\services\Transforms;
 use craftyhedge\craftbreakpointimages\web\twig\Extension;
 use Monolog\Formatter\LineFormatter;
@@ -30,13 +33,10 @@ use yii\log\Logger;
 
 class Plugin extends BasePlugin
 {
-    private const CONFIG_FOLDER_PERMISSIONS = 0755;
-    private const TRANSFORMS_CONFIG_PATH = '/craft-breakpoint-images/transforms.json';
     private const LOG_TARGET = 'craft-breakpoint-images';
     private const LOG_CATEGORY = 'craft-breakpoint-images';
 
     public static ?self $plugin = null;
-    public ?array $transformsArray = null;
 
     public bool $hasCpSettings = true;
     public bool $hasCpSection = true;
@@ -47,8 +47,11 @@ class Plugin extends BasePlugin
             'components' => [
                 'images' => Images::class,
                 'configService' => ConfigService::class,
+                'breakpointPolicy' => BreakpointPolicy::class,
                 'transforms' => Transforms::class,
+                'transformStore' => TransformStore::class,
                 'imageRenderer' => ImageRenderer::class,
+                'renderContextBuilder' => RenderContextBuilder::class,
                 'imageTransforms' => ImageTransforms::class,
                 'processingManifest' => ProcessingManifest::class,
             ],
@@ -67,8 +70,7 @@ class Plugin extends BasePlugin
         $this->registerTwigVariable();
         $this->registerInstallEventHandlers();
 
-        $this->ensureTransformsConfigFileExists();
-        $this->loadTransformsConfiguration();
+        $this->getTransformStore()->initialize();
 
         Event::on(
             UrlManager::class,
@@ -93,14 +95,29 @@ class Plugin extends BasePlugin
         return $this->get('configService');
     }
 
+    public function getBreakpointPolicy(): BreakpointPolicy
+    {
+        return $this->get('breakpointPolicy');
+    }
+
     public function getImageRenderer(): ImageRenderer
     {
         return $this->get('imageRenderer');
     }
 
+    public function getRenderContextBuilder(): RenderContextBuilder
+    {
+        return $this->get('renderContextBuilder');
+    }
+
     public function getTransforms(): Transforms
     {
         return $this->get('transforms');
+    }
+
+    public function getTransformStore(): TransformStore
+    {
+        return $this->get('transformStore');
     }
 
     public function getImageTransforms(): ImageTransforms
@@ -188,7 +205,6 @@ class Plugin extends BasePlugin
             View::EVENT_REGISTER_SITE_TEMPLATE_ROOTS,
             static function(RegisterTemplateRootsEvent $event): void {
                 $event->roots['craft-breakpoint-images'] = __DIR__ . '/templates';
-                $event->roots['templates'] = __DIR__ . '/templates';
             }
         );
     }
@@ -215,92 +231,9 @@ class Plugin extends BasePlugin
                     return;
                 }
 
-                $this->ensureTransformsConfigFileExists();
-                $this->loadTransformsConfiguration();
+                $this->getTransformStore()->initialize();
             }
         );
-    }
-
-    private function ensureTransformsConfigFileExists(): void
-    {
-        $folderPath = dirname($this->getTransformsConfigPath());
-        if (!is_dir($folderPath)) {
-            $created = mkdir($folderPath, self::CONFIG_FOLDER_PERMISSIONS, true);
-            if ($created === false && !is_dir($folderPath)) {
-                self::error('Failed to create transforms config directory.');
-                return;
-            }
-        }
-
-        $filePath = $this->getTransformsConfigPath();
-        if (is_file($filePath)) {
-            return;
-        }
-
-        $result = file_put_contents(
-            $filePath,
-            json_encode($this->buildDefaultTransforms(), JSON_PRETTY_PRINT)
-        );
-
-        if ($result === false) {
-            self::error('Failed to create transforms.json config file.');
-        }
-    }
-
-    private function loadTransformsConfiguration(): void
-    {
-        $filePath = $this->getTransformsConfigPath();
-
-        if (!is_file($filePath)) {
-            $this->transformsArray = [];
-            return;
-        }
-
-        $json = file_get_contents($filePath);
-        if ($json === false) {
-            self::warning('Could not read transforms.json config file.');
-            $this->transformsArray = [];
-            return;
-        }
-
-        $decoded = json_decode($json, true);
-        if (!is_array($decoded)) {
-            self::warning('Invalid transforms.json content. Expected valid JSON object.');
-            $this->transformsArray = [];
-            return;
-        }
-
-        $this->transformsArray = $decoded;
-    }
-
-    private function getTransformsConfigPath(): string
-    {
-        return Craft::$app->getPath()->getConfigPath() . self::TRANSFORMS_CONFIG_PATH;
-    }
-
-    private function buildDefaultTransforms(): array
-    {
-        $breakpoints = $this->getConfigService()->getBreakpoints();
-        unset($breakpoints['escape']);
-
-        $transformEntries = [];
-        foreach ($breakpoints as $breakpoint) {
-            $transformEntries[] = [
-                'width' => (int)$breakpoint,
-                'height' => null,
-                'enabled' => true,
-                'autoDimension' => null,
-            ];
-        }
-
-        return [
-            'default' => [
-                'name' => 'default',
-                'transforms' => $transformEntries,
-                'includeEscapeWidth' => false,
-                'config' => [],
-            ],
-        ];
     }
 
     protected function createSettingsModel(): ?Model

@@ -45,10 +45,11 @@ final class PluginRegistrationTest extends Unit
     {
         $plugin = Plugin::getInstance();
         $configPath = Craft::$app->getPath()->getConfigPath() . '/craft-breakpoint-images/transforms.json';
+        $transforms = $plugin->getTransformStore()->getTransforms();
 
         $this->assertFileExists($configPath);
-        $this->assertIsArray($plugin->transformsArray);
-        $this->assertArrayHasKey('default', $plugin->transformsArray);
+        $this->assertIsArray($transforms);
+        $this->assertArrayHasKey('default', $transforms);
 
         $defaultTransform = $plugin->getTransforms()->getTransform('default');
         $this->assertIsArray($defaultTransform);

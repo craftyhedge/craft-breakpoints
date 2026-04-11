@@ -7,6 +7,7 @@ namespace craftyhedge\craftbreakpointimages\tests\unit;
 use Codeception\Test\Unit;
 use Craft;
 use craftyhedge\craftbreakpointimages\Plugin;
+use craftyhedge\craftbreakpointimages\services\ConfigService;
 
 final class BreakpointConfigServiceTest extends Unit
 {
@@ -82,5 +83,25 @@ final class BreakpointConfigServiceTest extends Unit
 
         $this->assertArrayHasKey('secondaryFormat', $pluginConfig);
         $this->assertSame($pluginConfig['secondaryFormat'], $service->get('secondaryFormat'));
+    }
+
+    public function testDprNormalizationRejectsNonFiniteAndInvalidRatios(): void
+    {
+        $service = new ConfigService();
+        $method = new \ReflectionMethod(ConfigService::class, 'normalizeDpr');
+
+        $normalized = $method->invoke($service, [
+            0,
+            -1,
+            'text',
+            INF,
+            NAN,
+            2,
+            1,
+            2.0,
+            '3',
+        ]);
+
+        $this->assertSame([1.0, 2.0, 3.0], $normalized);
     }
 }

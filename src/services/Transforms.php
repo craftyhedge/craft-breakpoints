@@ -11,7 +11,7 @@ class Transforms extends Component
     {
         $plugin = Plugin::getInstance();
 
-        return is_array($plugin->transformsArray) ? $plugin->transformsArray : [];
+        return $plugin->getTransformStore()->getTransforms();
     }
 
     public function getTransform(string $transformName): ?array

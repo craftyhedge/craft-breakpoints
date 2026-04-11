@@ -23,6 +23,12 @@ class ImageTransforms extends Component
         $this->_plugin = Plugin::getInstance();
     }
 
+    public function resetCaches(): void
+    {
+        $this->_transformedImagesCache = [];
+        $this->_breakpointDataCache = [];
+    }
+
     public function getBreakpointData(int $loopIndex, int $breakpoint, array $config, Asset $image): array
     {
         $cacheKey = $this->getBreakpointCacheKey($loopIndex, $breakpoint, $config, $image);
@@ -36,14 +42,14 @@ class ImageTransforms extends Component
 
         $mergedConfig = $this->_plugin->getConfigService()->getConfig($config);
         $effectiveSecondaryFormat = $this->resolveEffectiveSecondaryFormat($config, $mergedConfig);
-        $allBreakpoints = $this->getBreakpointsForTransform($config, $mergedConfig);
+        $allBreakpoints = $this->_plugin->getBreakpointPolicy()->getBreakpointsForTransform($config, $mergedConfig);
         $breakpointNames = array_keys($allBreakpoints);
         $breakpointName = $breakpointNames[$loopIndex] ?? null;
         $namedTransform = $this->getNamedTransform($config);
         $transformEntry = $this->getTransformEntryByIndex($namedTransform, $loopIndex);
         $autoDimension = $this->resolveAutoDimension($transformEntry, $config);
 
-        if ($this->isBreakpointDisabled($breakpointName, $config, $loopIndex)) {
+        if ($this->_plugin->getBreakpointPolicy()->isBreakpointDisabled($breakpointName, $config, $loopIndex)) {
             $sourceMediaQuery = $this->getDisabledMediaQuery($breakpoint);
             $primarySourceAttributes = array_merge([
                 'srcset' => self::TRANSPARENT_PIXEL_DATA_URI,
@@ -117,7 +123,7 @@ class ImageTransforms extends Component
             ];
         }
 
-        $enabledBreakpoints = $this->getEnabledBreakpoints($allBreakpoints, $config);
+        $enabledBreakpoints = $this->_plugin->getBreakpointPolicy()->getEnabledBreakpoints($allBreakpoints, $config);
         $enabledValues = array_values($enabledBreakpoints);
         $secondLastBreakpoint = count($enabledValues) >= 2
             ? (int)$enabledValues[count($enabledValues) - 2]
@@ -185,10 +191,10 @@ class ImageTransforms extends Component
         }
 
         $mergedConfig = $this->_plugin->getConfigService()->getConfig($config);
-        $breakpoints = $this->getBreakpointsForTransform($config, $mergedConfig);
+        $breakpoints = $this->_plugin->getBreakpointPolicy()->getBreakpointsForTransform($config, $mergedConfig);
         $index = 0;
         foreach ($breakpoints as $breakpointName => $breakpointValue) {
-            if (!$this->isBreakpointDisabled((string)$breakpointName, $config, $index)) {
+            if (!$this->_plugin->getBreakpointPolicy()->isBreakpointDisabled((string)$breakpointName, $config, $index)) {
                 return $index;
             }
 
@@ -235,7 +241,16 @@ class ImageTransforms extends Component
 
         $mergedConfig = $this->_plugin->getConfigService()->getConfig($config);
 
-        return $this->getBreakpointsForTransform($config, $mergedConfig);
+        return $this->_plugin->getBreakpointPolicy()->getBreakpointsForTransform($config, $mergedConfig);
+    }
+
+    public function getBreakpointStates(array $config = []): array
+    {
+        if ($this->_plugin === null) {
+            return [];
+        }
+
+        return $this->_plugin->getBreakpointPolicy()->getBreakpointStates($config);
     }
 
     public function getTransformedImages(Asset $image, string $transform = 'default', string $formatIndex = 'primary', array $config = []): array
@@ -254,7 +269,7 @@ class ImageTransforms extends Component
         }
 
         $mergedConfig = $this->_plugin->getConfigService()->getConfig($config);
-        $breakpoints = $this->getBreakpointsForTransform($config, $mergedConfig);
+        $breakpoints = $this->_plugin->getBreakpointPolicy()->getBreakpointsForTransform($config, $mergedConfig);
         $namedTransform = $this->getNamedTransform($config);
         $namedTransformConfig = $this->getNamedTransformConfig($namedTransform);
 
@@ -299,7 +314,7 @@ class ImageTransforms extends Component
 
         $index = 0;
         foreach ($breakpoints as $breakpointName => $breakpointWidth) {
-            if ($this->isBreakpointDisabled((string)$breakpointName, $config, $index)) {
+            if ($this->_plugin->getBreakpointPolicy()->isBreakpointDisabled((string)$breakpointName, $config, $index)) {
                 $transformed[$index] = $this->getPlaceholderTransform((int)$image->id);
                 $index++;
                 continue;
@@ -472,48 +487,6 @@ class ImageTransforms extends Component
         return $normalized;
     }
 
-    private function getEnabledBreakpoints(array $breakpoints, array $config): array
-    {
-        $enabled = [];
-        $index = 0;
-        foreach ($breakpoints as $breakpointName => $breakpointValue) {
-            if ($this->isBreakpointDisabled((string)$breakpointName, $config, $index)) {
-                $index++;
-                continue;
-            }
-
-            $enabled[(string)$breakpointName] = (int)$breakpointValue;
-            $index++;
-        }
-
-        return $enabled;
-    }
-
-    private function isBreakpointDisabled(?string $breakpointName, array $config, ?int $index = null): bool
-    {
-        if ($breakpointName === null || $breakpointName === '') {
-            return false;
-        }
-
-        $namedTransform = $this->getNamedTransform($config);
-        $includeEscapeWidth = $this->shouldIncludeEscapeWidth($config);
-        if ($breakpointName === 'escape' && $includeEscapeWidth === false) {
-            return true;
-        }
-
-        if ($namedTransform !== null) {
-            if ($index !== null) {
-                $entry = $this->getTransformEntryByIndex($namedTransform, $index);
-                if ($entry !== null && isset($entry['enabled']) && $entry['enabled'] === false) {
-                    return true;
-                }
-            }
-        }
-
-        return isset($config['disableBreakpoints'][$breakpointName])
-            && $config['disableBreakpoints'][$breakpointName] === true;
-    }
-
     private function getDisabledMediaQuery(int $breakpoint): string
     {
         $processingOversizePx = $this->getProcessingMediaOversizePx();
@@ -580,7 +553,7 @@ class ImageTransforms extends Component
             }
 
             $parsed = (float)$ratio;
-            if ($parsed <= 0) {
+            if (!is_finite($parsed) || $parsed <= 0) {
                 continue;
             }
 
@@ -758,27 +731,6 @@ class ImageTransforms extends Component
         return $this->normalizeSecondaryFormat(
             (string)($namedConfig['secondaryFormat'] ?? $mergedConfig['secondaryFormat'] ?? 'none')
         );
-    }
-
-    private function getBreakpointsForTransform(array $config, array $mergedConfig): array
-    {
-        if ($this->_plugin === null) {
-            return [];
-        }
-
-        $breakpoints = $this->_plugin->getConfigService()->getBreakpoints($mergedConfig);
-        $includeEscapeWidth = $this->shouldIncludeEscapeWidth($config);
-        if (!$includeEscapeWidth) {
-            unset($breakpoints['escape']);
-        }
-
-        return $breakpoints;
-    }
-
-    private function shouldIncludeEscapeWidth(array $config): bool
-    {
-        return array_key_exists('includeEscapeWidth', $config)
-            && (bool)$config['includeEscapeWidth'] === true;
     }
 
     private function getTransformCacheKey(Asset $image, string $formatIndex, array $config): string

@@ -45,10 +45,6 @@ class ConfigService extends Component
         $merged = empty($config) ? $this->getConfig() : $this->getConfig($config);
         $breakpoints = $this->normalizeBreakpoints($merged['breakpoints'] ?? []);
 
-        if (!is_array($breakpoints)) {
-            return [];
-        }
-
         if (!array_key_exists('escapeWidth', $merged)) {
             return $breakpoints;
         }
@@ -215,7 +211,7 @@ class ConfigService extends Component
             }
 
             $parsed = (float)$ratio;
-            if ($parsed <= 0) {
+            if (!is_finite($parsed) || $parsed <= 0) {
                 continue;
             }
 
@@ -235,7 +231,7 @@ class ConfigService extends Component
     private function settingValuesEqual(mixed $left, mixed $right): bool
     {
         if (is_array($left) && is_array($right)) {
-            return json_encode($left) === json_encode($right);
+            return $left === $right;
         }
 
         return $left === $right;
