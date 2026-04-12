@@ -140,6 +140,40 @@ final class TransformEditorServiceTest extends Unit
         $this->assertArrayHasKey('transforms', $result['draft']);
     }
 
+    public function testRenderResultReviewDoesNotRenderMismatchWarningWhenRenderedDimensionsDiffer(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $result = $editor->renderResultReview([
+            'breakpoints' => [640],
+            'rowsByBreakpoint' => [
+                640 => [
+                    [
+                        'assetId' => '100',
+                        'transform' => 'hero',
+                        'enabled' => true,
+                        'isVisible' => true,
+                        'loaded' => true,
+                        'rendered' => ['width' => 600, 'height' => 340],
+                        'transformDimensions' => ['width' => 600, 'height' => 340, 'autoDimension' => null],
+                    ],
+                    [
+                        'assetId' => '101',
+                        'transform' => 'hero',
+                        'enabled' => true,
+                        'isVisible' => true,
+                        'loaded' => true,
+                        'rendered' => ['width' => 580, 'height' => 340],
+                        'transformDimensions' => ['width' => 580, 'height' => 340, 'autoDimension' => null],
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->assertStringContainsString('2 assets', (string)($result['visualResultsHtml'] ?? ''));
+        $this->assertStringNotContainsString('bpi-transform-stats-warning', (string)($result['visualResultsHtml'] ?? ''));
+    }
+
     private function setEditorPlugin(TransformEditor $editor, ?Plugin $plugin): void
     {
         $property = new \ReflectionProperty($editor, '_plugin');

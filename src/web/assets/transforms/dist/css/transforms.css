@@ -1160,14 +1160,6 @@ button.bpi-transform-input-addon:hover:not(:disabled) {
     font-variant-numeric: tabular-nums;
 }
 
-.bpi_rendered-dimension.bpi_dimension-match {
-    color: var(--fg-success, var(--teal-800));
-}
-
-.bpi_rendered-dimension.bpi_dimension-mismatch {
-    color: var(--fg-error, var(--red-800));
-}
-
 .bpi_rendered-dimension.bpi_dimension-no-transform {
     color: var(--fg-warning, var(--amber-800));
 }

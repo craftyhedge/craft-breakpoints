@@ -1214,8 +1214,8 @@ class TransformEditor extends Component
         $currentHeight = $this->normalizeNullablePositiveInt($currentRow['height'] ?? null);
         $autoDimension = $this->normalizeAutoDimension($currentRow['autoDimension'] ?? null);
 
-        $widthClass = $this->getReviewDimensionClass($renderedWidth, $currentWidth, $autoDimension, 'width');
-        $heightClass = $this->getReviewDimensionClass($renderedHeight, $currentHeight, $autoDimension, 'height');
+        $widthClass = $this->getReviewRenderedDimensionClass($renderedWidth, $currentWidth, $autoDimension, 'width');
+        $heightClass = $this->getReviewRenderedDimensionClass($renderedHeight, $currentHeight, $autoDimension, 'height');
 
         $previewMedia = $previewSrc !== ''
             ? sprintf(
@@ -1606,7 +1606,7 @@ class TransformEditor extends Component
         return $widths;
     }
 
-    private function getReviewDimensionClass(
+    private function getReviewRenderedDimensionClass(
         int $renderedValue,
         ?int $transformValue,
         ?string $autoDimension,
@@ -1624,9 +1624,7 @@ class TransformEditor extends Component
             return 'bpi_dimension-no-transform';
         }
 
-        return abs($renderedValue - $transformValue) <= 1
-            ? 'bpi_dimension-match'
-            : 'bpi_dimension-mismatch';
+        return '';
     }
 
     private function getReviewCurrentDimensionDisplay(?int $value, ?string $autoDimension, string $dimension): string

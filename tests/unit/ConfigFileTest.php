@@ -23,7 +23,7 @@ final class ConfigFileTest extends Unit
 
         $this->assertSame('craft-breakpoint-images/picture.twig', $config['pictureTemplatePath']);
         $this->assertSame('jpg', $config['format']);
-        $this->assertSame('webp', $config['secondaryFormat']);
+        $this->assertSame('none', $config['secondaryFormat']);
         $this->assertSame([1, 2], $config['dpr']);
 
         $this->assertIsArray($config['breakpoints']);

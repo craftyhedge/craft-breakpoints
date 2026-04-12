@@ -16,7 +16,7 @@ return [
     'position' => 'center-center',
     'quality' => 80,
     'format' => 'jpg',
-    'secondaryFormat' => 'webp',
+    'secondaryFormat' => 'none',
     'interlace' => 'none',
     'allowUpscale' => 0,
     'pictureTemplatePath' => 'craft-breakpoint-images/picture.twig',

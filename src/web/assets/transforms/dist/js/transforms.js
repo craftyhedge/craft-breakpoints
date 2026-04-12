@@ -1513,7 +1513,7 @@
         setStopButtonVisibility(false);
         setButtonsDisabled(true);
         startProcessingProgress(totalProgressSteps);
-        setStatus('Preparing preview...');
+        setStatus('Getting ready...');
 
         const startedAt = Date.now();
 
