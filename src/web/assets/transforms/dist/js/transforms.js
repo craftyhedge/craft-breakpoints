@@ -2,6 +2,8 @@
     const BREAKPOINT_SAFETY_PX = 2;
     const DRAG_SCROLL_THRESHOLD_PX = 4;
     const PROCESSING_QUERY_PARAM = '__bpiProcessing';
+    const ENTRY_ID_QUERY_PARAM = 'entry_id';
+    const LEGACY_ENTRY_ID_QUERY_PARAMS = ['entryId', 'id'];
     const PREVIEW_WIDTH_SETTLE_TIMEOUT_MS = 800;
     const PREVIEW_WIDTH_SETTLE_TOLERANCE_PX = 2;
     const PREVIEW_FRAME_TAG = 'ifr' + 'ame';
@@ -430,6 +432,28 @@
         });
 
         return normalizeUrl(response?.data?.url || '');
+    }
+
+    function syncSelectedEntryIdToUrl(entryIdRaw) {
+        const entryId = parseEntryId(entryIdRaw);
+        if (entryId === null || typeof window === 'undefined' || !window.location || !window.history || typeof window.history.replaceState !== 'function') {
+            return;
+        }
+
+        try {
+            const currentUrl = new URL(window.location.href);
+            currentUrl.searchParams.set(ENTRY_ID_QUERY_PARAM, String(entryId));
+            LEGACY_ENTRY_ID_QUERY_PARAMS.forEach((paramName) => {
+                currentUrl.searchParams.delete(paramName);
+            });
+
+            const nextUrl = currentUrl.toString();
+            if (nextUrl !== window.location.href) {
+                window.history.replaceState(window.history.state, '', nextUrl);
+            }
+        } catch (_error) {
+            // Ignore URL sync failures so processing flow remains uninterrupted.
+        }
     }
 
     function getOrCreatePreviewFrame() {
@@ -1495,6 +1519,7 @@
 
         try {
             const sourceUrl = await resolveSelectedEntryUrl();
+            syncSelectedEntryIdToUrl(getSelectedEntryId());
             getOrCreatePreviewFrame();
             await ensurePreviewFrame(sourceUrl, true);
             completedProgressSteps += 1;

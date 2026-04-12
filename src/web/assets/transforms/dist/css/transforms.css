@@ -374,6 +374,11 @@
     min-width: 0;
 }
 
+.bpi-transform-header-actions .bpi-transform-edit-inline-checkbox {
+    white-space: nowrap;
+    font-size: 11px;
+}
+
 .bpi-transform-stats {
     color: var(--fg-subtle);
     font-size: 11px;

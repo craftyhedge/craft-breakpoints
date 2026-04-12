@@ -56,7 +56,8 @@ class DefaultController extends Controller
         $plugin = Plugin::getInstance();
         $manifest = $plugin->getProcessingManifest()->getManifest();
         $siteId = Craft::$app->getSites()->getCurrentSite()->id;
-        $requestedEntryId = (int)($this->request->getQueryParam('entryId')
+        $requestedEntryId = (int)($this->request->getQueryParam('entry_id')
+            ?? $this->request->getQueryParam('entryId')
             ?? $this->request->getQueryParam('id')
             ?? 0);
 
