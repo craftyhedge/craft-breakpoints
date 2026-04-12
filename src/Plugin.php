@@ -176,7 +176,7 @@ class Plugin extends BasePlugin
                 'url' => 'craft-breakpoint-images/transforms',
             ],
             'processing' => [
-                'label' => Craft::t('craft-breakpoint-images', 'Processing'),
+                'label' => Craft::t('craft-breakpoint-images', 'Process and Review'),
                 'url' => 'craft-breakpoint-images/processing',
             ],
         ];

@@ -1,6 +1,6 @@
 {% extends "_layouts/cp" %}
 {% import '_includes/forms' as forms %}
-{% set title = 'Processing'|t('craft-breakpoint-images') %}
+{% set title = 'Process and Review'|t('craft-breakpoint-images') %}
 {% set selectedSubnavItem = selectedSubnavItem ?? 'processing' %}
 {% set toolbar %}
     <div class="bpi-header-status-wrap">
@@ -74,7 +74,7 @@
             </div>
             <div id="bpi-warnings" class="bpi-warning-list">
                 <div class="bpi-warning-item bpi-warning-item-neutral">
-                    <span class="bpi-warning-code">{{ 'About processing'|t('craft-breakpoint-images') }}</span>
+                    <span class="bpi-warning-code">{{ 'Process'|t('craft-breakpoint-images') }}</span>
                     <div class="bpi-warning-detail">
                         <p>{{ 'Select an entry with images then hit process.'|t('craft-breakpoint-images') }}</p>
                     </div>
