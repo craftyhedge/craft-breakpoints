@@ -51,25 +51,29 @@
                             <div class="bpi-transform-dimensions-row">
                                 <div class="bpi-transform-edit-dimension-group">
                                     <div class="bpi-transform-dimension-inline-row">
-                                        <input id="__WIDTH_INPUT_ID__" class="text bpi-transform-edit-input bpi-transform-width-input" type="number" min="1" step="1" inputmode="numeric"
-                                            aria-label="Width"
-                                            data-attr:disabled="Number($editor.cards.__SIGNAL_KEY__.scopeActive || 0) !== 1 || Number($editor.cards.__SIGNAL_KEY__.widthAuto || 0) === 1"
-                                            placeholder="w"
-                                            data-attr:placeholder="Number($editor.cards.__SIGNAL_KEY__.widthAuto || 0) === 1 ? 'auto' : 'w'"
-                                            data-bind="__SIGNAL_PATH_BASE__.widthInput">
-                                        <button type="button" class="bpi-transform-auto-toggle" title="Toggle auto width" aria-label="Toggle auto width" data-class:active="Number($editor.cards.__SIGNAL_KEY__.widthAuto || 0) === 1" data-attr:aria-pressed="Number($editor.cards.__SIGNAL_KEY__.widthAuto || 0) === 1 ? 'true' : 'false'" data-attr:disabled="Number($editor.cards.__SIGNAL_KEY__.scopeActive || 0) !== 1" data-on:click="const isAuto=Number($editor.cards.__SIGNAL_KEY__.widthAuto || 0) === 1; if(isAuto){ $editor.cards.__SIGNAL_KEY__.widthAuto='0'; } else { $editor.cards.__SIGNAL_KEY__.widthAuto='1'; $editor.cards.__SIGNAL_KEY__.heightAuto='0'; $editor.cards.__SIGNAL_KEY__.widthInput=''; }">A</button>
+                                        <div class="bpi-transform-input-with-addon">
+                                            <input id="__WIDTH_INPUT_ID__" class="text bpi-transform-edit-input bpi-transform-width-input" type="number" min="1" step="1" inputmode="numeric"
+                                                aria-label="Width"
+                                                data-attr:disabled="Number($editor.cards.__SIGNAL_KEY__.scopeActive || 0) !== 1 || Number($editor.cards.__SIGNAL_KEY__.widthAuto || 0) === 1"
+                                                placeholder="w"
+                                                data-attr:placeholder="Number($editor.cards.__SIGNAL_KEY__.widthAuto || 0) === 1 ? 'auto' : 'w'"
+                                                data-bind="__SIGNAL_PATH_BASE__.widthInput">
+                                            <button type="button" class="bpi-transform-auto-toggle bpi-transform-input-addon" title="Toggle auto width" aria-label="Toggle auto width" data-class:active="Number($editor.cards.__SIGNAL_KEY__.widthAuto || 0) === 1" data-attr:aria-pressed="Number($editor.cards.__SIGNAL_KEY__.widthAuto || 0) === 1 ? 'true' : 'false'" data-attr:disabled="Number($editor.cards.__SIGNAL_KEY__.scopeActive || 0) !== 1" data-on:click="const isAuto=Number($editor.cards.__SIGNAL_KEY__.widthAuto || 0) === 1; if(isAuto){ $editor.cards.__SIGNAL_KEY__.widthAuto='0'; } else { $editor.cards.__SIGNAL_KEY__.widthAuto='1'; $editor.cards.__SIGNAL_KEY__.heightAuto='0'; $editor.cards.__SIGNAL_KEY__.widthInput=''; }">A</button>
+                                        </div>
                                     </div>
                                 </div>
 
                                 <div class="bpi-transform-edit-dimension-group">
                                     <div class="bpi-transform-dimension-inline-row">
-                                        <input id="__HEIGHT_INPUT_ID__" class="text bpi-transform-edit-input bpi-transform-height-input" type="number" min="1" step="1" inputmode="numeric"
-                                            aria-label="Height"
-                                            data-attr:disabled="Number($editor.cards.__SIGNAL_KEY__.scopeActive || 0) !== 1 || Number($editor.cards.__SIGNAL_KEY__.heightAuto || 0) === 1"
-                                            placeholder="h"
-                                            data-attr:placeholder="Number($editor.cards.__SIGNAL_KEY__.heightAuto || 0) === 1 ? 'auto' : 'h'"
-                                            data-bind="__SIGNAL_PATH_BASE__.heightInput">
-                                        <button type="button" class="bpi-transform-auto-toggle" title="Toggle auto height" aria-label="Toggle auto height" data-class:active="Number($editor.cards.__SIGNAL_KEY__.heightAuto || 0) === 1" data-attr:aria-pressed="Number($editor.cards.__SIGNAL_KEY__.heightAuto || 0) === 1 ? 'true' : 'false'" data-attr:disabled="Number($editor.cards.__SIGNAL_KEY__.scopeActive || 0) !== 1" data-on:click="const isAuto=Number($editor.cards.__SIGNAL_KEY__.heightAuto || 0) === 1; if(isAuto){ $editor.cards.__SIGNAL_KEY__.heightAuto='0'; } else { $editor.cards.__SIGNAL_KEY__.heightAuto='1'; $editor.cards.__SIGNAL_KEY__.widthAuto='0'; $editor.cards.__SIGNAL_KEY__.heightInput=''; }">A</button>
+                                        <div class="bpi-transform-input-with-addon">
+                                            <input id="__HEIGHT_INPUT_ID__" class="text bpi-transform-edit-input bpi-transform-height-input" type="number" min="1" step="1" inputmode="numeric"
+                                                aria-label="Height"
+                                                data-attr:disabled="Number($editor.cards.__SIGNAL_KEY__.scopeActive || 0) !== 1 || Number($editor.cards.__SIGNAL_KEY__.heightAuto || 0) === 1"
+                                                placeholder="h"
+                                                data-attr:placeholder="Number($editor.cards.__SIGNAL_KEY__.heightAuto || 0) === 1 ? 'auto' : 'h'"
+                                                data-bind="__SIGNAL_PATH_BASE__.heightInput">
+                                            <button type="button" class="bpi-transform-auto-toggle bpi-transform-input-addon" title="Toggle auto height" aria-label="Toggle auto height" data-class:active="Number($editor.cards.__SIGNAL_KEY__.heightAuto || 0) === 1" data-attr:aria-pressed="Number($editor.cards.__SIGNAL_KEY__.heightAuto || 0) === 1 ? 'true' : 'false'" data-attr:disabled="Number($editor.cards.__SIGNAL_KEY__.scopeActive || 0) !== 1" data-on:click="const isAuto=Number($editor.cards.__SIGNAL_KEY__.heightAuto || 0) === 1; if(isAuto){ $editor.cards.__SIGNAL_KEY__.heightAuto='0'; } else { $editor.cards.__SIGNAL_KEY__.heightAuto='1'; $editor.cards.__SIGNAL_KEY__.widthAuto='0'; $editor.cards.__SIGNAL_KEY__.heightInput=''; }">A</button>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -83,24 +87,46 @@
 
                         <section class="bpi-transform-tab-panel __RATIO_PANEL_ACTIVE_CLASS__" data-tab-panel="ratio" __RATIO_PANEL_HIDDEN_ATTR__ data-class:active="$editor.cards.__SIGNAL_KEY__.activeTab === 'ratio'" data-attr:hidden="$editor.cards.__SIGNAL_KEY__.activeTab === 'ratio' ? false : true">
                             <section class="bpi-transform-ratio-section" aria-label="Ratio controls">
-                                <div class="bpi-transform-ratio-source-row">
-                                    <label class="bpi-transform-edit-inline-checkbox">
-                                        <input type="radio" name="__RATIO_SOURCE_NAME__" value="w" checked data-bind="__SIGNAL_PATH_BASE__.ratioSourceDimension" data-attr:disabled="Number($editor.cards.__SIGNAL_KEY__.scopeActive || 0) !== 1 || Number($editor.cards.__SIGNAL_KEY__.widthAuto || 0) === 1 || Number($editor.cards.__SIGNAL_KEY__.heightAuto || 0) === 1">
-                                        <span>W</span>
-                                    </label>
-                                    <label class="bpi-transform-edit-inline-checkbox">
-                                        <input type="radio" name="__RATIO_SOURCE_NAME__" value="h" data-bind="__SIGNAL_PATH_BASE__.ratioSourceDimension" data-attr:disabled="Number($editor.cards.__SIGNAL_KEY__.scopeActive || 0) !== 1 || Number($editor.cards.__SIGNAL_KEY__.widthAuto || 0) === 1 || Number($editor.cards.__SIGNAL_KEY__.heightAuto || 0) === 1">
-                                        <span>H</span>
-                                    </label>
-                                </div>
                                 <div class="bpi-transform-ratio-controls-row">
-                                    <label class="bpi-transform-ratio-input-wrap" for="__RATIO_WIDTH_INPUT_ID__">
-                                        <input id="__RATIO_WIDTH_INPUT_ID__" class="text bpi-transform-ratio-input bpi-transform-ratio-width-input" type="number" min="1" step="1" inputmode="numeric" data-bind="__SIGNAL_PATH_BASE__.ratioWidthInput" data-attr:disabled="Number($editor.cards.__SIGNAL_KEY__.scopeActive || 0) !== 1 || Number($editor.cards.__SIGNAL_KEY__.widthAuto || 0) === 1 || Number($editor.cards.__SIGNAL_KEY__.heightAuto || 0) === 1">
-                                    </label>
-                                    <label class="bpi-transform-ratio-input-wrap" for="__RATIO_HEIGHT_INPUT_ID__">
-                                        <input id="__RATIO_HEIGHT_INPUT_ID__" class="text bpi-transform-ratio-input bpi-transform-ratio-height-input" type="number" min="1" step="1" inputmode="numeric" data-bind="__SIGNAL_PATH_BASE__.ratioHeightInput" data-attr:disabled="Number($editor.cards.__SIGNAL_KEY__.scopeActive || 0) !== 1 || Number($editor.cards.__SIGNAL_KEY__.widthAuto || 0) === 1 || Number($editor.cards.__SIGNAL_KEY__.heightAuto || 0) === 1">
-                                    </label>
-                                    <button type="button" class="btn small bpi-transform-ratio-apply" data-attr:disabled="Number($editor.cards.__SIGNAL_KEY__.scopeActive || 0) !== 1 || Number($editor.cards.__SIGNAL_KEY__.widthAuto || 0) === 1 || Number($editor.cards.__SIGNAL_KEY__.heightAuto || 0) === 1" data-on:click="@post(el.closest('.bpi-transforms-page').dataset.applyCardOperationUrl || '/actions/craft-breakpoint-images/transforms/apply-card-operation', {contentType: 'json', payload: {transformName: el.closest('.bpi-transform-card').dataset.transform || '', field: 'ratio', includeEscapeWidth: (el.closest('.bpi-transform-card').dataset.includeEscapeWidth || '0') === '1', scopeMode: $editor.cards.__SIGNAL_KEY__.scopeMode || '', scopeBreakpoint: Number($editor.cards.__SIGNAL_KEY__.scopeBreakpoint || 0) || null, ratioWidth: Number($editor.cards.__SIGNAL_KEY__.ratioWidthInput || 0) || null, ratioHeight: Number($editor.cards.__SIGNAL_KEY__.ratioHeightInput || 0) || null, ratioSourceDimension: $editor.cards.__SIGNAL_KEY__.ratioSourceDimension || 'w', baseVersion: Number($editor.baseVersion || 1), ...(Craft && Craft.csrfTokenName && Craft.csrfTokenValue ? {[Craft.csrfTokenName]: Craft.csrfTokenValue} : {})}})">Apply</button>
+                                    <div class="bpi-transform-edit-dimension-group">
+                                        <div class="bpi-transform-dimension-inline-row">
+                                            <div class="bpi-transform-input-with-addon">
+                                                <input id="__RATIO_WIDTH_INPUT_ID__" class="text bpi-transform-ratio-input bpi-transform-ratio-width-input" type="number" min="1" step="1" inputmode="numeric" aria-label="Ratio width" data-bind="__SIGNAL_PATH_BASE__.ratioWidthInput" data-attr:disabled="Number($editor.cards.__SIGNAL_KEY__.scopeActive || 0) !== 1 || Number($editor.cards.__SIGNAL_KEY__.widthAuto || 0) === 1 || Number($editor.cards.__SIGNAL_KEY__.heightAuto || 0) === 1">
+                                                <label class="bpi-transform-ratio-source-toggle bpi-transform-input-addon" title="Lock width as fixed dimension">
+                                                    <input type="radio" name="__RATIO_SOURCE_NAME__" value="w" checked data-bind="__SIGNAL_PATH_BASE__.ratioSourceDimension" data-attr:disabled="Number($editor.cards.__SIGNAL_KEY__.scopeActive || 0) !== 1 || Number($editor.cards.__SIGNAL_KEY__.widthAuto || 0) === 1 || Number($editor.cards.__SIGNAL_KEY__.heightAuto || 0) === 1" aria-label="Lock width as fixed dimension">
+                                                    <span class="bpi-transform-input-addon-icon" aria-hidden="true">
+                                                        <svg class="bpi-transform-input-addon-lock bpi-transform-input-addon-lock-open" viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+                                                            <path d="M10 2a4 4 0 00-4 4v2h2V6a2 2 0 114 0v1h2V6a4 4 0 00-4-4zm-5 6a1 1 0 00-1 1v8a1 1 0 001 1h9.5a1 1 0 001-1V9a1 1 0 00-1-1H5zm4 3a1 1 0 112 0v2a1 1 0 11-2 0v-2z"></path>
+                                                        </svg>
+                                                        <svg class="bpi-transform-input-addon-lock bpi-transform-input-addon-lock-closed" viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+                                                            <path d="M6 8V6a4 4 0 118 0v2h1a1 1 0 011 1v7a1 1 0 01-1 1H5a1 1 0 01-1-1V9a1 1 0 011-1h1zm2 0h4V6a2 2 0 10-4 0v2zm2 3a1 1 0 00-1 1v2a1 1 0 102 0v-2a1 1 0 00-1-1z"></path>
+                                                        </svg>
+                                                    </span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="bpi-transform-edit-dimension-group">
+                                        <div class="bpi-transform-dimension-inline-row">
+                                            <div class="bpi-transform-input-with-addon">
+                                                <input id="__RATIO_HEIGHT_INPUT_ID__" class="text bpi-transform-ratio-input bpi-transform-ratio-height-input" type="number" min="1" step="1" inputmode="numeric" aria-label="Ratio height" data-bind="__SIGNAL_PATH_BASE__.ratioHeightInput" data-attr:disabled="Number($editor.cards.__SIGNAL_KEY__.scopeActive || 0) !== 1 || Number($editor.cards.__SIGNAL_KEY__.widthAuto || 0) === 1 || Number($editor.cards.__SIGNAL_KEY__.heightAuto || 0) === 1">
+                                                <label class="bpi-transform-ratio-source-toggle bpi-transform-input-addon" title="Lock height as fixed dimension">
+                                                    <input type="radio" name="__RATIO_SOURCE_NAME__" value="h" data-bind="__SIGNAL_PATH_BASE__.ratioSourceDimension" data-attr:disabled="Number($editor.cards.__SIGNAL_KEY__.scopeActive || 0) !== 1 || Number($editor.cards.__SIGNAL_KEY__.widthAuto || 0) === 1 || Number($editor.cards.__SIGNAL_KEY__.heightAuto || 0) === 1" aria-label="Lock height as fixed dimension">
+                                                    <span class="bpi-transform-input-addon-icon" aria-hidden="true">
+                                                        <svg class="bpi-transform-input-addon-lock bpi-transform-input-addon-lock-open" viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+                                                            <path d="M10 2a4 4 0 00-4 4v2h2V6a2 2 0 114 0v1h2V6a4 4 0 00-4-4zm-5 6a1 1 0 00-1 1v8a1 1 0 001 1h9.5a1 1 0 001-1V9a1 1 0 00-1-1H5zm4 3a1 1 0 112 0v2a1 1 0 11-2 0v-2z"></path>
+                                                        </svg>
+                                                        <svg class="bpi-transform-input-addon-lock bpi-transform-input-addon-lock-closed" viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+                                                            <path d="M6 8V6a4 4 0 118 0v2h1a1 1 0 011 1v7a1 1 0 01-1 1H5a1 1 0 01-1-1V9a1 1 0 011-1h1zm2 0h4V6a2 2 0 10-4 0v2zm2 3a1 1 0 00-1 1v2a1 1 0 102 0v-2a1 1 0 00-1-1z"></path>
+                                                        </svg>
+                                                    </span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="bpi-transform-dimensions-actions">
+                                        <button type="button" class="btn small bpi-transform-ratio-apply" data-attr:disabled="Number($editor.cards.__SIGNAL_KEY__.scopeActive || 0) !== 1 || Number($editor.cards.__SIGNAL_KEY__.widthAuto || 0) === 1 || Number($editor.cards.__SIGNAL_KEY__.heightAuto || 0) === 1" data-on:click="@post(el.closest('.bpi-transforms-page').dataset.applyCardOperationUrl || '/actions/craft-breakpoint-images/transforms/apply-card-operation', {contentType: 'json', payload: {transformName: el.closest('.bpi-transform-card').dataset.transform || '', field: 'ratio', includeEscapeWidth: (el.closest('.bpi-transform-card').dataset.includeEscapeWidth || '0') === '1', scopeMode: $editor.cards.__SIGNAL_KEY__.scopeMode || '', scopeBreakpoint: Number($editor.cards.__SIGNAL_KEY__.scopeBreakpoint || 0) || null, ratioWidth: Number($editor.cards.__SIGNAL_KEY__.ratioWidthInput || 0) || null, ratioHeight: Number($editor.cards.__SIGNAL_KEY__.ratioHeightInput || 0) || null, ratioSourceDimension: $editor.cards.__SIGNAL_KEY__.ratioSourceDimension || 'w', baseVersion: Number($editor.baseVersion || 1), ...(Craft && Craft.csrfTokenName && Craft.csrfTokenValue ? {[Craft.csrfTokenName]: Craft.csrfTokenValue} : {})}})">Apply</button>
+                                    </div>
                                 </div>
                                 <div class="bpi-transform-ratio-copy-row">
                                     <label class="bpi-transform-ratio-input-wrap">

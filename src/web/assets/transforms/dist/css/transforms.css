@@ -553,14 +553,16 @@
     display: block;
 }
 
-.bpi-transform-dimensions-row {
+.bpi-transform-dimensions-row,
+.bpi-transform-ratio-controls-row {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, max-content)) max-content;
     gap: 8px 10px;
 }
 
 @media (max-width: 460px) {
-    .bpi-transform-dimensions-row {
+    .bpi-transform-dimensions-row,
+    .bpi-transform-ratio-controls-row {
         grid-template-columns: max-content;
     }
 }
@@ -579,17 +581,58 @@
     min-height: 32px;
 }
 
-.bpi-transform-auto-toggle {
-    appearance: none;
-    -webkit-appearance: none;
-    width: 22px;
-    min-width: 22px;
-    height: 22px;
-    min-height: 22px;
+.bpi-transform-input-with-addon {
+    display: inline-flex;
+    align-items: stretch;
+    min-height: 32px;
     box-sizing: border-box;
     border: 1px solid var(--border-hairline-medium);
     border-radius: 4px;
     background: var(--gray-000, #fff);
+    overflow: hidden;
+}
+
+.bpi-transform-input-with-addon:focus-within {
+    outline: 2px solid rgba(79, 131, 183, 0.32);
+    outline-offset: 1px;
+}
+
+.bpi-transform-input-with-addon .bpi-transform-edit-input,
+.bpi-transform-input-with-addon .bpi-transform-ratio-input {
+    width: 96px;
+    min-width: 96px;
+    height: 30px;
+    min-height: 30px;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent;
+}
+
+.bpi-transform-input-with-addon .bpi-transform-edit-input:focus,
+.bpi-transform-input-with-addon .bpi-transform-ratio-input:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+.bpi-transform-input-with-addon .bpi-transform-edit-input:disabled,
+.bpi-transform-input-with-addon .bpi-transform-ratio-input:disabled {
+    background: transparent;
+    color: var(--fg-subtle);
+}
+
+.bpi-transform-input-addon {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 28px;
+    min-width: 28px;
+    height: 30px;
+    min-height: 30px;
+    box-sizing: border-box;
+    border: 0;
+    border-left: 1px solid var(--border-hairline-medium);
+    background: var(--gray-050, #f4f6f8);
     color: var(--fg-subtle);
     padding: 0;
     margin: 0;
@@ -602,31 +645,31 @@
     cursor: pointer;
 }
 
+button.bpi-transform-input-addon:hover:not(:disabled) {
+    color: var(--text-color);
+    background: #ebeff4;
+}
+
+.bpi-transform-ratio-source-toggle:hover input[type="radio"]:not(:disabled) + .bpi-transform-input-addon-icon {
+    color: var(--text-color);
+    background: #ebeff4;
+}
+
 .bpi-transform-auto-toggle.active {
     border-color: #4f83b7;
     background: #eaf2fb;
     color: #1f5a93;
 }
 
-.bpi-transform-auto-toggle:hover:not(:disabled) {
-    border-color: #8fa1b3;
-    color: var(--text-color);
-}
-
-.bpi-transform-auto-toggle:focus-visible {
-    outline: 2px solid rgba(79, 131, 183, 0.32);
-    outline-offset: 1px;
-}
-
-.bpi-transform-auto-toggle:disabled {
+.bpi-transform-input-addon:disabled {
     opacity: 0.55;
     cursor: not-allowed;
 }
 
 .bpi-transform-dimensions-actions {
     display: flex;
-    align-items: flex-end;
-    padding-bottom: 1px;
+    align-items: center;
+    padding-bottom: 0;
 }
 
 .bpi-transform-dimensions-actions .bpi-transform-dimensions-apply {
@@ -662,6 +705,26 @@
     border: 1px solid var(--border-hairline-medium);
     border-radius: 4px;
     background: var(--gray-000, #fff);
+    color: var(--text-color);
+    transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
+}
+
+.bpi-transform-settings-control:hover:not(:disabled) {
+    border-color: #8fa1b3;
+}
+
+.bpi-transform-settings-control:focus,
+.bpi-transform-settings-control:focus-visible {
+    outline: none;
+    border-color: #4f83b7;
+    box-shadow: 0 0 0 2px rgba(79, 131, 183, 0.24);
+}
+
+.bpi-transform-settings-control:disabled {
+    background: var(--gray-100, #f0f2f5);
+    color: var(--fg-subtle);
+    opacity: 0.75;
+    cursor: not-allowed;
 }
 
 .bpi-transform-settings-quality-input {
@@ -704,7 +767,6 @@
 }
 
 .bpi-transform-ratio-source-row,
-.bpi-transform-ratio-controls-row,
 .bpi-transform-ratio-copy-row {
     display: flex;
     align-items: center;
@@ -712,9 +774,76 @@
     flex-wrap: wrap;
 }
 
-.bpi-transform-edit-input,
-.bpi-transform-ratio-input {
-    width: 96px;
+.bpi-transform-ratio-source-toggle {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    cursor: pointer;
+}
+
+.bpi-transform-ratio-source-toggle input[type="radio"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    cursor: inherit;
+}
+
+.bpi-transform-input-addon-icon {
+    width: 100%;
+    height: 100%;
+    color: inherit;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.bpi-transform-input-addon-lock {
+    width: 14px;
+    height: 14px;
+    fill: currentColor;
+}
+
+.bpi-transform-input-addon-lock-closed {
+    display: none;
+}
+
+.bpi-transform-input-addon-lock-open {
+    display: block;
+    opacity: 0.78;
+}
+
+.bpi-transform-ratio-source-toggle input[type="radio"]:checked + .bpi-transform-input-addon-icon {
+    background: #eaf2fb;
+    color: #1f5a93;
+    box-shadow: inset 0 0 0 1px rgba(79, 131, 183, 0.22);
+}
+
+.bpi-transform-ratio-source-toggle input[type="radio"]:checked + .bpi-transform-input-addon-icon .bpi-transform-input-addon-lock-closed {
+    display: block;
+}
+
+.bpi-transform-ratio-source-toggle input[type="radio"]:checked + .bpi-transform-input-addon-icon .bpi-transform-input-addon-lock-open {
+    display: none;
+}
+
+.bpi-transform-ratio-source-toggle input[type="radio"]:focus-visible + .bpi-transform-input-addon-icon {
+    color: var(--text-color);
+    outline: 2px solid rgba(79, 131, 183, 0.32);
+    outline-offset: -2px;
+}
+
+.bpi-transform-ratio-source-toggle input[type="radio"]:disabled + .bpi-transform-input-addon-icon {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.bpi-transform-ratio-source-toggle input[type="radio"]:disabled {
+    cursor: not-allowed;
 }
 
 .bpi-transform-edit-inline-checkbox,
