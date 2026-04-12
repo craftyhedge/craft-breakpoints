@@ -24,6 +24,7 @@ use craftyhedge\craftbreakpointimages\services\ImageTransforms;
 use craftyhedge\craftbreakpointimages\services\ProcessingManifest;
 use craftyhedge\craftbreakpointimages\services\RenderContextBuilder;
 use craftyhedge\craftbreakpointimages\services\TransformStore;
+use craftyhedge\craftbreakpointimages\services\TransformEditor;
 use craftyhedge\craftbreakpointimages\services\Transforms;
 use craftyhedge\craftbreakpointimages\web\twig\Extension;
 use Monolog\Formatter\LineFormatter;
@@ -54,6 +55,7 @@ class Plugin extends BasePlugin
                 'renderContextBuilder' => RenderContextBuilder::class,
                 'imageTransforms' => ImageTransforms::class,
                 'processingManifest' => ProcessingManifest::class,
+                'transformEditor' => TransformEditor::class,
             ],
         ];
     }
@@ -128,6 +130,11 @@ class Plugin extends BasePlugin
     public function getProcessingManifest(): ProcessingManifest
     {
         return $this->get('processingManifest');
+    }
+
+    public function getTransformEditor(): TransformEditor
+    {
+        return $this->get('transformEditor');
     }
 
     public static function info(string $message): void

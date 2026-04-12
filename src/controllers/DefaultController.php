@@ -30,7 +30,8 @@ class DefaultController extends Controller
 
     public function actionTransforms(): Response
     {
-        $manifest = Plugin::getInstance()->getProcessingManifest()->getManifest();
+        $plugin = Plugin::getInstance();
+        $manifest = $plugin->getProcessingManifest()->getManifest();
         $siteId = Craft::$app->getSites()->getCurrentSite()->id;
         $requestedEntryId = (int)($this->request->getQueryParam('entryId')
             ?? $this->request->getQueryParam('id')
@@ -54,6 +55,7 @@ class DefaultController extends Controller
         return $this->renderTemplate('craft-breakpoint-images/cp/transforms', [
             'selectedSubnavItem' => 'transforms',
             'processingManifest' => $manifest,
+            'applyCardOperationUrl' => UrlHelper::cpUrl('actions/craft-breakpoint-images/transforms/apply-card-operation'),
             'selectedSourceEntries' => $selectedSourceEntry ? [$selectedSourceEntry] : [],
         ]);
     }

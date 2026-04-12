@@ -4,6 +4,7 @@ namespace craftyhedge\craftbreakpointimages\services;
 
 use Craft;
 use InvalidArgumentException;
+use RuntimeException;
 use craftyhedge\craftbreakpointimages\Plugin;
 use yii\base\Component;
 
@@ -53,6 +54,27 @@ class TransformStore extends Component
     public function setTransforms(array $transforms): void
     {
         $this->replaceTransformsForRuntime($transforms);
+    }
+
+    public function persistTransforms(array $transforms): array
+    {
+        $normalized = $this->validateTransforms($transforms);
+        $encoded = json_encode($normalized, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+
+        if ($encoded === false) {
+            throw new RuntimeException('Failed to encode transforms configuration.');
+        }
+
+        $this->ensureTransformsConfigFileExists();
+        $bytesWritten = file_put_contents($this->getTransformsConfigPath(), $encoded . PHP_EOL, LOCK_EX);
+        if ($bytesWritten === false) {
+            throw new RuntimeException('Failed to persist transforms configuration.');
+        }
+
+        $this->_transforms = $normalized;
+        $this->resetImageTransformCaches();
+
+        return $normalized;
     }
 
     public function getTransform(string $transformName): ?array

@@ -33,10 +33,15 @@
             }) }}
         </div>
     </div>
+
 {% endblock %}
 
 {% block content %}
-    <div class="bpi-transforms-page">
+    <div
+        class="bpi-transforms-page"
+        data-signals="{editor: {baseVersion: 1, cards: {}}}"
+        data-apply-card-operation-url="{{ applyCardOperationUrl }}"
+    >
         <div id="bpi-frame-pane" class="bpi-frame-pane is-hidden">
             <div class="bpi-frame-toolbar">
                 <strong>Preview</strong>

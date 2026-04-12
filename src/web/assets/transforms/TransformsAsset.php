@@ -17,6 +17,10 @@ class TransformsAsset extends AssetBundle
             'css/transforms.css',
         ];
         $this->js = [
+            [
+                'js/vendor/datastar.js',
+                'type' => 'module',
+            ],
             'js/transforms.js',
         ];
 

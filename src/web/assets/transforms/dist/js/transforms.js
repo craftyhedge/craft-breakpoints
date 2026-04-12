@@ -1,14 +1,21 @@
 (() => {
     const BREAKPOINT_SAFETY_PX = 2;
-    const FIRST_BREAKPOINT_COLUMN_WIDTH_PX = 120;
     const DRAG_SCROLL_THRESHOLD_PX = 4;
     const PROCESSING_QUERY_PARAM = '__bpiProcessing';
+    const PREVIEW_WIDTH_SETTLE_TIMEOUT_MS = 800;
+    const PREVIEW_WIDTH_SETTLE_TOLERANCE_PX = 2;
     const PREVIEW_FRAME_TAG = 'ifr' + 'ame';
     const IMAGE_WAIT_SOFT_DEADLINE_MS = 4000;
     const IMAGE_WAIT_POLL_MS = 250;
+    const CARD_UPDATE_STATUS_CLEAR_DELAY_MS = 1800;
 
     const bpiProcessingManifest = window.bpiProcessingManifest || {};
     const ENTRY_URL_ACTION = 'craft-breakpoint-images/default/entry-url';
+    const RENDER_RESULT_REVIEW_ACTION = 'craft-breakpoint-images/transforms/render-result-review';
+    const DATASTAR_FETCH_EVENT = 'datastar-fetch';
+    const DATASTAR_PATCH_ELEMENTS_EVENT = 'datastar-patch-elements';
+    const DATASTAR_PATCH_SIGNALS_EVENT = 'datastar-patch-signals';
+    const DATASTAR_SIGNAL_PATCH_EVENT = 'datastar-signal-patch';
 
     const elements = {
         page: document.querySelector('.bpi-transforms-page'),
@@ -42,7 +49,8 @@
         sourceSyncRaf: null,
         selectedEntryId: null,
         dragScrollSuppressClick: false,
-        editPanelOpenTransforms: new Set(),
+        updateStatusResetTimersByTransform: {},
+        pendingTransformUpdates: new Set(),
         dragScroll: {
             active: false,
             moved: false,
@@ -99,40 +107,6 @@
             .map((entry) => parseInt(String(entry), 10))
             .filter((bp) => Number.isFinite(bp) && bp > 0)
             .sort((a, b) => a - b);
-    }
-
-    function getEscapeBreakpointValue() {
-        const rawValue = bpiProcessingManifest?.breakpoints?.escape;
-        const parsed = parseInt(String(rawValue ?? ''), 10);
-
-        return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-    }
-
-    function getBreakpointsForTransformConfig(transformConfig, breakpoints) {
-        const includeEscapeWidth = transformConfig?.includeEscapeWidth === true;
-        const escapeBreakpoint = getEscapeBreakpointValue();
-
-        if (includeEscapeWidth || escapeBreakpoint === null) {
-            return breakpoints;
-        }
-
-        return breakpoints.filter((breakpoint) => breakpoint !== escapeBreakpoint);
-    }
-
-    function getBreakpointsForObservedTransform(transformName, breakpoints, rowsByBreakpoint) {
-        const observed = breakpoints.filter((breakpoint) => {
-            const rows = rowsByBreakpoint?.[breakpoint] || rowsByBreakpoint?.[String(breakpoint)] || [];
-            return Array.isArray(rows) && rows.some((row) => row?.transform === transformName);
-        });
-
-        if (observed.length > 0) {
-            return observed;
-        }
-
-        const manifestTransforms = bpiProcessingManifest?.transforms || {};
-        const transformConfig = manifestTransforms[transformName] || {};
-
-        return getBreakpointsForTransformConfig(transformConfig, breakpoints);
     }
 
     function getFirstBreakpointMeasurementWidth() {
@@ -349,6 +323,43 @@
         state.previewFrame.style.width = `${width}px`;
         await new Promise((resolve) => requestAnimationFrame(resolve));
         await new Promise((resolve) => requestAnimationFrame(resolve));
+        await waitForPreviewWidthSettle(width);
+    }
+
+    function getPreviewViewportWidth() {
+        if (!state.previewFrame) {
+            return null;
+        }
+
+        const frameRect = state.previewFrame.getBoundingClientRect();
+        const frameWidth = Number.isFinite(frameRect.width) ? Math.round(frameRect.width) : null;
+
+        const frameDocument = state.previewFrame.contentDocument || state.previewFrame.contentWindow?.document;
+        const viewportWidth = frameDocument?.documentElement?.clientWidth;
+        const normalizedViewportWidth = Number.isFinite(viewportWidth) ? Math.round(viewportWidth) : null;
+
+        return normalizedViewportWidth ?? frameWidth;
+    }
+
+    async function waitForPreviewWidthSettle(targetWidth) {
+        const startedAt = Date.now();
+        const normalizedTargetWidth = Math.max(1, Math.round(Number(targetWidth) || 1));
+
+        while ((Date.now() - startedAt) < PREVIEW_WIDTH_SETTLE_TIMEOUT_MS) {
+            const viewportWidth = getPreviewViewportWidth();
+            if (viewportWidth !== null && Math.abs(viewportWidth - normalizedTargetWidth) <= PREVIEW_WIDTH_SETTLE_TOLERANCE_PX) {
+                return;
+            }
+
+            await new Promise((resolve) => requestAnimationFrame(resolve));
+        }
+
+        // Keep processing resilient if a browser refuses to report exact viewport width.
+        const finalViewportWidth = getPreviewViewportWidth();
+        console.debug('[BPI] Preview width settle timeout', {
+            targetWidth: normalizedTargetWidth,
+            viewportWidth: finalViewportWidth,
+        });
     }
 
     function getMeasurementWidthForBreakpoint(breakpoint) {
@@ -627,557 +638,41 @@
         return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
     }
 
-    function collectTransformNames(rowsByBreakpoint) {
-        const names = new Set();
-
-        Object.values(rowsByBreakpoint).forEach((rows) => {
-            rows.forEach((row) => {
-                if (row.transform && row.transform !== 'unknown') {
-                    names.add(row.transform);
-                }
-            });
-        });
-
-        return Array.from(names).sort();
-    }
-
-    function buildCurrentProposal(transformName, transformBreakpoints) {
-        const manifestTransforms = bpiProcessingManifest?.transforms || {};
-        const transformConfig = manifestTransforms[transformName] || {};
-        const transformEntries = Array.isArray(transformConfig.transforms) ? transformConfig.transforms : [];
-
-        return {
-            includeEscapeWidth: transformConfig.includeEscapeWidth === true,
-            transforms: transformBreakpoints.map((breakpoint, index) => {
-                const current = transformEntries[index] || {};
-
-                return {
-                    breakpoint,
-                    width: toPositiveIntOrNull(current.width),
-                    height: toPositiveIntOrNull(current.height),
-                    enabled: current.enabled !== false,
-                    autoDimension: current.autoDimension || null
-                };
-            })
-        };
-    }
-
-    function pickSuggestedDimensions(rows) {
-        const validRows = rows.filter((row) =>
-            row.enabled === true
-            && row.isVisible === true
-            && (row.rendered?.width || 0) > 0
-            && (row.rendered?.height || 0) > 0
-        );
-
-        if (!validRows.length) {
-            return {
-                width: null,
-                height: null
-            };
-        }
-
-        const maxWidth = Math.max(...validRows.map((row) => row.rendered.width || 0));
-        const maxHeight = Math.max(...validRows.map((row) => row.rendered.height || 0));
-
-        return {
-            width: maxWidth > 0 ? Math.round(maxWidth) : null,
-            height: maxHeight > 0 ? Math.round(maxHeight) : null
-        };
-    }
-
-    function buildSuggestedProposal(transformName, rowsByBreakpoint, currentProposal) {
-        return {
-            includeEscapeWidth: currentProposal.includeEscapeWidth,
-            transforms: currentProposal.transforms.map((current, index) => {
-                const breakpoint = current.breakpoint;
-                const rows = (rowsByBreakpoint[breakpoint] || []).filter((row) => row.transform === transformName);
-                const suggestedDimensions = pickSuggestedDimensions(rows);
-                const currentRow = currentProposal.transforms[index] || current;
-
-                return {
-                    breakpoint,
-                    width: suggestedDimensions.width ?? currentRow.width,
-                    height: suggestedDimensions.height ?? currentRow.height,
-                    enabled: currentRow.enabled,
-                    autoDimension: currentRow.autoDimension
-                };
-            })
-        };
-    }
-
-    function buildEdits(currentProposal, suggestedProposal) {
-        const edits = [];
-
-        suggestedProposal.transforms.forEach((suggestedRow, index) => {
-            const currentRow = currentProposal.transforms[index];
-            if (!currentRow) {
-                return;
-            }
-
-            if (
-                currentRow.width === suggestedRow.width
-                && currentRow.height === suggestedRow.height
-                && currentRow.enabled === suggestedRow.enabled
-                && currentRow.autoDimension === suggestedRow.autoDimension
-            ) {
-                return;
-            }
-
-            edits.push({
-                breakpoint: suggestedRow.breakpoint,
-                from: currentRow,
-                to: suggestedRow
-            });
-        });
-
-        return edits;
-    }
-
-    function buildProposalOutput(breakpoints, rowsByBreakpoint) {
-        const proposals = {};
-        const transformNames = collectTransformNames(rowsByBreakpoint);
-
-        transformNames.forEach((transformName) => {
-            const transformBreakpoints = getBreakpointsForObservedTransform(transformName, breakpoints, rowsByBreakpoint);
-            const current = buildCurrentProposal(transformName, transformBreakpoints);
-            const suggested = buildSuggestedProposal(transformName, rowsByBreakpoint, current);
-            const edits = buildEdits(current, suggested);
-
-            proposals[transformName] = {
-                current,
-                edits
-            };
-        });
-
-        return proposals;
-    }
-
-    function sortAssetIds(assetIds) {
-        return assetIds.sort((left, right) => {
-            const leftNumber = Number.parseInt(String(left), 10);
-            const rightNumber = Number.parseInt(String(right), 10);
-
-            if (Number.isFinite(leftNumber) && Number.isFinite(rightNumber)) {
-                return leftNumber - rightNumber;
-            }
-
-            return String(left).localeCompare(String(right));
-        });
-    }
-
-    function collectObservedTransformNames(rowsByBreakpoint) {
-        const names = new Set();
-
-        Object.values(rowsByBreakpoint).forEach((rows) => {
-            rows.forEach((row) => {
-                if (row.transform && row.transform !== 'unknown') {
-                    names.add(row.transform);
-                }
-            });
-        });
-
-        return Array.from(names).sort();
-    }
-
-    function countUnknownTransformRows(rowsByBreakpoint) {
-        return Object.values(rowsByBreakpoint).reduce((count, rows) => {
-            const unknownInRows = rows.filter((row) => !row.transform || row.transform === 'unknown').length;
-            return count + unknownInRows;
-        }, 0);
-    }
-
-    function buildWarnings(rowsByBreakpoint) {
-        const warnings = [];
-        const manifestTransforms = bpiProcessingManifest?.transforms || {};
-        const manifestTransformNames = Object.keys(manifestTransforms).sort();
-        const observedTransformNames = collectObservedTransformNames(rowsByBreakpoint);
-
-        const missingTransformDefinitions = observedTransformNames.filter(
-            (name) => !manifestTransformNames.includes(name)
-        );
-
-        if (missingTransformDefinitions.length > 0) {
-            warnings.push({
-                code: 'missing-transform-definitions',
-                message: 'Transforms found in markup are missing from manifest configuration.',
-                transforms: missingTransformDefinitions
-            });
-        }
-
-        const unknownTransformRows = countUnknownTransformRows(rowsByBreakpoint);
-        if (unknownTransformRows > 0) {
-            warnings.push({
-                code: 'unknown-transform-rows',
-                message: 'Some rows were missing the data-transform attribute.',
-                rowCount: unknownTransformRows
-            });
-        }
-
-        return warnings;
-    }
-
     function buildStructuredOutput(sourceUrl, breakpoints, rowsByBreakpoint, startedAt) {
-        const assets = {};
-        const transforms = {};
-        const proposals = buildProposalOutput(breakpoints, rowsByBreakpoint);
-        const warnings = buildWarnings(rowsByBreakpoint);
+        const assetsById = new Set();
         let unloadedImageCount = 0;
 
-        Object.entries(rowsByBreakpoint).forEach(([breakpoint, rows]) => {
+        Object.values(rowsByBreakpoint).forEach((rows) => {
             rows.forEach((row) => {
-                if (!assets[row.assetId]) {
-                    assets[row.assetId] = {
-                        meta: {
-                            assetId: row.assetId,
-                            title: row.title
-                        },
-                        breakpoints: {}
-                    };
-                }
-
-                assets[row.assetId].breakpoints[breakpoint] = {
-                    rendered: row.rendered,
-                    intrinsic: row.intrinsic,
-                    transform: row.transformDimensions,
-                    enabled: row.enabled,
-                    isVisible: row.isVisible,
-                    loaded: row.loaded,
-                    src: row.src
-                };
+                assetsById.add(String(row.assetId || ''));
 
                 if (!row.loaded) {
                     unloadedImageCount += 1;
                 }
-
-                if (!transforms[row.transform]) {
-                    transforms[row.transform] = {
-                        assetIds: []
-                    };
-                }
-
-                if (!transforms[row.transform].assetIds.includes(row.assetId)) {
-                    transforms[row.transform].assetIds.push(row.assetId);
-                }
             });
-        });
-
-        Object.values(transforms).forEach((transformGroup) => {
-            sortAssetIds(transformGroup.assetIds);
         });
 
         const durationMs = Date.now() - startedAt;
         const rowCount = Object.values(rowsByBreakpoint).reduce((count, rows) => count + rows.length, 0);
-        const editCount = Object.values(proposals).reduce((count, proposal) => count + proposal.edits.length, 0);
 
         return {
-            schemaVersion: 1,
+            schemaVersion: 2,
             manifestSchemaVersion: bpiProcessingManifest?.schemaVersion || null,
             runId: `run-${Date.now()}`,
             sourceUrl,
             timestamp: new Date().toISOString(),
             breakpoints,
-            proposals,
-            transforms,
-            assets,
-            warnings,
+            rowsByBreakpoint,
             summary: {
                 runs: state.runCount,
                 breakpointCount: breakpoints.length,
-                assetCount: Object.keys(assets).length,
+                assetCount: Array.from(assetsById).filter((assetId) => assetId !== '').length,
                 rowCount,
-                editCount,
-                warningCount: warnings.length,
+                warningCount: 0,
                 unloadedImageCount,
                 durationMs
             }
         };
-    }
-
-    function escapeHtml(value) {
-        return String(value ?? '')
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
-    }
-
-    function formatDimensionPair(width, height, autoDimension = null) {
-        const widthText = autoDimension === 'width'
-            ? 'auto'
-            : (Number.isFinite(width) && width > 0 ? String(width) : '-');
-        const heightText = autoDimension === 'height'
-            ? 'auto'
-            : (Number.isFinite(height) && height > 0 ? String(height) : '-');
-
-        return `${widthText}:${heightText}`;
-    }
-
-    function getWarningItemClass(code) {
-        if (code === 'missing-transform-definitions' || code === 'unknown-transform-rows') {
-            return 'bpi-warning-item bpi-warning-item-danger';
-        }
-
-        return 'bpi-warning-item bpi-warning-item-neutral';
-    }
-
-    function renderWarningsPanel(result) {
-        if (!elements.warnings) {
-            return;
-        }
-
-        const warnings = Array.isArray(result?.warnings) ? result.warnings : [];
-        if (warnings.length < 1) {
-            elements.warnings.innerHTML = '<div class="bpi-warning-item bpi-warning-item-success">No warnings detected.</div>';
-            return;
-        }
-
-        const warningMarkup = warnings.map((warning) => {
-            const code = escapeHtml(warning.code || 'warning');
-            const message = escapeHtml(warning.message || 'Warning');
-            const transforms = Array.isArray(warning.transforms) ? warning.transforms : [];
-            const transformDetail = transforms.length > 0
-                ? `<div class="bpi-warning-detail">${transforms.map(escapeHtml).join(', ')}</div>`
-                : '';
-            const rowCount = Number.isFinite(warning.rowCount)
-                ? `<div class="bpi-warning-detail">rows: ${warning.rowCount}</div>`
-                : '';
-
-            return `<div class="${getWarningItemClass(warning.code)}"><span class="bpi-warning-code">${code}</span> - ${message}${transformDetail}${rowCount}</div>`;
-        }).join('');
-
-        elements.warnings.innerHTML = warningMarkup;
-    }
-
-    function getTransformRowsForBreakpoint(result, transformName, breakpoint) {
-        const rawRowsByBreakpoint = result?._rowsByBreakpoint;
-        if (rawRowsByBreakpoint && typeof rawRowsByBreakpoint === 'object') {
-            const rawRows = rawRowsByBreakpoint[breakpoint] || rawRowsByBreakpoint[String(breakpoint)] || [];
-            if (Array.isArray(rawRows)) {
-                return rawRows.filter((row) => row?.transform === transformName);
-            }
-        }
-
-        const transformGroup = result?.transforms?.[transformName];
-        const assetIds = Array.isArray(transformGroup?.assetIds) ? transformGroup.assetIds : [];
-        const breakpointKey = String(breakpoint);
-
-        return assetIds
-            .map((assetId) => result?.assets?.[assetId]?.breakpoints?.[breakpointKey] || null)
-            .filter((row) => row !== null);
-    }
-
-    function summarizeBreakpointRows(rows) {
-        const enabledRows = rows.filter((row) => row.enabled === true);
-        const visibleRows = enabledRows.filter((row) => row.isVisible === true);
-        const preferredRows = visibleRows.length > 0 ? visibleRows : enabledRows;
-
-        const renderedWidth = preferredRows.length > 0
-            ? Math.max(...preferredRows.map((row) => row.rendered?.width || 0))
-            : 0;
-        const renderedHeight = preferredRows.length > 0
-            ? Math.max(...preferredRows.map((row) => row.rendered?.height || 0))
-            : 0;
-
-        return {
-            renderedWidth,
-            renderedHeight,
-            hiddenCount: enabledRows.filter((row) => row.isVisible !== true).length,
-            unloadedCount: rows.filter((row) => row.loaded !== true).length,
-        };
-    }
-
-    function pickPreviewRow(rows) {
-        if (!Array.isArray(rows) || rows.length < 1) {
-            return null;
-        }
-
-        const loadedVisibleEnabled = rows.filter(
-            (row) => row.loaded === true && row.isVisible === true && row.enabled === true && row.src
-        );
-        if (loadedVisibleEnabled.length > 0) {
-            return loadedVisibleEnabled[0];
-        }
-
-        const loadedEnabled = rows.filter(
-            (row) => row.loaded === true && row.enabled === true && row.src
-        );
-        if (loadedEnabled.length > 0) {
-            return loadedEnabled[0];
-        }
-
-        const loadedAny = rows.filter((row) => row.loaded === true && row.src);
-        if (loadedAny.length > 0) {
-            return loadedAny[0];
-        }
-
-        const withSrc = rows.filter((row) => row.src);
-        if (withSrc.length > 0) {
-            return withSrc[0];
-        }
-
-        return rows[0];
-    }
-
-    function getDimensionClass(renderedValue, transformValue, autoDimension, dimension) {
-        if (autoDimension === dimension) {
-            return 'bpi_dimension-auto';
-        }
-
-        if (!Number.isFinite(transformValue) || transformValue <= 0) {
-            return 'bpi_dimension-no-transform';
-        }
-
-        if (!Number.isFinite(renderedValue) || renderedValue <= 0) {
-            return 'bpi_dimension-no-transform';
-        }
-
-        if (Math.abs(renderedValue - transformValue) <= 1) {
-            return 'bpi_dimension-match';
-        }
-
-        return 'bpi_dimension-mismatch';
-    }
-
-    function getCurrentDimensionDisplay(value, autoDimension, dimension) {
-        if (autoDimension === dimension) {
-            return 'auto';
-        }
-
-        const parsed = Number(value);
-        if (Number.isFinite(parsed) && parsed > 0) {
-            return String(Math.round(parsed));
-        }
-
-        return '-';
-    }
-
-    function calculateBreakpointColumnWidths(breakpoints) {
-        const validBreakpoints = Array.isArray(breakpoints)
-            ? breakpoints
-                .map((breakpoint) => parseInt(String(breakpoint), 10))
-                .filter((breakpoint) => Number.isFinite(breakpoint) && breakpoint > 0)
-            : [];
-
-        if (validBreakpoints.length < 1) {
-            return {};
-        }
-
-        const firstBreakpoint = validBreakpoints[0];
-
-        return validBreakpoints.reduce((widths, breakpoint) => {
-            widths[String(breakpoint)] = (breakpoint / firstBreakpoint) * FIRST_BREAKPOINT_COLUMN_WIDTH_PX;
-            return widths;
-        }, {});
-    }
-
-    function renderBreakpointColumn(result, transformName, breakpoint, breakpointColumnWidths) {
-        const currentRows = getTransformRowsForBreakpoint(result, transformName, breakpoint);
-        const summary = summarizeBreakpointRows(currentRows);
-        const currentProposalRows = result?.proposals?.[transformName]?.current?.transforms || [];
-        const currentProposal = currentProposalRows.find((row) => row.breakpoint === breakpoint) || {};
-
-        const renderedWidth = Number(summary.renderedWidth) || 0;
-        const renderedHeight = Number(summary.renderedHeight) || 0;
-        const previewRow = pickPreviewRow(currentRows);
-        const previewSrc = previewRow?.src ? escapeHtml(previewRow.src) : '';
-        const previewAlt = `Preview ${transformName} ${breakpoint}px`;
-        const relativeWidth = breakpoint > 0
-            ? Math.max(0, Math.min(100, (renderedWidth / breakpoint) * 100))
-            : 0;
-        const breakpointColumnWidth = Math.max(
-            1,
-            Number(breakpointColumnWidths?.[String(breakpoint)]) || 0
-        );
-        const aspectRatio = renderedWidth > 0 && renderedHeight > 0
-            ? `${renderedWidth} / ${renderedHeight}`
-            : '1 / 1';
-
-        const widthClass = getDimensionClass(
-            renderedWidth,
-            Number(currentProposal.width),
-            currentProposal.autoDimension || null,
-            'width'
-        );
-        const heightClass = getDimensionClass(
-            renderedHeight,
-            Number(currentProposal.height),
-            currentProposal.autoDimension || null,
-            'height'
-        );
-        const currentWidth = getCurrentDimensionDisplay(
-            currentProposal.width,
-            currentProposal.autoDimension || null,
-            'width'
-        );
-        const currentHeight = getCurrentDimensionDisplay(
-            currentProposal.height,
-            currentProposal.autoDimension || null,
-            'height'
-        );
-
-        const hiddenBadge = summary.hiddenCount > 0
-            ? `<span class="bpi_hidden-notice">Hidden ${summary.hiddenCount}</span>`
-            : '';
-        const unloadedBadge = summary.unloadedCount > 0
-            ? `<span class="bpi-row-badge">Unloaded ${summary.unloadedCount}</span>`
-            : '';
-        const escapeBreakpoint = getEscapeBreakpointValue();
-        const escapeBadge = escapeBreakpoint !== null && breakpoint === escapeBreakpoint
-            ? '<span class="bpi_escaped-notice">ESC</span>'
-            : '';
-
-        return `
-            <div class="bpi-breakpoint-column" style="--bpi-breakpoint-column-width:${breakpointColumnWidth}px;">
-                <div class="bpi_breakpoint-size-heading">
-                    <span>${breakpoint}px</span>
-                    ${escapeBadge}
-                    ${hiddenBadge}
-                    ${unloadedBadge}
-                </div>
-                <div class="bpi_image-display-section">
-                    <div class="bpi_breakpoint-result-wrapper">
-                        <div class="bpi_breakpoint-result">
-                            <div class="bpi_image-outer" style="--bpi-relative-width:${relativeWidth}%;">
-                                ${previewSrc
-                ? `<img src="${previewSrc}" alt="${escapeHtml(previewAlt)}" class="bpi_breakpoint-result-image" draggable="false" style="--bpi-aspect-ratio:${aspectRatio};">`
-                : `<div class="bpi_breakpoint-result-image" style="--bpi-aspect-ratio:${aspectRatio};"></div>`}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="bpi-dimension-table-wrap">
-                    <div class="bpi-dimension-matrix" role="table" aria-label="Rendered and current dimensions">
-                        <div class="bpi-dimension-row" role="row">
-                            <span class="bpi-dimension-icon bpi-dimension-icon-rendered" role="rowheader" title="Rendered" aria-label="Rendered">
-                                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                                    <rect x="2.5" y="3" width="11" height="8.5" rx="1.5"></rect>
-                                    <path d="M4.4 5.2h2"></path>
-                                    <path d="M3.5 10.8l3.1-2.8 2.2 2 2-1.6 2.2 2.4"></path>
-                                </svg>
-                            </span>
-                            <span class="bpi_rendered-dimension ${widthClass}" role="cell">${renderedWidth || '-'}</span>
-                            <span class="bpi_rendered-dimension ${heightClass}" role="cell">${renderedHeight || '-'}</span>
-                        </div>
-                        <div class="bpi-dimension-row" role="row">
-                            <span class="bpi-dimension-icon bpi-dimension-icon-current" role="rowheader" title="Current" aria-label="Current">
-                                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                                    <path d="M3 4h10"></path>
-                                    <path d="M3 8h10"></path>
-                                    <path d="M3 12h10"></path>
-                                    <path d="M6 3.1v1.8"></path>
-                                    <path d="M10 7.1v1.8"></path>
-                                    <path d="M7.5 11.1v1.8"></path>
-                                </svg>
-                            </span>
-                            <span class="bpi_current-dimension" role="cell">${escapeHtml(currentWidth)}</span>
-                            <span class="bpi_current-dimension" role="cell">${escapeHtml(currentHeight)}</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
     }
 
     function syncBreakpointPreviewHeights() {
@@ -1382,44 +877,264 @@
         });
     }
 
-    function slugifyTransformName(transformName) {
-        return String(transformName || 'transform')
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-+|-+$/g, '')
-            || 'transform';
-    }
+    function collectReviewEditStateFromDom() {
+        const editScopeByTransform = {};
+        const editTabByTransform = {};
 
-    function getEditPanelId(transformName) {
-        return `bpi-edit-panel-${slugifyTransformName(transformName)}`;
-    }
-
-    function setTransformEditPanelOpen(card, isOpen) {
-        const panel = card.querySelector('.bpi-transform-edit-panel');
-        const toggle = card.querySelector('.bpi-edit-panel-toggle');
-        if (!panel || !toggle) {
-            return;
-        }
-
-        card.classList.toggle('bpi-transform-card-edit-open', isOpen);
-        panel.hidden = !isOpen;
-        toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-        toggle.textContent = isOpen ? 'Close options' : 'Edit options';
-    }
-
-    function setupEditPanelToggle() {
         if (!elements.visualResults) {
-            return;
+            return {
+                editScopeByTransform,
+                editTabByTransform,
+            };
         }
 
-        elements.visualResults.addEventListener('click', (event) => {
-            const toggle = event.target.closest('.bpi-edit-panel-toggle');
-            if (!toggle || !elements.visualResults.contains(toggle)) {
+        const cards = Array.from(elements.visualResults.querySelectorAll('.bpi-transform-card[data-transform]'));
+        cards.forEach((card) => {
+            const transformName = String(card.getAttribute('data-transform') || '').trim();
+            if (!transformName) {
                 return;
             }
 
-            const card = toggle.closest('.bpi-transform-card');
-            if (!card) {
+            const rawScopeMode = String(card.getAttribute('data-scope-mode') || '').trim().toLowerCase();
+            if (rawScopeMode === 'all') {
+                editScopeByTransform[transformName] = {
+                    mode: 'all',
+                    breakpoint: null,
+                };
+            } else if (rawScopeMode === 'breakpoint') {
+                const scopeBreakpoint = toPositiveIntOrNull(card.getAttribute('data-scope-breakpoint'));
+                if (scopeBreakpoint !== null) {
+                    editScopeByTransform[transformName] = {
+                        mode: 'breakpoint',
+                        breakpoint: scopeBreakpoint,
+                    };
+                }
+            } else {
+                editScopeByTransform[transformName] = {
+                    mode: 'unset',
+                    breakpoint: null,
+                };
+            }
+
+            const activeTab = String(card.getAttribute('data-active-tab') || '').trim().toLowerCase();
+            editTabByTransform[transformName] = (activeTab === 'ratio' || activeTab === 'settings')
+                ? activeTab
+                : 'dimensions';
+        });
+
+        return {
+            editScopeByTransform,
+            editTabByTransform,
+        };
+    }
+
+    function clearUpdateStatusResetTimer(transformName) {
+        const existingTimer = state.updateStatusResetTimersByTransform[transformName] || null;
+        if (existingTimer !== null) {
+            window.clearTimeout(existingTimer);
+            delete state.updateStatusResetTimersByTransform[transformName];
+        }
+    }
+
+    function findTransformCard(transformName) {
+        if (!elements.visualResults || !transformName) {
+            return null;
+        }
+
+        const cards = Array.from(elements.visualResults.querySelectorAll('.bpi-transform-card[data-transform]'));
+        return cards.find((card) => (card.getAttribute('data-transform') || '') === transformName) || null;
+    }
+
+    function setTransformUpdateStatus(transformName, message, statusState) {
+        const card = findTransformCard(transformName);
+        if (!card) {
+            return;
+        }
+
+        const statusElement = card.querySelector('[data-role="transform-update-status"]');
+        if (!statusElement) {
+            return;
+        }
+
+        statusElement.textContent = message;
+        statusElement.setAttribute('data-state', statusState);
+    }
+
+    function scheduleTransformUpdateStatusClear(transformName, delayMs = CARD_UPDATE_STATUS_CLEAR_DELAY_MS) {
+        clearUpdateStatusResetTimer(transformName);
+
+        const timer = window.setTimeout(() => {
+            setTransformUpdateStatus(transformName, '', 'idle');
+            clearUpdateStatusResetTimer(transformName);
+        }, delayMs);
+
+        state.updateStatusResetTimersByTransform[transformName] = timer;
+    }
+
+    function removePendingTransformUpdate(transformName) {
+        if (!transformName) {
+            return;
+        }
+
+        state.pendingTransformUpdates.delete(transformName);
+    }
+
+    function finalizePendingTransformUpdatesFromServerStatus(serverStatus) {
+        const status = serverStatus && typeof serverStatus === 'object' ? serverStatus : null;
+        const kind = String(status?.kind || '').trim().toLowerCase();
+        if (kind !== 'success' && kind !== 'error') {
+            return;
+        }
+
+        const pendingTransforms = Array.from(state.pendingTransformUpdates);
+        if (pendingTransforms.length < 1) {
+            return;
+        }
+
+        state.pendingTransformUpdates.clear();
+
+        if (kind === 'success') {
+            pendingTransforms.forEach((transformName) => {
+                setTransformUpdateStatus(transformName, 'Updated', 'success');
+                scheduleTransformUpdateStatusClear(transformName);
+            });
+
+            if (state.lastResult) {
+                void renderResultReview(state.lastResult).catch((error) => {
+                    console.error(error);
+                });
+            }
+
+            return;
+        }
+
+        pendingTransforms.forEach((transformName) => {
+            setTransformUpdateStatus(transformName, 'Update failed', 'error');
+            scheduleTransformUpdateStatusClear(transformName, 2600);
+        });
+    }
+
+    function finalizeTransformUpdateFromServerStatus(transformName, serverStatus) {
+        if (!transformName || !state.pendingTransformUpdates.has(transformName)) {
+            return;
+        }
+
+        const status = serverStatus && typeof serverStatus === 'object' ? serverStatus : null;
+        const kind = String(status?.kind || '').trim().toLowerCase();
+        if (kind !== 'success' && kind !== 'error') {
+            return;
+        }
+
+        removePendingTransformUpdate(transformName);
+
+        if (kind === 'success') {
+            setTransformUpdateStatus(transformName, 'Updated', 'success');
+            scheduleTransformUpdateStatusClear(transformName);
+            if (state.lastResult) {
+                void renderResultReview(state.lastResult).catch((error) => {
+                    console.error(error);
+                });
+            }
+            return;
+        }
+
+        setTransformUpdateStatus(transformName, 'Update failed', 'error');
+        scheduleTransformUpdateStatusClear(transformName, 2600);
+    }
+
+    function parseServerStatusFromPatchSignalsArgs(argsRaw) {
+        const signalsRaw = argsRaw?.signals;
+        if (typeof signalsRaw !== 'string' || signalsRaw.trim() === '') {
+            return null;
+        }
+
+        try {
+            const parsed = JSON.parse(signalsRaw);
+            const serverStatus = parsed?.editor?.serverStatus;
+            return serverStatus && typeof serverStatus === 'object' ? serverStatus : null;
+        } catch (_error) {
+            return null;
+        }
+    }
+
+    function getDatastarUpdateAction(sourceElement) {
+        const classList = sourceElement.classList;
+        const isWidthInput = classList?.contains('bpi-transform-width-input');
+        const isHeightInput = classList?.contains('bpi-transform-height-input');
+        const isDimensionsApply = classList?.contains('bpi-transform-dimensions-apply');
+        const isRatioApply = classList?.contains('bpi-transform-ratio-apply');
+        const isSettingsApply = classList?.contains('bpi-transform-settings-apply');
+        const isRenderedAction = classList?.contains('bpi-rendered-apply-single')
+            || classList?.contains('bpi-rendered-apply-all');
+
+        if (isRenderedAction) {
+            return 'renderedValues';
+        }
+
+        if (isDimensionsApply) {
+            return 'dimensions';
+        }
+
+        if (isRatioApply) {
+            return 'ratio';
+        }
+
+        if (isSettingsApply) {
+            return 'settings';
+        }
+
+        if (isWidthInput) {
+            return 'width';
+        }
+
+        if (isHeightInput) {
+            return 'height';
+        }
+
+        return null;
+    }
+
+    function setupDatastarCardUpdateStatus() {
+        document.addEventListener(DATASTAR_SIGNAL_PATCH_EVENT, (event) => {
+            const detail = event?.detail;
+            const serverStatus = detail?.editor?.serverStatus;
+            finalizePendingTransformUpdatesFromServerStatus(serverStatus);
+        });
+
+        document.addEventListener('datastar-fetch', (event) => {
+            const detail = event?.detail || {};
+            const sourceElement = detail.el;
+
+            if (detail.type === DATASTAR_PATCH_SIGNALS_EVENT) {
+                const serverStatus = parseServerStatusFromPatchSignalsArgs(detail.argsRaw);
+                if (!serverStatus) {
+                    return;
+                }
+
+                if (sourceElement && typeof sourceElement.closest === 'function') {
+                    const card = sourceElement.closest('.bpi-transform-card');
+                    const transformName = card?.getAttribute('data-transform') || '';
+                    if (transformName) {
+                        finalizeTransformUpdateFromServerStatus(transformName, serverStatus);
+                        return;
+                    }
+                }
+
+                finalizePendingTransformUpdatesFromServerStatus(serverStatus);
+                return;
+            }
+
+            if (!sourceElement || typeof sourceElement.closest !== 'function') {
+                return;
+            }
+
+            const action = getDatastarUpdateAction(sourceElement);
+            if (!action) {
+                return;
+            }
+
+            const card = sourceElement.closest('.bpi-transform-card');
+            if (!card || !elements.visualResults || !elements.visualResults.contains(card)) {
                 return;
             }
 
@@ -1428,95 +1143,151 @@
                 return;
             }
 
-            event.preventDefault();
-
-            const isOpen = state.editPanelOpenTransforms.has(transformName) === false;
-            if (isOpen) {
-                state.editPanelOpenTransforms.add(transformName);
-            } else {
-                state.editPanelOpenTransforms.delete(transformName);
-            }
-
-            setTransformEditPanelOpen(card, isOpen);
-        });
-    }
-
-    function renderVisualResults(result) {
-        if (!elements.visualResults) {
-            return;
-        }
-
-        const transformNames = Object.keys(result?.proposals || {}).sort();
-        if (transformNames.length < 1) {
-            elements.visualResults.innerHTML = '<div class="bpi-empty-state light">No transforms found in results.</div>';
-            return;
-        }
-
-        const cardsMarkup = transformNames.map((transformName) => {
-            const transformAssetCount = result?.transforms?.[transformName]?.assetIds?.length || 0;
-            const editsCount = result?.proposals?.[transformName]?.edits?.length || 0;
-            const transformBreakpoints = getBreakpointsForObservedTransform(
-                transformName,
-                Array.isArray(result?.breakpoints) ? result.breakpoints : [],
-                result?._rowsByBreakpoint || {}
-            );
-            const breakpointColumnWidths = calculateBreakpointColumnWidths(transformBreakpoints);
-            const breakpointColumns = transformBreakpoints
-                .map((breakpoint) => renderBreakpointColumn(result, transformName, breakpoint, breakpointColumnWidths))
-                .join('');
-            const isEditPanelOpen = state.editPanelOpenTransforms.has(transformName);
-            const editPanelId = getEditPanelId(transformName);
-
-            return `
-                <section class="bpi-transform-card ${isEditPanelOpen ? 'bpi-transform-card-edit-open' : ''}" data-transform="${escapeHtml(transformName)}">
-                    <header class="bpi-transform-card-header">
-                        <div class="bpi-transform-name">${escapeHtml(transformName)}</div>
-                        <div class="bpi-transform-header-actions">
-                            <div class="bpi-transform-stats">${transformAssetCount} assets | ${editsCount} edits</div>
-                            <button
-                                type="button"
-                                class="btn small bpi-edit-panel-toggle"
-                                aria-expanded="${isEditPanelOpen ? 'true' : 'false'}"
-                                aria-controls="${editPanelId}"
-                            >${isEditPanelOpen ? 'Close options' : 'Edit options'}</button>
-                        </div>
-                    </header>
-                    <div class="bpi-breakpoint-grid">${breakpointColumns}</div>
-                    <section class="bpi-transform-edit-panel" id="${editPanelId}" ${isEditPanelOpen ? '' : 'hidden'}>
-                        <div class="bpi-transform-edit-panel-copy">Editing options will appear here.</div>
-                    </section>
-                </section>
-            `;
-        }).join('');
-
-        elements.visualResults.innerHTML = cardsMarkup;
-        scheduleBreakpointPreviewHeightSync();
-        window.setTimeout(scheduleBreakpointPreviewHeightSync, 120);
-
-        const images = Array.from(elements.visualResults.querySelectorAll('.bpi_breakpoint-result-image'));
-        images.forEach((image) => {
-            if (image instanceof HTMLImageElement && image.complete) {
+            if (detail.type === 'started') {
+                state.pendingTransformUpdates.add(transformName);
+                clearUpdateStatusResetTimer(transformName);
+                setTransformUpdateStatus(transformName, 'Updating...', 'pending');
                 return;
             }
 
-            image.addEventListener('load', scheduleBreakpointPreviewHeightSync, { once: true });
-            image.addEventListener('error', scheduleBreakpointPreviewHeightSync, { once: true });
+            if (detail.type === 'finished') {
+                if (state.pendingTransformUpdates.has(transformName)) {
+                    setTransformUpdateStatus(transformName, 'Syncing...', 'pending');
+                }
+                return;
+            }
+
+            if (detail.type === 'error' || detail.type === 'retries-failed') {
+                removePendingTransformUpdate(transformName);
+                setTransformUpdateStatus(transformName, 'Update failed', 'error');
+                scheduleTransformUpdateStatusClear(transformName, 2600);
+            }
         });
     }
 
-    function renderResultReview(result) {
-        renderWarningsPanel(result);
-        renderVisualResults(result);
+    function patchElementsWithDatastar(selector, html, mode = 'inner') {
+        if (!selector || typeof html !== 'string') {
+            return false;
+        }
+
+        try {
+            document.dispatchEvent(new CustomEvent(DATASTAR_FETCH_EVENT, {
+                detail: {
+                    type: DATASTAR_PATCH_ELEMENTS_EVENT,
+                    el: elements.page || document.documentElement,
+                    argsRaw: {
+                        selector,
+                        mode,
+                        elements: html,
+                    },
+                },
+            }));
+
+            return true;
+        } catch (_error) {
+            return false;
+        }
     }
 
-    function publishResult(result) {
+    function applyRenderedReviewPayload(payload) {
+        if (!payload || typeof payload !== 'object') {
+            return;
+        }
+
+        if (elements.warnings && typeof payload.warningsHtml === 'string') {
+            const warningsPatched = patchElementsWithDatastar('#bpi-warnings', payload.warningsHtml, 'inner');
+            if (!warningsPatched) {
+                elements.warnings.innerHTML = payload.warningsHtml;
+            }
+        }
+
+        if (elements.visualResults && typeof payload.visualResultsHtml === 'string') {
+            const visualResultsPatched = patchElementsWithDatastar('#bpi-visual-results', payload.visualResultsHtml, 'inner');
+            if (!visualResultsPatched) {
+                elements.visualResults.innerHTML = payload.visualResultsHtml;
+            }
+            scheduleBreakpointPreviewHeightSync();
+            window.setTimeout(scheduleBreakpointPreviewHeightSync, 120);
+
+            const images = Array.from(elements.visualResults.querySelectorAll('.bpi_breakpoint-result-image'));
+            images.forEach((image) => {
+                if (image instanceof HTMLImageElement && image.complete) {
+                    return;
+                }
+
+                image.addEventListener('load', scheduleBreakpointPreviewHeightSync, { once: true });
+                image.addEventListener('error', scheduleBreakpointPreviewHeightSync, { once: true });
+            });
+        }
+
+        const warningCount = Number(payload.warningCount);
+        if (state.lastResult && state.lastResult.summary && Number.isFinite(warningCount) && warningCount >= 0) {
+            state.lastResult.summary.warningCount = warningCount;
+        }
+    }
+
+    async function renderResultReview(result) {
+        if (!result || typeof result !== 'object') {
+            return null;
+        }
+
+        if (typeof Craft === 'undefined' || typeof Craft.sendActionRequest !== 'function') {
+            return null;
+        }
+
+        const {
+            editScopeByTransform,
+            editTabByTransform,
+        } = collectReviewEditStateFromDom();
+
+        const response = await Craft.sendActionRequest('POST', RENDER_RESULT_REVIEW_ACTION, {
+            data: {
+                result,
+                editScopeByTransform,
+                editTabByTransform,
+            },
+        });
+
+        const payload = response?.data || null;
+        applyRenderedReviewPayload(payload);
+        return payload;
+    }
+
+    async function publishResult(result) {
         state.lastResult = result;
         updateCopyButtonVisibility();
-        renderResultReview(result);
+        try {
+            await renderResultReview(result);
+        } catch (error) {
+            // Keep measured output available even if backend review render fails.
+            console.error(error);
+        }
 
         document.dispatchEvent(new CustomEvent('bpi:processing-result', {
             detail: result
         }));
+    }
+
+    function buildWaitingStatusMessage(breakpoint, pendingCount, waitedMs = null) {
+        const imageLabel = `${pendingCount} image${pendingCount === 1 ? '' : 's'}`;
+        if (Number.isFinite(waitedMs) && waitedMs > 0) {
+            const seconds = Math.ceil(waitedMs / 1000);
+            return `Waiting. Probably on transforms. ${imageLabel} still pending at ${breakpoint}px (${seconds}s). Click Quit Waiting to stop.`;
+        }
+
+        return `Waiting. Probably on transforms. ${imageLabel} still pending at ${breakpoint}px. Click Quit Waiting to stop.`;
+    }
+
+    async function loadPreviewForSelectedEntry(successMessage) {
+        setStatus('Loading preview...');
+        const firstMeasurementWidth = getFirstBreakpointMeasurementWidth();
+        if (firstMeasurementWidth !== null) {
+            await setPreviewWidth(firstMeasurementWidth);
+        }
+
+        const sourceUrl = await resolveSelectedEntryUrl();
+        await ensurePreviewFrame(sourceUrl, false);
+        setStatus(successMessage);
     }
 
     async function runProcessing() {
@@ -1544,7 +1315,7 @@
         try {
             const sourceUrl = await resolveSelectedEntryUrl();
             getOrCreatePreviewFrame();
-            await ensurePreviewFrame(sourceUrl, false);
+            await ensurePreviewFrame(sourceUrl, true);
 
             const rowsByBreakpoint = {};
             for (const breakpoint of breakpoints) {
@@ -1559,10 +1330,10 @@
                     onSoftDeadline: ({ pendingCount }) => {
                         state.waitSoftLimitReached = true;
                         setStopButtonVisibility(true);
-                        setStatus(`Waiting. Probably on transforms. ${pendingCount} image${pendingCount === 1 ? '' : 's'} still pending at ${breakpoint}px. Click Quit Waiting to stop.`);
+                        setStatus(buildWaitingStatusMessage(breakpoint, pendingCount));
                     },
                     onWaitingTick: ({ pendingCount, waitedMs }) => {
-                        setStatus(`Waiting. Probably on transforms. ${pendingCount} image${pendingCount === 1 ? '' : 's'} still pending at ${breakpoint}px (${Math.ceil(waitedMs / 1000)}s). Click Quit Waiting to stop.`);
+                        setStatus(buildWaitingStatusMessage(breakpoint, pendingCount, waitedMs));
                     },
                 });
 
@@ -1577,13 +1348,7 @@
 
             state.runCount += 1;
             const result = buildStructuredOutput(state.previewUrl, breakpoints, rowsByBreakpoint, startedAt);
-            Object.defineProperty(result, '_rowsByBreakpoint', {
-                value: rowsByBreakpoint,
-                enumerable: false,
-                writable: false,
-                configurable: false,
-            });
-            publishResult(result);
+            await publishResult(result);
             const warningSuffix = result.summary.warningCount > 0
                 ? ` (${result.summary.warningCount} warnings)`
                 : '';
@@ -1642,15 +1407,7 @@
         elements.btnOpenPreview.addEventListener('click', async () => {
             setPreviewVisibility(true);
             try {
-                setStatus('Loading preview...');
-                const firstMeasurementWidth = getFirstBreakpointMeasurementWidth();
-                if (firstMeasurementWidth !== null) {
-                    await setPreviewWidth(firstMeasurementWidth);
-                }
-
-                const sourceUrl = await resolveSelectedEntryUrl();
-                await ensurePreviewFrame(sourceUrl, false);
-                setStatus('Preview opened.');
+                await loadPreviewForSelectedEntry('Preview opened.');
             } catch (error) {
                 setStatus(`Error: ${error.message}`);
             }
@@ -1673,14 +1430,7 @@
         }
 
         try {
-            setStatus('Loading preview...');
-            const firstMeasurementWidth = getFirstBreakpointMeasurementWidth();
-            if (firstMeasurementWidth !== null) {
-                await setPreviewWidth(firstMeasurementWidth);
-            }
-            const sourceUrl = await resolveSelectedEntryUrl();
-            await ensurePreviewFrame(sourceUrl, false);
-            setStatus('Preview loaded from source entry.');
+            await loadPreviewForSelectedEntry('Preview loaded from source entry.');
         } catch (error) {
             setStatus(`Error: ${error.message}`);
         }
@@ -1694,7 +1444,7 @@
     bindSourceSelectionSync();
     setButtonsDisabled(false);
     setupDragToScroll();
-    setupEditPanelToggle();
+    setupDatastarCardUpdateStatus();
     window.addEventListener('resize', scheduleBreakpointPreviewHeightSync);
     getConfiguredBreakpoints();
     void loadInitialPreview();
