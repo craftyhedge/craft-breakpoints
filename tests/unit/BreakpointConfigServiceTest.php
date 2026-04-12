@@ -35,7 +35,7 @@ final class BreakpointConfigServiceTest extends Unit
         ], $breakpoints);
     }
 
-    public function testBreakpointsDoNotIncludeEscapeWhenEscapeWidthIsUnset(): void
+    public function testBreakpointsIncludeDefaultEscapeWhenEscapeWidthIsUnset(): void
     {
         $plugin = Plugin::getInstance();
         $service = $plugin->getConfigService();
@@ -52,6 +52,7 @@ final class BreakpointConfigServiceTest extends Unit
             'xs' => 480,
             'sm' => 640,
             '2xl' => 1536,
+            'escape' => 1920,
         ], $breakpoints);
     }
 

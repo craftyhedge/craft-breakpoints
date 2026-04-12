@@ -1,6 +1,7 @@
 {
     "default": {
         "name": "default",
+        "includeEscapeWidth": false,
         "transforms": [
             {
                 "width": 480,
@@ -39,7 +40,6 @@
                 "autoDimension": null
             }
         ],
-        "includeEscapeWidth": false,
         "config": []
     }
 }

@@ -10,5 +10,7 @@
 /tests/_craft/storage/runtime/
 /tests/_craft/storage/logs/
 /tests/_craft/storage/config-deltas/
+/tests/_craft/storage/cpresources/
 /tests/_support/_generated/
+/cpresources/
 .nocommit
