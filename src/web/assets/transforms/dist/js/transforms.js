@@ -257,6 +257,116 @@
         });
     }
 
+    function applyDatastarIgnoreAttribute(target) {
+        if (!(target instanceof Element)) {
+            return;
+        }
+
+        target.setAttribute('data-ignore', '');
+    }
+
+    function getIgnoreTargets(target) {
+        if (!target) {
+            return [];
+        }
+
+        if (target instanceof Element) {
+            return [target];
+        }
+
+        if (typeof target.length === 'number') {
+            return Array.from(target).filter((node) => node instanceof Element);
+        }
+
+        return [];
+    }
+
+    function applyDatastarIgnoreToModal(modal) {
+        if (!modal || typeof modal !== 'object') {
+            return;
+        }
+
+        const targets = [
+            modal.$container,
+            modal.$shade,
+            modal.$modal,
+            modal.$body,
+            modal.$content,
+            modal.$main,
+            modal.$sidebar,
+            modal.$elements,
+            modal.$tbody,
+        ];
+
+        targets.forEach((target) => {
+            getIgnoreTargets(target).forEach((node) => {
+                applyDatastarIgnoreAttribute(node);
+            });
+        });
+    }
+
+    function patchCraftElementSelectorModalIgnore() {
+        if (typeof Craft === 'undefined' || !Craft.BaseElementSelectorModal || !Craft.BaseElementSelectorModal.prototype) {
+            return;
+        }
+
+        const selectorModalPrototype = Craft.BaseElementSelectorModal.prototype;
+        if (selectorModalPrototype.__bpiDatastarIgnorePatched) {
+            return;
+        }
+
+        const applySelectorIgnoreTargets = (modalInstance) => {
+            applyDatastarIgnoreToModal(modalInstance);
+
+            document.querySelectorAll(
+                '.elementselectormodal, .elementselectormodal .main, .elementselectormodal .elements, .elementselectormodal .elementindex, .modal-shade'
+            ).forEach((node) => {
+                applyDatastarIgnoreAttribute(node);
+            });
+        };
+
+        ['init', 'onFadeIn', 'show'].forEach((methodName) => {
+            const originalMethod = selectorModalPrototype[methodName];
+            if (typeof originalMethod !== 'function') {
+                return;
+            }
+
+            selectorModalPrototype[methodName] = function (...args) {
+                const result = originalMethod.apply(this, args);
+                applySelectorIgnoreTargets(this);
+                return result;
+            };
+        });
+
+        selectorModalPrototype.__bpiDatastarIgnorePatched = true;
+    }
+
+    function setupDatastarModalIgnoreGuard() {
+        document.querySelectorAll('.modal, .modal-shade, .elementselectormodal, .elementselectormodal .elementindex').forEach((node) => {
+            applyDatastarIgnoreAttribute(node);
+        });
+
+        patchCraftElementSelectorModalIgnore();
+
+        if (typeof Garnish === 'undefined' || !Garnish.Modal || !Garnish.Modal.prototype) {
+            return;
+        }
+
+        const modalPrototype = Garnish.Modal.prototype;
+        if (modalPrototype.__bpiDatastarIgnorePatched || typeof modalPrototype.init !== 'function') {
+            return;
+        }
+
+        const originalInit = modalPrototype.init;
+        modalPrototype.init = function (...args) {
+            const result = originalInit.apply(this, args);
+            applyDatastarIgnoreToModal(this);
+            return result;
+        };
+
+        modalPrototype.__bpiDatastarIgnorePatched = true;
+    }
+
     function normalizeUrl(rawUrl) {
         const input = String(rawUrl || '').trim();
         if (!input) {
@@ -497,14 +607,14 @@
             return img.loading !== 'lazy';
         };
 
-        const getPendingImages = () => Array.from(frameDocument.querySelectorAll('picture[data-transform] img'))
+        const getPendingImages = () => Array.from(frameDocument.querySelectorAll('picture[data-set] img'))
             .filter(isActiveWaitCandidate);
 
         const startedAt = Date.now();
         let softDeadlineReached = false;
         let lastTickAt = 0;
 
-        if (!frameDocument.querySelector('picture[data-transform] img')) {
+        if (!frameDocument.querySelector('picture[data-set] img')) {
             await new Promise((resolve) => requestAnimationFrame(resolve));
             return {
                 aborted: false,
@@ -593,7 +703,7 @@
 
     async function preloadBreakpointSources(breakpoint, timeoutMs = 5000) {
         const frameDocument = getFrameDocument();
-        const pictures = Array.from(frameDocument.querySelectorAll('picture[data-transform]'));
+        const pictures = Array.from(frameDocument.querySelectorAll('picture[data-set]'));
         const loadStates = new Map();
 
         const waiters = pictures.map((picture, index) => new Promise((resolve) => {
@@ -661,7 +771,7 @@
     function extractRowsForBreakpoint(breakpoint, preloadStates = null) {
         const frameDocument = getFrameDocument();
 
-        const images = Array.from(frameDocument.querySelectorAll('picture[data-transform] img'));
+        const images = Array.from(frameDocument.querySelectorAll('picture[data-set] img'));
 
         return images.map((img, index) => {
             const picture = img.closest('picture');
@@ -678,7 +788,7 @@
 
             return {
                 assetId,
-                transform: picture?.getAttribute('data-transform') || 'unknown',
+                transform: picture?.getAttribute('data-set') || 'unknown',
                 title: picture?.getAttribute('data-asset-title') || '',
                 enabled,
                 isVisible: img.offsetWidth > 0 || img.offsetHeight > 0,
@@ -693,8 +803,8 @@
                     height: img.naturalHeight || 0
                 },
                 transformDimensions: {
-                    width: toPositiveIntOrNull(source?.getAttribute('data-transform-width')),
-                    height: toPositiveIntOrNull(source?.getAttribute('data-transform-height')),
+                    width: toPositiveIntOrNull(source?.getAttribute('data-set-width')),
+                    height: toPositiveIntOrNull(source?.getAttribute('data-set-height')),
                     autoDimension: source?.getAttribute('data-auto-dimension') || null
                 }
             };
@@ -946,53 +1056,53 @@
     }
 
     function collectReviewEditStateFromDom() {
-        const editScopeByTransform = {};
-        const editTabByTransform = {};
+        const editScopeBySet = {};
+        const editTabBySet = {};
 
         if (!elements.visualResults) {
             return {
-                editScopeByTransform,
-                editTabByTransform,
+                editScopeBySet,
+                editTabBySet,
             };
         }
 
-        const cards = Array.from(elements.visualResults.querySelectorAll('.bpi-transform-card[data-transform]'));
+        const cards = Array.from(elements.visualResults.querySelectorAll('.bpi-transform-card[data-set]'));
         cards.forEach((card) => {
-            const transformName = String(card.getAttribute('data-transform') || '').trim();
+            const transformName = String(card.getAttribute('data-set') || '').trim();
             if (!transformName) {
                 return;
             }
 
             const rawScopeMode = String(card.getAttribute('data-scope-mode') || '').trim().toLowerCase();
             if (rawScopeMode === 'all') {
-                editScopeByTransform[transformName] = {
+                editScopeBySet[transformName] = {
                     mode: 'all',
                     breakpoint: null,
                 };
             } else if (rawScopeMode === 'breakpoint') {
                 const scopeBreakpoint = toPositiveIntOrNull(card.getAttribute('data-scope-breakpoint'));
                 if (scopeBreakpoint !== null) {
-                    editScopeByTransform[transformName] = {
+                    editScopeBySet[transformName] = {
                         mode: 'breakpoint',
                         breakpoint: scopeBreakpoint,
                     };
                 }
             } else {
-                editScopeByTransform[transformName] = {
+                editScopeBySet[transformName] = {
                     mode: 'unset',
                     breakpoint: null,
                 };
             }
 
             const activeTab = String(card.getAttribute('data-active-tab') || '').trim().toLowerCase();
-            editTabByTransform[transformName] = (activeTab === 'ratio' || activeTab === 'settings')
+            editTabBySet[transformName] = (activeTab === 'ratio' || activeTab === 'settings')
                 ? activeTab
                 : 'dimensions';
         });
 
         return {
-            editScopeByTransform,
-            editTabByTransform,
+            editScopeBySet,
+            editTabBySet,
         };
     }
 
@@ -1009,8 +1119,8 @@
             return null;
         }
 
-        const cards = Array.from(elements.visualResults.querySelectorAll('.bpi-transform-card[data-transform]'));
-        return cards.find((card) => (card.getAttribute('data-transform') || '') === transformName) || null;
+        const cards = Array.from(elements.visualResults.querySelectorAll('.bpi-transform-card[data-set]'));
+        return cards.find((card) => (card.getAttribute('data-set') || '') === transformName) || null;
     }
 
     function setTransformUpdateStatus(transformName, message, statusState) {
@@ -1181,7 +1291,7 @@
 
                 if (sourceElement && typeof sourceElement.closest === 'function') {
                     const card = sourceElement.closest('.bpi-transform-card');
-                    const transformName = card?.getAttribute('data-transform') || '';
+                    const transformName = card?.getAttribute('data-set') || '';
                     if (transformName) {
                         finalizeTransformUpdateFromServerStatus(transformName, serverStatus);
                         return;
@@ -1206,7 +1316,7 @@
                 return;
             }
 
-            const transformName = card.getAttribute('data-transform') || '';
+            const transformName = card.getAttribute('data-set') || '';
             if (!transformName) {
                 return;
             }
@@ -1304,15 +1414,15 @@
         }
 
         const {
-            editScopeByTransform,
-            editTabByTransform,
+            editScopeBySet,
+            editTabBySet,
         } = collectReviewEditStateFromDom();
 
         const response = await Craft.sendActionRequest('POST', RENDER_RESULT_REVIEW_ACTION, {
             data: {
                 result,
-                editScopeByTransform,
-                editTabByTransform,
+                editScopeBySet,
+                editTabBySet,
             },
         });
 
@@ -1517,6 +1627,7 @@
     setStopButtonVisibility(false);
     updateCopyButtonVisibility();
     state.selectedEntryId = getSelectedEntryId();
+    setupDatastarModalIgnoreGuard();
     bindSourceSelectionSync();
     setButtonsDisabled(false);
     setupDragToScroll();

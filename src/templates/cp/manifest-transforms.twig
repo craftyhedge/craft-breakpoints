@@ -1,26 +1,26 @@
 {% extends "_layouts/cp" %}
 
-{% set title = 'Transforms'|t('craft-breakpoint-images') %}
+{% set title = 'Transform Sets'|t('craft-breakpoint-images') %}
 {% set selectedSubnavItem = selectedSubnavItem ?? 'transforms' %}
 
 {% block content %}
-    {% set transformNames = transformNames ?? [] %}
-    {% set manifestTransforms = manifestTransforms ?? {} %}
+    {% set setNames = setNames ?? [] %}
+    {% set manifestSets = manifestSets ?? {} %}
 
-    {% if transformNames|length %}
+    {% if setNames|length %}
         <ul>
-            {% for transformName in transformNames %}
-                {% set transformDefinition = manifestTransforms[transformName] ?? {} %}
-                {% set breakpointCount = (transformDefinition.transforms is defined and transformDefinition.transforms is iterable)
-                    ? transformDefinition.transforms|length
+            {% for setName in setNames %}
+                {% set setDefinition = manifestSets[setName] ?? {} %}
+                {% set breakpointCount = (setDefinition.variants is defined and setDefinition.variants is iterable)
+                    ? setDefinition.variants|length
                     : 0 %}
                 <li>
-                    <strong>{{ transformName }}</strong>
+                    <strong>{{ setName }}</strong>
                     <span class="light">({{ breakpointCount }} breakpoints)</span>
                 </li>
             {% endfor %}
         </ul>
     {% else %}
-        <p>{{ 'No transforms found in manifest.'|t('craft-breakpoint-images') }}</p>
+        <p>{{ 'No transform sets found in manifest.'|t('craft-breakpoint-images') }}</p>
     {% endif %}
 {% endblock %}

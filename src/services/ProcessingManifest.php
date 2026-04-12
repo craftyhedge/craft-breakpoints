@@ -23,7 +23,7 @@ class ProcessingManifest extends Component
                 'generatedAt' => gmdate('c'),
                 'breakpoints' => [],
                 'breakpointValues' => [],
-                'transforms' => [],
+                'sets' => [],
             ];
         }
 
@@ -34,7 +34,7 @@ class ProcessingManifest extends Component
             'generatedAt' => gmdate('c'),
             'breakpoints' => $breakpoints,
             'breakpointValues' => array_values($breakpoints),
-            'transforms' => $this->_plugin->getTransforms()->getTransforms(),
+            'sets' => $this->_plugin->getTransformSets()->getSets(),
         ];
     }
 }

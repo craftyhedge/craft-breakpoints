@@ -29,7 +29,7 @@ final class RenderContextBuilderTest extends Unit
         $asset = $this->createMockAsset();
 
         $context = $builder->build([
-            'transformName' => 'default',
+            'setName' => 'default',
             'breakpoints' => ['xs' => 480],
             'escapeWidth' => 0,
             'secondaryFormat' => 'none',
@@ -42,7 +42,7 @@ final class RenderContextBuilderTest extends Unit
         $this->assertArrayHasKey('imgAttributes', $context);
         $this->assertArrayHasKey('breakpoints', $context);
 
-        $this->assertSame('default', $context['pictureAttributes']['data-transform'] ?? null);
+        $this->assertSame('default', $context['pictureAttributes']['data-set'] ?? null);
     }
 
     public function testGetImageAttributesUsesTransparentPixelWhenFirstImageIsDisabled(): void
@@ -50,7 +50,7 @@ final class RenderContextBuilderTest extends Unit
         $builder = Plugin::getInstance()->getRenderContextBuilder();
 
         $attributes = $builder->getImageAttributes([
-            'transformName' => 'default',
+            'setName' => 'default',
             'breakpoints' => ['xs' => 480],
             'escapeWidth' => 0,
             'disableBreakpoints' => ['xs' => true],
@@ -68,18 +68,18 @@ final class RenderContextBuilderTest extends Unit
         $builder = Plugin::getInstance()->getRenderContextBuilder();
 
         $exists = $builder->getPictureAttributes([
-            'transformName' => 'default',
+            'setName' => 'default',
             'imageId' => 123,
             'breakpoints' => ['xs' => 480],
         ]);
         $missing = $builder->getPictureAttributes([
-            'transformName' => 'missing-transform-name',
+            'setName' => 'missing-set-name',
             'imageId' => 123,
             'breakpoints' => ['xs' => 480],
         ]);
 
-        $this->assertSame('true', $exists['data-transform-exists'] ?? null);
-        $this->assertSame('false', $missing['data-transform-exists'] ?? null);
+        $this->assertSame('true', $exists['data-set-exists'] ?? null);
+        $this->assertSame('false', $missing['data-set-exists'] ?? null);
     }
 
     public function testGetImageAttributesOmitsLoadingWhenNativeLazyLoadingDisabled(): void
@@ -87,7 +87,7 @@ final class RenderContextBuilderTest extends Unit
         $builder = Plugin::getInstance()->getRenderContextBuilder();
 
         $attributes = $builder->getImageAttributes([
-            'transformName' => 'default',
+            'setName' => 'default',
             'breakpoints' => ['xs' => 480],
             'escapeWidth' => 0,
             'secondaryFormat' => 'none',
@@ -106,14 +106,14 @@ final class RenderContextBuilderTest extends Unit
         $asset = $this->createMockAsset();
 
         $fallbackAltAttributes = $builder->getImageAttributes([
-            'transformName' => 'default',
+            'setName' => 'default',
             'breakpoints' => ['xs' => 480],
             'escapeWidth' => 0,
             'secondaryFormat' => 'none',
         ], $asset);
 
         $overrideAltAttributes = $builder->getImageAttributes([
-            'transformName' => 'default',
+            'setName' => 'default',
             'breakpoints' => ['xs' => 480],
             'escapeWidth' => 0,
             'secondaryFormat' => 'none',
@@ -129,7 +129,7 @@ final class RenderContextBuilderTest extends Unit
         $builder = Plugin::getInstance()->getRenderContextBuilder();
 
         $attributes = $builder->getPictureAttributes([
-            'transformName' => 'default',
+            'setName' => 'default',
             'imageId' => 123,
             'breakpoints' => [
                 'xs' => 480,

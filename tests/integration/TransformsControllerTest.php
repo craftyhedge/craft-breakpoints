@@ -28,7 +28,7 @@ final class TransformsControllerTest extends Unit
         $this->assertStringContainsString('patch-signals', (string)$response->content);
         $this->assertStringContainsString('sess_test_init', (string)$response->content);
         $this->assertStringContainsString('"baseVersion":1', (string)$response->content);
-        $this->assertStringContainsString('Draft initialized from current transform configuration.', (string)$response->content);
+        $this->assertStringContainsString('Draft initialized from current transform set configuration.', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
     }
@@ -77,7 +77,7 @@ final class TransformsControllerTest extends Unit
         $this->assertSame(Response::FORMAT_RAW, $response->format);
         $this->assertStringContainsString('"baseVersion":2', (string)$response->content);
         $this->assertStringContainsString('"kind":"success"', (string)$response->content);
-        $this->assertStringContainsString('Draft applied and persisted to transforms.json.', (string)$response->content);
+        $this->assertStringContainsString('Draft applied and persisted to transform-sets.json.', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
     }
@@ -87,7 +87,7 @@ final class TransformsControllerTest extends Unit
         $controller = $this->controllerWithBody([
             'baseVersion' => 5,
             'field' => 'unexpected-field',
-            'transformName' => '',
+            'setName' => '',
             'scopeMode' => 'all',
             'value' => 120,
         ]);
@@ -96,7 +96,7 @@ final class TransformsControllerTest extends Unit
         $this->assertSame(Response::FORMAT_RAW, $response->format);
         $this->assertStringContainsString('"baseVersion":5', (string)$response->content);
         $this->assertStringContainsString('Width update failed.', (string)$response->content);
-        $this->assertStringContainsString('transformName is required.', (string)$response->content);
+        $this->assertStringContainsString('setName is required.', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
     }
@@ -105,8 +105,8 @@ final class TransformsControllerTest extends Unit
     {
         $controller = $this->controllerWithBody([
             'result' => 'not-an-array',
-            'editScopeByTransform' => 'invalid-scope',
-            'editTabByTransform' => 'invalid-tab',
+            'editScopeBySet' => 'invalid-scope',
+            'editTabBySet' => 'invalid-tab',
         ]);
         $response = $controller->actionRenderResultReview();
 

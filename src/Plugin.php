@@ -23,9 +23,9 @@ use craftyhedge\craftbreakpointimages\services\Images;
 use craftyhedge\craftbreakpointimages\services\ImageTransforms;
 use craftyhedge\craftbreakpointimages\services\ProcessingManifest;
 use craftyhedge\craftbreakpointimages\services\RenderContextBuilder;
+use craftyhedge\craftbreakpointimages\services\TransformSets;
 use craftyhedge\craftbreakpointimages\services\TransformStore;
 use craftyhedge\craftbreakpointimages\services\TransformEditor;
-use craftyhedge\craftbreakpointimages\services\Transforms;
 use craftyhedge\craftbreakpointimages\web\twig\Extension;
 use Monolog\Formatter\LineFormatter;
 use Psr\Log\LogLevel;
@@ -49,7 +49,7 @@ class Plugin extends BasePlugin
                 'images' => Images::class,
                 'configService' => ConfigService::class,
                 'breakpointPolicy' => BreakpointPolicy::class,
-                'transforms' => Transforms::class,
+                'transformSets' => TransformSets::class,
                 'transformStore' => TransformStore::class,
                 'imageRenderer' => ImageRenderer::class,
                 'renderContextBuilder' => RenderContextBuilder::class,
@@ -113,9 +113,9 @@ class Plugin extends BasePlugin
         return $this->get('renderContextBuilder');
     }
 
-    public function getTransforms(): Transforms
+    public function getTransformSets(): TransformSets
     {
-        return $this->get('transforms');
+        return $this->get('transformSets');
     }
 
     public function getTransformStore(): TransformStore
@@ -172,7 +172,7 @@ class Plugin extends BasePlugin
                 'url' => 'craft-breakpoint-images/settings',
             ],
             'transforms' => [
-                'label' => Craft::t('craft-breakpoint-images', 'Transforms'),
+                'label' => Craft::t('craft-breakpoint-images', 'Transform Sets'),
                 'url' => 'craft-breakpoint-images/transforms',
             ],
             'processing' => [

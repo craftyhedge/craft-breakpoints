@@ -46,17 +46,17 @@ final class PluginRegistrationTest extends Unit
     public function testTransformsConfigFileIsCreatedAndLoaded(): void
     {
         $plugin = Plugin::getInstance();
-        $configPath = Craft::$app->getPath()->getConfigPath() . '/craft-breakpoint-images/transforms.json';
+        $configPath = Craft::$app->getPath()->getConfigPath() . '/craft-breakpoint-images/transform-sets.json';
         $transforms = $plugin->getTransformStore()->getTransforms();
 
         $this->assertFileExists($configPath);
         $this->assertIsArray($transforms);
         $this->assertArrayHasKey('default', $transforms);
 
-        $defaultTransform = $plugin->getTransforms()->getTransform('default');
+        $defaultTransform = $plugin->getTransformSets()->getSet('default');
         $this->assertIsArray($defaultTransform);
-        $this->assertArrayHasKey('transforms', $defaultTransform);
-        $this->assertIsArray($defaultTransform['transforms']);
+        $this->assertArrayHasKey('variants', $defaultTransform);
+        $this->assertIsArray($defaultTransform['variants']);
     }
 
 }

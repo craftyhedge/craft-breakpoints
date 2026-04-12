@@ -1,0 +1,47 @@
+{
+    "sets": {
+        "default": {
+            "name": "default",
+            "includeEscapeWidth": false,
+            "variants": {
+                "xs": {
+                    "width": 480,
+                    "height": null,
+                    "enabled": true,
+                    "autoDimension": null
+                },
+                "sm": {
+                    "width": 640,
+                    "height": null,
+                    "enabled": true,
+                    "autoDimension": null
+                },
+                "md": {
+                    "width": 768,
+                    "height": null,
+                    "enabled": true,
+                    "autoDimension": null
+                },
+                "lg": {
+                    "width": 1024,
+                    "height": null,
+                    "enabled": true,
+                    "autoDimension": null
+                },
+                "xl": {
+                    "width": 1280,
+                    "height": null,
+                    "enabled": true,
+                    "autoDimension": null
+                },
+                "2xl": {
+                    "width": 1536,
+                    "height": null,
+                    "enabled": true,
+                    "autoDimension": null
+                }
+            },
+            "config": {}
+        }
+    }
+}

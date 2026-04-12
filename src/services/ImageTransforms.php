@@ -42,14 +42,16 @@ class ImageTransforms extends Component
 
         $mergedConfig = $this->_plugin->getConfigService()->getConfig($config);
         $effectiveSecondaryFormat = $this->resolveEffectiveSecondaryFormat($config, $mergedConfig);
-        $allBreakpoints = $this->_plugin->getBreakpointPolicy()->getBreakpointsForTransform($config, $mergedConfig);
+        $allBreakpoints = $this->_plugin->getBreakpointPolicy()->getBreakpointsForSet($config, $mergedConfig);
         $breakpointNames = array_keys($allBreakpoints);
         $breakpointName = $breakpointNames[$loopIndex] ?? null;
-        $namedTransform = $this->getNamedTransform($config);
-        $transformEntry = $this->getTransformEntryByIndex($namedTransform, $loopIndex);
-        $autoDimension = $this->resolveAutoDimension($transformEntry, $config);
+        $namedSet = $this->getNamedSet($config);
+        $variant = $breakpointName !== null
+            ? $this->getVariantByBreakpointName($namedSet, (string)$breakpointName)
+            : null;
+        $autoDimension = $this->resolveAutoDimension($variant, $config);
 
-        if ($this->_plugin->getBreakpointPolicy()->isBreakpointDisabled($breakpointName, $config, $loopIndex)) {
+        if ($this->_plugin->getBreakpointPolicy()->isBreakpointDisabled($breakpointName, $config)) {
             $sourceMediaQuery = $this->getDisabledMediaQuery($breakpoint);
             $primarySourceAttributes = array_merge([
                 'srcset' => self::TRANSPARENT_PIXEL_DATA_URI,
@@ -59,7 +61,7 @@ class ImageTransforms extends Component
             ], $this->buildSourceDataAttributes(
                 $breakpoint,
                 false,
-                $transformEntry,
+                $variant,
                 null,
                 $autoDimension,
                 'bpi_first-source-set'
@@ -80,7 +82,7 @@ class ImageTransforms extends Component
                 ], $this->buildSourceDataAttributes(
                     $breakpoint,
                     false,
-                    $transformEntry,
+                    $variant,
                     null,
                     $autoDimension,
                     'bpi_secondary-source-set'
@@ -106,10 +108,10 @@ class ImageTransforms extends Component
             return $result;
         }
 
-        $transformName = (string)($config['transformName'] ?? 'default');
+        $setName = (string)($config['setName'] ?? $config['transformName'] ?? 'default');
 
-        $transformedPrimary = $this->getTransformedImages($image, $transformName, 'primary', $config);
-        $transformedSecondary = $this->getTransformedImages($image, $transformName, 'secondary', $config);
+        $transformedPrimary = $this->getTransformedImages($image, $setName, 'primary', $config);
+        $transformedSecondary = $this->getTransformedImages($image, $setName, 'secondary', $config);
 
         $primary = $transformedPrimary[$loopIndex] ?? null;
         $secondary = $transformedSecondary[$loopIndex] ?? null;
@@ -141,7 +143,7 @@ class ImageTransforms extends Component
         ], $this->buildSourceDataAttributes(
             $breakpoint,
             true,
-            $transformEntry,
+            $variant,
             $primary,
             $autoDimension,
             'bpi_first-source-set'
@@ -161,7 +163,7 @@ class ImageTransforms extends Component
             ], $this->buildSourceDataAttributes(
                 $breakpoint,
                 true,
-                $transformEntry,
+                $variant,
                 $secondary,
                 $autoDimension,
                 'bpi_secondary-source-set'
@@ -191,14 +193,13 @@ class ImageTransforms extends Component
         }
 
         $mergedConfig = $this->_plugin->getConfigService()->getConfig($config);
-        $breakpoints = $this->_plugin->getBreakpointPolicy()->getBreakpointsForTransform($config, $mergedConfig);
-        $index = 0;
+        $breakpoints = $this->_plugin->getBreakpointPolicy()->getBreakpointsForSet($config, $mergedConfig);
         foreach ($breakpoints as $breakpointName => $breakpointValue) {
-            if (!$this->_plugin->getBreakpointPolicy()->isBreakpointDisabled((string)$breakpointName, $config, $index)) {
-                return $index;
+            if (!$this->_plugin->getBreakpointPolicy()->isBreakpointDisabled((string)$breakpointName, $config)) {
+                $breakpointNames = array_keys($breakpoints);
+                $position = array_search((string)$breakpointName, $breakpointNames, true);
+                return is_int($position) ? $position : null;
             }
-
-            $index++;
         }
 
         return null;
@@ -241,7 +242,7 @@ class ImageTransforms extends Component
 
         $mergedConfig = $this->_plugin->getConfigService()->getConfig($config);
 
-        return $this->_plugin->getBreakpointPolicy()->getBreakpointsForTransform($config, $mergedConfig);
+        return $this->_plugin->getBreakpointPolicy()->getBreakpointsForSet($config, $mergedConfig);
     }
 
     public function getBreakpointStates(array $config = []): array
@@ -253,14 +254,14 @@ class ImageTransforms extends Component
         return $this->_plugin->getBreakpointPolicy()->getBreakpointStates($config);
     }
 
-    public function getTransformedImages(Asset $image, string $transform = 'default', string $formatIndex = 'primary', array $config = []): array
+    public function getTransformedImages(Asset $image, string $setName = 'default', string $formatIndex = 'primary', array $config = []): array
     {
         if ($this->_plugin === null) {
             return [];
         }
 
-        if (!isset($config['transformName']) || $config['transformName'] === '') {
-            $config['transformName'] = $transform;
+        if (!isset($config['setName']) || $config['setName'] === '') {
+            $config['setName'] = $setName;
         }
 
         $cacheKey = $this->getTransformCacheKey($image, $formatIndex, $config);
@@ -269,16 +270,16 @@ class ImageTransforms extends Component
         }
 
         $mergedConfig = $this->_plugin->getConfigService()->getConfig($config);
-        $breakpoints = $this->_plugin->getBreakpointPolicy()->getBreakpointsForTransform($config, $mergedConfig);
-        $namedTransform = $this->getNamedTransform($config);
-        $namedTransformConfig = $this->getNamedTransformConfig($namedTransform);
+        $breakpoints = $this->_plugin->getBreakpointPolicy()->getBreakpointsForSet($config, $mergedConfig);
+        $namedSet = $this->getNamedSet($config);
+        $namedSetConfig = $this->getNamedSetConfig($namedSet);
 
         $primaryFormat = $this->normalizeTargetFormat(
-            (string)($namedTransformConfig['format'] ?? $mergedConfig['format'] ?? 'jpg'),
+            (string)($namedSetConfig['format'] ?? $mergedConfig['format'] ?? 'jpg'),
             'jpg'
         );
         $secondaryFormat = $this->normalizeSecondaryFormat(
-            (string)($namedTransformConfig['secondaryFormat'] ?? $mergedConfig['secondaryFormat'] ?? 'none')
+            (string)($namedSetConfig['secondaryFormat'] ?? $mergedConfig['secondaryFormat'] ?? 'none')
         );
 
         if ($formatIndex === 'secondary' && $secondaryFormat === 'none') {
@@ -289,9 +290,9 @@ class ImageTransforms extends Component
             $formatIndex === 'secondary' ? $secondaryFormat : $primaryFormat,
             'jpg'
         );
-        $mode = (string)($namedTransformConfig['mode'] ?? $mergedConfig['mode'] ?? 'crop');
-        $position = (string)($namedTransformConfig['position'] ?? $mergedConfig['position'] ?? 'center-center');
-        $quality = (int)($namedTransformConfig['quality'] ?? $mergedConfig['quality'] ?? 80);
+        $mode = (string)($namedSetConfig['mode'] ?? $mergedConfig['mode'] ?? 'crop');
+        $position = (string)($namedSetConfig['position'] ?? $mergedConfig['position'] ?? 'center-center');
+        $quality = (int)($namedSetConfig['quality'] ?? $mergedConfig['quality'] ?? 80);
 
         $sourceWidth = (int)($image->getWidth() ?? 0);
         $sourceHeight = (int)($image->getHeight() ?? 0);
@@ -314,21 +315,21 @@ class ImageTransforms extends Component
 
         $index = 0;
         foreach ($breakpoints as $breakpointName => $breakpointWidth) {
-            if ($this->_plugin->getBreakpointPolicy()->isBreakpointDisabled((string)$breakpointName, $config, $index)) {
+            if ($this->_plugin->getBreakpointPolicy()->isBreakpointDisabled((string)$breakpointName, $config)) {
                 $transformed[$index] = $this->getPlaceholderTransform((int)$image->id);
                 $index++;
                 continue;
             }
 
-            $namedTransformEntry = $this->getTransformEntryByIndex($namedTransform, $index);
+            $namedSetVariant = $this->getVariantByBreakpointName($namedSet, (string)$breakpointName);
 
             $targetWidth = (int)$breakpointWidth;
             if ($targetWidth <= 0) {
                 $targetWidth = $sourceWidth;
             }
 
-            if ($namedTransformEntry !== null && isset($namedTransformEntry['width']) && is_numeric($namedTransformEntry['width'])) {
-                $targetWidth = (int)$namedTransformEntry['width'];
+            if ($namedSetVariant !== null && isset($namedSetVariant['width']) && is_numeric($namedSetVariant['width'])) {
+                $targetWidth = (int)$namedSetVariant['width'];
             }
 
             $targetHeight = (int)round($targetWidth / $aspectRatio);
@@ -336,8 +337,8 @@ class ImageTransforms extends Component
                 $targetHeight = $sourceHeight;
             }
 
-            if ($namedTransformEntry !== null && isset($namedTransformEntry['height']) && is_numeric($namedTransformEntry['height'])) {
-                $targetHeight = (int)$namedTransformEntry['height'];
+            if ($namedSetVariant !== null && isset($namedSetVariant['height']) && is_numeric($namedSetVariant['height'])) {
+                $targetHeight = (int)$namedSetVariant['height'];
             }
 
             if ($initWidth !== null) {
@@ -356,7 +357,7 @@ class ImageTransforms extends Component
                 $targetHeight = (int)round($targetWidth / $aspectRatio);
             }
 
-            $autoDimension = $this->resolveAutoDimension($namedTransformEntry, $config);
+            $autoDimension = $this->resolveAutoDimension($namedSetVariant, $config);
 
             $transformWidth = $targetWidth;
             $transformHeight = $targetHeight;
@@ -389,10 +390,10 @@ class ImageTransforms extends Component
             $transformConfig = [
                 'width' => $transformWidth,
                 'height' => $transformHeight,
-                'mode' => is_array($namedTransformEntry) && isset($namedTransformEntry['mode']) ? (string)$namedTransformEntry['mode'] : $mode,
-                'position' => is_array($namedTransformEntry) && isset($namedTransformEntry['position']) ? (string)$namedTransformEntry['position'] : $position,
-                'quality' => is_array($namedTransformEntry) && isset($namedTransformEntry['quality']) && is_numeric($namedTransformEntry['quality'])
-                    ? (int)$namedTransformEntry['quality']
+                'mode' => is_array($namedSetVariant) && isset($namedSetVariant['mode']) ? (string)$namedSetVariant['mode'] : $mode,
+                'position' => is_array($namedSetVariant) && isset($namedSetVariant['position']) ? (string)$namedSetVariant['position'] : $position,
+                'quality' => is_array($namedSetVariant) && isset($namedSetVariant['quality']) && is_numeric($namedSetVariant['quality'])
+                    ? (int)$namedSetVariant['quality']
                     : $quality,
                 'format' => $targetFormat,
             ];
@@ -428,10 +429,10 @@ class ImageTransforms extends Component
         return $transformed;
     }
 
-    private function resolveAutoDimension(?array $namedTransformEntry, array $config): ?string
+    private function resolveAutoDimension(?array $namedSetVariant, array $config): ?string
     {
-        if ($namedTransformEntry !== null && isset($namedTransformEntry['autoDimension'])) {
-            $autoDimension = $namedTransformEntry['autoDimension'];
+        if ($namedSetVariant !== null && isset($namedSetVariant['autoDimension'])) {
+            $autoDimension = $namedSetVariant['autoDimension'];
             if ($autoDimension === 'width' || $autoDimension === 'height') {
                 return $autoDimension;
             }
@@ -647,16 +648,16 @@ class ImageTransforms extends Component
     private function buildSourceDataAttributes(
         int $breakpoint,
         bool $enabled,
-        ?array $transformEntry,
+        ?array $variant,
         ?array $fallbackTransform,
         ?string $autoDimension,
         string $className
     ): array {
-        $explicitWidth = isset($transformEntry['width']) && is_numeric($transformEntry['width'])
-            ? (int)$transformEntry['width']
+        $explicitWidth = isset($variant['width']) && is_numeric($variant['width'])
+            ? (int)$variant['width']
             : null;
-        $explicitHeight = isset($transformEntry['height']) && is_numeric($transformEntry['height'])
-            ? (int)$transformEntry['height']
+        $explicitHeight = isset($variant['height']) && is_numeric($variant['height'])
+            ? (int)$variant['height']
             : null;
 
         $fallbackWidth = isset($fallbackTransform['width']) && is_numeric($fallbackTransform['width'])
@@ -679,8 +680,8 @@ class ImageTransforms extends Component
             'class' => $className,
             'data-bp-size' => $breakpoint,
             'data-bp-enabled' => $enabled ? 'true' : 'false',
-            'data-transform-width' => $transformWidth,
-            'data-transform-height' => $transformHeight,
+            'data-set-width' => $transformWidth,
+            'data-set-height' => $transformHeight,
         ];
 
         if ($autoDimension !== null) {
@@ -690,43 +691,43 @@ class ImageTransforms extends Component
         return $attributes;
     }
 
-    private function getNamedTransform(array $config): ?array
+    private function getNamedSet(array $config): ?array
     {
         if ($this->_plugin === null) {
             return null;
         }
 
-        $transformName = (string)($config['transformName'] ?? 'default');
+        $setName = (string)($config['setName'] ?? $config['transformName'] ?? 'default');
 
-        return $this->_plugin->getTransforms()->getTransform($transformName);
+        return $this->_plugin->getTransformSets()->getSet($setName);
     }
 
-    private function getTransformEntryByIndex(?array $transform, int $index): ?array
+    private function getVariantByBreakpointName(?array $set, string $breakpointName): ?array
     {
-        if ($transform === null || !isset($transform['transforms']) || !is_array($transform['transforms'])) {
+        if ($set === null || !isset($set['variants']) || !is_array($set['variants'])) {
             return null;
         }
 
-        if (!isset($transform['transforms'][$index]) || !is_array($transform['transforms'][$index])) {
+        if (!isset($set['variants'][$breakpointName]) || !is_array($set['variants'][$breakpointName])) {
             return null;
         }
 
-        return $transform['transforms'][$index];
+        return $set['variants'][$breakpointName];
     }
 
-    private function getNamedTransformConfig(?array $transform): array
+    private function getNamedSetConfig(?array $set): array
     {
-        if ($transform === null || !isset($transform['config']) || !is_array($transform['config'])) {
+        if ($set === null || !isset($set['config']) || !is_array($set['config'])) {
             return [];
         }
 
-        return $transform['config'];
+        return $set['config'];
     }
 
     private function resolveEffectiveSecondaryFormat(array $config, array $mergedConfig): string
     {
-        $namedTransform = $this->getNamedTransform($config);
-        $namedConfig = $this->getNamedTransformConfig($namedTransform);
+        $namedSet = $this->getNamedSet($config);
+        $namedConfig = $this->getNamedSetConfig($namedSet);
 
         return $this->normalizeSecondaryFormat(
             (string)($namedConfig['secondaryFormat'] ?? $mergedConfig['secondaryFormat'] ?? 'none')

@@ -11,8 +11,8 @@ class Extension extends AbstractExtension
     public function getFunctions(): array
     {
         return [
-            new TwigFunction('image', function ($image, string $transform, array $config = []) {
-                return Plugin::getInstance()->getImages()->render($image, $transform, $config);
+            new TwigFunction('image', function ($image, string $setName, array $config = []) {
+                return Plugin::getInstance()->getImages()->render($image, $setName, $config);
             }),
         ];
     }

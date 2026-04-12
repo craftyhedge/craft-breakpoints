@@ -9,19 +9,19 @@ use craftyhedge\craftbreakpointimages\Plugin;
 
 final class ProcessingManifestServiceTest extends Unit
 {
-    public function testManifestUsesCurrentRuntimeTransforms(): void
+    public function testManifestUsesCurrentRuntimeSets(): void
     {
         $plugin = Plugin::getInstance();
         $store = $plugin->getTransformStore();
         $manifestService = $plugin->getProcessingManifest();
-        $previousTransforms = $store->getTransforms();
+        $previousSets = $store->getSets();
 
-        $store->replaceTransformsForRuntime([
+        $store->replaceSetsForRuntime([
             'runtime-transform' => [
                 'name' => 'runtime-transform',
                 'includeEscapeWidth' => false,
-                'transforms' => [
-                    ['width' => 640, 'height' => null, 'enabled' => true, 'autoDimension' => null],
+                'variants' => [
+                    'sm' => ['width' => 640, 'height' => null, 'enabled' => true, 'autoDimension' => null],
                 ],
                 'config' => [],
             ],
@@ -30,10 +30,10 @@ final class ProcessingManifestServiceTest extends Unit
         try {
             $manifest = $manifestService->getManifest();
 
-            $this->assertArrayHasKey('transforms', $manifest);
-            $this->assertArrayHasKey('runtime-transform', $manifest['transforms']);
+            $this->assertArrayHasKey('sets', $manifest);
+            $this->assertArrayHasKey('runtime-transform', $manifest['sets']);
         } finally {
-            $store->replaceTransformsForRuntime($previousTransforms);
+            $store->replaceSetsForRuntime($previousSets);
         }
     }
 

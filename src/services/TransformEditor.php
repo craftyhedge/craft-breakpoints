@@ -100,7 +100,7 @@ class TransformEditor extends Component
         }
 
         if ($transformName === '') {
-            $this->addGlobalError($validation, 'transformName is required.');
+            $this->addGlobalError($validation, 'setName is required.');
 
             return [
                 'persisted' => false,
@@ -241,7 +241,7 @@ class TransformEditor extends Component
         }
 
         if ($transformName === '') {
-            $this->addGlobalError($validation, 'transformName is required.');
+            $this->addGlobalError($validation, 'setName is required.');
 
             return [
                 'persisted' => false,
@@ -408,7 +408,7 @@ class TransformEditor extends Component
         }
 
         if ($transformName === '') {
-            $this->addGlobalError($validation, 'transformName is required.');
+            $this->addGlobalError($validation, 'setName is required.');
 
             return [
                 'persisted' => false,
@@ -612,7 +612,7 @@ class TransformEditor extends Component
         }
 
         if ($transformName === '') {
-            $this->addGlobalError($validation, 'transformName is required.');
+            $this->addGlobalError($validation, 'setName is required.');
 
             return [
                 'persisted' => false,
@@ -710,7 +710,7 @@ class TransformEditor extends Component
         }
 
         if ($transformName === '') {
-            $this->addGlobalError($validation, 'transformName is required.');
+            $this->addGlobalError($validation, 'setName is required.');
 
             return [
                 'persisted' => false,
@@ -901,8 +901,8 @@ class TransformEditor extends Component
 
     public function renderResultReview(
         array $result,
-        array $editScopeByTransform = [],
-        array $editTabByTransform = [],
+        array $editScopeBySet = [],
+        array $editTabBySet = [],
     ): array {
         $rowsByBreakpoint = $this->normalizeReviewRowsByBreakpoint($result['rowsByBreakpoint'] ?? []);
         $breakpoints = $this->normalizeReviewBreakpoints($result['breakpoints'] ?? []);
@@ -919,14 +919,14 @@ class TransformEditor extends Component
             'visualResultsHtml' => $this->buildReviewCardsMarkup(
                 $rowsByBreakpoint,
                 $breakpoints,
-                $editScopeByTransform,
-                $editTabByTransform,
+                $editScopeBySet,
+                $editTabBySet,
                 $normalizedScopeState,
                 $normalizedTabState,
             ),
             'warningCount' => count($warnings),
-            'editScopeByTransform' => $normalizedScopeState,
-            'editTabByTransform' => $normalizedTabState,
+            'editScopeBySet' => $normalizedScopeState,
+            'editTabBySet' => $normalizedTabState,
         ];
     }
 
@@ -977,7 +977,7 @@ class TransformEditor extends Component
 
     private function buildReviewWarningClass(string $code): string
     {
-        if ($code === 'missing-transform-definitions' || $code === 'unknown-transform-rows') {
+        if ($code === 'missing-set-definitions' || $code === 'unknown-set-rows') {
             return 'bpi-warning-item bpi-warning-item-danger';
         }
 
@@ -987,14 +987,14 @@ class TransformEditor extends Component
     private function buildReviewCardsMarkup(
         array $rowsByBreakpoint,
         array $breakpoints,
-        array $editScopeByTransform,
-        array $editTabByTransform,
+        array $editScopeBySet,
+        array $editTabBySet,
         array &$normalizedScopeState,
         array &$normalizedTabState,
     ): string {
         $transformNames = $this->collectReviewTransformNames($rowsByBreakpoint);
         if ($transformNames === []) {
-            return '<div class="bpi-empty-state light">No transforms found in results.</div>';
+            return '<div class="bpi-empty-state light">No transform sets found in results.</div>';
         }
 
         $configuredBreakpoints = $breakpoints !== [] ? $breakpoints : $this->getReviewConfiguredBreakpoints();
@@ -1034,10 +1034,10 @@ class TransformEditor extends Component
             );
 
             $scope = $this->normalizeReviewScope(
-                $editScopeByTransform[$transformName] ?? null,
+                $editScopeBySet[$transformName] ?? null,
                 $transformBreakpoints,
             );
-            $tab = $this->normalizeReviewTab($editTabByTransform[$transformName] ?? null);
+            $tab = $this->normalizeReviewTab($editTabBySet[$transformName] ?? null);
 
             $selectedBreakpoint = $scope['mode'] === 'breakpoint' ? $scope['breakpoint'] : null;
             $signalKey = $this->getReviewTransformSignalKey($transformName);
@@ -1175,7 +1175,7 @@ class TransformEditor extends Component
         }
 
         if ($cards === []) {
-            return '<div class="bpi-empty-state light">No transforms found in results.</div>';
+            return '<div class="bpi-empty-state light">No transform sets found in results.</div>';
         }
 
         return implode('', $cards);
@@ -1612,8 +1612,12 @@ class TransformEditor extends Component
         ?string $autoDimension,
         string $dimension,
     ): string {
-        if ($autoDimension === $dimension || $transformValue === null) {
+        if ($autoDimension === $dimension) {
             return 'bpi_dimension-auto';
+        }
+
+        if ($transformValue === null) {
+            return 'bpi_dimension-no-transform';
         }
 
         if ($renderedValue <= 0) {
@@ -1627,8 +1631,12 @@ class TransformEditor extends Component
 
     private function getReviewCurrentDimensionDisplay(?int $value, ?string $autoDimension, string $dimension): string
     {
-        if ($autoDimension === $dimension || $value === null) {
+        if ($autoDimension === $dimension) {
             return 'auto';
+        }
+
+        if ($value === null) {
+            return '-';
         }
 
         return (string)$value;
@@ -1705,12 +1713,12 @@ class TransformEditor extends Component
         $autoDimension = $this->normalizeAutoDimension($entry['autoDimension'] ?? null);
         $widthValue = $this->normalizeNullablePositiveInt($entry['width'] ?? null);
         $heightValue = $this->normalizeNullablePositiveInt($entry['height'] ?? null);
-        $widthAuto = $autoDimension === 'width' || $widthValue === null;
-        $heightAuto = $autoDimension === 'height' || $heightValue === null;
+        $widthAuto = $autoDimension === 'width';
+        $heightAuto = $autoDimension === 'height';
 
         return [
-            'widthInput' => $widthAuto ? '' : (string)$widthValue,
-            'heightInput' => $heightAuto ? '' : (string)$heightValue,
+            'widthInput' => $widthAuto || $widthValue === null ? '' : (string)$widthValue,
+            'heightInput' => $heightAuto || $heightValue === null ? '' : (string)$heightValue,
             'widthAuto' => $widthAuto ? '1' : '0',
             'heightAuto' => $heightAuto ? '1' : '0',
         ];
@@ -1781,8 +1789,8 @@ class TransformEditor extends Component
 
         if ($missingDefinitions !== []) {
             $warnings[] = [
-                'code' => 'missing-transform-definitions',
-                'message' => 'Transforms found in markup are missing from manifest configuration.',
+                'code' => 'missing-set-definitions',
+                'message' => 'Transform sets found in markup are missing from manifest configuration.',
                 'transforms' => $missingDefinitions,
             ];
         }
@@ -1790,8 +1798,8 @@ class TransformEditor extends Component
         $unknownRows = $this->countReviewUnknownTransformRows($rowsByBreakpoint);
         if ($unknownRows > 0) {
             $warnings[] = [
-                'code' => 'unknown-transform-rows',
-                'message' => 'Some rows were missing the data-transform attribute.',
+                'code' => 'unknown-set-rows',
+                'message' => 'Some rows were missing the data-set attribute.',
                 'rowCount' => $unknownRows,
             ];
         }

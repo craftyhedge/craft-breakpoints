@@ -41,15 +41,15 @@ class RenderContextBuilder extends Component
 
     public function getPictureAttributes(array $config): array
     {
-        $transformName = (string)($config['transformName'] ?? 'default');
+        $setName = (string)($config['setName'] ?? $config['transformName'] ?? 'default');
         $assetId = isset($config['imageId']) ? (string)$config['imageId'] : 'unknown';
-        $pictureId = $this->buildPictureId($transformName, $assetId, $config);
-        $transform = $this->_plugin?->getTransforms()->getTransform($transformName);
+        $pictureId = $this->buildPictureId($setName, $assetId, $config);
+        $set = $this->_plugin?->getTransformSets()->getSet($setName);
 
         return [
             'class' => (string)($config['pictureClass'] ?? ''),
-            'data-transform' => $transformName,
-            'data-transform-exists' => $transform !== null ? 'true' : 'false',
+            'data-set' => $setName,
+            'data-set-exists' => $set !== null ? 'true' : 'false',
             'data-picture-id' => $pictureId,
             'data-asset-id' => $assetId,
             'data-asset-title' => (string)($config['assetTitle'] ?? ''),
@@ -63,8 +63,8 @@ class RenderContextBuilder extends Component
             return null;
         }
 
-        $transformName = (string)($config['transformName'] ?? 'default');
-        $transformedImages = $this->_plugin->getImageTransforms()->getTransformedImages($image, $transformName, 'primary', $config);
+        $setName = (string)($config['setName'] ?? $config['transformName'] ?? 'default');
+        $transformedImages = $this->_plugin->getImageTransforms()->getTransformedImages($image, $setName, 'primary', $config);
 
         $firstEnabledIndex = $this->_plugin->getImageTransforms()->getFirstEnabledBreakpointIndex($config);
         $firstImage = null;
@@ -97,7 +97,7 @@ class RenderContextBuilder extends Component
             'decoding' => (string)($config['decoding'] ?? 'async'),
             'alt' => (string)($config['alt'] ?? $image->title ?? ''),
             'data-asset-id' => (string)$image->id,
-            'data-uid' => $this->buildPictureId($transformName, (string)$image->id, $config) . '-img',
+            'data-uid' => $this->buildPictureId($setName, (string)$image->id, $config) . '-img',
         ];
 
         if ((bool)($config['nativeLazyLoadingEnabled'] ?? true)) {
@@ -107,7 +107,7 @@ class RenderContextBuilder extends Component
         return $attributes;
     }
 
-    private function buildPictureId(string $transformName, string $assetId, array $config): string
+    private function buildPictureId(string $setName, string $assetId, array $config): string
     {
         $variantSeed = json_encode([
             'initWidth' => $config['initWidth'] ?? null,
@@ -127,7 +127,7 @@ class RenderContextBuilder extends Component
 
         $hash = substr(sha1($variantSeed), 0, 8);
 
-        return sprintf('%s-%s-%s', $transformName, $assetId, $hash);
+        return sprintf('%s-%s-%s', $setName, $assetId, $hash);
     }
 
     private function buildBreakpointStatesJson(array $config): string

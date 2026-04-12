@@ -11,10 +11,10 @@ use yii\base\Component;
 class TransformStore extends Component
 {
     private const CONFIG_FOLDER_PERMISSIONS = 0755;
-    private const TRANSFORMS_CONFIG_PATH = '/craft-breakpoint-images/transforms.json';
+    private const SETS_CONFIG_PATH = '/craft-breakpoint-images/transform-sets.json';
 
     private ?Plugin $_plugin = null;
-    private ?array $_transforms = null;
+    private ?array $_sets = null;
 
     public function init(): void
     {
@@ -24,31 +24,46 @@ class TransformStore extends Component
 
     public function initialize(): void
     {
-        $this->ensureTransformsConfigFileExists();
+        $this->ensureSetsConfigFileExists();
         $this->reload();
     }
 
     public function reload(): array
     {
-        $this->_transforms = $this->loadTransformsConfiguration();
+        $this->_sets = $this->loadSetsConfiguration();
         $this->resetImageTransformCaches();
 
-        return $this->_transforms;
+        return $this->_sets;
+    }
+
+    public function getSets(): array
+    {
+        if ($this->_sets === null) {
+            $this->_sets = $this->loadSetsConfiguration();
+        }
+
+        return $this->_sets;
     }
 
     public function getTransforms(): array
     {
-        if ($this->_transforms === null) {
-            $this->_transforms = $this->loadTransformsConfiguration();
-        }
+        return $this->convertSetsToLegacyTransforms($this->getSets());
+    }
 
-        return $this->_transforms;
+    public function replaceSetsForRuntime(array $sets): void
+    {
+        $this->_sets = $this->validateSets($sets);
+        $this->resetImageTransformCaches();
     }
 
     public function replaceTransformsForRuntime(array $transforms): void
     {
-        $this->_transforms = $this->validateTransforms($transforms);
-        $this->resetImageTransformCaches();
+        $this->replaceSetsForRuntime($this->convertLegacyTransformsToSets($transforms));
+    }
+
+    public function setSets(array $sets): void
+    {
+        $this->replaceSetsForRuntime($sets);
     }
 
     public function setTransforms(array $transforms): void
@@ -56,25 +71,46 @@ class TransformStore extends Component
         $this->replaceTransformsForRuntime($transforms);
     }
 
-    public function persistTransforms(array $transforms): array
+    public function persistSets(array $sets): array
     {
-        $normalized = $this->validateTransforms($transforms);
-        $encoded = json_encode($normalized, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        $normalized = $this->validateSets($sets);
+        $payload = [
+            'sets' => $normalized,
+        ];
+        $encoded = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 
         if ($encoded === false) {
-            throw new RuntimeException('Failed to encode transforms configuration.');
+            throw new RuntimeException('Failed to encode transform sets configuration.');
         }
 
-        $this->ensureTransformsConfigFileExists();
-        $bytesWritten = file_put_contents($this->getTransformsConfigPath(), $encoded . PHP_EOL, LOCK_EX);
+        $this->ensureSetsConfigFileExists();
+        $bytesWritten = file_put_contents($this->getSetsConfigPath(), $encoded . PHP_EOL, LOCK_EX);
         if ($bytesWritten === false) {
-            throw new RuntimeException('Failed to persist transforms configuration.');
+            throw new RuntimeException('Failed to persist transform sets configuration.');
         }
 
-        $this->_transforms = $normalized;
+        $this->_sets = $normalized;
         $this->resetImageTransformCaches();
 
         return $normalized;
+    }
+
+    public function persistTransforms(array $transforms): array
+    {
+        $persistedSets = $this->persistSets($this->convertLegacyTransformsToSets($transforms));
+
+        return $this->convertSetsToLegacyTransforms($persistedSets);
+    }
+
+    public function getSet(string $setName): ?array
+    {
+        $sets = $this->getSets();
+
+        if (!isset($sets[$setName]) || !is_array($sets[$setName])) {
+            return null;
+        }
+
+        return $sets[$setName];
     }
 
     public function getTransform(string $transformName): ?array
@@ -88,42 +124,42 @@ class TransformStore extends Component
         return $transforms[$transformName];
     }
 
-    private function ensureTransformsConfigFileExists(): void
+    private function ensureSetsConfigFileExists(): void
     {
         if ($this->_plugin === null) {
             return;
         }
 
-        $folderPath = dirname($this->getTransformsConfigPath());
+        $folderPath = dirname($this->getSetsConfigPath());
         if (!is_dir($folderPath)) {
             $created = mkdir($folderPath, self::CONFIG_FOLDER_PERMISSIONS, true);
             if ($created === false && !is_dir($folderPath)) {
-                Plugin::error('Failed to create transforms config directory.');
+                Plugin::error('Failed to create transform sets config directory.');
                 return;
             }
         }
 
-        $filePath = $this->getTransformsConfigPath();
+        $filePath = $this->getSetsConfigPath();
         if (is_file($filePath)) {
             return;
         }
 
-        $defaultTransforms = json_encode($this->buildDefaultTransforms(), JSON_PRETTY_PRINT);
-        if ($defaultTransforms === false) {
-            Plugin::error('Failed to encode default transforms configuration.');
+        $defaultSets = json_encode($this->buildDefaultSets(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if ($defaultSets === false) {
+            Plugin::error('Failed to encode default transform sets configuration.');
             return;
         }
 
-        $result = file_put_contents($filePath, $defaultTransforms);
+        $result = file_put_contents($filePath, $defaultSets . PHP_EOL);
 
         if ($result === false) {
-            Plugin::error('Failed to create transforms.json config file.');
+            Plugin::error('Failed to create transform-sets.json config file.');
         }
     }
 
-    private function loadTransformsConfiguration(): array
+    private function loadSetsConfiguration(): array
     {
-        $filePath = $this->getTransformsConfigPath();
+        $filePath = $this->getSetsConfigPath();
 
         if (!is_file($filePath)) {
             return [];
@@ -131,56 +167,102 @@ class TransformStore extends Component
 
         $json = file_get_contents($filePath);
         if ($json === false) {
-            Plugin::warning('Could not read transforms.json config file.');
+            Plugin::warning('Could not read transform-sets.json config file.');
             return [];
         }
 
         $decoded = json_decode($json, true);
         if (!is_array($decoded)) {
-            Plugin::warning('Invalid transforms.json content. Expected valid JSON object.');
+            Plugin::warning('Invalid transform-sets.json content. Expected valid JSON object.');
+            return [];
+        }
+
+        $rawSets = $this->resolveRawSets($decoded);
+        if ($rawSets === null) {
+            Plugin::warning('Invalid transform-sets.json content. Expected top-level sets object.');
             return [];
         }
 
         try {
-            return $this->validateTransforms($decoded);
+            return $this->validateSets($rawSets);
         } catch (InvalidArgumentException $e) {
-            Plugin::warning('Invalid transforms.json content structure.');
+            Plugin::warning('Invalid transform-sets.json content structure.');
             return [];
         }
     }
 
-    private function validateTransforms(array $transforms): array
+    private function resolveRawSets(array $decoded): ?array
+    {
+        $wrappedSets = $decoded['sets'] ?? null;
+        if (is_array($wrappedSets)) {
+            return $wrappedSets;
+        }
+
+        if ($decoded === []) {
+            return [];
+        }
+
+        if ($this->looksLikeUnwrappedSets($decoded)) {
+            return $decoded;
+        }
+
+        return null;
+    }
+
+    private function looksLikeUnwrappedSets(array $decoded): bool
+    {
+        foreach ($decoded as $setDefinition) {
+            if (!is_array($setDefinition)) {
+                return false;
+            }
+
+            if (array_key_exists('variants', $setDefinition) || array_key_exists('includeEscapeWidth', $setDefinition)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function validateSets(array $sets): array
     {
         $normalized = [];
-        foreach ($transforms as $transformName => $transformDefinition) {
-            if (!is_string($transformName) || trim($transformName) === '') {
-                throw new InvalidArgumentException('Transform name must be a non-empty string.');
+        foreach ($sets as $setName => $setDefinition) {
+            if (!is_string($setName) || trim($setName) === '') {
+                throw new InvalidArgumentException('Set name must be a non-empty string.');
             }
 
-            if (!is_array($transformDefinition)) {
-                throw new InvalidArgumentException('Transform definition must be an array.');
+            if (!is_array($setDefinition)) {
+                throw new InvalidArgumentException('Set definition must be an array.');
             }
 
-            $entries = $transformDefinition['transforms'] ?? null;
-            if (!is_array($entries)) {
-                throw new InvalidArgumentException('Transform entries must be an array.');
+            $variants = $setDefinition['variants'] ?? null;
+            if (!is_array($variants)) {
+                throw new InvalidArgumentException('Set variants must be an array.');
             }
 
-            foreach ($entries as $entry) {
-                if (!is_array($entry)) {
-                    throw new InvalidArgumentException('Each transform entry must be an array.');
+            $normalizedVariants = [];
+            foreach ($variants as $breakpointName => $variant) {
+                if (!is_string($breakpointName) || trim($breakpointName) === '') {
+                    throw new InvalidArgumentException('Variant breakpoint name must be a non-empty string.');
                 }
+
+                if (!is_array($variant)) {
+                    throw new InvalidArgumentException('Each variant must be an array.');
+                }
+
+                $normalizedVariants[$breakpointName] = $variant;
             }
 
-            $config = $transformDefinition['config'] ?? [];
+            $config = $setDefinition['config'] ?? [];
             if (!is_array($config)) {
-                throw new InvalidArgumentException('Transform config must be an array when provided.');
+                throw new InvalidArgumentException('Set config must be an array when provided.');
             }
 
-            $normalized[$transformName] = array_merge($transformDefinition, [
-                'name' => (string)($transformDefinition['name'] ?? $transformName),
-                'transforms' => array_values($entries),
-                'includeEscapeWidth' => ($transformDefinition['includeEscapeWidth'] ?? false) === true,
+            $normalized[$setName] = array_merge($setDefinition, [
+                'name' => (string)($setDefinition['name'] ?? $setName),
+                'variants' => $normalizedVariants,
+                'includeEscapeWidth' => ($setDefinition['includeEscapeWidth'] ?? false) === true,
                 'config' => $config,
             ]);
         }
@@ -197,24 +279,24 @@ class TransformStore extends Component
         $this->_plugin->getImageTransforms()->resetCaches();
     }
 
-    private function getTransformsConfigPath(): string
+    private function getSetsConfigPath(): string
     {
-        return Craft::$app->getPath()->getConfigPath() . self::TRANSFORMS_CONFIG_PATH;
+        return Craft::$app->getPath()->getConfigPath() . self::SETS_CONFIG_PATH;
     }
 
-    private function buildDefaultTransforms(): array
+    private function buildDefaultSets(): array
     {
         if ($this->_plugin === null) {
-            return [];
+            return ['sets' => []];
         }
 
         $breakpoints = $this->_plugin->getConfigService()->getBreakpoints();
         unset($breakpoints['escape']);
 
-        $transformEntries = [];
-        foreach ($breakpoints as $breakpoint) {
-            $transformEntries[] = [
-                'width' => (int)$breakpoint,
+        $variants = [];
+        foreach ($breakpoints as $breakpointName => $breakpointValue) {
+            $variants[(string)$breakpointName] = [
+                'width' => (int)$breakpointValue,
                 'height' => null,
                 'enabled' => true,
                 'autoDimension' => null,
@@ -222,12 +304,102 @@ class TransformStore extends Component
         }
 
         return [
-            'default' => [
-                'name' => 'default',
-                'transforms' => $transformEntries,
-                'includeEscapeWidth' => false,
-                'config' => [],
+            'sets' => [
+                'default' => [
+                    'name' => 'default',
+                    'variants' => $variants,
+                    'includeEscapeWidth' => false,
+                    'config' => [],
+                ],
             ],
         ];
+    }
+
+    private function convertSetsToLegacyTransforms(array $sets): array
+    {
+        $legacy = [];
+
+        foreach ($sets as $setName => $setDefinition) {
+            if (!is_string($setName) || $setName === '' || !is_array($setDefinition)) {
+                continue;
+            }
+
+            $breakpointNames = $this->getBreakpointNamesForSetDefinition($setDefinition);
+            $variants = isset($setDefinition['variants']) && is_array($setDefinition['variants'])
+                ? $setDefinition['variants']
+                : [];
+
+            $entries = [];
+            foreach ($breakpointNames as $breakpointName) {
+                $entry = $variants[$breakpointName] ?? [];
+                $entries[] = is_array($entry) ? $entry : [];
+            }
+
+            $legacy[$setName] = [
+                'name' => (string)($setDefinition['name'] ?? $setName),
+                'includeEscapeWidth' => ($setDefinition['includeEscapeWidth'] ?? false) === true,
+                'transforms' => $entries,
+                'config' => isset($setDefinition['config']) && is_array($setDefinition['config'])
+                    ? $setDefinition['config']
+                    : [],
+            ];
+        }
+
+        return $legacy;
+    }
+
+    private function convertLegacyTransformsToSets(array $transforms): array
+    {
+        $sets = [];
+
+        foreach ($transforms as $setName => $legacyDefinition) {
+            if (!is_string($setName) || trim($setName) === '' || !is_array($legacyDefinition)) {
+                continue;
+            }
+
+            $includeEscapeWidth = ($legacyDefinition['includeEscapeWidth'] ?? false) === true;
+            $entries = isset($legacyDefinition['transforms']) && is_array($legacyDefinition['transforms'])
+                ? array_values($legacyDefinition['transforms'])
+                : [];
+
+            $breakpointNames = $this->getBreakpointNamesForIncludeEscapeWidth($includeEscapeWidth);
+            $variants = [];
+            foreach ($breakpointNames as $index => $breakpointName) {
+                $entry = $entries[$index] ?? [];
+                $variants[$breakpointName] = is_array($entry) ? $entry : [];
+            }
+
+            $sets[$setName] = [
+                'name' => (string)($legacyDefinition['name'] ?? $setName),
+                'includeEscapeWidth' => $includeEscapeWidth,
+                'variants' => $variants,
+                'config' => isset($legacyDefinition['config']) && is_array($legacyDefinition['config'])
+                    ? $legacyDefinition['config']
+                    : [],
+            ];
+        }
+
+        return $sets;
+    }
+
+    private function getBreakpointNamesForSetDefinition(array $setDefinition): array
+    {
+        $includeEscapeWidth = ($setDefinition['includeEscapeWidth'] ?? false) === true;
+
+        return $this->getBreakpointNamesForIncludeEscapeWidth($includeEscapeWidth);
+    }
+
+    private function getBreakpointNamesForIncludeEscapeWidth(bool $includeEscapeWidth): array
+    {
+        if ($this->_plugin === null) {
+            return [];
+        }
+
+        $breakpoints = $this->_plugin->getConfigService()->getBreakpoints();
+        if (!$includeEscapeWidth) {
+            unset($breakpoints['escape']);
+        }
+
+        return array_values(array_map(static fn(mixed $value): string => (string)$value, array_keys($breakpoints)));
     }
 }

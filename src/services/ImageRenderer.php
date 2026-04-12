@@ -20,14 +20,14 @@ class ImageRenderer extends Component
         $this->_plugin = Plugin::getInstance();
     }
 
-    public function render(?Asset $image, string $transform, array $config = []): Markup
+    public function render(?Asset $image, string $setName, array $config = []): Markup
     {
         if ($image === null) {
             return new Markup('<!-- Breakpoint Images: no image provided -->', 'UTF-8');
         }
 
         $config['imageId'] = $image->id;
-        $config['transformName'] = $transform;
+        $config['setName'] = $setName;
         $config['assetTitle'] = (string)($image->title ?? '');
 
         return $this->renderPicture($config, $image);

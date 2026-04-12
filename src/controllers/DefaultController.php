@@ -31,23 +31,23 @@ class DefaultController extends Controller
     public function actionManifestTransforms(): Response
     {
         $manifest = Plugin::getInstance()->getProcessingManifest()->getManifest();
-        $manifestTransforms = $manifest['transforms'] ?? [];
+        $manifestSets = $manifest['sets'] ?? [];
 
-        if (!is_array($manifestTransforms)) {
-            $manifestTransforms = [];
+        if (!is_array($manifestSets)) {
+            $manifestSets = [];
         }
 
-        $transformNames = array_values(array_filter(
-            array_map('strval', array_keys($manifestTransforms)),
+        $setNames = array_values(array_filter(
+            array_map('strval', array_keys($manifestSets)),
             static fn(string $name): bool => $name !== ''
         ));
 
-        sort($transformNames, SORT_NATURAL | SORT_FLAG_CASE);
+        sort($setNames, SORT_NATURAL | SORT_FLAG_CASE);
 
         return $this->renderTemplate('craft-breakpoint-images/cp/manifest-transforms', [
             'selectedSubnavItem' => 'transforms',
-            'manifestTransforms' => $manifestTransforms,
-            'transformNames' => $transformNames,
+            'manifestSets' => $manifestSets,
+            'setNames' => $setNames,
         ]);
     }
 

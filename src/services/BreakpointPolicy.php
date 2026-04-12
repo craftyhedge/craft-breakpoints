@@ -15,7 +15,7 @@ class BreakpointPolicy extends Component
         $this->_plugin = Plugin::getInstance();
     }
 
-    public function getBreakpointsForTransform(array $config, array $mergedConfig): array
+    public function getBreakpointsForSet(array $config, array $mergedConfig): array
     {
         if ($this->_plugin === null) {
             return [];
@@ -36,14 +36,12 @@ class BreakpointPolicy extends Component
         }
 
         $mergedConfig = $this->_plugin->getConfigService()->getConfig($config);
-        $breakpoints = $this->getBreakpointsForTransform($config, $mergedConfig);
+        $breakpoints = $this->getBreakpointsForSet($config, $mergedConfig);
 
         $states = [];
-        $index = 0;
         foreach ($breakpoints as $breakpointName => $breakpointValue) {
-            $isDisabled = $this->isBreakpointDisabled((string)$breakpointName, $config, $index);
+            $isDisabled = $this->isBreakpointDisabled((string)$breakpointName, $config);
             $states[(string)$breakpointName] = $isDisabled ? 'disabled' : 'enabled';
-            $index++;
         }
 
         return $states;
@@ -52,21 +50,18 @@ class BreakpointPolicy extends Component
     public function getEnabledBreakpoints(array $breakpoints, array $config): array
     {
         $enabled = [];
-        $index = 0;
         foreach ($breakpoints as $breakpointName => $breakpointValue) {
-            if ($this->isBreakpointDisabled((string)$breakpointName, $config, $index)) {
-                $index++;
+            if ($this->isBreakpointDisabled((string)$breakpointName, $config)) {
                 continue;
             }
 
             $enabled[(string)$breakpointName] = (int)$breakpointValue;
-            $index++;
         }
 
         return $enabled;
     }
 
-    public function isBreakpointDisabled(?string $breakpointName, array $config, ?int $index = null): bool
+    public function isBreakpointDisabled(?string $breakpointName, array $config): bool
     {
         if ($breakpointName === null || $breakpointName === '') {
             return false;
@@ -76,10 +71,10 @@ class BreakpointPolicy extends Component
             return true;
         }
 
-        $namedTransform = $this->getNamedTransform($config);
-        if ($namedTransform !== null && $index !== null) {
-            $entry = $this->getTransformEntryByIndex($namedTransform, $index);
-            if ($entry !== null && isset($entry['enabled']) && $entry['enabled'] === false) {
+        $namedSet = $this->getNamedSet($config);
+        if ($namedSet !== null) {
+            $variant = $this->getVariantByBreakpointName($namedSet, $breakpointName);
+            if ($variant !== null && isset($variant['enabled']) && $variant['enabled'] === false) {
                 return true;
             }
         }
@@ -94,34 +89,34 @@ class BreakpointPolicy extends Component
             return (bool)$config['includeEscapeWidth'] === true;
         }
 
-        $namedTransform = $this->getNamedTransform($config);
+        $namedSet = $this->getNamedSet($config);
 
-        return $namedTransform !== null
-            && array_key_exists('includeEscapeWidth', $namedTransform)
-            && $namedTransform['includeEscapeWidth'] === true;
+        return $namedSet !== null
+            && array_key_exists('includeEscapeWidth', $namedSet)
+            && $namedSet['includeEscapeWidth'] === true;
     }
 
-    private function getNamedTransform(array $config): ?array
+    private function getNamedSet(array $config): ?array
     {
         if ($this->_plugin === null) {
             return null;
         }
 
-        $transformName = (string)($config['transformName'] ?? 'default');
+        $setName = (string)($config['setName'] ?? $config['transformName'] ?? 'default');
 
-        return $this->_plugin->getTransforms()->getTransform($transformName);
+        return $this->_plugin->getTransformSets()->getSet($setName);
     }
 
-    private function getTransformEntryByIndex(?array $transform, int $index): ?array
+    private function getVariantByBreakpointName(?array $set, string $breakpointName): ?array
     {
-        if ($transform === null || !isset($transform['transforms']) || !is_array($transform['transforms'])) {
+        if ($set === null || !isset($set['variants']) || !is_array($set['variants'])) {
             return null;
         }
 
-        if (!isset($transform['transforms'][$index]) || !is_array($transform['transforms'][$index])) {
+        if (!isset($set['variants'][$breakpointName]) || !is_array($set['variants'][$breakpointName])) {
             return null;
         }
 
-        return $transform['transforms'][$index];
+        return $set['variants'][$breakpointName];
     }
 }

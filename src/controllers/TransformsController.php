@@ -26,7 +26,7 @@ class TransformsController extends Controller
             'resultSummary' => $editor->buildResultSummary($this->extractResultSummaryFromRequest()),
             'serverStatus' => [
                 'kind' => 'ready',
-                'message' => 'Draft initialized from current transform configuration.',
+                'message' => 'Draft initialized from current transform set configuration.',
             ],
         ];
         $state['draftJson'] = $editor->encodeDraftJson($state['draft']);
@@ -108,7 +108,7 @@ class TransformsController extends Controller
             'serverStatus' => [
                 'kind' => $applied ? 'success' : 'error',
                 'message' => $applied
-                    ? 'Draft applied and persisted to transforms.json.'
+                    ? 'Draft applied and persisted to transform-sets.json.'
                     : 'Draft has validation errors. Resolve errors and apply again.',
             ],
         ];
@@ -126,7 +126,7 @@ class TransformsController extends Controller
 
         $editor = Plugin::getInstance()->getTransformEditor();
 
-        $transformName = trim((string)$this->request->getBodyParam('transformName', ''));
+        $setName = trim((string)$this->request->getBodyParam('setName', ''));
         $scopeMode = trim((string)$this->request->getBodyParam('scopeMode', 'all'));
         $field = trim((string)$this->request->getBodyParam('field', 'width'));
         $includeEscapeWidthRaw = $this->request->getBodyParam('includeEscapeWidth');
@@ -273,13 +273,13 @@ class TransformsController extends Controller
             $renderedRows = is_array($renderedRowsRaw) ? $renderedRowsRaw : [];
 
             $operationResult = $editor->applyRenderedValuesOperation(
-                $transformName,
+                $setName,
                 $renderedRows,
                 $includeEscapeWidth,
             );
         } elseif ($field === 'dimensions') {
             $operationResult = $editor->applySetDimensionsOperation(
-                $transformName,
+                $setName,
                 $scopeMode,
                 $scopeBreakpoint,
                 $width,
@@ -290,7 +290,7 @@ class TransformsController extends Controller
             );
         } elseif ($field === 'ratio') {
             $operationResult = $editor->applySetRatioOperation(
-                $transformName,
+                $setName,
                 $scopeMode,
                 $scopeBreakpoint,
                 $ratioWidth,
@@ -300,7 +300,7 @@ class TransformsController extends Controller
             );
         } elseif ($field === 'settings') {
             $operationResult = $editor->applySetSettingsOperation(
-                $transformName,
+                $setName,
                 $mode,
                 $quality,
                 $position,
@@ -308,7 +308,7 @@ class TransformsController extends Controller
             );
         } else {
             $operationResult = $editor->applySetDimensionOperation(
-                $transformName,
+                $setName,
                 $scopeMode,
                 $scopeBreakpoint,
                 $value,
@@ -358,17 +358,17 @@ class TransformsController extends Controller
 
         $editor = Plugin::getInstance()->getTransformEditor();
         $rawResult = $this->request->getBodyParam('result', []);
-        $rawEditScopeByTransform = $this->request->getBodyParam('editScopeByTransform', []);
-        $rawEditTabByTransform = $this->request->getBodyParam('editTabByTransform', []);
+        $rawEditScopeBySet = $this->request->getBodyParam('editScopeBySet', []);
+        $rawEditTabBySet = $this->request->getBodyParam('editTabBySet', []);
 
         $result = is_array($rawResult) ? $rawResult : [];
-        $editScopeByTransform = is_array($rawEditScopeByTransform) ? $rawEditScopeByTransform : [];
-        $editTabByTransform = is_array($rawEditTabByTransform) ? $rawEditTabByTransform : [];
+        $editScopeBySet = is_array($rawEditScopeBySet) ? $rawEditScopeBySet : [];
+        $editTabBySet = is_array($rawEditTabBySet) ? $rawEditTabBySet : [];
 
         $rendered = $editor->renderResultReview(
             $result,
-            $editScopeByTransform,
-            $editTabByTransform,
+            $editScopeBySet,
+            $editTabBySet,
         );
 
         return $this->asJson($rendered);
