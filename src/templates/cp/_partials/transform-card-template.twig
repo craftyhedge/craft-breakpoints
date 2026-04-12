@@ -158,7 +158,10 @@
                                 </label>
 
                                 <label class="bpi-transform-settings-field" for="__SETTINGS_POSITION_INPUT_ID__">
-                                    <span class="bpi-transform-edit-label">Position</span>
+                                    <span class="bpi-transform-edit-label bpi-transform-edit-label-with-info">
+                                        <span>Position</span>
+                                        <span class="bpi-transform-info-icon" title="focal points override position" aria-label="focal points override position" tabindex="0">i</span>
+                                    </span>
                                     <select id="__SETTINGS_POSITION_INPUT_ID__" class="select bpi-transform-settings-control bpi-transform-settings-position-select" data-bind="__SIGNAL_PATH_BASE__.cropPosition" data-attr:disabled="Number($editor.cards.__SIGNAL_KEY__.scopeActive || 0) !== 1">
                                         <option value="top-left">Top Left</option>
                                         <option value="top-center">Top Center</option>
@@ -175,7 +178,7 @@
                                 <div class="bpi-transform-settings-actions">
                                     <button type="button" class="btn small bpi-transform-settings-apply"
                                         data-attr:disabled="Number($editor.cards.__SIGNAL_KEY__.scopeActive || 0) !== 1"
-                                        data-on:click="@post(el.closest('.bpi-transforms-page').dataset.applyCardOperationUrl || '/actions/craft-breakpoint-images/transforms/apply-card-operation', {contentType: 'json', payload: {transformName: el.closest('.bpi-transform-card').dataset.transform || '', field: 'settings', includeEscapeWidth: (el.closest('.bpi-transform-card').dataset.includeEscapeWidth || '0') === '1', mode: $editor.cards.__SIGNAL_KEY__.cropMode || 'crop', quality: Number($editor.cards.__SIGNAL_KEY__.qualityInput || 0) || null, position: $editor.cards.__SIGNAL_KEY__.cropPosition || 'center-center', baseVersion: Number($editor.baseVersion || 1), ...(Craft && Craft.csrfTokenName && Craft.csrfTokenValue ? {[Craft.csrfTokenName]: Craft.csrfTokenValue} : {})}})">Apply Settings</button>
+                                        data-on:click="@post(el.closest('.bpi-transforms-page').dataset.applyCardOperationUrl || '/actions/craft-breakpoint-images/transforms/apply-card-operation', {contentType: 'json', payload: {transformName: el.closest('.bpi-transform-card').dataset.transform || '', field: 'settings', includeEscapeWidth: (el.closest('.bpi-transform-card').dataset.includeEscapeWidth || '0') === '1', mode: $editor.cards.__SIGNAL_KEY__.cropMode || 'crop', quality: Number($editor.cards.__SIGNAL_KEY__.qualityInput || 0) || null, position: $editor.cards.__SIGNAL_KEY__.cropPosition || 'center-center', baseVersion: Number($editor.baseVersion || 1), ...(Craft && Craft.csrfTokenName && Craft.csrfTokenValue ? {[Craft.csrfTokenName]: Craft.csrfTokenValue} : {})}})">Apply</button>
                                 </div>
                             </div>
                         </section>

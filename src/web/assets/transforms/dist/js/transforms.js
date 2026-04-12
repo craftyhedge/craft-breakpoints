@@ -1279,7 +1279,7 @@
     }
 
     async function loadPreviewForSelectedEntry(successMessage) {
-        setStatus('Loading preview...');
+        setStatus('Loading entry...');
         const firstMeasurementWidth = getFirstBreakpointMeasurementWidth();
         if (firstMeasurementWidth !== null) {
             await setPreviewWidth(firstMeasurementWidth);
@@ -1430,7 +1430,7 @@
         }
 
         try {
-            await loadPreviewForSelectedEntry('Preview loaded from source entry.');
+            await loadPreviewForSelectedEntry('Entry loaded.');
         } catch (error) {
             setStatus(`Error: ${error.message}`);
         }
