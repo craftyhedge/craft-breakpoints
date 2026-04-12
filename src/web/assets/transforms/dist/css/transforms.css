@@ -281,7 +281,7 @@
     border: 1px solid var(--border-hairline-medium);
     border-radius: 8px;
     background: var(--gray-050);
-    padding: 10px 0px;
+    padding: 10px 0px 0px;
     min-width: 0;
     max-width: 100%;
     overflow: hidden;
@@ -431,11 +431,12 @@
 .bpi-transform-edit-panel-copy {
     color: var(--fg-subtle);
     font-size: 12px;
+    margin: 0px;
 }
 
 .bpi-transform-edit-grid {
     display: grid;
-    gap: 10px;
+    gap: 16px;
 }
 
 @media (max-width: 840px) {
@@ -517,7 +518,6 @@
     border-color: var(--border-hairline-medium);
     background: var(--gray-200, #e4e8ed);
     color: var(--text-color);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
 }
 
 .bpi-transform-tab:disabled {
@@ -570,7 +570,7 @@
 .bpi-transform-edit-dimension-group,
 .bpi-transform-ratio-section {
     display: grid;
-    gap: 6px;
+    gap: 12px;
     align-content: start;
 }
 
