@@ -13,10 +13,12 @@ final class TranslationsEnTest extends Unit
         $translations = require CRAFT_ROOT_PATH . '/src/translations/en/craft-breakpoint-images.php';
 
         $this->assertIsArray($translations);
+        $this->assertArrayHasKey('Processing', $translations);
         $this->assertArrayHasKey('Settings', $translations);
         $this->assertArrayHasKey('Transforms', $translations);
         $this->assertArrayHasKey('Go to settings', $translations);
 
+        $this->assertNotSame('', trim((string)($translations['Processing'] ?? '')));
         $this->assertNotSame('', trim((string)($translations['Settings'] ?? '')));
         $this->assertNotSame('', trim((string)($translations['Transforms'] ?? '')));
         $this->assertNotSame('', trim((string)($translations['Go to settings'] ?? '')));

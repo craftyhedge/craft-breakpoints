@@ -80,7 +80,8 @@ class Plugin extends BasePlugin
             static function(RegisterUrlRulesEvent $event): void {
                 $event->rules['craft-breakpoint-images'] = 'craft-breakpoint-images/default/index';
                 $event->rules['craft-breakpoint-images/settings'] = 'craft-breakpoint-images/default/settings';
-                $event->rules['craft-breakpoint-images/transforms'] = 'craft-breakpoint-images/default/transforms';
+                $event->rules['craft-breakpoint-images/transforms'] = 'craft-breakpoint-images/default/manifest-transforms';
+                $event->rules['craft-breakpoint-images/processing'] = 'craft-breakpoint-images/default/transforms';
             }
         );
 
@@ -173,6 +174,10 @@ class Plugin extends BasePlugin
             'transforms' => [
                 'label' => Craft::t('craft-breakpoint-images', 'Transforms'),
                 'url' => 'craft-breakpoint-images/transforms',
+            ],
+            'processing' => [
+                'label' => Craft::t('craft-breakpoint-images', 'Processing'),
+                'url' => 'craft-breakpoint-images/processing',
             ],
         ];
 

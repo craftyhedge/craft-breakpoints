@@ -28,6 +28,29 @@ class DefaultController extends Controller
         ]);
     }
 
+    public function actionManifestTransforms(): Response
+    {
+        $manifest = Plugin::getInstance()->getProcessingManifest()->getManifest();
+        $manifestTransforms = $manifest['transforms'] ?? [];
+
+        if (!is_array($manifestTransforms)) {
+            $manifestTransforms = [];
+        }
+
+        $transformNames = array_values(array_filter(
+            array_map('strval', array_keys($manifestTransforms)),
+            static fn(string $name): bool => $name !== ''
+        ));
+
+        sort($transformNames, SORT_NATURAL | SORT_FLAG_CASE);
+
+        return $this->renderTemplate('craft-breakpoint-images/cp/manifest-transforms', [
+            'selectedSubnavItem' => 'transforms',
+            'manifestTransforms' => $manifestTransforms,
+            'transformNames' => $transformNames,
+        ]);
+    }
+
     public function actionTransforms(): Response
     {
         $plugin = Plugin::getInstance();
@@ -53,7 +76,7 @@ class DefaultController extends Controller
         );
 
         return $this->renderTemplate('craft-breakpoint-images/cp/transforms', [
-            'selectedSubnavItem' => 'transforms',
+            'selectedSubnavItem' => 'processing',
             'processingManifest' => $manifest,
             'applyCardOperationUrl' => UrlHelper::cpUrl('actions/craft-breakpoint-images/transforms/apply-card-operation'),
             'selectedSourceEntries' => $selectedSourceEntry ? [$selectedSourceEntry] : [],

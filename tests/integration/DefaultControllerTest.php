@@ -34,6 +34,14 @@ final class DefaultControllerTest extends Unit
         $this->assertFalse($response->getIsRedirection());
     }
 
+    public function testManifestTransformsActionReturnsNonRedirectResponse(): void
+    {
+        $response = $this->controller()->actionManifestTransforms();
+
+        $this->assertSame(200, $response->statusCode);
+        $this->assertFalse($response->getIsRedirection());
+    }
+
     public function testTransformsActionRegistersManifestScriptAndAssetBundle(): void
     {
         $view = Craft::$app->getView();

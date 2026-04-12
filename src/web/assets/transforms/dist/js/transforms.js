@@ -21,6 +21,7 @@
         page: document.querySelector('.bpi-transforms-page'),
         sourceEntry: document.getElementById('bpi-source-entry'),
         status: document.getElementById('bpi-status'),
+        progressHost: document.getElementById('bpi-progress-host'),
         framePane: document.getElementById('bpi-frame-pane'),
         wrapper: document.getElementById('bpi-frame-wrapper'),
         warnings: document.getElementById('bpi-warnings'),
@@ -51,6 +52,7 @@
         dragScrollSuppressClick: false,
         updateStatusResetTimersByTransform: {},
         pendingTransformUpdates: new Set(),
+        progressBar: null,
         dragScroll: {
             active: false,
             moved: false,
@@ -73,6 +75,72 @@
         }
 
         elements.page.classList.toggle('is-processing', Boolean(isProcessing));
+    }
+
+    function getOrCreateProgressBar() {
+        if (state.progressBar) {
+            return state.progressBar;
+        }
+
+        if (!elements.progressHost) {
+            return null;
+        }
+
+        if (typeof Craft === 'undefined' || typeof Craft.ProgressBar !== 'function' || typeof window.jQuery !== 'function') {
+            return null;
+        }
+
+        state.progressBar = new Craft.ProgressBar(window.jQuery(elements.progressHost), false, {
+            announceProgress: false,
+        });
+
+        return state.progressBar;
+    }
+
+    function startProcessingProgress(totalSteps) {
+        const progressBar = getOrCreateProgressBar();
+        if (!progressBar) {
+            return;
+        }
+
+        if (elements.progressHost) {
+            elements.progressHost.hidden = false;
+            elements.progressHost.setAttribute('aria-hidden', 'false');
+        }
+
+        const normalizedTotalSteps = Math.max(1, Number(totalSteps) || 1);
+        progressBar.resetProgressBar();
+        progressBar.setItemCount(normalizedTotalSteps);
+        progressBar.setProcessedItemCount(0);
+        progressBar.updateProgressBar();
+        progressBar.showProgressBar();
+    }
+
+    function updateProcessingProgress(processedSteps) {
+        const progressBar = getOrCreateProgressBar();
+        if (!progressBar) {
+            return;
+        }
+
+        progressBar.setProcessedItemCount(Math.max(0, Number(processedSteps) || 0));
+        progressBar.updateProgressBar();
+    }
+
+    function hideProcessingProgress() {
+        if (!state.progressBar) {
+            if (elements.progressHost) {
+                elements.progressHost.hidden = true;
+                elements.progressHost.setAttribute('aria-hidden', 'true');
+            }
+            return;
+        }
+
+        state.progressBar.hideProgressBar();
+
+        if (elements.progressHost) {
+            elements.progressHost.hidden = true;
+            elements.progressHost.setAttribute('aria-hidden', 'true');
+        }
     }
 
     function updateCopyButtonVisibility() {
@@ -1296,6 +1364,8 @@
         }
 
         const breakpoints = getConfiguredBreakpoints();
+        const totalProgressSteps = breakpoints.length + 1;
+        let completedProgressSteps = 0;
 
         if (!breakpoints.length) {
             setStatus('No configured breakpoints available. Check plugin settings.');
@@ -1308,6 +1378,7 @@
         setProcessingState(true);
         setStopButtonVisibility(false);
         setButtonsDisabled(true);
+        startProcessingProgress(totalProgressSteps);
         setStatus('Preparing preview...');
 
         const startedAt = Date.now();
@@ -1316,6 +1387,8 @@
             const sourceUrl = await resolveSelectedEntryUrl();
             getOrCreatePreviewFrame();
             await ensurePreviewFrame(sourceUrl, true);
+            completedProgressSteps += 1;
+            updateProcessingProgress(completedProgressSteps);
 
             const rowsByBreakpoint = {};
             for (const breakpoint of breakpoints) {
@@ -1344,6 +1417,8 @@
                 state.waitSoftLimitReached = false;
                 setStopButtonVisibility(false);
                 rowsByBreakpoint[breakpoint] = extractRowsForBreakpoint(breakpoint, preloadStates);
+                completedProgressSteps += 1;
+                updateProcessingProgress(completedProgressSteps);
             }
 
             state.runCount += 1;
@@ -1365,6 +1440,7 @@
             setProcessingState(false);
             setStopButtonVisibility(false);
             setButtonsDisabled(false);
+            hideProcessingProgress();
         }
     }
 

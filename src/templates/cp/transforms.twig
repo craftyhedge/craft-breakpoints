@@ -1,37 +1,40 @@
 {% extends "_layouts/cp" %}
 {% import '_includes/forms' as forms %}
-{% set title = 'Transforms'|t('craft-breakpoint-images') %}
-{% set selectedSubnavItem = selectedSubnavItem ?? 'transforms' %}
+{% set title = 'Processing'|t('craft-breakpoint-images') %}
+{% set selectedSubnavItem = selectedSubnavItem ?? 'processing' %}
+{% set toolbar %}
+    <div class="bpi-header-status-wrap">
+        <span id="bpi-status" class="light bpi-header-status" data-role="status">Idle</span>
+        <div id="bpi-progress-host" class="bpi-progress-host" aria-hidden="true" hidden></div>
+    </div>
+{% endset %}
 
 {% block actionButton %}
-    <div class="bpi-header-controls-wrap">
-        <span id="bpi-status" class="light bpi-header-status" data-role="status">Idle</span>
-        <div class="buttons bpi-header-controls">
-            <div class="bpi-source-entry-control">
-                {{ forms.elementSelect({
-                    id: 'bpi-source-entry',
-                    name: 'bpi-source-entry-id',
-                    elementType: 'craft\\elements\\Entry',
-                    selectionLabel: 'Choose Source'|t('craft-breakpoint-images'),
-                    single: true,
-                    elements: selectedSourceEntries ?? []
-                }) }}
-            </div>
-            {{ forms.button({
-                id: 'bpi-run-processing',
-                class: 'submit',
-                label: 'Run Processing'|t('craft-breakpoint-images'),
-                disabled: true
-            }) }}
-            {{ forms.button({
-                id: 'bpi-stop-processing',
-                class: 'bpi-stop-processing',
-                label: 'Quit Waiting'|t('craft-breakpoint-images'),
-                attributes: {
-                    hidden: true
-                }
+    <div class="buttons bpi-header-controls">
+        <div class="bpi-source-entry-control">
+            {{ forms.elementSelect({
+                id: 'bpi-source-entry',
+                name: 'bpi-source-entry-id',
+                elementType: 'craft\\elements\\Entry',
+                selectionLabel: 'Choose Source'|t('craft-breakpoint-images'),
+                single: true,
+                elements: selectedSourceEntries ?? []
             }) }}
         </div>
+        {{ forms.button({
+            id: 'bpi-run-processing',
+            class: 'submit',
+            label: 'Process'|t('craft-breakpoint-images'),
+            disabled: true
+        }) }}
+        {{ forms.button({
+            id: 'bpi-stop-processing',
+            class: 'bpi-stop-processing',
+            label: 'Quit Waiting'|t('craft-breakpoint-images'),
+            attributes: {
+                hidden: true
+            }
+        }) }}
     </div>
 
 {% endblock %}
@@ -70,288 +73,14 @@
                 </div>
             </div>
             <div id="bpi-warnings" class="bpi-warning-list">
-                <div class="bpi-warning-item bpi-warning-item-neutral bpi-warning-item-holding" aria-hidden="true">
-                    <span class="bpi-warning-code bpi-holding-pill"></span>
-                    <span class="bpi-holding-line bpi-holding-line-long"></span>
-                </div>
-                <div class="bpi-warning-item bpi-warning-item-neutral bpi-warning-item-holding" aria-hidden="true">
-                    <span class="bpi-warning-code bpi-holding-pill"></span>
-                    <span class="bpi-holding-line bpi-holding-line-mid"></span>
-                </div>
-            </div>
-            <div id="bpi-visual-results" class="bpi-visual-results">
-                <section class="bpi-transform-card bpi-transform-card-holding" aria-hidden="true">
-                    <header class="bpi-transform-card-header">
-                        <div class="bpi-transform-name bpi-holding-line bpi-holding-line-mid"></div>
-                        <div class="bpi-transform-stats bpi-holding-line bpi-holding-line-short"></div>
-                    </header>
-                    <div class="bpi-breakpoint-grid bpi-breakpoint-grid-holding">
-                        <div class="bpi-breakpoint-column bpi-breakpoint-column-holding" style="--bpi-breakpoint-column-width:120px;">
-                            <div class="bpi_breakpoint-size-heading">
-                                <span class="bpi-holding-line bpi-holding-line-short"></span>
-                            </div>
-                            <div class="bpi_image-display-section">
-                                <div class="bpi_breakpoint-result-wrapper">
-                                    <div class="bpi_breakpoint-result" style="min-height: 141px;">
-                                        <div class="bpi_image-outer bpi-holding-image-outer" style="--bpi-relative-width:85.83333333333333%;">
-                                            <span class="bpi_breakpoint-result-image bpi-holding-preview" style="--bpi-aspect-ratio:412 / 577;"></span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="bpi-dimension-table-wrap">
-                                <div class="bpi-dimension-matrix" role="table" aria-label="Rendered and current dimensions">
-                                    <div class="bpi-dimension-row" role="row">
-                                        <span class="bpi-dimension-icon bpi-dimension-icon-rendered" role="rowheader" title="Rendered" aria-label="Rendered">
-                                            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                                                <rect x="2.5" y="3" width="11" height="8.5" rx="1.5"></rect>
-                                                <path d="M4.4 5.2h2"></path>
-                                                <path d="M3.5 10.8l3.1-2.8 2.2 2 2-1.6 2.2 2.4"></path>
-                                            </svg>
-                                        </span>
-                                        <span class="bpi_rendered-dimension bpi_dimension-mismatch bpi-holding-pill" role="cell"></span>
-                                        <span class="bpi_rendered-dimension bpi_dimension-mismatch bpi-holding-pill" role="cell"></span>
-                                    </div>
-                                    <div class="bpi-dimension-row" role="row">
-                                        <span class="bpi-dimension-icon bpi-dimension-icon-current" role="rowheader" title="Current" aria-label="Current">
-                                            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                                                <path d="M3 4h10"></path>
-                                                <path d="M3 8h10"></path>
-                                                <path d="M3 12h10"></path>
-                                                <path d="M6 3.1v1.8"></path>
-                                                <path d="M10 7.1v1.8"></path>
-                                                <path d="M7.5 11.1v1.8"></path>
-                                            </svg>
-                                        </span>
-                                        <span class="bpi_current-dimension bpi-holding-pill" role="cell"></span>
-                                        <span class="bpi_current-dimension bpi-holding-pill" role="cell"></span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="bpi-breakpoint-column bpi-breakpoint-column-holding" style="--bpi-breakpoint-column-width:160px;">
-                            <div class="bpi_breakpoint-size-heading">
-                                <span class="bpi-holding-line bpi-holding-line-short"></span>
-                            </div>
-                            <div class="bpi_image-display-section">
-                                <div class="bpi_breakpoint-result-wrapper">
-                                    <div class="bpi_breakpoint-result" style="min-height: 141px;">
-                                        <div class="bpi_image-outer bpi-holding-image-outer" style="--bpi-relative-width:64.6875%;">
-                                            <span class="bpi_breakpoint-result-image bpi-holding-preview" style="--bpi-aspect-ratio:414 / 518;"></span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="bpi-dimension-table-wrap">
-                                <div class="bpi-dimension-matrix" role="table" aria-label="Rendered and current dimensions">
-                                    <div class="bpi-dimension-row" role="row">
-                                        <span class="bpi-dimension-icon bpi-dimension-icon-rendered" role="rowheader" title="Rendered" aria-label="Rendered">
-                                            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                                                <rect x="2.5" y="3" width="11" height="8.5" rx="1.5"></rect>
-                                                <path d="M4.4 5.2h2"></path>
-                                                <path d="M3.5 10.8l3.1-2.8 2.2 2 2-1.6 2.2 2.4"></path>
-                                            </svg>
-                                        </span>
-                                        <span class="bpi_rendered-dimension bpi_dimension-mismatch bpi-holding-pill" role="cell"></span>
-                                        <span class="bpi_rendered-dimension bpi_dimension-mismatch bpi-holding-pill" role="cell"></span>
-                                    </div>
-                                    <div class="bpi-dimension-row" role="row">
-                                        <span class="bpi-dimension-icon bpi-dimension-icon-current" role="rowheader" title="Current" aria-label="Current">
-                                            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                                                <path d="M3 4h10"></path>
-                                                <path d="M3 8h10"></path>
-                                                <path d="M3 12h10"></path>
-                                                <path d="M6 3.1v1.8"></path>
-                                                <path d="M10 7.1v1.8"></path>
-                                                <path d="M7.5 11.1v1.8"></path>
-                                            </svg>
-                                        </span>
-                                        <span class="bpi_current-dimension bpi-holding-pill" role="cell"></span>
-                                        <span class="bpi_current-dimension bpi-holding-pill" role="cell"></span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="bpi-breakpoint-column bpi-breakpoint-column-holding" style="--bpi-breakpoint-column-width:192px;">
-                            <div class="bpi_breakpoint-size-heading">
-                                <span class="bpi-holding-line bpi-holding-line-short"></span>
-                            </div>
-                            <div class="bpi_image-display-section">
-                                <div class="bpi_breakpoint-result-wrapper">
-                                    <div class="bpi_breakpoint-result" style="min-height: 141px;">
-                                        <div class="bpi_image-outer bpi-holding-image-outer" style="--bpi-relative-width:70.57291666666666%;">
-                                            <span class="bpi_breakpoint-result-image bpi-holding-preview" style="--bpi-aspect-ratio:542 / 635;"></span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="bpi-dimension-table-wrap">
-                                <div class="bpi-dimension-matrix" role="table" aria-label="Rendered and current dimensions">
-                                    <div class="bpi-dimension-row" role="row">
-                                        <span class="bpi-dimension-icon bpi-dimension-icon-rendered" role="rowheader" title="Rendered" aria-label="Rendered">
-                                            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                                                <rect x="2.5" y="3" width="11" height="8.5" rx="1.5"></rect>
-                                                <path d="M4.4 5.2h2"></path>
-                                                <path d="M3.5 10.8l3.1-2.8 2.2 2 2-1.6 2.2 2.4"></path>
-                                            </svg>
-                                        </span>
-                                        <span class="bpi_rendered-dimension bpi_dimension-mismatch bpi-holding-pill" role="cell"></span>
-                                        <span class="bpi_rendered-dimension bpi_dimension-mismatch bpi-holding-pill" role="cell"></span>
-                                    </div>
-                                    <div class="bpi-dimension-row" role="row">
-                                        <span class="bpi-dimension-icon bpi-dimension-icon-current" role="rowheader" title="Current" aria-label="Current">
-                                            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                                                <path d="M3 4h10"></path>
-                                                <path d="M3 8h10"></path>
-                                                <path d="M3 12h10"></path>
-                                                <path d="M6 3.1v1.8"></path>
-                                                <path d="M10 7.1v1.8"></path>
-                                                <path d="M7.5 11.1v1.8"></path>
-                                            </svg>
-                                        </span>
-                                        <span class="bpi_current-dimension bpi-holding-pill" role="cell"></span>
-                                        <span class="bpi_current-dimension bpi-holding-pill" role="cell"></span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="bpi-breakpoint-column bpi-breakpoint-column-holding" style="--bpi-breakpoint-column-width:256px;">
-                            <div class="bpi_breakpoint-size-heading">
-                                <span class="bpi-holding-line bpi-holding-line-short"></span>
-                            </div>
-                            <div class="bpi_image-display-section">
-                                <div class="bpi_breakpoint-result-wrapper">
-                                    <div class="bpi_breakpoint-result" style="min-height: 141px;">
-                                        <div class="bpi_image-outer bpi-holding-image-outer" style="--bpi-relative-width:28.02734375%;">
-                                            <span class="bpi_breakpoint-result-image bpi-holding-preview" style="--bpi-aspect-ratio:287 / 431;"></span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="bpi-dimension-table-wrap">
-                                <div class="bpi-dimension-matrix" role="table" aria-label="Rendered and current dimensions">
-                                    <div class="bpi-dimension-row" role="row">
-                                        <span class="bpi-dimension-icon bpi-dimension-icon-rendered" role="rowheader" title="Rendered" aria-label="Rendered">
-                                            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                                                <rect x="2.5" y="3" width="11" height="8.5" rx="1.5"></rect>
-                                                <path d="M4.4 5.2h2"></path>
-                                                <path d="M3.5 10.8l3.1-2.8 2.2 2 2-1.6 2.2 2.4"></path>
-                                            </svg>
-                                        </span>
-                                        <span class="bpi_rendered-dimension bpi_dimension-mismatch bpi-holding-pill" role="cell"></span>
-                                        <span class="bpi_rendered-dimension bpi_dimension-no-transform bpi-holding-pill" role="cell"></span>
-                                    </div>
-                                    <div class="bpi-dimension-row" role="row">
-                                        <span class="bpi-dimension-icon bpi-dimension-icon-current" role="rowheader" title="Current" aria-label="Current">
-                                            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                                                <path d="M3 4h10"></path>
-                                                <path d="M3 8h10"></path>
-                                                <path d="M3 12h10"></path>
-                                                <path d="M6 3.1v1.8"></path>
-                                                <path d="M10 7.1v1.8"></path>
-                                                <path d="M7.5 11.1v1.8"></path>
-                                            </svg>
-                                        </span>
-                                        <span class="bpi_current-dimension bpi-holding-pill" role="cell"></span>
-                                        <span class="bpi_current-dimension bpi-holding-pill" role="cell"></span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="bpi-breakpoint-column bpi-breakpoint-column-holding" style="--bpi-breakpoint-column-width:320px;">
-                            <div class="bpi_breakpoint-size-heading">
-                                <span class="bpi-holding-line bpi-holding-line-short"></span>
-                            </div>
-                            <div class="bpi_image-display-section">
-                                <div class="bpi_breakpoint-result-wrapper">
-                                    <div class="bpi_breakpoint-result" style="min-height: 141px;">
-                                        <div class="bpi_image-outer bpi-holding-image-outer" style="--bpi-relative-width:18.28125%;">
-                                            <span class="bpi_breakpoint-result-image bpi-holding-preview" style="--bpi-aspect-ratio:234 / 351;"></span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="bpi-dimension-table-wrap">
-                                <div class="bpi-dimension-matrix" role="table" aria-label="Rendered and current dimensions">
-                                    <div class="bpi-dimension-row" role="row">
-                                        <span class="bpi-dimension-icon bpi-dimension-icon-rendered" role="rowheader" title="Rendered" aria-label="Rendered">
-                                            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                                                <rect x="2.5" y="3" width="11" height="8.5" rx="1.5"></rect>
-                                                <path d="M4.4 5.2h2"></path>
-                                                <path d="M3.5 10.8l3.1-2.8 2.2 2 2-1.6 2.2 2.4"></path>
-                                            </svg>
-                                        </span>
-                                        <span class="bpi_rendered-dimension bpi_dimension-mismatch bpi-holding-pill" role="cell"></span>
-                                        <span class="bpi_rendered-dimension bpi_dimension-no-transform bpi-holding-pill" role="cell"></span>
-                                    </div>
-                                    <div class="bpi-dimension-row" role="row">
-                                        <span class="bpi-dimension-icon bpi-dimension-icon-current" role="rowheader" title="Current" aria-label="Current">
-                                            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                                                <path d="M3 4h10"></path>
-                                                <path d="M3 8h10"></path>
-                                                <path d="M3 12h10"></path>
-                                                <path d="M6 3.1v1.8"></path>
-                                                <path d="M10 7.1v1.8"></path>
-                                                <path d="M7.5 11.1v1.8"></path>
-                                            </svg>
-                                        </span>
-                                        <span class="bpi_current-dimension bpi-holding-pill" role="cell"></span>
-                                        <span class="bpi_current-dimension bpi-holding-pill" role="cell"></span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="bpi-breakpoint-column bpi-breakpoint-column-holding" style="--bpi-breakpoint-column-width:384px;">
-                            <div class="bpi_breakpoint-size-heading">
-                                <span class="bpi-holding-line bpi-holding-line-short"></span>
-                            </div>
-                            <div class="bpi_image-display-section">
-                                <div class="bpi_breakpoint-result-wrapper">
-                                    <div class="bpi_breakpoint-result" style="min-height: 141px;">
-                                        <div class="bpi_image-outer bpi-holding-image-outer" style="--bpi-relative-width:23.372395833333336%;">
-                                            <span class="bpi_breakpoint-result-image bpi-holding-preview" style="--bpi-aspect-ratio:359 / 539;"></span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="bpi-dimension-table-wrap">
-                                <div class="bpi-dimension-matrix" role="table" aria-label="Rendered and current dimensions">
-                                    <div class="bpi-dimension-row" role="row">
-                                        <span class="bpi-dimension-icon bpi-dimension-icon-rendered" role="rowheader" title="Rendered" aria-label="Rendered">
-                                            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                                                <rect x="2.5" y="3" width="11" height="8.5" rx="1.5"></rect>
-                                                <path d="M4.4 5.2h2"></path>
-                                                <path d="M3.5 10.8l3.1-2.8 2.2 2 2-1.6 2.2 2.4"></path>
-                                            </svg>
-                                        </span>
-                                        <span class="bpi_rendered-dimension bpi_dimension-mismatch bpi-holding-pill" role="cell"></span>
-                                        <span class="bpi_rendered-dimension bpi_dimension-no-transform bpi-holding-pill" role="cell"></span>
-                                    </div>
-                                    <div class="bpi-dimension-row" role="row">
-                                        <span class="bpi-dimension-icon bpi-dimension-icon-current" role="rowheader" title="Current" aria-label="Current">
-                                            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                                                <path d="M3 4h10"></path>
-                                                <path d="M3 8h10"></path>
-                                                <path d="M3 12h10"></path>
-                                                <path d="M6 3.1v1.8"></path>
-                                                <path d="M10 7.1v1.8"></path>
-                                                <path d="M7.5 11.1v1.8"></path>
-                                            </svg>
-                                        </span>
-                                        <span class="bpi_current-dimension bpi-holding-pill" role="cell"></span>
-                                        <span class="bpi_current-dimension bpi-holding-pill" role="cell"></span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                <div class="bpi-warning-item bpi-warning-item-neutral">
+                    <span class="bpi-warning-code">{{ 'About processing'|t('craft-breakpoint-images') }}</span>
+                    <div class="bpi-warning-detail">
+                        <p>{{ 'Select an entry with images then hit process.'|t('craft-breakpoint-images') }}</p>
                     </div>
-                </section>
+                </div>
             </div>
+            <div id="bpi-visual-results" class="bpi-visual-results" aria-live="polite"></div>
         </div>
     </div>
 {% endblock %}
