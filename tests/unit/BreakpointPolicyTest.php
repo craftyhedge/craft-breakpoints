@@ -29,7 +29,7 @@ final class BreakpointPolicyTest extends Unit
             ];
             $mergedConfig = $plugin->getConfigService()->getConfig($config);
 
-            $breakpoints = $policy->getBreakpointsForTransform($config, $mergedConfig);
+            $breakpoints = $policy->getBreakpointsForSet($config, $mergedConfig);
 
             $this->assertArrayHasKey('escape', $breakpoints);
             $this->assertSame(1920, $breakpoints['escape']);
@@ -57,7 +57,7 @@ final class BreakpointPolicyTest extends Unit
             ];
             $mergedConfig = $plugin->getConfigService()->getConfig($config);
 
-            $breakpoints = $policy->getBreakpointsForTransform($config, $mergedConfig);
+            $breakpoints = $policy->getBreakpointsForSet($config, $mergedConfig);
 
             $this->assertArrayNotHasKey('escape', $breakpoints);
         });
@@ -79,7 +79,7 @@ final class BreakpointPolicyTest extends Unit
 
             $isDisabled = $policy->isBreakpointDisabled('xs', [
                 'transformName' => 'entry-disabled',
-            ], 0);
+            ]);
 
             $this->assertTrue($isDisabled);
         });

@@ -7,23 +7,33 @@ namespace craftyhedge\craftbreakpointimages\tests\unit;
 use Codeception\Test\Unit;
 use craft\elements\Asset;
 use craftyhedge\craftbreakpointimages\Plugin;
-use InvalidArgumentException;
 
 final class TransformStoreTest extends Unit
 {
-    public function testReplaceTransformsForRuntimeRejectsInvalidStructure(): void
+    public function testReplaceTransformsForRuntimeNormalizesMissingTransformsToEmptyEntries(): void
     {
         $store = Plugin::getInstance()->getTransformStore();
+        $previousTransforms = $store->getTransforms();
 
-        $this->expectException(InvalidArgumentException::class);
+        try {
+            $store->replaceTransformsForRuntime([
+                'invalid-transform' => [
+                    'name' => 'invalid-transform',
+                    'includeEscapeWidth' => false,
+                    'config' => [],
+                ],
+            ]);
 
-        $store->replaceTransformsForRuntime([
-            'invalid-transform' => [
-                'name' => 'invalid-transform',
-                'includeEscapeWidth' => false,
-                'config' => [],
-            ],
-        ]);
+            $normalized = $store->getTransform('invalid-transform');
+            $this->assertNotNull($normalized);
+            $this->assertSame('invalid-transform', $normalized['name'] ?? null);
+            $this->assertSame(false, $normalized['includeEscapeWidth'] ?? null);
+            $this->assertSame([], $normalized['config'] ?? null);
+            $this->assertArrayHasKey('transforms', $normalized);
+            $this->assertIsArray($normalized['transforms']);
+        } finally {
+            $store->replaceTransformsForRuntime($previousTransforms);
+        }
     }
 
     public function testReplaceTransformsForRuntimeResetsImageTransformCaches(): void
