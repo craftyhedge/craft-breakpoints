@@ -19,22 +19,28 @@ class ProcessingManifest extends Component
     {
         if ($this->_plugin === null) {
             return [
-                'schemaVersion' => 1,
+                'schemaVersion' => 2,
                 'generatedAt' => gmdate('c'),
                 'breakpoints' => [],
                 'breakpointValues' => [],
                 'sets' => [],
+                'processing' => [
+                    'authorDiagnosticsEnabled' => false,
+                ],
             ];
         }
 
         $breakpoints = $this->_plugin->getConfigService()->getBreakpoints();
 
         return [
-            'schemaVersion' => 1,
+            'schemaVersion' => 2,
             'generatedAt' => gmdate('c'),
             'breakpoints' => $breakpoints,
             'breakpointValues' => array_values($breakpoints),
             'sets' => $this->_plugin->getTransformSets()->getSets(),
+            'processing' => [
+                'authorDiagnosticsEnabled' => $this->_plugin->getConfigService()->isProcessingDiagnosticsEnabled(),
+            ],
         ];
     }
 }

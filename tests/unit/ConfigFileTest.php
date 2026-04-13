@@ -20,6 +20,7 @@ final class ConfigFileTest extends Unit
         $this->assertArrayHasKey('defaultHeight', $config);
         $this->assertArrayHasKey('pictureTemplatePath', $config);
         $this->assertArrayHasKey('svgTemplatePath', $config);
+        $this->assertArrayHasKey('processingDiagnosticsEnabled', $config);
         $this->assertArrayHasKey('dpr', $config);
 
         $this->assertSame('craft-breakpoint-images/picture.twig', $config['pictureTemplatePath']);
@@ -45,5 +46,6 @@ final class ConfigFileTest extends Unit
         $this->assertGreaterThanOrEqual(1, (int)$config['quality']);
         $this->assertLessThanOrEqual(100, (int)$config['quality']);
         $this->assertIsBool($config['nativeLazyLoadingEnabled']);
+        $this->assertIsBool($config['processingDiagnosticsEnabled']);
     }
 }

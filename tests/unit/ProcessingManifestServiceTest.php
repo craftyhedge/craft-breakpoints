@@ -43,6 +43,10 @@ final class ProcessingManifestServiceTest extends Unit
 
         $this->assertArrayHasKey('breakpoints', $manifest);
         $this->assertArrayHasKey('breakpointValues', $manifest);
+        $this->assertArrayHasKey('processing', $manifest);
+        $this->assertIsArray($manifest['processing']);
+        $this->assertArrayHasKey('authorDiagnosticsEnabled', $manifest['processing']);
+        $this->assertIsBool($manifest['processing']['authorDiagnosticsEnabled']);
         $this->assertSame(array_values($manifest['breakpoints']), $manifest['breakpointValues']);
     }
 }

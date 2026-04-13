@@ -1,3 +1,30 @@
+import {
+    activateLazySizes as processingActivateLazySizes,
+    activateLozad as processingActivateLozad,
+    activateVanillaLazyLoad as processingActivateVanillaLazyLoad,
+    appendRunIssue as processingAppendRunIssue,
+    appendBreakpointReadinessIssues as processingAppendBreakpointReadinessIssues,
+    buildBreakpointReadinessTracker as processingBuildBreakpointReadinessTracker,
+    buildStructuredOutput as processingBuildStructuredOutput,
+    buildWaitingStatusMessage as processingBuildWaitingStatusMessage,
+    createBreakpointReportEntry as processingCreateBreakpointReportEntry,
+    createReadinessSummary as processingCreateReadinessSummary,
+    createRunReport as processingCreateRunReport,
+    deriveSourceUsed as processingDeriveSourceUsed,
+    extractRowsForBreakpoint as processingExtractRowsForBreakpoint,
+    finalizeRunReport as processingFinalizeRunReport,
+    getMeasurementWidthForBreakpoint as processingGetMeasurementWidthForBreakpoint,
+    isImageLikelyBroken as processingIsImageLikelyBroken,
+    isImageRenderable as processingIsImageRenderable,
+    isTransparentPixelSrcset as processingIsTransparentPixelSrcset,
+    normalizeLazyAttribute as processingNormalizeLazyAttribute,
+    prepareBreakpointImages as processingPrepareBreakpointImages,
+    preloadBreakpointSources as processingPreloadBreakpointSources,
+    sanitizeIssueSource as processingSanitizeIssueSource,
+    toPositiveIntOrNull as processingToPositiveIntOrNull,
+    waitForImagesToSettle as processingWaitForImagesToSettle,
+} from './transforms-processing.js';
+
 (() => {
     const BREAKPOINT_SAFETY_PX = 2;
     const DRAG_SCROLL_THRESHOLD_PX = 4;
@@ -11,6 +38,9 @@
     const IMAGE_WAIT_POLL_MS = 250;
     const CARD_UPDATE_STATUS_CLEAR_DELAY_MS = 1800;
     const LEAVE_PAGE_WARNING_MESSAGE = 'Are you sure? The current results will be lost.';
+    const REPORT_SCHEMA_VERSION = 1;
+    const REPORT_ISSUE_LIMIT = 200;
+    const PREPARE_NORMALIZATION_SAMPLE_LIMIT = 12;
 
     const bpiProcessingManifest = window.bpiProcessingManifest || {};
     const ENTRY_URL_ACTION = 'craft-breakpoint-images/default/entry-url';
@@ -44,6 +74,7 @@
         previewFrame: null,
         previewUrl: null,
         lastResult: null,
+        lastReport: null,
         runCount: 0,
         busy: false,
         stopRequested: false,
@@ -566,14 +597,9 @@
     }
 
     function getMeasurementWidthForBreakpoint(breakpoint) {
-        const parsed = parseInt(String(breakpoint), 10);
-        if (!Number.isFinite(parsed) || parsed <= 1) {
-            return 1;
-        }
-
         // Measure at the true frontend breakpoint size (inside the target range).
         // Oversized media ranges are only a guard against accidental source rollover.
-        return Math.max(1, parsed - BREAKPOINT_SAFETY_PX);
+        return processingGetMeasurementWidthForBreakpoint(breakpoint, BREAKPOINT_SAFETY_PX);
     }
 
     function getFrameDocument() {
@@ -612,103 +638,6 @@
         target?.appendChild(style);
     }
 
-    async function waitForImagesToSettle({
-        softDeadlineMs = IMAGE_WAIT_SOFT_DEADLINE_MS,
-        pollMs = IMAGE_WAIT_POLL_MS,
-        shouldStop = () => false,
-        onSoftDeadline = null,
-        onWaitingTick = null,
-    } = {}) {
-        const frameDocument = getFrameDocument();
-        const isActiveWaitCandidate = (img) => {
-            if (img.complete) {
-                return false;
-            }
-
-            if (img.currentSrc && !img.currentSrc.startsWith('data:image')) {
-                return true;
-            }
-
-            return img.loading !== 'lazy';
-        };
-
-        const getPendingImages = () => Array.from(frameDocument.querySelectorAll('picture[data-set] img'))
-            .filter(isActiveWaitCandidate);
-
-        const startedAt = Date.now();
-        let softDeadlineReached = false;
-        let lastTickAt = 0;
-
-        if (!frameDocument.querySelector('picture[data-set] img')) {
-            await new Promise((resolve) => requestAnimationFrame(resolve));
-            return {
-                aborted: false,
-                timedOut: false,
-                waitedMs: 0,
-                pendingCount: 0,
-            };
-        }
-
-        if (getPendingImages().length < 1) {
-            await new Promise((resolve) => requestAnimationFrame(resolve));
-            return {
-                aborted: false,
-                timedOut: false,
-                waitedMs: 0,
-                pendingCount: 0,
-            };
-        }
-
-        while (true) {
-            if (shouldStop()) {
-                const pendingNow = getPendingImages();
-                return {
-                    aborted: true,
-                    timedOut: softDeadlineReached,
-                    waitedMs: Date.now() - startedAt,
-                    pendingCount: pendingNow.length,
-                };
-            }
-
-            const pending = getPendingImages();
-            if (!pending.length) {
-                break;
-            }
-
-            const waitedMs = Date.now() - startedAt;
-            if (!softDeadlineReached && waitedMs >= softDeadlineMs) {
-                softDeadlineReached = true;
-                if (typeof onSoftDeadline === 'function') {
-                    onSoftDeadline({
-                        waitedMs,
-                        pendingCount: pending.length,
-                    });
-                }
-                lastTickAt = waitedMs;
-            }
-
-            if (softDeadlineReached && typeof onWaitingTick === 'function' && (waitedMs - lastTickAt) >= 1000) {
-                onWaitingTick({
-                    waitedMs,
-                    pendingCount: pending.length,
-                });
-                lastTickAt = waitedMs;
-            }
-
-            await new Promise((resolve) => window.setTimeout(resolve, pollMs));
-        }
-
-        await new Promise((resolve) => requestAnimationFrame(resolve));
-        await new Promise((resolve) => requestAnimationFrame(resolve));
-
-        return {
-            aborted: false,
-            timedOut: softDeadlineReached,
-            waitedMs: Date.now() - startedAt,
-            pendingCount: 0,
-        };
-    }
-
     function getPictureLoadKey(picture, index) {
         return picture?.getAttribute('data-picture-id')
             || picture?.getAttribute('data-asset-id')
@@ -722,160 +651,224 @@
     }
 
     function isTransparentPixelSrcset(srcset) {
-        const normalized = String(srcset || '').trim();
-        return normalized.startsWith('data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==');
+        return processingIsTransparentPixelSrcset(srcset);
+    }
+
+    function isAuthorDiagnosticsEnabled() {
+        return bpiProcessingManifest?.processing?.authorDiagnosticsEnabled === true;
+    }
+
+    function sanitizeIssueSource(rawSource) {
+        return processingSanitizeIssueSource(rawSource, window.location.origin);
+    }
+
+    function createRunReport(sourceUrl, breakpoints, diagnosticsEnabled) {
+        return processingCreateRunReport({
+            sourceUrl,
+            breakpoints,
+            diagnosticsEnabled,
+            schemaVersion: REPORT_SCHEMA_VERSION,
+            sanitizeSource: sanitizeIssueSource,
+        });
+    }
+
+    function createBreakpointReportEntry(breakpoint) {
+        return processingCreateBreakpointReportEntry(breakpoint);
+    }
+
+    function appendRunIssue(report, issue, breakpointReport = null) {
+        processingAppendRunIssue({
+            report,
+            issue,
+            breakpointReport,
+            issueLimit: REPORT_ISSUE_LIMIT,
+            sanitizeSource: sanitizeIssueSource,
+        });
+    }
+
+    function publishRunReport(report) {
+        state.lastReport = report;
+        document.dispatchEvent(new CustomEvent('bpi:processing-report', {
+            detail: report,
+        }));
+    }
+
+    function finalizeRunReport(report, {
+        status,
+        rowsByBreakpoint,
+        resultPublished,
+        failureStage = null,
+        failureMessage = null,
+    }) {
+        return processingFinalizeRunReport(report, {
+            status,
+            rowsByBreakpoint,
+            resultPublished,
+            failureStage,
+            failureMessage,
+        });
+    }
+
+    function getTrackedPictures(frameDocument) {
+        return Array.from(frameDocument.querySelectorAll('picture[data-set]'));
+    }
+
+    function recordNormalizationSample(target, sample) {
+        if (!target || !Array.isArray(target)) {
+            return;
+        }
+
+        if (target.length >= PREPARE_NORMALIZATION_SAMPLE_LIMIT) {
+            return;
+        }
+
+        target.push(sample);
+    }
+
+    function pushActivationStrategy(prepareResult, strategy, count = 0) {
+        if (!prepareResult || !Array.isArray(prepareResult.activationStrategies)) {
+            return;
+        }
+
+        if (count > 0) {
+            prepareResult.activationStrategies.push(`${strategy}:${count}`);
+            return;
+        }
+
+        prepareResult.activationStrategies.push(strategy);
+    }
+
+    function activateLazySizes(frameWindow, frameDocument, prepareResult) {
+        processingActivateLazySizes(frameWindow, frameDocument, prepareResult, pushActivationStrategy);
+    }
+
+    function activateVanillaLazyLoad(frameWindow, frameDocument, prepareResult) {
+        processingActivateVanillaLazyLoad(frameWindow, frameDocument, prepareResult, pushActivationStrategy);
+    }
+
+    function activateLozad(frameWindow, frameDocument, prepareResult) {
+        processingActivateLozad(frameWindow, frameDocument, prepareResult, pushActivationStrategy);
+    }
+
+    function normalizeLazyAttribute(target, {
+        dataAttr,
+        targetAttr,
+        forceWhenDataUri = false,
+    }) {
+        return processingNormalizeLazyAttribute(target, {
+            dataAttr,
+            targetAttr,
+            forceWhenDataUri,
+        });
+    }
+
+    function prepareBreakpointImages(breakpoint) {
+        return processingPrepareBreakpointImages({
+            breakpoint,
+            frameDocument: getFrameDocument(),
+            frameWindow: state.previewFrame?.contentWindow || window,
+            getTrackedPictures,
+            getPrimarySourceForBreakpoint,
+            sampleLimit: PREPARE_NORMALIZATION_SAMPLE_LIMIT,
+        });
+    }
+
+    function isImageRenderable(img) {
+        return processingIsImageRenderable(img);
+    }
+
+    function isImageLikelyBroken(img) {
+        return processingIsImageLikelyBroken(img, isImageRenderable);
+    }
+
+    function deriveSourceUsed(source, img) {
+        return processingDeriveSourceUsed(source, img);
+    }
+
+    function createReadinessSummary(readinessByKey) {
+        return processingCreateReadinessSummary(readinessByKey);
+    }
+
+    function buildBreakpointReadinessTracker(breakpoint, preloadStates = null) {
+        return processingBuildBreakpointReadinessTracker({
+            breakpoint,
+            frameDocument: getFrameDocument(),
+            preloadStates,
+            getPictureLoadKey,
+            getPrimarySourceForBreakpoint,
+            deriveSource: deriveSourceUsed,
+            isTransparentSrcset: isTransparentPixelSrcset,
+            isRenderable: isImageRenderable,
+        });
+    }
+
+    async function waitForImagesToSettle({
+        readinessByKey,
+        softDeadlineMs = IMAGE_WAIT_SOFT_DEADLINE_MS,
+        pollMs = IMAGE_WAIT_POLL_MS,
+        shouldStop = () => false,
+        onSoftDeadline = null,
+        onWaitingTick = null,
+    } = {}) {
+        return processingWaitForImagesToSettle({
+            readinessByKey,
+            softDeadlineMs,
+            pollMs,
+            shouldStop,
+            onSoftDeadline,
+            onWaitingTick,
+            createSummary: createReadinessSummary,
+            isRenderable: isImageRenderable,
+            setTimeoutFn: (callback, ms) => window.setTimeout(callback, ms),
+            requestAnimationFrameFn: (callback) => requestAnimationFrame(callback),
+            nowMs: () => Date.now(),
+        });
     }
 
     async function preloadBreakpointSources(breakpoint, timeoutMs = 5000) {
-        const frameDocument = getFrameDocument();
-        const pictures = Array.from(frameDocument.querySelectorAll('picture[data-set]'));
-        const loadStates = new Map();
-
-        const waiters = pictures.map((picture, index) => new Promise((resolve) => {
-            const key = getPictureLoadKey(picture, index);
-            const source = getPrimarySourceForBreakpoint(picture, breakpoint);
-
-            if (!source) {
-                loadStates.set(key, false);
-                resolve();
-                return;
-            }
-
-            const enabled = source.getAttribute('data-bp-enabled') !== 'false';
-            if (!enabled) {
-                loadStates.set(key, true);
-                resolve();
-                return;
-            }
-
-            const srcset = String(source.getAttribute('srcset') || '').trim();
-            if (!srcset || isTransparentPixelSrcset(srcset)) {
-                loadStates.set(key, true);
-                resolve();
-                return;
-            }
-
-            const probe = new Image();
-            let done = false;
-
-            const finish = (ok) => {
-                if (done) {
-                    return;
-                }
-
-                done = true;
-                probe.removeEventListener('load', onLoad);
-                probe.removeEventListener('error', onError);
-                loadStates.set(key, ok);
-                resolve();
-            };
-
-            const onLoad = () => finish(true);
-            const onError = () => finish(false);
-
-            probe.addEventListener('load', onLoad);
-            probe.addEventListener('error', onError);
-
-            const sizes = source.getAttribute('sizes');
-            if (sizes) {
-                probe.sizes = sizes;
-            }
-
-            probe.srcset = srcset;
-
-            window.setTimeout(() => finish(false), timeoutMs);
-        }));
-
-        await Promise.all(waiters);
-        await new Promise((resolve) => requestAnimationFrame(resolve));
-        await new Promise((resolve) => requestAnimationFrame(resolve));
-
-        return loadStates;
+        return processingPreloadBreakpointSources({
+            breakpoint,
+            frameDocument: getFrameDocument(),
+            timeoutMs,
+            getPictureLoadKey,
+            getPrimarySourceForBreakpoint,
+            isTransparentSrcset: isTransparentPixelSrcset,
+            ImageCtor: Image,
+            setTimeoutFn: (callback, ms) => window.setTimeout(callback, ms),
+            requestAnimationFrameFn: (callback) => requestAnimationFrame(callback),
+        });
     }
 
-    function extractRowsForBreakpoint(breakpoint, preloadStates = null) {
-        const frameDocument = getFrameDocument();
-
-        const images = Array.from(frameDocument.querySelectorAll('picture[data-set] img'));
-
-        return images.map((img, index) => {
-            const picture = img.closest('picture');
-            const source = getPrimarySourceForBreakpoint(picture, breakpoint);
-            if (!source) {
-                return null;
-            }
-
-            const assetId = img.getAttribute('data-asset-id') || picture?.getAttribute('data-asset-id') || `unknown-${index}`;
-            const enabled = source?.getAttribute('data-bp-enabled') !== 'false';
-            const preloadKey = getPictureLoadKey(picture, index);
-            const preloadLoaded = preloadStates ? preloadStates.get(preloadKey) : undefined;
-            const loadedFromElement = img.complete && (img.naturalWidth > 0 || img.naturalHeight > 0);
-
-            return {
-                assetId,
-                transform: picture?.getAttribute('data-set') || 'unknown',
-                title: picture?.getAttribute('data-asset-title') || '',
-                enabled,
-                isVisible: img.offsetWidth > 0 || img.offsetHeight > 0,
-                src: img.currentSrc || img.getAttribute('src') || '',
-                loaded: enabled ? Boolean(preloadLoaded || loadedFromElement) : true,
-                rendered: {
-                    width: img.clientWidth || 0,
-                    height: img.clientHeight || 0
-                },
-                intrinsic: {
-                    width: img.naturalWidth || 0,
-                    height: img.naturalHeight || 0
-                },
-                transformDimensions: {
-                    width: toPositiveIntOrNull(source?.getAttribute('data-set-width')),
-                    height: toPositiveIntOrNull(source?.getAttribute('data-set-height')),
-                    autoDimension: source?.getAttribute('data-auto-dimension') || null
-                }
-            };
-        }).filter((row) => row !== null);
+    function extractRowsForBreakpoint(breakpoint, preloadStates = null, readinessByKey = null) {
+        return processingExtractRowsForBreakpoint({
+            breakpoint,
+            frameDocument: getFrameDocument(),
+            preloadStates,
+            readinessByKey,
+            getPrimarySourceForBreakpoint,
+            getPictureLoadKey,
+            deriveSource: deriveSourceUsed,
+            isLikelyBroken: isImageLikelyBroken,
+            toPositiveIntOrNullFn: toPositiveIntOrNull,
+        });
     }
 
     function toPositiveIntOrNull(value) {
-        const parsed = parseInt(String(value ?? '').trim(), 10);
-        return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+        return processingToPositiveIntOrNull(value);
     }
 
-    function buildStructuredOutput(sourceUrl, breakpoints, rowsByBreakpoint, startedAt) {
-        const assetsById = new Set();
-        let unloadedImageCount = 0;
-
-        Object.values(rowsByBreakpoint).forEach((rows) => {
-            rows.forEach((row) => {
-                assetsById.add(String(row.assetId || ''));
-
-                if (!row.loaded) {
-                    unloadedImageCount += 1;
-                }
-            });
-        });
-
-        const durationMs = Date.now() - startedAt;
-        const rowCount = Object.values(rowsByBreakpoint).reduce((count, rows) => count + rows.length, 0);
-
-        return {
-            schemaVersion: 2,
-            manifestSchemaVersion: bpiProcessingManifest?.schemaVersion || null,
-            runId: `run-${Date.now()}`,
+    function buildStructuredOutput(sourceUrl, breakpoints, rowsByBreakpoint, startedAt, runReport = null) {
+        return processingBuildStructuredOutput({
             sourceUrl,
-            timestamp: new Date().toISOString(),
             breakpoints,
             rowsByBreakpoint,
-            summary: {
-                runs: state.runCount,
-                breakpointCount: breakpoints.length,
-                assetCount: Array.from(assetsById).filter((assetId) => assetId !== '').length,
-                rowCount,
-                warningCount: 0,
-                unloadedImageCount,
-                durationMs
-            }
-        };
+            startedAt,
+            runReport,
+            manifestSchemaVersion: bpiProcessingManifest?.schemaVersion || null,
+            runCount: state.runCount,
+            nowMs: () => Date.now(),
+            nowIso: () => new Date().toISOString(),
+        });
     }
 
     function syncBreakpointPreviewHeights() {
@@ -1472,13 +1465,7 @@
     }
 
     function buildWaitingStatusMessage(breakpoint, pendingCount, waitedMs = null) {
-        const imageLabel = `${pendingCount} image${pendingCount === 1 ? '' : 's'}`;
-        if (Number.isFinite(waitedMs) && waitedMs > 0) {
-            const seconds = Math.ceil(waitedMs / 1000);
-            return `Waiting. Probably on transforms. ${imageLabel} still pending at ${breakpoint}px (${seconds}s). Click Quit Waiting to stop.`;
-        }
-
-        return `Waiting. Probably on transforms. ${imageLabel} still pending at ${breakpoint}px. Click Quit Waiting to stop.`;
+        return processingBuildWaitingStatusMessage(breakpoint, pendingCount, waitedMs);
     }
 
     async function loadPreviewForSelectedEntry(successMessage) {
@@ -1491,6 +1478,23 @@
         const sourceUrl = await resolveSelectedEntryUrl();
         await ensurePreviewFrame(sourceUrl, false);
         setStatus(successMessage);
+    }
+
+    class ProcessingCancelledError extends Error {
+        constructor(message) {
+            super(message);
+            this.name = 'ProcessingCancelledError';
+        }
+    }
+
+    function appendBreakpointReadinessIssues(report, breakpointReport, breakpoint, readinessByKey) {
+        processingAppendBreakpointReadinessIssues({
+            report,
+            breakpointReport,
+            breakpoint,
+            readinessByKey,
+            appendIssue: appendRunIssue,
+        });
     }
 
     async function runProcessing() {
@@ -1515,50 +1519,154 @@
         setButtonsDisabled(true);
         startProcessingProgress(totalProgressSteps);
         setStatus('Getting ready...');
-
+        const diagnosticsEnabled = isAuthorDiagnosticsEnabled();
         const startedAt = Date.now();
+        let failureStage = 'initialization';
+        const rowsByBreakpoint = {};
+        const runReport = createRunReport(state.previewUrl || '', breakpoints, diagnosticsEnabled);
 
         try {
+            failureStage = 'resolve-entry-url';
             const sourceUrl = await resolveSelectedEntryUrl();
+            runReport.sourceUrl = sanitizeIssueSource(sourceUrl);
+
             syncSelectedEntryIdToUrl(getSelectedEntryId());
             getOrCreatePreviewFrame();
+
+            failureStage = 'ensure-preview-frame';
             await ensurePreviewFrame(sourceUrl, true);
             completedProgressSteps += 1;
             updateProcessingProgress(completedProgressSteps);
 
-            const rowsByBreakpoint = {};
             for (const breakpoint of breakpoints) {
+                const breakpointReport = createBreakpointReportEntry(breakpoint);
+                runReport.breakpoints.push(breakpointReport);
+
                 state.waitSoftLimitReached = false;
                 setStopButtonVisibility(false);
                 const measurementWidth = getMeasurementWidthForBreakpoint(breakpoint);
                 setStatus(`Processing ${breakpoint}px...`);
-                await setPreviewWidth(measurementWidth);
-                const preloadStates = await preloadBreakpointSources(breakpoint);
-                const waitResult = await waitForImagesToSettle({
-                    shouldStop: () => state.stopRequested,
-                    onSoftDeadline: ({ pendingCount }) => {
-                        state.waitSoftLimitReached = true;
-                        setStopButtonVisibility(true);
-                        setStatus(buildWaitingStatusMessage(breakpoint, pendingCount));
-                    },
-                    onWaitingTick: ({ pendingCount, waitedMs }) => {
-                        setStatus(buildWaitingStatusMessage(breakpoint, pendingCount, waitedMs));
-                    },
-                });
 
-                if (waitResult.aborted) {
-                    throw new Error('Processing stopped by user during image wait.');
+                failureStage = 'set-breakpoint-width';
+                await setPreviewWidth(measurementWidth);
+
+                failureStage = 'prepare-breakpoint-images';
+                const prepareStartedAt = Date.now();
+                const prepareResult = prepareBreakpointImages(breakpoint);
+                breakpointReport.activationStrategies = prepareResult.activationStrategies.slice();
+                breakpointReport.normalizationCount = prepareResult.normalizationCount;
+
+                if (runReport.authorDiagnostics) {
+                    runReport.authorDiagnostics.stageTimings.push({
+                        stage: 'prepare-breakpoint-images',
+                        breakpoint,
+                        durationMs: Math.max(0, Date.now() - prepareStartedAt),
+                    });
+
+                    runReport.authorDiagnostics.activationTrace.push({
+                        breakpoint,
+                        strategies: prepareResult.activationStrategies.slice(),
+                        normalizationCount: prepareResult.normalizationCount,
+                    });
+
+                    prepareResult.normalizationSamples.forEach((sample) => {
+                        recordNormalizationSample(runReport.authorDiagnostics.normalizationSamples, {
+                            breakpoint,
+                            element: sample.element,
+                            attr: sample.attr,
+                        });
+                    });
+                }
+
+                failureStage = 'preload-breakpoint-sources';
+                const preloadStartedAt = Date.now();
+                const preloadStates = await preloadBreakpointSources(breakpoint);
+                if (runReport.authorDiagnostics) {
+                    runReport.authorDiagnostics.stageTimings.push({
+                        stage: 'preload-breakpoint-sources',
+                        breakpoint,
+                        durationMs: Math.max(0, Date.now() - preloadStartedAt),
+                    });
+                }
+
+                failureStage = 'wait-for-image-readiness';
+                const readinessTracker = buildBreakpointReadinessTracker(breakpoint, preloadStates);
+                const waitStartedAt = Date.now();
+                let waitResult = null;
+
+                try {
+                    waitResult = await waitForImagesToSettle({
+                        readinessByKey: readinessTracker.readinessByKey,
+                        shouldStop: () => state.stopRequested,
+                        onSoftDeadline: ({ pendingCount }) => {
+                            state.waitSoftLimitReached = true;
+                            setStopButtonVisibility(true);
+                            setStatus(buildWaitingStatusMessage(breakpoint, pendingCount));
+                        },
+                        onWaitingTick: ({ pendingCount, waitedMs }) => {
+                            setStatus(buildWaitingStatusMessage(breakpoint, pendingCount, waitedMs));
+                        },
+                    });
+                } finally {
+                    readinessTracker.cleanup();
+
+                    if (runReport.authorDiagnostics) {
+                        runReport.authorDiagnostics.stageTimings.push({
+                            stage: 'wait-for-image-readiness',
+                            breakpoint,
+                            durationMs: Math.max(0, Date.now() - waitStartedAt),
+                        });
+                    }
                 }
 
                 state.waitSoftLimitReached = false;
                 setStopButtonVisibility(false);
-                rowsByBreakpoint[breakpoint] = extractRowsForBreakpoint(breakpoint, preloadStates);
+
+                rowsByBreakpoint[breakpoint] = extractRowsForBreakpoint(
+                    breakpoint,
+                    preloadStates,
+                    readinessTracker.readinessByKey,
+                );
+
+                breakpointReport.status = waitResult?.aborted ? 'cancelled' : 'processed';
+                breakpointReport.waitDurationMs = Math.max(0, Number(waitResult?.waitedMs) || 0);
+
+                const readinessSummary = createReadinessSummary(readinessTracker.readinessByKey);
+                breakpointReport.loadedCount = readinessSummary.loadedCount;
+                breakpointReport.brokenCount = readinessSummary.brokenCount;
+                breakpointReport.unresolvedCount = readinessSummary.unresolvedCount;
+
+                appendBreakpointReadinessIssues(
+                    runReport,
+                    breakpointReport,
+                    breakpoint,
+                    readinessTracker.readinessByKey,
+                );
+
                 completedProgressSteps += 1;
                 updateProcessingProgress(completedProgressSteps);
+
+                if (waitResult?.aborted) {
+                    throw new ProcessingCancelledError('Processing stopped by user during image wait.');
+                }
             }
 
             state.runCount += 1;
-            const result = buildStructuredOutput(state.previewUrl, breakpoints, rowsByBreakpoint, startedAt);
+            const finalizedReport = finalizeRunReport(runReport, {
+                status: 'completed',
+                rowsByBreakpoint,
+                resultPublished: true,
+            });
+            publishRunReport(finalizedReport);
+
+            const result = buildStructuredOutput(
+                state.previewUrl || runReport.sourceUrl || '',
+                breakpoints,
+                rowsByBreakpoint,
+                startedAt,
+                finalizedReport,
+            );
+
             await publishResult(result);
             const warningSuffix = result.summary.warningCount > 0
                 ? ` (${result.summary.warningCount} warnings)`
@@ -1568,7 +1676,29 @@
                 : '';
             setStatus(`Done. ${result.summary.assetCount} assets across ${breakpoints.length} breakpoints.${warningSuffix}${unloadedSuffix}`);
         } catch (error) {
-            setStatus(`Error: ${error.message}`);
+            const cancelled = error instanceof ProcessingCancelledError;
+
+            if (runReport.authorDiagnostics) {
+                runReport.authorDiagnostics.failure = {
+                    stage: failureStage,
+                    message: String(error?.message || 'Processing failure.'),
+                };
+            }
+
+            const finalizedReport = finalizeRunReport(runReport, {
+                status: cancelled ? 'cancelled' : 'failed',
+                rowsByBreakpoint,
+                resultPublished: false,
+                failureStage,
+                failureMessage: String(error?.message || 'Processing failed.'),
+            });
+            publishRunReport(finalizedReport);
+
+            if (cancelled) {
+                setStatus('Processing cancelled. No partial results were published.');
+            } else {
+                setStatus(`Error: ${error.message}`);
+            }
         } finally {
             state.busy = false;
             state.stopRequested = false;
@@ -1660,6 +1790,45 @@
         } catch (error) {
             setStatus(`Error: ${error.message}`);
         }
+    }
+
+    if (window.__BPI_TEST_HOOKS === true) {
+        window.__BPIProcessingTestHooks = {
+            sanitizeIssueSource,
+            createRunReport,
+            createBreakpointReportEntry,
+            appendRunIssue,
+            finalizeRunReport,
+            createReadinessSummary,
+            normalizeLazyAttribute,
+            isTransparentPixelSrcset,
+            isImageLikelyBroken,
+            deriveSourceUsed,
+            buildStructuredOutput,
+            getMeasurementWidthForBreakpoint,
+            isAuthorDiagnosticsEnabled,
+            activateLazySizes,
+            activateVanillaLazyLoad,
+            activateLozad,
+            waitForImagesToSettle,
+            preloadBreakpointSources,
+            appendBreakpointReadinessIssues,
+            buildWaitingStatusMessage,
+            publishRunReport,
+            getLastReport: () => state.lastReport,
+            setPreviewFrameForTests: (frameDocument, frameWindow = window) => {
+                state.previewFrame = {
+                    contentDocument: frameDocument,
+                    contentWindow: frameWindow,
+                };
+            },
+            clearPreviewFrameForTests: () => {
+                state.previewFrame = null;
+            },
+            prepareBreakpointImages,
+            buildBreakpointReadinessTracker,
+            extractRowsForBreakpoint,
+        };
     }
 
     setPreviewVisibility(false);

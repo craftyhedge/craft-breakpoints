@@ -22,5 +22,6 @@ return [
     'pictureTemplatePath' => 'craft-breakpoint-images/picture.twig',
     'svgTemplatePath' => 'craft-breakpoint-images/svg.twig',
     'nativeLazyLoadingEnabled' => true,
+    'processingDiagnosticsEnabled' => false,
     'dpr' => [1, 2],
 ];

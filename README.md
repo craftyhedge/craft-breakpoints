@@ -67,6 +67,12 @@ composer test
 composer test:integration
 ```
 
+5. Run JavaScript unit tests:
+
+```bash
+npm run test:js
+```
+
 ## Static Analysis
 
 PHPStan is configured with Craft's plugin extension config.

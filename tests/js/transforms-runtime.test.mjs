@@ -1,0 +1,938 @@
+function buildRuntimeDom() {
+    document.body.innerHTML = `
+    <div class="bpi-transforms-page"></div>
+    <input id="bpi-source-entry" value="" />
+    <div id="bpi-status"></div>
+    <div id="bpi-progress-host"></div>
+    <div id="bpi-frame-pane"></div>
+    <div id="bpi-frame-wrapper"></div>
+    <div id="bpi-warnings"></div>
+    <div id="bpi-visual-results"></div>
+    <button id="bpi-open-preview"></button>
+    <button id="bpi-run-processing"></button>
+    <button id="bpi-stop-processing"></button>
+    <button id="bpi-close-preview"></button>
+    <button id="bpi-copy-output"></button>
+  `;
+}
+
+async function loadRuntimeHooks() {
+    buildRuntimeDom();
+
+    window.bpiProcessingManifest = {
+        schemaVersion: 2,
+        breakpointValues: [480, 768],
+        processing: {
+            authorDiagnosticsEnabled: false,
+        },
+    };
+
+    window.__BPI_TEST_HOOKS = true;
+
+    await import('../../src/web/assets/transforms/dist/js/transforms.js?bpi-test-hooks');
+
+    const hooks = window.__BPIProcessingTestHooks;
+    if (!hooks || typeof hooks !== 'object') {
+        throw new Error('Expected transforms runtime test hooks to be exported.');
+    }
+
+    return hooks;
+}
+
+describe('transforms runtime helper logic', () => {
+    let hooks;
+
+    beforeAll(async () => {
+        hooks = await loadRuntimeHooks();
+    });
+
+    afterEach(() => {
+        hooks.clearPreviewFrameForTests();
+    });
+
+    it('sanitizes issue source URLs by removing query and hash', () => {
+        expect(hooks.sanitizeIssueSource('https://example.test/path/image.jpg?token=abc#frag'))
+            .toBe('https://example.test/path/image.jpg');
+
+        expect(hooks.sanitizeIssueSource('/relative/path/image.jpg?foo=bar#x'))
+            .toBe('http://localhost:3000/relative/path/image.jpg');
+    });
+
+    it('caps issue payload size and tracks overflow counts', () => {
+        const report = hooks.createRunReport('https://example.test/source?page=1', [480], false);
+
+        for (let i = 0; i < 205; i += 1) {
+            hooks.appendRunIssue(report, {
+                severity: 'warning',
+                code: `warn-${i}`,
+                message: 'warning',
+                source: `https://example.test/image-${i}.jpg?token=secret`,
+            });
+        }
+
+        expect(report.issues).toHaveLength(200);
+        expect(report.issueOverflowCount).toBe(5);
+        expect(report.totals.issueCount).toBe(205);
+        expect(report.totals.warningCount).toBe(205);
+        expect(report.issues[0].source).toBe('https://example.test/image-0.jpg');
+    });
+
+    it('finalizes run report totals and strips internal timing marker', () => {
+        const report = hooks.createRunReport('https://example.test/source?secret=1', [480], false);
+
+        const finalized = hooks.finalizeRunReport(report, {
+            status: 'completed',
+            resultPublished: true,
+            rowsByBreakpoint: {
+                480: [
+                    { loaded: true, broken: false, unresolved: false },
+                    { loaded: false, broken: true, unresolved: false },
+                    { loaded: false, broken: false, unresolved: true },
+                ],
+            },
+        });
+
+        expect(finalized.status).toBe('completed');
+        expect(finalized.resultPublished).toBe(true);
+        expect(finalized.totals.rowCount).toBe(3);
+        expect(finalized.totals.loadedTotal).toBe(1);
+        expect(finalized.totals.brokenTotal).toBe(1);
+        expect(finalized.totals.unresolvedTotal).toBe(1);
+        expect(finalized._startedAtMs).toBeUndefined();
+        expect(typeof finalized.completedAt).toBe('string');
+    });
+
+    it('finalizes failed and cancelled runs with failure metadata', () => {
+        const failed = hooks.finalizeRunReport(
+            hooks.createRunReport('https://example.test/source', [480], false),
+            {
+                status: 'failed',
+                resultPublished: false,
+                failureStage: 'prepare-breakpoint-images',
+                failureMessage: 'prepare failed',
+                rowsByBreakpoint: {},
+            },
+        );
+
+        expect(failed.status).toBe('failed');
+        expect(failed.resultPublished).toBe(false);
+        expect(failed.failure.stage).toBe('prepare-breakpoint-images');
+        expect(failed.failure.message).toBe('prepare failed');
+
+        const cancelled = hooks.finalizeRunReport(
+            hooks.createRunReport('https://example.test/source', [480], false),
+            {
+                status: 'cancelled',
+                resultPublished: false,
+                failureStage: 'wait-for-image-readiness',
+                failureMessage: 'cancelled by user',
+                rowsByBreakpoint: {},
+            },
+        );
+
+        expect(cancelled.status).toBe('cancelled');
+        expect(cancelled.resultPublished).toBe(false);
+        expect(cancelled.failure.stage).toBe('wait-for-image-readiness');
+        expect(cancelled.failure.message).toBe('cancelled by user');
+    });
+
+    it('creates report diagnostics only when enabled and builds breakpoint report shape', () => {
+        const withDiagnostics = hooks.createRunReport('https://example.test/source?secret=1', [480, 768], true);
+        expect(withDiagnostics.sourceUrl).toBe('https://example.test/source');
+        expect(withDiagnostics.totals.breakpointCount).toBe(2);
+        expect(withDiagnostics.authorDiagnostics).toBeDefined();
+        expect(withDiagnostics.authorDiagnostics.stageTimings).toEqual([]);
+
+        const withoutDiagnostics = hooks.createRunReport('https://example.test/source', [480], false);
+        expect(withoutDiagnostics.authorDiagnostics).toBeUndefined();
+
+        const breakpointReport = hooks.createBreakpointReportEntry('768');
+        expect(breakpointReport.breakpointKey).toBe('768');
+        expect(breakpointReport.width).toBe(768);
+        expect(breakpointReport.status).toBe('skipped');
+
+        const invalidBreakpointReport = hooks.createBreakpointReportEntry('abc');
+        expect(invalidBreakpointReport.width).toBeNull();
+    });
+
+    it('computes measurement widths and diagnostics flag state', () => {
+        expect(hooks.getMeasurementWidthForBreakpoint(480)).toBe(478);
+        expect(hooks.getMeasurementWidthForBreakpoint(1)).toBe(1);
+        expect(hooks.getMeasurementWidthForBreakpoint('bad')).toBe(1);
+
+        window.bpiProcessingManifest.processing.authorDiagnosticsEnabled = true;
+        expect(hooks.isAuthorDiagnosticsEnabled()).toBe(true);
+
+        window.bpiProcessingManifest.processing.authorDiagnosticsEnabled = false;
+        expect(hooks.isAuthorDiagnosticsEnabled()).toBe(false);
+    });
+
+    it('derives sourceUsed in priority order and detects likely broken images', () => {
+        const source = {
+            getAttribute: (name) => {
+                if (name === 'srcset') {
+                    return 'https://example.test/from-source-set.webp 1x';
+                }
+
+                if (name === 'src') {
+                    return 'https://example.test/from-source-src.webp';
+                }
+
+                return '';
+            },
+        };
+
+        const imgWithCurrent = {
+            currentSrc: 'https://example.test/current.jpg',
+            getAttribute: () => 'https://example.test/fallback.jpg',
+        };
+        expect(hooks.deriveSourceUsed(source, imgWithCurrent)).toBe('https://example.test/current.jpg');
+
+        const imgWithoutCurrent = {
+            currentSrc: '',
+            getAttribute: (name) => {
+                if (name === 'src') {
+                    return 'https://example.test/img-src.jpg';
+                }
+
+                return '';
+            },
+        };
+        expect(hooks.deriveSourceUsed(source, imgWithoutCurrent)).toBe('https://example.test/from-source-set.webp 1x');
+        expect(hooks.deriveSourceUsed(null, imgWithoutCurrent)).toBe('https://example.test/img-src.jpg');
+
+        const incomplete = { complete: false, naturalWidth: 0, naturalHeight: 0, currentSrc: '', getAttribute: () => '' };
+        expect(hooks.isImageLikelyBroken(incomplete)).toBe(false);
+
+        const renderable = { complete: true, naturalWidth: 100, naturalHeight: 0, currentSrc: '', getAttribute: () => '' };
+        expect(hooks.isImageLikelyBroken(renderable)).toBe(false);
+
+        const brokenNoSource = { complete: true, naturalWidth: 0, naturalHeight: 0, currentSrc: '', getAttribute: () => '' };
+        expect(hooks.isImageLikelyBroken(brokenNoSource)).toBe(false);
+
+        const brokenWithSource = {
+            complete: true,
+            naturalWidth: 0,
+            naturalHeight: 0,
+            currentSrc: '',
+            getAttribute: (name) => (name === 'src' ? 'https://example.test/broken.jpg' : ''),
+        };
+        expect(hooks.isImageLikelyBroken(brokenWithSource)).toBe(true);
+    });
+
+    it('normalizes lazy attributes with data-uri replacement rules', () => {
+        const img = document.createElement('img');
+        img.setAttribute('data-src', 'https://example.test/full.jpg');
+
+        expect(hooks.normalizeLazyAttribute(img, {
+            dataAttr: 'data-src',
+            targetAttr: 'src',
+            forceWhenDataUri: true,
+        })).toBe(true);
+        expect(img.getAttribute('src')).toBe('https://example.test/full.jpg');
+
+        img.setAttribute('src', 'https://example.test/already-set.jpg');
+        img.setAttribute('data-src', 'https://example.test/new.jpg');
+
+        expect(hooks.normalizeLazyAttribute(img, {
+            dataAttr: 'data-src',
+            targetAttr: 'src',
+            forceWhenDataUri: true,
+        })).toBe(false);
+        expect(img.getAttribute('src')).toBe('https://example.test/already-set.jpg');
+
+        img.setAttribute('src', 'data:image/gif;base64,AAAA');
+        expect(hooks.normalizeLazyAttribute(img, {
+            dataAttr: 'data-src',
+            targetAttr: 'src',
+            forceWhenDataUri: true,
+        })).toBe(true);
+        expect(img.getAttribute('src')).toBe('https://example.test/new.jpg');
+    });
+
+    it('computes readiness summary counts by status', () => {
+        const readiness = new Map([
+            ['a', { status: 'loaded' }],
+            ['b', { status: 'broken' }],
+            ['c', { status: 'unresolved' }],
+            ['d', { status: 'pending' }],
+            ['e', { status: 'loaded' }],
+        ]);
+
+        const summary = hooks.createReadinessSummary(readiness);
+        expect(summary.loadedCount).toBe(2);
+        expect(summary.brokenCount).toBe(1);
+        expect(summary.unresolvedCount).toBe(1);
+        expect(summary.pendingCount).toBe(1);
+    });
+
+    it('tracks error-severity issues separately from warnings', () => {
+        const report = hooks.createRunReport('https://example.test/source', [480], false);
+
+        hooks.appendRunIssue(report, {
+            severity: 'error',
+            code: 'network-failure',
+            message: 'network failed',
+            source: 'https://example.test/image.jpg?secret=true',
+        });
+
+        hooks.appendRunIssue(report, {
+            severity: 'warning',
+            code: 'decode-failure',
+            message: 'decode failed',
+            source: 'https://example.test/image2.jpg?secret=true',
+        });
+
+        expect(report.totals.issueCount).toBe(2);
+        expect(report.totals.errorCount).toBe(1);
+        expect(report.totals.warningCount).toBe(1);
+        expect(report.issues[0].severity).toBe('error');
+        expect(report.issues[0].source).toBe('https://example.test/image.jpg');
+    });
+
+    it('builds structured output unloaded count from broken and unresolved rows', () => {
+        const report = hooks.createRunReport('https://example.test/page', [480], false);
+        report.totals.warningCount = 2;
+
+        const result = hooks.buildStructuredOutput(
+            'https://example.test/page',
+            [480],
+            {
+                480: [
+                    { assetId: '1', loaded: true, broken: false, unresolved: false },
+                    { assetId: '2', loaded: false, broken: true, unresolved: false },
+                    { assetId: '3', loaded: false, broken: false, unresolved: true },
+                ],
+            },
+            Date.now() - 50,
+            report,
+        );
+
+        expect(result.runId).toBe(report.runId);
+        expect(result.processingReport).toBe(report);
+        expect(result.summary.assetCount).toBe(3);
+        expect(result.summary.loadedImageCount).toBe(1);
+        expect(result.summary.brokenImageCount).toBe(1);
+        expect(result.summary.unresolvedImageCount).toBe(1);
+        expect(result.summary.unloadedImageCount).toBe(2);
+        expect(result.summary.warningCount).toBe(2);
+    });
+
+    it('prepares breakpoint images with normalization and eager loading attributes', () => {
+        const frameDocument = document.implementation.createHTMLDocument('preview');
+        frameDocument.body.innerHTML = `
+            <picture data-set="hero" data-asset-id="asset-hero">
+                <source class="bpi_first-source-set" data-bp-size="480" data-bp-enabled="true" data-srcset="https://example.test/hero-480.webp 1x" data-sizes="100vw" />
+                <img data-src="https://example.test/hero.jpg" data-srcset="https://example.test/hero@2x.jpg 2x" data-sizes="100vw" src="data:image/gif;base64,AAAA" class="lazyload" />
+            </picture>
+        `;
+
+        hooks.setPreviewFrameForTests(frameDocument, {});
+        const result = hooks.prepareBreakpointImages(480);
+
+        const img = frameDocument.querySelector('img');
+        const source = frameDocument.querySelector('source');
+
+        expect(result.activationStrategies).toEqual(['none']);
+        expect(result.normalizationCount).toBe(5);
+        expect(img.getAttribute('loading')).toBe('eager');
+        expect(img.getAttribute('fetchpriority')).toBe('high');
+        expect(img.getAttribute('src')).toBe('https://example.test/hero.jpg');
+        expect(img.getAttribute('srcset')).toBe('https://example.test/hero@2x.jpg 2x');
+        expect(img.getAttribute('sizes')).toBe('100vw');
+        expect(source.getAttribute('srcset')).toBe('https://example.test/hero-480.webp 1x');
+        expect(source.getAttribute('sizes')).toBe('100vw');
+    });
+
+    it('extracts breakpoint rows honoring readiness states and fallback classification', () => {
+        const frameDocument = document.implementation.createHTMLDocument('preview');
+        frameDocument.body.innerHTML = `
+            <picture data-set="alpha" data-picture-id="pic-1" data-asset-id="asset-1">
+                <source class="bpi_first-source-set" data-bp-size="480" data-bp-enabled="true" srcset="https://example.test/alpha.webp 1x" />
+                <img data-asset-id="asset-1" src="https://example.test/alpha.jpg" />
+            </picture>
+            <picture data-set="beta" data-picture-id="pic-2" data-asset-id="asset-2">
+                <source class="bpi_first-source-set" data-bp-size="480" data-bp-enabled="true" srcset="https://example.test/beta.webp 1x" />
+                <img data-asset-id="asset-2" src="https://example.test/beta.jpg" />
+            </picture>
+            <picture data-set="gamma" data-picture-id="pic-3" data-asset-id="asset-3">
+                <source class="bpi_first-source-set" data-bp-size="480" data-bp-enabled="true" srcset="https://example.test/gamma.webp 1x" />
+                <img data-asset-id="asset-3" src="https://example.test/gamma.jpg" />
+            </picture>
+            <picture data-set="delta" data-picture-id="pic-4" data-asset-id="asset-4">
+                <source class="bpi_first-source-set" data-bp-size="480" data-bp-enabled="false" srcset="https://example.test/delta.webp 1x" />
+                <img data-asset-id="asset-4" src="https://example.test/delta.jpg" />
+            </picture>
+        `;
+
+        hooks.setPreviewFrameForTests(frameDocument, {});
+
+        const images = frameDocument.querySelectorAll('img');
+        Object.defineProperty(images[2], 'complete', { configurable: true, value: true });
+        Object.defineProperty(images[2], 'naturalWidth', { configurable: true, value: 0 });
+        Object.defineProperty(images[2], 'naturalHeight', { configurable: true, value: 0 });
+
+        const preloadStates = new Map([
+            ['pic-1', true],
+            ['pic-2', false],
+            ['pic-3', false],
+            ['pic-4', false],
+        ]);
+
+        const readinessByKey = new Map([
+            ['pic-1', {
+                status: 'loaded',
+                sourceUsed: 'https://example.test/alpha.jpg',
+            }],
+            ['pic-2', {
+                status: 'unresolved',
+                sourceUsed: 'https://example.test/beta.jpg',
+            }],
+        ]);
+
+        const rows = hooks.extractRowsForBreakpoint(480, preloadStates, readinessByKey);
+
+        expect(rows).toHaveLength(4);
+        expect(rows[0].loaded).toBe(true);
+        expect(rows[0].broken).toBe(false);
+        expect(rows[0].unresolved).toBe(false);
+
+        expect(rows[1].loaded).toBe(false);
+        expect(rows[1].broken).toBe(false);
+        expect(rows[1].unresolved).toBe(true);
+
+        expect(rows[2].loaded).toBe(false);
+        expect(rows[2].broken).toBe(true);
+        expect(rows[2].unresolved).toBe(false);
+
+        expect(rows[3].loaded).toBe(true);
+        expect(rows[3].broken).toBe(false);
+        expect(rows[3].unresolved).toBe(false);
+    });
+
+    it('builds readiness tracker statuses for static and dynamic image states', async () => {
+        const frameDocument = document.implementation.createHTMLDocument('preview');
+        frameDocument.body.innerHTML = `
+            <picture data-set="disabled" data-picture-id="disabled">
+                <source class="bpi_first-source-set" data-bp-size="480" data-bp-enabled="false" srcset="https://example.test/disabled.webp 1x" />
+                <img src="https://example.test/disabled.jpg" />
+            </picture>
+            <picture data-set="transparent" data-picture-id="transparent">
+                <source class="bpi_first-source-set" data-bp-size="480" srcset="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" />
+                <img src="https://example.test/transparent.jpg" />
+            </picture>
+            <picture data-set="preload" data-picture-id="preload">
+                <source class="bpi_first-source-set" data-bp-size="480" srcset="https://example.test/preload.webp 1x" />
+                <img src="https://example.test/preload.jpg" />
+            </picture>
+            <picture data-set="unsupported" data-picture-id="unsupported">
+                <source class="bpi_first-source-set" data-bp-size="480"></source>
+                <img />
+            </picture>
+            <picture data-set="complete-loaded" data-picture-id="complete-loaded">
+                <source class="bpi_first-source-set" data-bp-size="480" srcset="https://example.test/complete-loaded.webp 1x" />
+                <img src="https://example.test/complete-loaded.jpg" />
+            </picture>
+            <picture data-set="complete-broken" data-picture-id="complete-broken">
+                <source class="bpi_first-source-set" data-bp-size="480" srcset="https://example.test/complete-broken.webp 1x" />
+                <img src="https://example.test/complete-broken.jpg" />
+            </picture>
+            <picture data-set="decode" data-picture-id="decode">
+                <source class="bpi_first-source-set" data-bp-size="480" srcset="https://example.test/decode.webp 1x" />
+                <img src="https://example.test/decode.jpg" />
+            </picture>
+            <picture data-set="load" data-picture-id="load">
+                <source class="bpi_first-source-set" data-bp-size="480" srcset="https://example.test/load.webp 1x" />
+                <img src="https://example.test/load.jpg" />
+            </picture>
+            <picture data-set="error" data-picture-id="error">
+                <source class="bpi_first-source-set" data-bp-size="480" srcset="https://example.test/error.webp 1x" />
+                <img src="https://example.test/error.jpg" />
+            </picture>
+        `;
+
+        hooks.setPreviewFrameForTests(frameDocument, {});
+
+        const getImg = (key) => frameDocument.querySelector(`picture[data-picture-id="${key}"] img`);
+
+        const completeLoadedImg = getImg('complete-loaded');
+        Object.defineProperty(completeLoadedImg, 'complete', { configurable: true, value: true });
+        Object.defineProperty(completeLoadedImg, 'naturalWidth', { configurable: true, value: 640 });
+        Object.defineProperty(completeLoadedImg, 'naturalHeight', { configurable: true, value: 360 });
+
+        const completeBrokenImg = getImg('complete-broken');
+        Object.defineProperty(completeBrokenImg, 'complete', { configurable: true, value: true });
+        Object.defineProperty(completeBrokenImg, 'naturalWidth', { configurable: true, value: 0 });
+        Object.defineProperty(completeBrokenImg, 'naturalHeight', { configurable: true, value: 0 });
+
+        const decodeImg = getImg('decode');
+        Object.defineProperty(decodeImg, 'naturalWidth', { configurable: true, value: 1200 });
+        Object.defineProperty(decodeImg, 'naturalHeight', { configurable: true, value: 800 });
+        decodeImg.decode = () => Promise.resolve();
+
+        const loadImg = getImg('load');
+        Object.defineProperty(loadImg, 'naturalWidth', { configurable: true, writable: true, value: 0 });
+        Object.defineProperty(loadImg, 'naturalHeight', { configurable: true, writable: true, value: 0 });
+
+        const tracker = hooks.buildBreakpointReadinessTracker(480, new Map([['preload', true]]));
+        await Promise.resolve();
+
+        loadImg.naturalWidth = 900;
+        loadImg.naturalHeight = 500;
+        loadImg.dispatchEvent(new window.Event('load'));
+
+        getImg('error').dispatchEvent(new window.Event('error'));
+
+        const readiness = tracker.readinessByKey;
+        expect(readiness.get('disabled').status).toBe('loaded');
+        expect(readiness.get('disabled').reason).toBe('disabled-breakpoint');
+        expect(readiness.get('transparent').status).toBe('loaded');
+        expect(readiness.get('transparent').reason).toBe('transparent-placeholder');
+        expect(readiness.get('preload').status).toBe('loaded');
+        expect(readiness.get('preload').reason).toBe('preload');
+        expect(readiness.get('unsupported').status).toBe('broken');
+        expect(readiness.get('unsupported').reason).toBe('unsupported-source');
+        expect(readiness.get('complete-loaded').status).toBe('loaded');
+        expect(readiness.get('complete-loaded').reason).toBe('complete');
+        expect(readiness.get('complete-broken').status).toBe('broken');
+        expect(readiness.get('complete-broken').reason).toBe('network');
+        expect(readiness.get('decode').status).toBe('loaded');
+        expect(readiness.get('decode').reason).toBe('decode');
+        expect(readiness.get('load').status).toBe('loaded');
+        expect(readiness.get('load').reason).toBe('load-event');
+        expect(readiness.get('error').status).toBe('broken');
+        expect(readiness.get('error').reason).toBe('network');
+
+        tracker.cleanup();
+    });
+
+    it('skips pictures without a matching source for the target breakpoint', () => {
+        const frameDocument = document.implementation.createHTMLDocument('preview');
+        frameDocument.body.innerHTML = `
+            <picture data-set="other" data-picture-id="other">
+                <source class="bpi_first-source-set" data-bp-size="999" srcset="https://example.test/other.webp 1x" />
+                <img src="https://example.test/other.jpg" />
+            </picture>
+        `;
+
+        hooks.setPreviewFrameForTests(frameDocument, {});
+        const tracker = hooks.buildBreakpointReadinessTracker(480, null);
+
+        expect(tracker.readinessByKey.size).toBe(0);
+        tracker.cleanup();
+    });
+
+    it('preloads breakpoint sources across source-state branches', async () => {
+        const frameDocument = document.implementation.createHTMLDocument('preview');
+        frameDocument.body.innerHTML = `
+            <picture data-set="missing" data-picture-id="missing">
+                <source class="bpi_first-source-set" data-bp-size="999" srcset="https://example.test/missing.webp 1x" />
+                <img />
+            </picture>
+            <picture data-set="disabled" data-picture-id="disabled">
+                <source class="bpi_first-source-set" data-bp-size="480" data-bp-enabled="false" srcset="https://example.test/disabled.webp 1x" />
+                <img />
+            </picture>
+            <picture data-set="transparent" data-picture-id="transparent">
+                <source class="bpi_first-source-set" data-bp-size="480" srcset="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" />
+                <img />
+            </picture>
+            <picture data-set="empty" data-picture-id="empty">
+                <source class="bpi_first-source-set" data-bp-size="480" srcset="" />
+                <img />
+            </picture>
+            <picture data-set="ok" data-picture-id="ok">
+                <source class="bpi_first-source-set" data-bp-size="480" srcset="https://example.test/ok.webp 1x" sizes="100vw" />
+                <img />
+            </picture>
+            <picture data-set="error" data-picture-id="error">
+                <source class="bpi_first-source-set" data-bp-size="480" srcset="https://example.test/error.webp 1x" />
+                <img />
+            </picture>
+        `;
+
+        hooks.setPreviewFrameForTests(frameDocument, {});
+
+        const OriginalImage = globalThis.Image;
+        class MockImage {
+            constructor() {
+                this.listeners = {};
+                this.sizes = '';
+            }
+
+            addEventListener(type, callback) {
+                this.listeners[type] = callback;
+            }
+
+            removeEventListener(type) {
+                delete this.listeners[type];
+            }
+
+            set srcset(value) {
+                this._srcset = value;
+                if (String(value).includes('/ok.')) {
+                    this.listeners.load?.();
+                } else {
+                    this.listeners.error?.();
+                }
+            }
+
+            get srcset() {
+                return this._srcset || '';
+            }
+        }
+
+        globalThis.Image = MockImage;
+
+        try {
+            const states = await hooks.preloadBreakpointSources(480, 5);
+            expect(states.get('missing')).toBe(false);
+            expect(states.get('disabled')).toBe(true);
+            expect(states.get('transparent')).toBe(true);
+            expect(states.get('empty')).toBe(true);
+            expect(states.get('ok')).toBe(true);
+            expect(states.get('error')).toBe(false);
+        } finally {
+            globalThis.Image = OriginalImage;
+        }
+    });
+
+    it('builds waiting status messages with singular/plural and elapsed time', () => {
+        expect(hooks.buildWaitingStatusMessage(480, 1)).toContain('1 image still pending at 480px.');
+        expect(hooks.buildWaitingStatusMessage(768, 2)).toContain('2 images still pending at 768px.');
+        expect(hooks.buildWaitingStatusMessage(1024, 3, 2100)).toContain('3 images still pending at 1024px (3s).');
+    });
+
+    it('activates lazysizes strategies and records strategy counts', () => {
+        const frameDocument = document.implementation.createHTMLDocument('preview');
+        frameDocument.body.innerHTML = `
+            <picture data-set="hero"><img class="lazyload" /></picture>
+            <picture data-set="card"><img class="lazyload" /></picture>
+        `;
+
+        let checkElemsCount = 0;
+        let autoSizerCount = 0;
+        let unveilCount = 0;
+
+        const frameWindow = {
+            lazySizes: {
+                loader: {
+                    checkElems: () => {
+                        checkElemsCount += 1;
+                    },
+                    unveil: () => {
+                        unveilCount += 1;
+                    },
+                },
+                autoSizer: {
+                    checkElems: () => {
+                        autoSizerCount += 1;
+                    },
+                },
+            },
+        };
+
+        const prepareResult = { activationStrategies: [] };
+        hooks.activateLazySizes(frameWindow, frameDocument, prepareResult);
+
+        expect(checkElemsCount).toBe(1);
+        expect(autoSizerCount).toBe(1);
+        expect(unveilCount).toBe(2);
+        expect(prepareResult.activationStrategies).toContain('lazysizes:4');
+    });
+
+    it('activates vanilla-lazyload and lozad fallback observers', () => {
+        const frameDocument = document.implementation.createHTMLDocument('preview');
+        frameDocument.body.innerHTML = `
+            <picture data-set="hero"><img data-src="/hero.jpg" /></picture>
+            <picture data-set="card"><img data-srcset="/card.jpg 1x" /></picture>
+            <picture data-set="lozad"><img class="lozad" /></picture>
+        `;
+
+        const vanillaCalls = {
+            update: 0,
+            loadAll: 0,
+            load: 0,
+            staticLoad: 0,
+        };
+
+        const instance = {
+            update: () => {
+                vanillaCalls.update += 1;
+            },
+            loadAll: () => {
+                vanillaCalls.loadAll += 1;
+            },
+            load: () => {
+                vanillaCalls.load += 1;
+            },
+        };
+
+        let lozadSelector = null;
+        let lozadObserveCount = 0;
+
+        const frameWindow = {
+            lazyLoadInstance: instance,
+            LazyLoad: {
+                load: () => {
+                    vanillaCalls.staticLoad += 1;
+                },
+            },
+            lozad: (selector) => {
+                lozadSelector = selector;
+                return {
+                    observe: () => {
+                        lozadObserveCount += 1;
+                    },
+                };
+            },
+        };
+
+        const prepareResult = { activationStrategies: [] };
+        hooks.activateVanillaLazyLoad(frameWindow, frameDocument, prepareResult);
+        hooks.activateLozad(frameWindow, frameDocument, prepareResult);
+
+        expect(vanillaCalls.update).toBe(1);
+        expect(vanillaCalls.loadAll).toBe(1);
+        expect(vanillaCalls.load).toBe(2);
+        expect(vanillaCalls.staticLoad).toBe(2);
+        expect(prepareResult.activationStrategies).toContain('vanilla-lazyload:6');
+        expect(lozadSelector).toBe('.lozad');
+        expect(lozadObserveCount).toBe(1);
+        expect(prepareResult.activationStrategies).toContain('lozad:1');
+    });
+
+    it('marks pending entries unresolved when cancelled during image wait', async () => {
+        const readinessByKey = new Map([
+            ['img-1', {
+                status: 'pending',
+                reason: null,
+                sourceUsed: 'https://example.test/image.jpg',
+                img: { complete: false, naturalWidth: 0, naturalHeight: 0 },
+            }],
+        ]);
+
+        const result = await hooks.waitForImagesToSettle({
+            readinessByKey,
+            softDeadlineMs: 0,
+            pollMs: 1,
+            shouldStop: () => true,
+        });
+
+        expect(result.aborted).toBe(true);
+        expect(result.unresolvedCount).toBe(1);
+        expect(readinessByKey.get('img-1').status).toBe('unresolved');
+        expect(readinessByKey.get('img-1').reason).toBe('cancelled');
+    });
+
+    it('returns empty wait summary when no readiness entries exist', async () => {
+        const result = await hooks.waitForImagesToSettle({
+            readinessByKey: new Map(),
+        });
+
+        expect(result.aborted).toBe(false);
+        expect(result.timedOut).toBe(false);
+        expect(result.pendingCount).toBe(0);
+        expect(result.loadedCount).toBe(0);
+        expect(result.brokenCount).toBe(0);
+        expect(result.unresolvedCount).toBe(0);
+    });
+
+    it('classifies complete pending images as loaded or broken before waiting', async () => {
+        const readinessByKey = new Map([
+            ['loaded', {
+                status: 'pending',
+                reason: null,
+                sourceUsed: 'https://example.test/loaded.jpg',
+                img: { complete: true, naturalWidth: 1200, naturalHeight: 800 },
+            }],
+            ['broken', {
+                status: 'pending',
+                reason: null,
+                sourceUsed: 'https://example.test/broken.jpg',
+                img: { complete: true, naturalWidth: 0, naturalHeight: 0 },
+            }],
+        ]);
+
+        const result = await hooks.waitForImagesToSettle({
+            readinessByKey,
+            pollMs: 1,
+        });
+
+        expect(result.aborted).toBe(false);
+        expect(result.loadedCount).toBe(1);
+        expect(result.brokenCount).toBe(1);
+        expect(readinessByKey.get('loaded').status).toBe('loaded');
+        expect(readinessByKey.get('loaded').reason).toBe('complete');
+        expect(readinessByKey.get('broken').status).toBe('broken');
+        expect(readinessByKey.get('broken').reason).toBe('network');
+    });
+
+    it('emits soft-deadline and waiting-tick callbacks during long waits', async () => {
+        const readinessByKey = new Map([
+            ['pending', {
+                status: 'pending',
+                reason: null,
+                sourceUsed: 'https://example.test/pending.jpg',
+                img: { complete: false, naturalWidth: 0, naturalHeight: 0 },
+            }],
+        ]);
+
+        const softDeadlineEvents = [];
+        const waitingTickEvents = [];
+        let shouldStopCalls = 0;
+
+        const nowValues = [0, 0, 1200, 1200, 1200, 1200, 1200, 1200];
+        let nowIndex = 0;
+        const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => {
+            const value = nowValues[Math.min(nowIndex, nowValues.length - 1)];
+            nowIndex += 1;
+            return value;
+        });
+
+        try {
+            const result = await hooks.waitForImagesToSettle({
+                readinessByKey,
+                softDeadlineMs: 0,
+                pollMs: 1,
+                shouldStop: () => {
+                    shouldStopCalls += 1;
+                    return shouldStopCalls >= 3;
+                },
+                onSoftDeadline: (payload) => {
+                    softDeadlineEvents.push(payload);
+                },
+                onWaitingTick: (payload) => {
+                    waitingTickEvents.push(payload);
+                },
+            });
+
+            expect(result.aborted).toBe(true);
+            expect(result.timedOut).toBe(true);
+            expect(softDeadlineEvents).toHaveLength(1);
+            expect(softDeadlineEvents[0].pendingCount).toBe(1);
+            expect(waitingTickEvents.length).toBeGreaterThanOrEqual(1);
+            expect(waitingTickEvents[0].pendingCount).toBe(1);
+        } finally {
+            nowSpy.mockRestore();
+        }
+    });
+
+    it('appends readiness issues for broken and unresolved entries', () => {
+        const report = hooks.createRunReport('https://example.test/source', [480], false);
+        const breakpointReport = { issueCount: 0 };
+
+        const brokenImg = document.createElement('img');
+        brokenImg.setAttribute('data-asset-id', 'asset-broken');
+
+        const unresolvedImg = document.createElement('img');
+        unresolvedImg.setAttribute('data-asset-id', 'asset-unresolved');
+
+        const readinessByKey = new Map([
+            ['broken', {
+                status: 'broken',
+                reason: 'decode',
+                sourceUsed: 'https://example.test/broken.jpg?token=secret',
+                img: brokenImg,
+            }],
+            ['unresolved', {
+                status: 'unresolved',
+                reason: 'cancelled',
+                sourceUsed: 'https://example.test/pending.jpg?token=secret',
+                img: unresolvedImg,
+            }],
+        ]);
+
+        hooks.appendBreakpointReadinessIssues(report, breakpointReport, 480, readinessByKey);
+
+        expect(report.totals.issueCount).toBe(2);
+        expect(report.totals.warningCount).toBe(2);
+        expect(breakpointReport.issueCount).toBe(2);
+        expect(report.issues[0].code).toBe('decode-failure');
+        expect(report.issues[0].source).toBe('https://example.test/broken.jpg');
+        expect(report.issues[1].code).toBe('unresolved-on-cancel');
+        expect(report.issues[1].source).toBe('https://example.test/pending.jpg');
+    });
+
+    it('maps readiness issue codes for unsupported-source and network failures', () => {
+        const report = hooks.createRunReport('https://example.test/source', [480], false);
+        const breakpointReport = { issueCount: 0 };
+
+        const unsupportedImg = document.createElement('img');
+        unsupportedImg.setAttribute('data-asset-id', 'asset-unsupported');
+
+        const networkImg = document.createElement('img');
+        networkImg.setAttribute('data-asset-id', 'asset-network');
+
+        const readinessByKey = new Map([
+            ['unsupported', {
+                status: 'broken',
+                reason: 'unsupported-source',
+                sourceUsed: 'https://example.test/no-source.jpg?token=secret',
+                img: unsupportedImg,
+            }],
+            ['network', {
+                status: 'broken',
+                reason: 'network',
+                sourceUsed: 'https://example.test/network.jpg?token=secret',
+                img: networkImg,
+            }],
+        ]);
+
+        hooks.appendBreakpointReadinessIssues(report, breakpointReport, 480, readinessByKey);
+
+        expect(report.issues[0].code).toBe('unsupported-source');
+        expect(report.issues[0].source).toBe('https://example.test/no-source.jpg');
+        expect(report.issues[1].code).toBe('network-failure');
+        expect(report.issues[1].source).toBe('https://example.test/network.jpg');
+    });
+
+    it('activates lozad observer instances when available', () => {
+        const frameDocument = document.implementation.createHTMLDocument('preview');
+        frameDocument.body.innerHTML = `
+            <picture data-set="lozad"><img class="lozad" /></picture>
+            <picture data-set="lozad"><img class="lozad" /></picture>
+        `;
+
+        let observeCount = 0;
+        let triggerCount = 0;
+
+        const observer = {
+            observe: () => {
+                observeCount += 1;
+            },
+            triggerLoad: () => {
+                triggerCount += 1;
+            },
+        };
+
+        const frameWindow = {
+            lozadObserver: observer,
+            lozad: () => {
+                throw new Error('fallback should not run when observer exists');
+            },
+        };
+
+        const prepareResult = { activationStrategies: [] };
+        hooks.activateLozad(frameWindow, frameDocument, prepareResult);
+
+        expect(observeCount).toBe(1);
+        expect(triggerCount).toBe(2);
+        expect(prepareResult.activationStrategies).toContain('lozad:3');
+    });
+
+    it('publishes processing report events and stores last report state', () => {
+        const report = hooks.createRunReport('https://example.test/source', [480], false);
+        let eventPayload = null;
+
+        const onReport = (event) => {
+            eventPayload = event.detail;
+        };
+
+        document.addEventListener('bpi:processing-report', onReport, { once: true });
+        hooks.publishRunReport(report);
+
+        expect(eventPayload).toBe(report);
+        expect(hooks.getLastReport()).toBe(report);
+    });
+});

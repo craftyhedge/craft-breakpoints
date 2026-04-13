@@ -5,12 +5,14 @@ namespace craftyhedge\craftbreakpointimages\services;
 use Craft;
 use craftyhedge\craftbreakpointimages\Plugin;
 use craftyhedge\craftbreakpointimages\models\Settings;
+use craft\helpers\App;
 use yii\base\Component;
 
 class ConfigService extends Component
 {
     private const DEFAULT_TEMPLATE_PATH = 'craft-breakpoint-images/picture.twig';
     private const DEFAULT_SVG_TEMPLATE_PATH = 'craft-breakpoint-images/svg.twig';
+    private const PROCESSING_DIAGNOSTICS_ENV = 'CRAFT_BREAKPOINT_IMAGES_PROCESSING_DIAGNOSTICS';
 
     private ?Plugin $_plugin = null;
     private ?array $_mergedConfig = null;
@@ -86,6 +88,23 @@ class ConfigService extends Component
         );
     }
 
+    /**
+     * Resolve author diagnostics enablement from config, with env override precedence.
+     */
+    public function isProcessingDiagnosticsEnabled(array $overrides = []): bool
+    {
+        $configValue = App::parseBooleanEnv(
+            $this->get('processingDiagnosticsEnabled', false, $overrides)
+        );
+
+        $envValue = App::parseBooleanEnv(App::env(self::PROCESSING_DIAGNOSTICS_ENV));
+        if ($envValue !== null) {
+            return $envValue;
+        }
+
+        return $configValue ?? false;
+    }
+
     private function buildMergedConfig(): array
     {
         return array_merge(
@@ -139,6 +158,8 @@ class ConfigService extends Component
             'nativeLazyLoadingEnabled',
             'dpr',
         ];
+
+        // Keep processingDiagnosticsEnabled config/env-only (not persisted in Settings model).
 
         $overrides = [];
         foreach ($keys as $key) {
@@ -198,6 +219,7 @@ class ConfigService extends Component
             'quality',
             'allowUpscale' => (int)$value,
             'nativeLazyLoadingEnabled' => (bool)$value,
+            'processingDiagnosticsEnabled' => App::parseBooleanEnv($value) ?? false,
             'pictureTemplatePath' => $this->normalizeTemplatePath($value, self::DEFAULT_TEMPLATE_PATH),
             'svgTemplatePath' => $this->normalizeTemplatePath($value, self::DEFAULT_SVG_TEMPLATE_PATH),
             'dpr' => $this->normalizeDpr($value),

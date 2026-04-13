@@ -77,6 +77,41 @@ Run all suites:
 composer test:all
 ```
 
+Run JavaScript unit tests:
+
+```sh
+npm run test:js
+```
+
+Run JavaScript tests with coverage:
+
+```sh
+npm run test:js -- --coverage --coverage.reporter=text-summary
+```
+
+The JS runtime suite in `tests/js/transforms-runtime.test.mjs` covers processing report normalization, lazy-loader activation helpers, wait/cancel readiness behavior, and report event publication across the split runtime modules.
+
+### JS Runtime Test Scope
+
+Prioritize tests for processing correctness and payload contracts:
+
+- run report totals/status/failure metadata
+- readiness classification and cancel outcomes
+- lazy-loader activation and source normalization
+- structured output rows and summary counts
+
+Keep Craft CP presentation wiring at smoke level unless there is a known regression:
+
+- status text/class toggles
+- drag-scroll visual behavior
+- modal ignore and Datastar patch wiring
+
+Run focused coverage for the split transforms runtime modules:
+
+```sh
+npm run test:js -- --coverage --coverage.provider=istanbul --coverage.reporter=text --coverage.include=src/web/assets/transforms/dist/js/transforms*.js --coverage.exclude=**/vendor/** --coverage.exclude=coverage/**
+```
+
 ## 5. Stop and remove the test database
 
 ```sh
@@ -90,3 +125,4 @@ docker rm craft-breakpoint-images-test-db
 - If connection fails, confirm Docker container is running and `tests/.env` credentials match container env vars.
 - If port `3308` is busy, map a different local port (for example `-p 3309:3306`) and update `DB_PORT` and `DB_DSN`.
 - The test harness uses `dbSetup.clean: true`, so always use a dedicated test database.
+- JS coverage attribution depends on loading runtime code through the module pipeline. The runtime hooks test intentionally imports the runtime module directly rather than eval-loading source text.

@@ -14,3 +14,5 @@
 /tests/_support/_generated/
 /cpresources/
 .nocommit
+node_modules/
+coverage/

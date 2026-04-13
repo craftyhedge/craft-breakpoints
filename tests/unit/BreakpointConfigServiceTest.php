@@ -117,4 +117,32 @@ final class BreakpointConfigServiceTest extends Unit
 
         $this->assertSame([1.0, 2.0, 3.0], $normalized);
     }
+
+    public function testProcessingDiagnosticsFlagUsesConfigAndCanBeOverriddenByEnv(): void
+    {
+        $service = Plugin::getInstance()->getConfigService();
+
+        $this->assertFalse($service->isProcessingDiagnosticsEnabled([
+            'processingDiagnosticsEnabled' => false,
+        ]));
+
+        $this->assertTrue($service->isProcessingDiagnosticsEnabled([
+            'processingDiagnosticsEnabled' => true,
+        ]));
+
+        $previous = getenv('CRAFT_BREAKPOINT_IMAGES_PROCESSING_DIAGNOSTICS');
+        putenv('CRAFT_BREAKPOINT_IMAGES_PROCESSING_DIAGNOSTICS=true');
+
+        try {
+            $this->assertTrue($service->isProcessingDiagnosticsEnabled([
+                'processingDiagnosticsEnabled' => false,
+            ]));
+        } finally {
+            if ($previous === false) {
+                putenv('CRAFT_BREAKPOINT_IMAGES_PROCESSING_DIAGNOSTICS');
+            } else {
+                putenv('CRAFT_BREAKPOINT_IMAGES_PROCESSING_DIAGNOSTICS=' . $previous);
+            }
+        }
+    }
 }

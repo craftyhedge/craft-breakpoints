@@ -21,7 +21,10 @@ class TransformsAsset extends AssetBundle
                 'js/vendor/datastar.js',
                 'type' => 'module',
             ],
-            'js/transforms.js',
+            [
+                'js/transforms.js',
+                'type' => 'module',
+            ],
         ];
 
         parent::init();

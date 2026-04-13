@@ -1338,14 +1338,32 @@ class TransformEditor extends Component
                     continue;
                 }
 
+                $loaded = ($row['loaded'] ?? false) === true;
+                $broken = ($row['broken'] ?? false) === true;
+                $unresolved = ($row['unresolved'] ?? false) === true;
+
+                if ($loaded) {
+                    $broken = false;
+                    $unresolved = false;
+                } elseif ($broken) {
+                    $loaded = false;
+                    $unresolved = false;
+                } elseif ($unresolved) {
+                    $loaded = false;
+                    $broken = false;
+                }
+
                 $normalizedRows[] = [
                     'assetId' => (string)($row['assetId'] ?? ''),
                     'transform' => (string)($row['transform'] ?? 'unknown'),
                     'title' => (string)($row['title'] ?? ''),
                     'enabled' => ($row['enabled'] ?? true) === true,
                     'isVisible' => ($row['isVisible'] ?? false) === true,
-                    'loaded' => ($row['loaded'] ?? false) === true,
-                    'src' => (string)($row['src'] ?? ''),
+                    'loaded' => $loaded,
+                    'broken' => $broken,
+                    'unresolved' => $unresolved,
+                    'sourceUsed' => (string)($row['sourceUsed'] ?? ''),
+                    'src' => (string)($row['src'] ?? ($row['sourceUsed'] ?? '')),
                     'rendered' => [
                         'width' => $this->toNonNegativeInt($row['rendered']['width'] ?? 0),
                         'height' => $this->toNonNegativeInt($row['rendered']['height'] ?? 0),
@@ -1531,7 +1549,7 @@ class TransformEditor extends Component
 
         $unloadedCount = 0;
         foreach ($rows as $row) {
-            if (($row['loaded'] ?? false) !== true) {
+            if (($row['broken'] ?? false) === true || ($row['unresolved'] ?? false) === true) {
                 $unloadedCount += 1;
             }
         }
