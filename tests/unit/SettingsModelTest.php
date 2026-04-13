@@ -14,5 +14,6 @@ final class SettingsModelTest extends Unit
         $settings = new Settings();
 
         $this->assertTrue($settings->validate());
+        $this->assertTrue($settings->previewCenter);
     }
 }

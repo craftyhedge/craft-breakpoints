@@ -156,6 +156,7 @@ class ConfigService extends Component
             'pictureTemplatePath',
             'svgTemplatePath',
             'nativeLazyLoadingEnabled',
+            'previewCenter',
             'dpr',
         ];
 
@@ -219,6 +220,7 @@ class ConfigService extends Component
             'quality',
             'allowUpscale' => (int)$value,
             'nativeLazyLoadingEnabled' => (bool)$value,
+            'previewCenter' => (bool)$value,
             'processingDiagnosticsEnabled' => App::parseBooleanEnv($value) ?? false,
             'pictureTemplatePath' => $this->normalizeTemplatePath($value, self::DEFAULT_TEMPLATE_PATH),
             'svgTemplatePath' => $this->normalizeTemplatePath($value, self::DEFAULT_SVG_TEMPLATE_PATH),

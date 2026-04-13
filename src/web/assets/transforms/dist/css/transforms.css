@@ -1082,6 +1082,11 @@ button.bpi-transform-input-addon:hover:not(:disabled) {
     max-width: 100%;
     min-width: 2px;
     transition: width 120ms ease;
+    margin: auto;
+}
+
+.bpi-transforms-page[data-preview-center="0"] .bpi_image-outer {
+    margin: 0;
 }
 
 .bpi_breakpoint-result-image {

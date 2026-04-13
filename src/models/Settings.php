@@ -30,6 +30,7 @@ class Settings extends Model
     public string $pictureTemplatePath = '';
     public string $svgTemplatePath = '';
     public bool $nativeLazyLoadingEnabled = true;
+    public bool $previewCenter = true;
     public array $dpr = [1];
 
     protected function defineRules(): array
@@ -37,7 +38,7 @@ class Settings extends Model
         return array_merge(parent::defineRules(), [
             [['mode', 'position', 'format', 'secondaryFormat', 'interlace', 'pictureTemplatePath', 'svgTemplatePath'], 'string'],
             [['escapeWidth', 'defaultWidth', 'defaultHeight', 'quality', 'allowUpscale'], 'integer', 'min' => 0],
-            [['nativeLazyLoadingEnabled'], 'boolean'],
+            [['nativeLazyLoadingEnabled', 'previewCenter'], 'boolean'],
             [['breakpoints', 'dpr'], 'safe'],
             ['quality', 'integer', 'min' => 1, 'max' => 100],
         ]);

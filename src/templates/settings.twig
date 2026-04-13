@@ -185,6 +185,21 @@
     }) }}
 </div>
 
+<div id="editor" {% if useTabs and selectedTab != 'editor' %}class="hidden"{% endif %}>
+    <h2>Editor Preview UI</h2>
+
+    {{ forms.lightswitchField({
+        label: "Center Preview Width",
+        instructions: "Controls preview alignment in Process and Review. When on, preview width uses margin: auto.",
+        id: 'previewCenter',
+        name: "settings[previewCenter]",
+        on: settings.previewCenter ?? true,
+        value: settings.previewCenter ?? true,
+        errors: settings.getErrors('previewCenter'),
+        warning: _self.warning('previewCenter', configFileName)
+    }) }}
+</div>
+
 <div id="templates" {% if useTabs and selectedTab != 'templates' %}class="hidden"{% endif %}>
     <h2>Template Customization</h2>
 
