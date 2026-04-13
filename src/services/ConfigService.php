@@ -10,6 +10,7 @@ use yii\base\Component;
 class ConfigService extends Component
 {
     private const DEFAULT_TEMPLATE_PATH = 'craft-breakpoint-images/picture.twig';
+    private const DEFAULT_SVG_TEMPLATE_PATH = 'craft-breakpoint-images/svg.twig';
 
     private ?Plugin $_plugin = null;
     private ?array $_mergedConfig = null;
@@ -71,9 +72,18 @@ class ConfigService extends Component
 
     public function getPictureTemplatePath(array $overrides = []): string
     {
-        $path = trim((string)$this->get('pictureTemplatePath', self::DEFAULT_TEMPLATE_PATH, $overrides));
+        return $this->normalizeTemplatePath(
+            $this->get('pictureTemplatePath', self::DEFAULT_TEMPLATE_PATH, $overrides),
+            self::DEFAULT_TEMPLATE_PATH
+        );
+    }
 
-        return $path !== '' ? $path : self::DEFAULT_TEMPLATE_PATH;
+    public function getSvgTemplatePath(array $overrides = []): string
+    {
+        return $this->normalizeTemplatePath(
+            $this->get('svgTemplatePath', self::DEFAULT_SVG_TEMPLATE_PATH, $overrides),
+            self::DEFAULT_SVG_TEMPLATE_PATH
+        );
     }
 
     private function buildMergedConfig(): array
@@ -125,6 +135,7 @@ class ConfigService extends Component
             'interlace',
             'allowUpscale',
             'pictureTemplatePath',
+            'svgTemplatePath',
             'nativeLazyLoadingEnabled',
             'dpr',
         ];
@@ -187,9 +198,8 @@ class ConfigService extends Component
             'quality',
             'allowUpscale' => (int)$value,
             'nativeLazyLoadingEnabled' => (bool)$value,
-            'pictureTemplatePath' => trim((string)$value) !== ''
-                ? trim((string)$value)
-                : self::DEFAULT_TEMPLATE_PATH,
+            'pictureTemplatePath' => $this->normalizeTemplatePath($value, self::DEFAULT_TEMPLATE_PATH),
+            'svgTemplatePath' => $this->normalizeTemplatePath($value, self::DEFAULT_SVG_TEMPLATE_PATH),
             'dpr' => $this->normalizeDpr($value),
             'mode',
             'position',
@@ -198,6 +208,18 @@ class ConfigService extends Component
             'interlace' => trim((string)$value),
             default => $value,
         };
+    }
+
+    private function normalizeTemplatePath(mixed $value, string $fallback): string
+    {
+        $path = trim((string)$value);
+        if ($path === '') {
+            return $fallback;
+        }
+
+        $normalizedPath = str_replace('\\', '/', $path);
+
+        return ltrim($normalizedPath, '/');
     }
 
     private function normalizeDpr(mixed $value): array

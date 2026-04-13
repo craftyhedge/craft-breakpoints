@@ -33,6 +33,7 @@ class RenderContextBuilder extends Component
         return [
             'config' => $mergedConfig,
             'pictureTemplatePath' => $this->_plugin->getConfigService()->getPictureTemplatePath($mergedConfig),
+            'svgTemplatePath' => $this->_plugin->getConfigService()->getSvgTemplatePath($mergedConfig),
             'pictureAttributes' => $this->getPictureAttributes($mergedConfig),
             'imgAttributes' => $imgAttributes,
             'breakpoints' => $this->_plugin->getImageTransforms()->getBreakpointsForTemplate($mergedConfig),

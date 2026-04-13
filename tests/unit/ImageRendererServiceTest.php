@@ -74,6 +74,57 @@ final class ImageRendererServiceTest extends Unit
         $this->assertMatchesRegularExpression('/data-uid="default-123-[a-f0-9]{8}-img"/', $html);
     }
 
+    public function testRenderUsesSvgTemplatePathForSvgAssets(): void
+    {
+        $renderer = Plugin::getInstance()->getImageRenderer();
+        $asset = $this->createMockSvgAsset();
+
+        $markup = $renderer->render($asset, 'default', [
+            'svgTemplatePath' => 'craft-breakpoint-images/does-not-exist.twig',
+            'breakpoints' => [
+                'xs' => 480,
+            ],
+            'escapeWidth' => 0,
+            'imgClass' => 'svg-fallback',
+        ]);
+
+        $html = (string)$markup;
+
+        $this->assertStringContainsString('<img', $html);
+        $this->assertStringContainsString('class="svg-fallback"', $html);
+        $this->assertStringNotContainsString('<picture', $html);
+    }
+
+    private function createMockSvgAsset(): Asset
+    {
+        $asset = $this->getMockBuilder(Asset::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['getUrl', 'getWidth', 'getHeight', 'getMimeType', 'getExtension'])
+            ->getMock();
+
+        $asset->id = 123;
+
+        $asset->method('getWidth')->willReturn(1600);
+        $asset->method('getHeight')->willReturn(900);
+        $asset->method('getExtension')->willReturn('svg');
+        $asset->method('getMimeType')->willReturn('image/svg+xml');
+        $asset->method('getUrl')->willReturnCallback(static function(...$args): string {
+            $transform = $args[0] ?? [];
+
+            if (!is_array($transform)) {
+                return 'https://example.test/original.svg';
+            }
+
+            $width = (int)($transform['width'] ?? 0);
+            $height = (int)($transform['height'] ?? 0);
+            $format = (string)($transform['format'] ?? 'svg');
+
+            return "https://example.test/{$width}x{$height}.{$format}";
+        });
+
+        return $asset;
+    }
+
     private function createMockAsset(): Asset
     {
         $asset = $this->getMockBuilder(Asset::class)

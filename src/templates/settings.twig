@@ -1,3 +1,212 @@
-<div class="readable">
-    <p>{{ 'Plugin settings are ready, but no configurable fields have been added yet.'|t('craft-breakpoint-images') }}</p>
+{% macro warning(key, file) -%}
+    {%- set configArray = craft.app.config.getConfigFromFile(file) -%}
+    {%- if configArray[key] is defined -%}
+        {{- "This is being overridden by the <span style='font-weight: 600;'>`#{ key }`</span> setting in the <span style='font-weight: 600;'>`config/#{ file }.php`</span> file."|raw }}
+    {%- endif -%}
+{%- endmacro %}
+
+{% import '_includes/forms' as forms %}
+{% set configFileName = 'craft-breakpoint-images' %}
+{% set useTabs = useTabs ?? false %}
+{% set selectedTab = selectedTab ?? (craft.app.request.getParam('tab') ?? 'formats') %}
+
+{% set pictureTemplatePathValue = settings.pictureTemplatePath ?? '' %}
+{% if pictureTemplatePathValue == 'craft-breakpoint-images/picture.twig' %}
+    {% set pictureTemplatePathValue = '' %}
+{% endif %}
+
+{% set svgTemplatePathValue = settings.svgTemplatePath ?? '' %}
+{% if svgTemplatePathValue == 'craft-breakpoint-images/svg.twig' %}
+    {% set svgTemplatePathValue = '' %}
+{% endif %}
+
+<div id="formats" {% if useTabs and selectedTab != 'formats' %}class="hidden"{% endif %}>
+    <h2>Output Formats & Quality</h2>
+
+    {{ forms.selectField({
+        label: "Format",
+        instructions: "The main image format. \n WEBP or AVIF are best.",
+        name: "settings[format]",
+        options: [
+            { label: "AVIF", value: "avif" },
+            { label: "WEBP", value: "webp" },
+            { label: "JPG", value: "jpg" },
+            { label: "PNG", value: "png" },
+            { label: "GIF", value: "gif" }
+        ],
+        value: settings.format,
+        errors: settings.getErrors('format'),
+        warning: _self.warning('format', configFileName)
+    }) }}
+
+    {{ forms.selectField({
+        label: "Secondary Format",
+        instructions: "If you want to have a fallback, JPEG or PNG have reliable browser coverage.",
+        name: "settings[secondaryFormat]",
+        options: [
+            { label: "None", value: "none" },
+            { label: "JPG", value: "jpg" },
+            { label: "PNG", value: "png" },
+            { label: "WEBP", value: "webp" },
+            { label: "AVIF", value: "avif" },
+            { label: "GIF", value: "gif" }
+        ],
+        value: settings.secondaryFormat,
+        errors: settings.getErrors('secondaryFormat'),
+        warning: _self.warning('secondaryFormat', configFileName)
+    }) }}
+
+    {{ forms.selectField({
+        label: "Quality",
+        instructions: "The higher the quality, the larger the file size.",
+        name: "settings[quality]",
+        options: [
+            { label: "100", value: "100" },
+            { label: "90", value: "90" },
+            { label: "80", value: "80" },
+            { label: "70", value: "70" },
+            { label: "60", value: "60" },
+            { label: "50", value: "50" },
+            { label: "40", value: "40" },
+            { label: "30", value: "30" },
+            { label: "20", value: "20" },
+            { label: "10", value: "10" }
+        ],
+        value: settings.quality,
+        errors: settings.getErrors('quality'),
+        warning: _self.warning('quality', configFileName)
+    }) }}
+
+    {{ forms.selectField({
+        label: "Interlace",
+        instructions: "Progressive rendering of images. \n Supported by GIF, PNG, and JPEG.",
+        name: "settings[interlace]",
+        options: [
+            { label: "None", value: "none" },
+            { label: "Line", value: "line" },
+            { label: "Plane", value: "plane" },
+            { label: "Partition", value: "partition" }
+        ],
+        value: settings.interlace,
+        errors: settings.getErrors('interlace'),
+        warning: _self.warning('interlace', configFileName)
+    }) }}
+
+    <h3>Loading Behavior</h3>
+
+    {{ forms.lightswitchField({
+        label: "Native Lazy Loading",
+        instructions: "Enable native browser lazy loading on images. </br><em style='color: #6b7280; font-size: 13px;'>Disable if using a JavaScript lazy-loading library. Requires custom implementation (e.g., lazysizes, lozad).</em>",
+        id: 'nativeLazyLoadingEnabled',
+        name: "settings[nativeLazyLoadingEnabled]",
+        on: settings.nativeLazyLoadingEnabled ?? true,
+        value: settings.nativeLazyLoadingEnabled ?? true,
+        disabled: false,
+        errors: settings.getErrors('nativeLazyLoadingEnabled'),
+        warning: _self.warning('nativeLazyLoadingEnabled', configFileName)
+    }) }}
+
+    <h3>Device Pixel Ratio (DPR)</h3>
+
+    {{ forms.checkboxGroupField({
+        label: "DPR Ratios",
+        instructions: "Generate images for different pixel densities. 1x is always enabled. </br><em style='color: #6b7280; font-size: 13px;'>Higher ratios = larger files. 2x covers most retina displays.</em>",
+        name: "settings[dpr]",
+        options: [
+            { label: "1x (Standard)", value: "1", disabled: true },
+            { label: "2x (Retina)", value: "2" },
+            { label: "3x (Eagles)", value: "3" }
+        ],
+        values: (settings.dpr ?? [1])|map(d => d|string),
+        errors: settings.getErrors('dpr'),
+        warning: _self.warning('dpr', configFileName)
+    }) }}
+
+    <style>
+        input[name="settings[dpr][]"][value="1"]:disabled + label {
+            opacity: 0.7;
+        }
+    </style>
+</div>
+
+<div id="behavior" {% if useTabs and selectedTab != 'behavior' %}class="hidden"{% endif %}>
+    <h2>Transform Settings & Defaults</h2>
+
+    {{ forms.selectField({
+        label: "Mode",
+        instructions: "How images are resized to fit the container. \n Crop mode is the most used and recommended. </br><em style='color: #6b7280; font-size: 13px;'>You can change this per transform for artistic needs.</em>",
+        name: "settings[mode]",
+        options: [
+            { label: "Crop", value: "crop" },
+            { label: "Fit", value: "fit" },
+            { label: "LetterBox", value: "letterBox" },
+            { label: "Stretch", value: "stretch" },
+        ],
+        value: settings.mode,
+        errors: settings.getErrors('mode'),
+        warning: _self.warning('mode', configFileName)
+    }) }}
+
+    {% set allowUpscaleEnabled = (settings.allowUpscale ?? 0) ? true : false %}
+    {{ forms.lightswitchField({
+        label: "Allow Upscaling",
+        instructions: "Whether or not Craft is allowed to scale an image beyond its original dimensions. \n Recommended to keep this off.",
+        id: 'allowUpscale',
+        name: "settings[allowUpscale]",
+        value: allowUpscaleEnabled,
+        on: allowUpscaleEnabled,
+        errors: settings.getErrors('allowUpscale'),
+        warning: _self.warning('allowUpscale', configFileName)
+    }) }}
+
+    <h3>Default Transform Dimensions</h3>
+    <p class="instructions">Fallbacks for when no initial dimensions are provided. Superseded by applied transforms.
+        </br>
+        <em style='color: #6b7280; font-size: 13px;'>The starting transform can effect the rendered image dimensions depending on your styling.</em> </br>
+        <em style='color: #6b7280; font-size: 13px;'>The intitial dimensions can also be set at the template level.</em>
+    </p>
+
+    {{ forms.textField({
+        label: "Default Width",
+        instructions: "",
+        name: "settings[defaultWidth]",
+        value: settings.defaultWidth,
+        errors: settings.getErrors('defaultWidth'),
+        warning: _self.warning('defaultWidth', configFileName)
+    }) }}
+
+    {{ forms.textField({
+        label: "Default Height",
+        instructions: "",
+        name: "settings[defaultHeight]",
+        value: settings.defaultHeight,
+        errors: settings.getErrors('defaultHeight'),
+        warning: _self.warning('defaultHeight', configFileName)
+    }) }}
+</div>
+
+<div id="templates" {% if useTabs and selectedTab != 'templates' %}class="hidden"{% endif %}>
+    <h2>Template Customization</h2>
+
+    {{ forms.textField({
+        label: "Custom Picture Template Path",
+        instructions: "Path relative to templates folder. Leave blank for default plugin template.",
+        name: "settings[pictureTemplatePath]",
+        value: pictureTemplatePathValue,
+        disabled: false,
+        placeholder: "e.g. _partials/picture.twig",
+        errors: settings.getErrors('pictureTemplatePath'),
+        warning: _self.warning('pictureTemplatePath', configFileName)
+    }) }}
+
+    {{ forms.textField({
+        label: "Custom SVG Template Path",
+        instructions: "Path relative to templates folder. Leave blank for default plugin template.",
+        name: "settings[svgTemplatePath]",
+        value: svgTemplatePathValue,
+        disabled: false,
+        placeholder: "e.g. _partials/svg.twig",
+        errors: settings.getErrors('svgTemplatePath'),
+        warning: _self.warning('svgTemplatePath', configFileName)
+    }) }}
 </div>

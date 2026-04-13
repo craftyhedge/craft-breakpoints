@@ -27,14 +27,15 @@ class Settings extends Model
     public string $interlace = 'none';
     public int $allowUpscale = 0;
 
-    public string $pictureTemplatePath = 'craft-breakpoint-images/picture.twig';
+    public string $pictureTemplatePath = '';
+    public string $svgTemplatePath = '';
     public bool $nativeLazyLoadingEnabled = true;
     public array $dpr = [1];
 
     protected function defineRules(): array
     {
         return array_merge(parent::defineRules(), [
-            [['mode', 'position', 'format', 'secondaryFormat', 'interlace', 'pictureTemplatePath'], 'string'],
+            [['mode', 'position', 'format', 'secondaryFormat', 'interlace', 'pictureTemplatePath', 'svgTemplatePath'], 'string'],
             [['escapeWidth', 'defaultWidth', 'defaultHeight', 'quality', 'allowUpscale'], 'integer', 'min' => 0],
             [['nativeLazyLoadingEnabled'], 'boolean'],
             [['breakpoints', 'dpr'], 'safe'],

@@ -19,9 +19,11 @@ final class ConfigFileTest extends Unit
         $this->assertArrayHasKey('defaultWidth', $config);
         $this->assertArrayHasKey('defaultHeight', $config);
         $this->assertArrayHasKey('pictureTemplatePath', $config);
+        $this->assertArrayHasKey('svgTemplatePath', $config);
         $this->assertArrayHasKey('dpr', $config);
 
         $this->assertSame('craft-breakpoint-images/picture.twig', $config['pictureTemplatePath']);
+        $this->assertSame('craft-breakpoint-images/svg.twig', $config['svgTemplatePath']);
         $this->assertSame('jpg', $config['format']);
         $this->assertSame('none', $config['secondaryFormat']);
         $this->assertSame([1, 2], $config['dpr']);

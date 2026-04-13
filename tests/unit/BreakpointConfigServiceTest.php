@@ -68,6 +68,18 @@ final class BreakpointConfigServiceTest extends Unit
         $this->assertSame('craft-breakpoint-images/picture.twig', $templatePath);
     }
 
+    public function testSvgTemplatePathFallsBackWhenBlank(): void
+    {
+        $plugin = Plugin::getInstance();
+        $service = $plugin->getConfigService();
+
+        $templatePath = $service->getSvgTemplatePath([
+            'svgTemplatePath' => '   ',
+        ]);
+
+        $this->assertSame('craft-breakpoint-images/svg.twig', $templatePath);
+    }
+
     public function testDefaultPluginConfigIsNotOverriddenByUntouchedSettingsDefaults(): void
     {
         $plugin = Plugin::getInstance();

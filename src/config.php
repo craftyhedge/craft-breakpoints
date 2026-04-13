@@ -20,6 +20,7 @@ return [
     'interlace' => 'none',
     'allowUpscale' => 0,
     'pictureTemplatePath' => 'craft-breakpoint-images/picture.twig',
+    'svgTemplatePath' => 'craft-breakpoint-images/svg.twig',
     'nativeLazyLoadingEnabled' => true,
     'dpr' => [1, 2],
 ];

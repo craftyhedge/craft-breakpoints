@@ -10,6 +10,7 @@
     const IMAGE_WAIT_SOFT_DEADLINE_MS = 4000;
     const IMAGE_WAIT_POLL_MS = 250;
     const CARD_UPDATE_STATUS_CLEAR_DELAY_MS = 1800;
+    const LEAVE_PAGE_WARNING_MESSAGE = 'Are you sure? The current results will be lost.';
 
     const bpiProcessingManifest = window.bpiProcessingManifest || {};
     const ENTRY_URL_ACTION = 'craft-breakpoint-images/default/entry-url';
@@ -1579,6 +1580,20 @@
         }
     }
 
+    function shouldWarnOnPageLeave() {
+        return state.lastResult !== null;
+    }
+
+    function handleBeforeUnload(event) {
+        if (!shouldWarnOnPageLeave()) {
+            return;
+        }
+
+        event.preventDefault();
+        event.returnValue = LEAVE_PAGE_WARNING_MESSAGE;
+        return LEAVE_PAGE_WARNING_MESSAGE;
+    }
+
     if (elements.btnRun) {
         elements.btnRun.addEventListener('click', async () => {
             await runProcessing();
@@ -1657,6 +1672,7 @@
     setButtonsDisabled(false);
     setupDragToScroll();
     setupDatastarCardUpdateStatus();
+    window.addEventListener('beforeunload', handleBeforeUnload);
     window.addEventListener('resize', scheduleBreakpointPreviewHeightSync);
     getConfiguredBreakpoints();
     void loadInitialPreview();

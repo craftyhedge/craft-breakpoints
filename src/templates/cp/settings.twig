@@ -1,9 +1,41 @@
 {% extends "_layouts/cp" %}
 {% set title = 'Settings'|t('craft-breakpoint-images') %}
 {% set selectedSubnavItem = selectedSubnavItem ?? 'settings' %}
+{% set fullPageForm = true %}
+
+{% set formActions = [
+    {
+        label: 'Save and continue editing'|t('app'),
+        redirect: 'craft-breakpoint-images/settings'|hash,
+        shortcut: true,
+        retainScroll: true,
+    },
+] %}
+
+{% set formatsTabClass = settings.getErrors('format') or settings.getErrors('secondaryFormat') or settings.getErrors('quality') or settings.getErrors('interlace') or settings.getErrors('dpr') ? 'error' : '' %}
+{% set behaviorTabClass = settings.getErrors('mode') or settings.getErrors('allowUpscale') or settings.getErrors('defaultWidth') or settings.getErrors('defaultHeight') ? 'error' : '' %}
+{% set templatesTabClass = settings.getErrors('pictureTemplatePath') or settings.getErrors('svgTemplatePath') ? 'error' : '' %}
+
+{% set tabs = {
+    formats: { label: 'Output & Quality'|t('craft-breakpoint-images'), url: '#formats', class: formatsTabClass },
+    behavior: { label: 'Transform Settings'|t('craft-breakpoint-images'), url: '#behavior', class: behaviorTabClass },
+    templates: { label: 'Templates'|t('craft-breakpoint-images'), url: '#templates', class: templatesTabClass }
+} %}
+
+{% set selectedTab = craft.app.request.getParam('tab') ?? 'formats' %}
+
+{% block actionButton %}
+    <input type="submit" class="btn submit" value="{{ 'Save'|t('app') }}">
+{% endblock %}
 
 {% block content %}
+    {{ actionInput('plugins/save-plugin-settings') }}
+    {{ hiddenInput('pluginHandle', 'craft-breakpoint-images') }}
+    {{ redirectInput('craft-breakpoint-images/settings') }}
+
     {% include 'craft-breakpoint-images/settings' with {
         settings: settings,
+        selectedTab: selectedTab,
+        useTabs: true,
     } only %}
 {% endblock %}

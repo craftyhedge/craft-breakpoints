@@ -1,0 +1,10 @@
+{#
+    Breakpoint Images - SVG Template
+
+    Template variables provided by the plugin:
+    - image: Craft image element
+    - config: Image configuration array
+    - imgAttributes: Attributes for the <img> element
+#}
+
+<img {% for attr, value in imgAttributes %}{% if value is not null and value is not empty %}{{ attr }}="{{ value }}" {% endif %}{% endfor %}>

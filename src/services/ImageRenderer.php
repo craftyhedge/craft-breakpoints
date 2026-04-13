@@ -45,17 +45,19 @@ class ImageRenderer extends Component
         }
 
         $pictureTemplatePath = (string)($context['pictureTemplatePath'] ?? '');
+        $svgTemplatePath = (string)($context['svgTemplatePath'] ?? '');
         $pictureAttributes = is_array($context['pictureAttributes'] ?? null) ? $context['pictureAttributes'] : [];
         $imgAttributes = is_array($context['imgAttributes'] ?? null) ? $context['imgAttributes'] : [];
         $breakpoints = is_array($context['breakpoints'] ?? null) ? $context['breakpoints'] : [];
         $mergedConfig = is_array($context['config'] ?? null) ? $context['config'] : [];
+        $templatePath = $this->isSvgAsset($image) ? $svgTemplatePath : $pictureTemplatePath;
 
         $view = Craft::$app->getView();
         $oldMode = $view->getTemplateMode();
         $view->setTemplateMode(View::TEMPLATE_MODE_SITE);
 
         try {
-            $markup = $view->renderTemplate($pictureTemplatePath, [
+            $markup = $view->renderTemplate($templatePath, [
                 'image' => $image,
                 'config' => $mergedConfig,
                 'pictureAttributes' => $pictureAttributes,
@@ -63,7 +65,7 @@ class ImageRenderer extends Component
                 'breakpoints' => $breakpoints,
             ]);
         } catch (\Throwable $e) {
-            Plugin::warning('Could not render picture template path: ' . $pictureTemplatePath . '.');
+            Plugin::warning('Could not render template path: ' . $templatePath . '.');
             $markup = $this->renderFallbackImage($imgAttributes);
         } finally {
             $view->setTemplateMode($oldMode);
@@ -102,5 +104,25 @@ class ImageRenderer extends Component
         }
 
         return '<img' . Html::renderTagAttributes($normalizedAttributes) . '>';
+    }
+
+    private function isSvgAsset(Asset $image): bool
+    {
+        try {
+            $extension = strtolower(trim($image->getExtension()));
+            if ($extension === 'svg') {
+                return true;
+            }
+        } catch (\Throwable) {
+            // Ignore extension lookup failures for partially mocked assets.
+        }
+
+        try {
+            $mimeType = strtolower(trim((string)$image->getMimeType()));
+
+            return $mimeType === 'image/svg+xml';
+        } catch (\Throwable) {
+            return false;
+        }
     }
 }
