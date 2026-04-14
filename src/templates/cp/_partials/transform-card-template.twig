@@ -16,7 +16,7 @@
             </div>
             <div class="bpi-transform-header-actions">
                 <label class="bpi-transform-edit-inline-checkbox">
-                    <input type="checkbox" class="bpi-transform-edit-all-checkbox" value="all" __EDIT_SCOPE_ALL_CHECKED_ATTR__ data-bind="__SIGNAL_PATH_BASE__.scopeMode" data-on:change="if(el.checked){ $editor.cards.__SIGNAL_KEY__.scopeMode='all'; $editor.cards.__SIGNAL_KEY__.scopeBreakpoint=''; $editor.cards.__SIGNAL_KEY__.scopeActive='1'; $editor.cards.__SIGNAL_KEY__.widthAuto='0'; $editor.cards.__SIGNAL_KEY__.heightAuto='0'; $editor.cards.__SIGNAL_KEY__.widthInput=''; $editor.cards.__SIGNAL_KEY__.heightInput=''; } else { $editor.cards.__SIGNAL_KEY__.scopeMode='unset'; $editor.cards.__SIGNAL_KEY__.scopeBreakpoint=''; $editor.cards.__SIGNAL_KEY__.scopeActive='0'; }">
+                    <input type="checkbox" class="bpi-transform-edit-all-checkbox" value="all" __EDIT_SCOPE_ALL_CHECKED_ATTR__ data-bind="__SIGNAL_PATH_BASE__.scopeMode" data-on:change="const currentTab=String($editor.cards.__SIGNAL_KEY__.activeTab||'').trim().toLowerCase(); if(el.checked){ $editor.cards.__SIGNAL_KEY__.scopeMode='all'; $editor.cards.__SIGNAL_KEY__.scopeBreakpoint=''; $editor.cards.__SIGNAL_KEY__.scopeActive='1'; $editor.cards.__SIGNAL_KEY__.widthAuto='0'; $editor.cards.__SIGNAL_KEY__.heightAuto='0'; $editor.cards.__SIGNAL_KEY__.widthInput=''; $editor.cards.__SIGNAL_KEY__.heightInput=''; if(currentTab!=='dimensions'&&currentTab!=='ratio'){ $editor.cards.__SIGNAL_KEY__.activeTab='dimensions'; } } else { $editor.cards.__SIGNAL_KEY__.scopeMode='unset'; $editor.cards.__SIGNAL_KEY__.scopeBreakpoint=''; $editor.cards.__SIGNAL_KEY__.scopeActive='0'; }">
                     <span>All</span>
                 </label>
                 <button type="button" class="btn small bpi-rendered-apply-all"
@@ -39,7 +39,6 @@
                         <div class="bpi-transform-tab-list" role="tablist" aria-label="Edit options">
                             <button type="button" role="tab" class="bpi-transform-tab __DIMENSIONS_TAB_ACTIVE_CLASS__" data-tab="dimensions" aria-selected="__DIMENSIONS_TAB_SELECTED__" tabindex="__DIMENSIONS_TAB_TABINDEX__" data-on:click="$editor.cards.__SIGNAL_KEY__.activeTab = 'dimensions'" data-class:active="$editor.cards.__SIGNAL_KEY__.activeTab === 'dimensions'" data-attr:aria-selected="$editor.cards.__SIGNAL_KEY__.activeTab === 'dimensions' ? 'true' : 'false'" data-attr:tabindex="$editor.cards.__SIGNAL_KEY__.activeTab === 'dimensions' ? '0' : '-1'" data-attr:disabled="Number($editor.cards.__SIGNAL_KEY__.scopeActive || 0) !== 1">Dimensions</button>
                             <button type="button" role="tab" class="bpi-transform-tab __RATIO_TAB_ACTIVE_CLASS__" data-tab="ratio" aria-selected="__RATIO_TAB_SELECTED__" tabindex="__RATIO_TAB_TABINDEX__" data-on:click="$editor.cards.__SIGNAL_KEY__.activeTab = 'ratio'" data-class:active="$editor.cards.__SIGNAL_KEY__.activeTab === 'ratio'" data-attr:aria-selected="$editor.cards.__SIGNAL_KEY__.activeTab === 'ratio' ? 'true' : 'false'" data-attr:tabindex="$editor.cards.__SIGNAL_KEY__.activeTab === 'ratio' ? '0' : '-1'" data-attr:disabled="Number($editor.cards.__SIGNAL_KEY__.scopeActive || 0) !== 1 || Number($editor.cards.__SIGNAL_KEY__.widthAuto || 0) === 1 || Number($editor.cards.__SIGNAL_KEY__.heightAuto || 0) === 1">Ratio</button>
-                            <button type="button" role="tab" class="bpi-transform-tab __SETTINGS_TAB_ACTIVE_CLASS__" data-tab="settings" aria-selected="__SETTINGS_TAB_SELECTED__" tabindex="__SETTINGS_TAB_TABINDEX__" data-on:click="$editor.cards.__SIGNAL_KEY__.activeTab = 'settings'" data-class:active="$editor.cards.__SIGNAL_KEY__.activeTab === 'settings'" data-attr:aria-selected="$editor.cards.__SIGNAL_KEY__.activeTab === 'settings' ? 'true' : 'false'" data-attr:tabindex="$editor.cards.__SIGNAL_KEY__.activeTab === 'settings' ? '0' : '-1'" data-attr:disabled="Number($editor.cards.__SIGNAL_KEY__.scopeActive || 0) !== 1">Settings</button>
                         </div>
                         <span class="bpi-transform-edit-scope"><strong data-role="edit-scope-value" data-text="$editor.cards.__SIGNAL_KEY__.scopeMode === 'all' ? 'All' : ($editor.cards.__SIGNAL_KEY__.scopeMode === 'breakpoint' ? (String(Number($editor.cards.__SIGNAL_KEY__.scopeBreakpoint || 0)) + 'px') : '')">__EDIT_SCOPE_DEFAULT_LABEL__</strong></span>
                     </div>
@@ -138,49 +137,6 @@
                                     <button type="button" class="btn small bpi-transform-ratio-copy" data-attr:disabled="Number($editor.cards.__SIGNAL_KEY__.scopeActive || 0) !== 1 || Number($editor.cards.__SIGNAL_KEY__.widthAuto || 0) === 1 || Number($editor.cards.__SIGNAL_KEY__.heightAuto || 0) === 1" data-on:click="const bp=Number($editor.cards.__SIGNAL_KEY__.ratioSourceBreakpoint||0); const card=el.closest('.bpi-transform-card'); const canRead=card&&Number.isFinite(bp)&&bp>0; if(canRead){ const columns=Array.from(card.querySelectorAll('.bpi-breakpoint-column[data-breakpoint]')); const column=columns.find((item)=>Number(item.getAttribute('data-breakpoint')||0)===bp); if(column){ const currentWidthCell=column.querySelector('.bpi_current-dimension[data-dimension=width]'); const currentHeightCell=column.querySelector('.bpi_current-dimension[data-dimension=height]'); let widthValue=Number(String(currentWidthCell?currentWidthCell.textContent:'').trim()); let heightValue=Number(String(currentHeightCell?currentHeightCell.textContent:'').trim()); if(!(Number.isFinite(widthValue)&&widthValue>0&&Number.isFinite(heightValue)&&heightValue>0)){ const renderedCells=column.querySelectorAll('.bpi-dimension-row:first-child .bpi_rendered-dimension'); widthValue=Number(String(renderedCells.length>0?renderedCells[0].textContent:'').trim()); heightValue=Number(String(renderedCells.length>1?renderedCells[1].textContent:'').trim()); } if(Number.isFinite(widthValue)&&widthValue>0&&Number.isFinite(heightValue)&&heightValue>0){ $editor.cards.__SIGNAL_KEY__.ratioWidthInput=String(Math.round(widthValue)); $editor.cards.__SIGNAL_KEY__.ratioHeightInput=String(Math.round(heightValue)); } } }">Copy ratio</button>
                                 </div>
                             </section>
-                        </section>
-
-                        <section class="bpi-transform-tab-panel __SETTINGS_PANEL_ACTIVE_CLASS__" data-tab-panel="settings" __SETTINGS_PANEL_HIDDEN_ATTR__ data-class:active="$editor.cards.__SIGNAL_KEY__.activeTab === 'settings'" data-attr:hidden="$editor.cards.__SIGNAL_KEY__.activeTab === 'settings' ? false : true">
-                            <div class="bpi-transform-settings-row">
-                                <label class="bpi-transform-settings-field" for="__SETTINGS_MODE_INPUT_ID__">
-                                    <span class="bpi-transform-edit-label">Crop Mode</span>
-                                    <select id="__SETTINGS_MODE_INPUT_ID__" class="select bpi-transform-settings-control bpi-transform-settings-mode-select" data-bind="__SIGNAL_PATH_BASE__.cropMode" data-attr:disabled="Number($editor.cards.__SIGNAL_KEY__.scopeActive || 0) !== 1">
-                                        <option value="crop">Crop</option>
-                                        <option value="fit">Fit</option>
-                                        <option value="stretch">Stretch</option>
-                                        <option value="letterbox">Letterbox</option>
-                                    </select>
-                                </label>
-
-                                <label class="bpi-transform-settings-field" for="__SETTINGS_QUALITY_INPUT_ID__">
-                                    <span class="bpi-transform-edit-label">Quality</span>
-                                    <input id="__SETTINGS_QUALITY_INPUT_ID__" class="text bpi-transform-settings-control bpi-transform-settings-quality-input" type="number" min="1" max="100" step="1" inputmode="numeric" data-bind="__SIGNAL_PATH_BASE__.qualityInput" data-attr:disabled="Number($editor.cards.__SIGNAL_KEY__.scopeActive || 0) !== 1">
-                                </label>
-
-                                <label class="bpi-transform-settings-field" for="__SETTINGS_POSITION_INPUT_ID__">
-                                    <span class="bpi-transform-edit-label bpi-transform-edit-label-with-info">
-                                        <span>Position</span>
-                                        <span class="bpi-transform-info-icon" title="focal points override position" aria-label="focal points override position" tabindex="0">i</span>
-                                    </span>
-                                    <select id="__SETTINGS_POSITION_INPUT_ID__" class="select bpi-transform-settings-control bpi-transform-settings-position-select" data-bind="__SIGNAL_PATH_BASE__.cropPosition" data-attr:disabled="Number($editor.cards.__SIGNAL_KEY__.scopeActive || 0) !== 1">
-                                        <option value="top-left">Top Left</option>
-                                        <option value="top-center">Top Center</option>
-                                        <option value="top-right">Top Right</option>
-                                        <option value="center-left">Center Left</option>
-                                        <option value="center-center">Center Center</option>
-                                        <option value="center-right">Center Right</option>
-                                        <option value="bottom-left">Bottom Left</option>
-                                        <option value="bottom-center">Bottom Center</option>
-                                        <option value="bottom-right">Bottom Right</option>
-                                    </select>
-                                </label>
-
-                                <div class="bpi-transform-settings-actions">
-                                    <button type="button" class="btn small bpi-transform-settings-apply"
-                                        data-attr:disabled="Number($editor.cards.__SIGNAL_KEY__.scopeActive || 0) !== 1"
-                                        data-on:click="@post(el.closest('.bpi-transforms-page').dataset.applyCardOperationUrl || '/actions/craft-breakpoint-images/transforms/apply-card-operation', {contentType: 'json', payload: {setName: el.closest('.bpi-transform-card').dataset.set || '', field: 'settings', includeEscapeWidth: (el.closest('.bpi-transform-card').dataset.includeEscapeWidth || '0') === '1', mode: $editor.cards.__SIGNAL_KEY__.cropMode || 'crop', quality: Number($editor.cards.__SIGNAL_KEY__.qualityInput || 0) || null, position: $editor.cards.__SIGNAL_KEY__.cropPosition || 'center-center', baseVersion: Number($editor.baseVersion || 1), ...(Craft && Craft.csrfTokenName && Craft.csrfTokenValue ? {[Craft.csrfTokenName]: Craft.csrfTokenValue} : {})}})">Apply</button>
-                                </div>
-                            </div>
                         </section>
                     </div>
                 </section>

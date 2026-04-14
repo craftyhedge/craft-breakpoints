@@ -27,7 +27,7 @@ import {
 
 (() => {
     const BREAKPOINT_SAFETY_PX = 2;
-    const DRAG_SCROLL_THRESHOLD_PX = 4;
+    const DRAG_SCROLL_THRESHOLD_PX = 8;
     const PROCESSING_QUERY_PARAM = '__bpiProcessing';
     const ENTRY_ID_QUERY_PARAM = 'entry_id';
     const LEGACY_ENTRY_ID_QUERY_PARAMS = ['entryId', 'id'];
@@ -93,6 +93,7 @@ import {
             pointerId: null,
             grid: null,
             startX: 0,
+            startY: 0,
             startScrollLeft: 0
         }
     };
@@ -375,11 +376,62 @@ import {
         selectorModalPrototype.__bpiDatastarIgnorePatched = true;
     }
 
+    function getElementNode(target) {
+        if (target instanceof Element) {
+            return target;
+        }
+
+        if (target && typeof target === 'object' && typeof target.length === 'number' && target[0] instanceof Element) {
+            return target[0];
+        }
+
+        return null;
+    }
+
+    function moveFocusBeforeAriaHide(hiddenTarget) {
+        const hiddenNode = getElementNode(hiddenTarget);
+        const activeElement = document.activeElement;
+
+        if (!(hiddenNode instanceof Element) || !(activeElement instanceof HTMLElement) || !hiddenNode.contains(activeElement)) {
+            return;
+        }
+
+        const modalContainer = (typeof Garnish !== 'undefined' && Garnish?.uiLayerManager?.currentLayer?.$container)
+            ? getElementNode(Garnish.uiLayerManager.currentLayer.$container)
+            : null;
+
+        if (modalContainer instanceof Element) {
+            const nextFocus = modalContainer.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+            if (nextFocus instanceof HTMLElement) {
+                nextFocus.focus({ preventScroll: true });
+            }
+        }
+
+        if (hiddenNode.contains(document.activeElement) && document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+        }
+    }
+
+    function patchGarnishAriaHideFocusGuard() {
+        if (typeof Garnish === 'undefined' || typeof Garnish.ariaHide !== 'function' || Garnish.__bpiAriaHideFocusPatched) {
+            return;
+        }
+
+        const originalAriaHide = Garnish.ariaHide;
+        Garnish.ariaHide = function (target) {
+            moveFocusBeforeAriaHide(target);
+            return originalAriaHide.call(this, target);
+        };
+
+        Garnish.__bpiAriaHideFocusPatched = true;
+    }
+
     function setupDatastarModalIgnoreGuard() {
         document.querySelectorAll('.modal, .modal-shade, .elementselectormodal, .elementselectormodal .elementindex').forEach((node) => {
             applyDatastarIgnoreAttribute(node);
         });
 
+        patchGarnishAriaHideFocusGuard();
         patchCraftElementSelectorModalIgnore();
 
         if (typeof Garnish === 'undefined' || !Garnish.Modal || !Garnish.Modal.prototype) {
@@ -954,6 +1006,7 @@ import {
         drag.pointerId = null;
         drag.grid = null;
         drag.startX = 0;
+        drag.startY = 0;
         drag.startScrollLeft = 0;
     }
 
@@ -987,15 +1040,8 @@ import {
             state.dragScroll.pointerId = event.pointerId;
             state.dragScroll.grid = grid;
             state.dragScroll.startX = event.clientX;
+            state.dragScroll.startY = event.clientY;
             state.dragScroll.startScrollLeft = grid.scrollLeft;
-
-            if (grid.setPointerCapture) {
-                try {
-                    grid.setPointerCapture(event.pointerId);
-                } catch (_error) {
-                    // Ignore pointer capture errors.
-                }
-            }
         });
 
         window.addEventListener('pointermove', (event) => {
@@ -1005,7 +1051,16 @@ import {
             }
 
             const deltaX = event.clientX - drag.startX;
-            if (!drag.moved && Math.abs(deltaX) < DRAG_SCROLL_THRESHOLD_PX) {
+            const deltaY = event.clientY - drag.startY;
+            const absDeltaX = Math.abs(deltaX);
+            const absDeltaY = Math.abs(deltaY);
+
+            if (!drag.moved && absDeltaX < DRAG_SCROLL_THRESHOLD_PX && absDeltaY < DRAG_SCROLL_THRESHOLD_PX) {
+                return;
+            }
+
+            if (!drag.moved && absDeltaY > absDeltaX) {
+                endDragScroll(event.pointerId);
                 return;
             }
 
@@ -1013,6 +1068,14 @@ import {
                 drag.moved = true;
                 drag.grid.classList.add('bpi-drag-scrolling');
                 state.dragScrollSuppressClick = true;
+
+                if (drag.grid.setPointerCapture) {
+                    try {
+                        drag.grid.setPointerCapture(event.pointerId);
+                    } catch (_error) {
+                        // Ignore pointer capture errors.
+                    }
+                }
             }
 
             event.preventDefault();
@@ -1113,7 +1176,7 @@ import {
             }
 
             const activeTab = String(card.getAttribute('data-active-tab') || '').trim().toLowerCase();
-            editTabBySet[transformName] = (activeTab === 'ratio' || activeTab === 'settings')
+            editTabBySet[transformName] = activeTab === 'ratio'
                 ? activeTab
                 : 'dimensions';
         });
@@ -1259,7 +1322,6 @@ import {
         const isHeightInput = classList?.contains('bpi-transform-height-input');
         const isDimensionsApply = classList?.contains('bpi-transform-dimensions-apply');
         const isRatioApply = classList?.contains('bpi-transform-ratio-apply');
-        const isSettingsApply = classList?.contains('bpi-transform-settings-apply');
         const isRenderedAction = classList?.contains('bpi-rendered-apply-single')
             || classList?.contains('bpi-rendered-apply-all');
 
@@ -1273,10 +1335,6 @@ import {
 
         if (isRatioApply) {
             return 'ratio';
-        }
-
-        if (isSettingsApply) {
-            return 'settings';
         }
 
         if (isWidthInput) {

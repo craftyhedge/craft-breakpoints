@@ -593,106 +593,6 @@ class TransformEditor extends Component
         ];
     }
 
-    public function applySetSettingsOperation(
-        string $transformName,
-        ?string $mode,
-        ?int $quality,
-        ?string $position,
-        ?bool $includeEscapeWidth = null,
-    ): array {
-        $validation = $this->defaultValidation();
-
-        if ($this->_plugin === null) {
-            $this->addGlobalError($validation, 'Plugin instance is not available.');
-
-            return [
-                'persisted' => false,
-                'validation' => $validation,
-            ];
-        }
-
-        if ($transformName === '') {
-            $this->addGlobalError($validation, 'setName is required.');
-
-            return [
-                'persisted' => false,
-                'validation' => $validation,
-            ];
-        }
-
-        $allowedModes = ['crop', 'fit', 'stretch', 'letterbox'];
-        $allowedPositions = [
-            'top-left',
-            'top-center',
-            'top-right',
-            'center-left',
-            'center-center',
-            'center-right',
-            'bottom-left',
-            'bottom-center',
-            'bottom-right',
-        ];
-
-        $normalizedMode = strtolower(trim((string)($mode ?? 'crop')));
-        if (!in_array($normalizedMode, $allowedModes, true)) {
-            $normalizedMode = 'crop';
-        }
-
-        $normalizedPosition = strtolower(trim((string)($position ?? 'center-center')));
-        if (!in_array($normalizedPosition, $allowedPositions, true)) {
-            $normalizedPosition = 'center-center';
-        }
-
-        $normalizedQuality = $quality;
-        if ($normalizedQuality === null || $normalizedQuality < 1) {
-            $normalizedQuality = 80;
-        }
-
-        if ($normalizedQuality > 100) {
-            $normalizedQuality = 100;
-        }
-
-        $transforms = $this->_plugin->getTransformStore()->getTransforms();
-        $hasExistingTransform = isset($transforms[$transformName]) && is_array($transforms[$transformName]);
-
-        if ($hasExistingTransform) {
-            $transformDefinition = $transforms[$transformName];
-            $resolvedIncludeEscapeWidth = ($transformDefinition['includeEscapeWidth'] ?? false) === true;
-        } else {
-            $resolvedIncludeEscapeWidth = $includeEscapeWidth === true;
-            $transformDefinition = [
-                'name' => $transformName,
-                'includeEscapeWidth' => $resolvedIncludeEscapeWidth,
-                'transforms' => [],
-                'config' => [],
-            ];
-        }
-
-        $existingConfig = isset($transformDefinition['config']) && is_array($transformDefinition['config'])
-            ? $transformDefinition['config']
-            : [];
-
-        $existingConfig['mode'] = $normalizedMode;
-        $existingConfig['quality'] = $normalizedQuality;
-        $existingConfig['position'] = $normalizedPosition;
-
-        $transforms[$transformName] = array_merge($transformDefinition, [
-            'name' => (string)($transformDefinition['name'] ?? $transformName),
-            'includeEscapeWidth' => $resolvedIncludeEscapeWidth,
-            'transforms' => isset($transformDefinition['transforms']) && is_array($transformDefinition['transforms'])
-                ? array_values($transformDefinition['transforms'])
-                : [],
-            'config' => $existingConfig,
-        ]);
-
-        $this->_plugin->getTransformStore()->persistTransforms($transforms);
-
-        return [
-            'persisted' => true,
-            'validation' => $validation,
-        ];
-    }
-
     public function applyRenderedValuesOperation(
         string $transformName,
         array $renderedRows,
@@ -1043,7 +943,6 @@ class TransformEditor extends Component
             $signalKey = $this->getReviewTransformSignalKey($transformName);
             $signalPathBase = 'editor.cards.' . $signalKey;
             $scopeValues = $this->getReviewScopeDimensionInputValues($currentRows, $scope);
-            $settingsSignalValues = $this->getReviewSettingsSignalValues($storedTransformConfig);
 
             $ratioTabDisabled = $scope['mode'] === 'breakpoint'
                 && ($scopeValues['widthAuto'] === '1' || $scopeValues['heightAuto'] === '1');
@@ -1082,9 +981,6 @@ class TransformEditor extends Component
                             'ratioWidthInput' => $scopeValues['widthInput'],
                             'ratioHeightInput' => $scopeValues['heightInput'],
                             'ratioSourceBreakpoint' => $ratioSourceBreakpointDefault,
-                            'cropMode' => $settingsSignalValues['cropMode'],
-                            'qualityInput' => $settingsSignalValues['qualityInput'],
-                            'cropPosition' => $settingsSignalValues['cropPosition'],
                             'activeTab' => $tab,
                             'scopeMode' => $scope['mode'],
                             'scopeBreakpoint' => $scope['mode'] === 'breakpoint' ? (string)$scope['breakpoint'] : '',
@@ -1125,7 +1021,6 @@ class TransformEditor extends Component
             $editPanelId = 'bpi-edit-panel-' . $slug;
             $activeDimensions = $tab === 'dimensions';
             $activeRatio = $tab === 'ratio';
-            $activeSettings = $tab === 'settings';
             $scopeLabel = $scope['mode'] === 'all'
                 ? 'All'
                 : ($scope['mode'] === 'breakpoint' ? ($scope['breakpoint'] . 'px') : 'Select scope');
@@ -1153,24 +1048,16 @@ class TransformEditor extends Component
                 'ratioTabActiveClass' => $activeRatio ? 'active' : '',
                 'ratioTabSelected' => $activeRatio ? 'true' : 'false',
                 'ratioTabTabindex' => $activeRatio ? '0' : '-1',
-                'settingsTabActiveClass' => $activeSettings ? 'active' : '',
-                'settingsTabSelected' => $activeSettings ? 'true' : 'false',
-                'settingsTabTabindex' => $activeSettings ? '0' : '-1',
                 'dimensionsPanelActiveClass' => $activeDimensions ? 'active' : '',
                 'dimensionsPanelHiddenAttr' => $activeDimensions ? '' : 'hidden',
                 'ratioPanelActiveClass' => $activeRatio ? 'active' : '',
                 'ratioPanelHiddenAttr' => $activeRatio ? '' : 'hidden',
-                'settingsPanelActiveClass' => $activeSettings ? 'active' : '',
-                'settingsPanelHiddenAttr' => $activeSettings ? '' : 'hidden',
                 'widthInputId' => $this->escapeReviewHtml($editPanelId . '-width'),
                 'heightInputId' => $this->escapeReviewHtml($editPanelId . '-height'),
                 'ratioWidthInputId' => $this->escapeReviewHtml($editPanelId . '-ratio-width'),
                 'ratioHeightInputId' => $this->escapeReviewHtml($editPanelId . '-ratio-height'),
                 'ratioSourceName' => $this->escapeReviewHtml($editPanelId . '-ratio-source'),
                 'ratioSourceBreakpointOptions' => $ratioSourceBreakpointOptions,
-                'settingsModeInputId' => $this->escapeReviewHtml($editPanelId . '-settings-mode'),
-                'settingsQualityInputId' => $this->escapeReviewHtml($editPanelId . '-settings-quality'),
-                'settingsPositionInputId' => $this->escapeReviewHtml($editPanelId . '-settings-position'),
             ]);
         }
 
@@ -1675,7 +1562,7 @@ class TransformEditor extends Component
     private function normalizeReviewTab(mixed $rawTab): string
     {
         $tab = is_string($rawTab) ? $rawTab : '';
-        return in_array($tab, ['dimensions', 'ratio', 'settings'], true) ? $tab : 'dimensions';
+        return in_array($tab, ['dimensions', 'ratio'], true) ? $tab : 'dimensions';
     }
 
     private function normalizeReviewScope(mixed $rawScope, array $transformBreakpoints): array
@@ -1737,59 +1624,6 @@ class TransformEditor extends Component
             'heightInput' => $heightAuto || $heightValue === null ? '' : (string)$heightValue,
             'widthAuto' => $widthAuto ? '1' : '0',
             'heightAuto' => $heightAuto ? '1' : '0',
-        ];
-    }
-
-    private function normalizeReviewCropMode(mixed $mode): string
-    {
-        $normalized = strtolower(trim((string)$mode));
-        return in_array($normalized, ['crop', 'fit', 'stretch', 'letterbox'], true)
-            ? $normalized
-            : 'crop';
-    }
-
-    private function normalizeReviewCropPosition(mixed $position): string
-    {
-        $normalized = strtolower(trim((string)$position));
-        $allowed = [
-            'top-left',
-            'top-center',
-            'top-right',
-            'center-left',
-            'center-center',
-            'center-right',
-            'bottom-left',
-            'bottom-center',
-            'bottom-right',
-        ];
-
-        return in_array($normalized, $allowed, true) ? $normalized : 'center-center';
-    }
-
-    private function normalizeReviewQuality(mixed $quality): int
-    {
-        if (!is_numeric($quality)) {
-            return 80;
-        }
-
-        $parsed = (int)$quality;
-        if ($parsed < 1) {
-            return 80;
-        }
-
-        return min(100, $parsed);
-    }
-
-    private function getReviewSettingsSignalValues(?array $transformConfig): array
-    {
-        $config = isset($transformConfig['config']) && is_array($transformConfig['config'])
-            ? $transformConfig['config']
-            : [];
-
-        return [
-            'cropMode' => $this->normalizeReviewCropMode($config['mode'] ?? null),
-            'qualityInput' => (string)$this->normalizeReviewQuality($config['quality'] ?? null),
-            'cropPosition' => $this->normalizeReviewCropPosition($config['position'] ?? null),
         ];
     }
 

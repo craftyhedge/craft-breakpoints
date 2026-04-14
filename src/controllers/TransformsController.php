@@ -139,12 +139,9 @@ class TransformsController extends Controller
         $ratioWidthRaw = $this->request->getBodyParam('ratioWidth');
         $ratioHeightRaw = $this->request->getBodyParam('ratioHeight');
         $ratioSourceDimensionRaw = $this->request->getBodyParam('ratioSourceDimension');
-        $modeRaw = $this->request->getBodyParam('mode');
-        $qualityRaw = $this->request->getBodyParam('quality');
-        $positionRaw = $this->request->getBodyParam('position');
         $baseVersion = max(1, (int)$this->request->getBodyParam('baseVersion', 1));
 
-        if ($field !== 'width' && $field !== 'height' && $field !== 'dimensions' && $field !== 'ratio' && $field !== 'settings' && $field !== 'renderedValues') {
+        if ($field !== 'width' && $field !== 'height' && $field !== 'dimensions' && $field !== 'ratio' && $field !== 'renderedValues') {
             $field = 'width';
         }
 
@@ -244,30 +241,6 @@ class TransformsController extends Controller
             }
         }
 
-        $mode = null;
-        if (is_string($modeRaw)) {
-            $trimmedMode = trim($modeRaw);
-            if ($trimmedMode !== '') {
-                $mode = $trimmedMode;
-            }
-        }
-
-        $quality = null;
-        if (is_numeric($qualityRaw)) {
-            $parsedQuality = (int)$qualityRaw;
-            if ($parsedQuality > 0) {
-                $quality = $parsedQuality;
-            }
-        }
-
-        $position = null;
-        if (is_string($positionRaw)) {
-            $trimmedPosition = trim($positionRaw);
-            if ($trimmedPosition !== '') {
-                $position = $trimmedPosition;
-            }
-        }
-
         if ($field === 'renderedValues') {
             $renderedRowsRaw = $this->request->getBodyParam('renderedRows', []);
             $renderedRows = is_array($renderedRowsRaw) ? $renderedRowsRaw : [];
@@ -298,14 +271,6 @@ class TransformsController extends Controller
                 $ratioSourceDimension,
                 $includeEscapeWidth,
             );
-        } elseif ($field === 'settings') {
-            $operationResult = $editor->applySetSettingsOperation(
-                $setName,
-                $mode,
-                $quality,
-                $position,
-                $includeEscapeWidth,
-            );
         } else {
             $operationResult = $editor->applySetDimensionOperation(
                 $setName,
@@ -326,14 +291,12 @@ class TransformsController extends Controller
                 'renderedValues' => 'Rendered values applied.',
                 'dimensions' => 'Dimensions updated.',
                 'ratio' => 'Ratio applied.',
-                'settings' => 'Settings updated.',
                 default => ucfirst($field) . ' updated.',
             }
             : match ($field) {
                 'renderedValues' => 'Rendered values apply failed.',
                 'dimensions' => 'Dimensions update failed.',
                 'ratio' => 'Ratio apply failed.',
-                'settings' => 'Settings update failed.',
                 default => ucfirst($field) . ' update failed.',
             };
 
