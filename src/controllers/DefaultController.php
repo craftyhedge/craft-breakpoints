@@ -82,6 +82,7 @@ class DefaultController extends Controller
             'applyCardOperationUrl' => UrlHelper::cpUrl('actions/craft-breakpoint-images/transforms/apply-card-operation'),
             'selectedSourceEntries' => $selectedSourceEntry ? [$selectedSourceEntry] : [],
             'previewCenter' => (bool)$plugin->getConfigService()->get('previewCenter', true),
+            'transformsDeveloperActionsEnabled' => $plugin->getConfigService()->areTransformsDeveloperActionsEnabled(),
         ]);
     }
 

@@ -54,6 +54,29 @@ final class DefaultControllerTest extends Unit
         $registeredJs = implode("\n", array_merge(...array_values($view->js)));
         $this->assertStringContainsString('window.bpiProcessingManifest = ', $registeredJs);
         $this->assertArrayHasKey(TransformsAsset::class, $view->assetBundles);
+        $this->assertStringNotContainsString('bpi-frame-toolbar-actions', (string)$response->content);
+        $this->assertStringNotContainsString('bpi-open-preview', (string)$response->content);
+    }
+
+    public function testTransformsActionCanRenderDeveloperToolbarActionsWhenEnabledByConfig(): void
+    {
+        $configService = \craftyhedge\craftbreakpointimages\Plugin::getInstance()->getConfigService();
+        $property = new \ReflectionProperty($configService, '_mergedConfig');
+        $previous = $property->getValue($configService);
+
+        $nextConfig = is_array($previous) ? $previous : [];
+        $nextConfig['transformsDeveloperActionsEnabled'] = true;
+        $property->setValue($configService, $nextConfig);
+
+        try {
+            $response = $this->controller()->actionTransforms();
+
+            $this->assertSame(200, $response->statusCode);
+            $this->assertStringContainsString('bpi-frame-toolbar-actions', (string)$response->content);
+            $this->assertStringContainsString('bpi-open-preview', (string)$response->content);
+        } finally {
+            $property->setValue($configService, $previous);
+        }
     }
 
     public function testEntryUrlActionInvokesRequestGuardsAndRejectsInvalidEntryId(): void

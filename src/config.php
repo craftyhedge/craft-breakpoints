@@ -23,6 +23,8 @@ return [
     'svgTemplatePath' => 'craft-breakpoint-images/svg.twig',
     'nativeLazyLoadingEnabled' => true,
     'previewCenter' => true,
+    'transformsDeveloperActionsEnabled' => false,
     'processingDiagnosticsEnabled' => false,
+    'reviewWarningTestingEnabled' => false,
     'dpr' => [1, 2],
 ];

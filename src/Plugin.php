@@ -167,17 +167,17 @@ class Plugin extends BasePlugin
         }
 
         $item['subnav'] = [
-            'settings' => [
-                'label' => Craft::t('craft-breakpoint-images', 'Settings'),
-                'url' => 'craft-breakpoint-images/settings',
+            'processing' => [
+                'label' => Craft::t('craft-breakpoint-images', 'Process and Review'),
+                'url' => 'craft-breakpoint-images/processing',
             ],
             'transforms' => [
                 'label' => Craft::t('craft-breakpoint-images', 'Transform Sets'),
                 'url' => 'craft-breakpoint-images/transforms',
             ],
-            'processing' => [
-                'label' => Craft::t('craft-breakpoint-images', 'Process and Review'),
-                'url' => 'craft-breakpoint-images/processing',
+            'settings' => [
+                'label' => Craft::t('craft-breakpoint-images', 'Settings'),
+                'url' => 'craft-breakpoint-images/settings',
             ],
         ];
 

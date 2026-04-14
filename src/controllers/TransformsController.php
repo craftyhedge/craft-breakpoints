@@ -323,15 +323,18 @@ class TransformsController extends Controller
         $rawResult = $this->request->getBodyParam('result', []);
         $rawEditScopeBySet = $this->request->getBodyParam('editScopeBySet', []);
         $rawEditTabBySet = $this->request->getBodyParam('editTabBySet', []);
+        $rawPreferredOrderBySet = $this->request->getBodyParam('preferredOrderBySet', []);
 
         $result = is_array($rawResult) ? $rawResult : [];
         $editScopeBySet = is_array($rawEditScopeBySet) ? $rawEditScopeBySet : [];
         $editTabBySet = is_array($rawEditTabBySet) ? $rawEditTabBySet : [];
+        $preferredOrderBySet = is_array($rawPreferredOrderBySet) ? $rawPreferredOrderBySet : [];
 
         $rendered = $editor->renderResultReview(
             $result,
             $editScopeBySet,
             $editTabBySet,
+            $preferredOrderBySet,
         );
 
         return $this->asJson($rendered);

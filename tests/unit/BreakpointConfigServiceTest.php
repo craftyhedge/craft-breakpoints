@@ -145,4 +145,45 @@ final class BreakpointConfigServiceTest extends Unit
             }
         }
     }
+
+    public function testReviewWarningTestingFlagUsesConfigAndCanBeOverriddenByEnv(): void
+    {
+        $service = Plugin::getInstance()->getConfigService();
+
+        $this->assertFalse($service->isReviewWarningTestingEnabled([
+            'reviewWarningTestingEnabled' => false,
+        ]));
+
+        $this->assertTrue($service->isReviewWarningTestingEnabled([
+            'reviewWarningTestingEnabled' => true,
+        ]));
+
+        $previous = getenv('CRAFT_BREAKPOINT_IMAGES_REVIEW_WARNING_TESTING');
+        putenv('CRAFT_BREAKPOINT_IMAGES_REVIEW_WARNING_TESTING=true');
+
+        try {
+            $this->assertTrue($service->isReviewWarningTestingEnabled([
+                'reviewWarningTestingEnabled' => false,
+            ]));
+        } finally {
+            if ($previous === false) {
+                putenv('CRAFT_BREAKPOINT_IMAGES_REVIEW_WARNING_TESTING');
+            } else {
+                putenv('CRAFT_BREAKPOINT_IMAGES_REVIEW_WARNING_TESTING=' . $previous);
+            }
+        }
+    }
+
+    public function testTransformsDeveloperActionsFlagUsesConfig(): void
+    {
+        $service = Plugin::getInstance()->getConfigService();
+
+        $this->assertFalse($service->areTransformsDeveloperActionsEnabled([
+            'transformsDeveloperActionsEnabled' => false,
+        ]));
+
+        $this->assertTrue($service->areTransformsDeveloperActionsEnabled([
+            'transformsDeveloperActionsEnabled' => true,
+        ]));
+    }
 }

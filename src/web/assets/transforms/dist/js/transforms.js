@@ -55,6 +55,9 @@ import {
         sourceEntry: document.getElementById('bpi-source-entry'),
         status: document.getElementById('bpi-status'),
         progressHost: document.getElementById('bpi-progress-host'),
+        resultsMeta: document.getElementById('bpi-results-meta'),
+        resultsOrderingNote: document.getElementById('bpi-results-ordering-note'),
+        resultsOrderingNoteLabel: document.getElementById('bpi-results-ordering-note-label'),
         framePane: document.getElementById('bpi-frame-pane'),
         wrapper: document.getElementById('bpi-frame-wrapper'),
         warnings: document.getElementById('bpi-warnings'),
@@ -187,6 +190,29 @@ import {
         elements.btnCopy.hidden = !hasResult;
         elements.btnCopy.disabled = !hasResult;
         elements.btnCopy.setAttribute('aria-hidden', hasResult ? 'false' : 'true');
+    }
+
+    function updateResultsOrderingNote() {
+        if (!elements.resultsMeta || !elements.resultsOrderingNote || !elements.resultsOrderingNoteLabel) {
+            return;
+        }
+
+        const hasRun = state.lastResult !== null;
+        if (!hasRun) {
+            elements.resultsMeta.hidden = true;
+            elements.resultsOrderingNote.hidden = true;
+            elements.resultsOrderingNoteLabel.textContent = '';
+            return;
+        }
+
+        const warningCount = Math.max(0, Number(state.lastResult?.summary?.warningCount) || 0);
+        const showWarningOrder = warningCount > 0;
+
+        elements.resultsMeta.hidden = !showWarningOrder;
+        elements.resultsOrderingNote.hidden = !showWarningOrder;
+        elements.resultsOrderingNoteLabel.textContent = showWarningOrder
+            ? 'Warnings first'
+            : '';
     }
 
     function setStopButtonVisibility(isVisible) {
@@ -1139,11 +1165,13 @@ import {
     function collectReviewEditStateFromDom() {
         const editScopeBySet = {};
         const editTabBySet = {};
+        const preferredOrderBySet = [];
 
         if (!elements.visualResults) {
             return {
                 editScopeBySet,
                 editTabBySet,
+                preferredOrderBySet,
             };
         }
 
@@ -1153,6 +1181,8 @@ import {
             if (!transformName) {
                 return;
             }
+
+            preferredOrderBySet.push(transformName);
 
             const rawScopeMode = String(card.getAttribute('data-scope-mode') || '').trim().toLowerCase();
             if (rawScopeMode === 'all') {
@@ -1184,6 +1214,7 @@ import {
         return {
             editScopeBySet,
             editTabBySet,
+            preferredOrderBySet,
         };
     }
 
@@ -1323,7 +1354,8 @@ import {
         const isDimensionsApply = classList?.contains('bpi-transform-dimensions-apply');
         const isRatioApply = classList?.contains('bpi-transform-ratio-apply');
         const isRenderedAction = classList?.contains('bpi-rendered-apply-single')
-            || classList?.contains('bpi-rendered-apply-all');
+            || classList?.contains('bpi-rendered-apply-all')
+            || classList?.contains('bpi-warning-apply-rendered');
 
         if (isRenderedAction) {
             return 'renderedValues';
@@ -1477,6 +1509,7 @@ import {
         const warningCount = Number(payload.warningCount);
         if (state.lastResult && state.lastResult.summary && Number.isFinite(warningCount) && warningCount >= 0) {
             state.lastResult.summary.warningCount = warningCount;
+            updateResultsOrderingNote();
         }
     }
 
@@ -1492,6 +1525,7 @@ import {
         const {
             editScopeBySet,
             editTabBySet,
+            preferredOrderBySet,
         } = collectReviewEditStateFromDom();
 
         const response = await Craft.sendActionRequest('POST', RENDER_RESULT_REVIEW_ACTION, {
@@ -1499,6 +1533,7 @@ import {
                 result,
                 editScopeBySet,
                 editTabBySet,
+                preferredOrderBySet,
             },
         });
 
@@ -1510,6 +1545,7 @@ import {
     async function publishResult(result) {
         state.lastResult = result;
         updateCopyButtonVisibility();
+        updateResultsOrderingNote();
         try {
             await renderResultReview(result);
         } catch (error) {
@@ -1726,13 +1762,11 @@ import {
             );
 
             await publishResult(result);
-            const warningSuffix = result.summary.warningCount > 0
-                ? ` (${result.summary.warningCount} warnings)`
-                : '';
-            const unloadedSuffix = result.summary.unloadedImageCount > 0
-                ? ` (${result.summary.unloadedImageCount} unloaded rows)`
-                : '';
-            setStatus(`Done. ${result.summary.assetCount} assets across ${breakpoints.length} breakpoints.${warningSuffix}${unloadedSuffix}`);
+            const setCount = Math.max(0, Number(result.summary.setCount) || 0);
+            const warningCount = Math.max(0, Number(result.summary.warningCount) || 0);
+            const setLabel = setCount === 1 ? 'set' : 'sets';
+            const warningLabel = warningCount === 1 ? 'warning' : 'warnings';
+            setStatus(`Done. ${setCount} ${setLabel} processed. ${warningCount} ${warningLabel} to address.`);
         } catch (error) {
             const cancelled = error instanceof ProcessingCancelledError;
 
@@ -1893,6 +1927,7 @@ import {
     setProcessingState(false);
     setStopButtonVisibility(false);
     updateCopyButtonVisibility();
+    updateResultsOrderingNote();
     state.selectedEntryId = getSelectedEntryId();
     setupDatastarModalIgnoreGuard();
     bindSourceSelectionSync();

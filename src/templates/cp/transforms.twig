@@ -8,6 +8,32 @@
         <div id="bpi-progress-host" class="bpi-progress-host" aria-hidden="true" hidden></div>
     </div>
 {% endset %}
+{% set reviewToolbarActions %}
+    {% if transformsDeveloperActionsEnabled ?? false %}
+        <div class="bpi-frame-toolbar-actions bpi-page-title-actions">
+            <button id="bpi-open-preview" class="btn small bpi-toolbar-icon-btn" type="button" title="Open Preview" aria-label="Open Preview" disabled>
+                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                    <path d="M1.5 8s2.4-4 6.5-4 6.5 4 6.5 4-2.4 4-6.5 4-6.5-4-6.5-4z"></path>
+                    <circle cx="8" cy="8" r="2"></circle>
+                </svg>
+            </button>
+            <button id="bpi-copy-output" class="btn small bpi-copy-output-btn" type="button" title="Copy JSON" aria-label="Copy JSON" hidden>
+                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                    <rect x="5" y="2.5" width="8" height="10" rx="1.5"></rect>
+                    <rect x="3" y="5.5" width="8" height="8" rx="1.5"></rect>
+                </svg>
+            </button>
+        </div>
+    {% endif %}
+{% endset %}
+
+{% block pageTitle %}
+    <div class="bpi-page-title-wrap">
+        <h1 id="page-heading" class="screen-title" title="{{ title }}">{{ title }}</h1>
+        {{ reviewToolbarActions }}
+    </div>
+    <div id="revision-indicators"></div>
+{% endblock %}
 
 {% block actionButton %}
     <div class="buttons bpi-header-controls">
@@ -56,32 +82,17 @@
         </div>
 
         <div class="bpi-results-pane">
-            <div class="bpi-frame-toolbar">
-                <strong>Result Review</strong>
-                <div class="bpi-frame-toolbar-actions">
-                    <button id="bpi-open-preview" class="btn small bpi-toolbar-icon-btn" type="button" title="Open Preview" aria-label="Open Preview" disabled>
-                        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                            <path d="M1.5 8s2.4-4 6.5-4 6.5 4 6.5 4-2.4 4-6.5 4-6.5-4-6.5-4z"></path>
-                            <circle cx="8" cy="8" r="2"></circle>
-                        </svg>
-                    </button>
-                    <button id="bpi-copy-output" class="btn small bpi-copy-output-btn" type="button" title="Copy JSON" aria-label="Copy JSON" hidden>
-                        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                            <rect x="5" y="2.5" width="8" height="10" rx="1.5"></rect>
-                            <rect x="3" y="5.5" width="8" height="8" rx="1.5"></rect>
-                        </svg>
-                    </button>
+            <div class="bpi-results-meta" hidden id="bpi-results-meta">
+                <span id="bpi-results-ordering-note" class="bpi-results-ordering-note" hidden>
+                        <span class="bpi-results-ordering-note-icon" aria-hidden="true">{{ iconSvg('list-tree') }}</span>
+                    <span id="bpi-results-ordering-note-label"></span>
+                </span>
+            </div>
+            <div id="bpi-visual-results" class="bpi-visual-results" aria-live="polite">
+                <div class="bpi-empty-state light">
+                    {{ 'Select an entry with images then hit process.'|t('craft-breakpoint-images') }}
                 </div>
             </div>
-            <div id="bpi-warnings" class="bpi-warning-list">
-                <div class="bpi-warning-item bpi-warning-item-neutral">
-                    <span class="bpi-warning-code">{{ 'Process'|t('craft-breakpoint-images') }}</span>
-                    <div class="bpi-warning-detail">
-                        <p>{{ 'Select an entry with images then hit process.'|t('craft-breakpoint-images') }}</p>
-                    </div>
-                </div>
-            </div>
-            <div id="bpi-visual-results" class="bpi-visual-results" aria-live="polite"></div>
         </div>
     </div>
 {% endblock %}

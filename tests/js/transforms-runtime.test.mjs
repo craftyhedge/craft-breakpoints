@@ -299,9 +299,9 @@ describe('transforms runtime helper logic', () => {
             [480],
             {
                 480: [
-                    { assetId: '1', loaded: true, broken: false, unresolved: false },
-                    { assetId: '2', loaded: false, broken: true, unresolved: false },
-                    { assetId: '3', loaded: false, broken: false, unresolved: true },
+                    { assetId: '1', transform: 'hero', loaded: true, broken: false, unresolved: false },
+                    { assetId: '2', transform: 'hero', loaded: false, broken: true, unresolved: false },
+                    { assetId: '3', transform: 'card', loaded: false, broken: false, unresolved: true },
                 ],
             },
             Date.now() - 50,
@@ -311,6 +311,7 @@ describe('transforms runtime helper logic', () => {
         expect(result.runId).toBe(report.runId);
         expect(result.processingReport).toBe(report);
         expect(result.summary.assetCount).toBe(3);
+        expect(result.summary.setCount).toBe(2);
         expect(result.summary.loadedImageCount).toBe(1);
         expect(result.summary.brokenImageCount).toBe(1);
         expect(result.summary.unresolvedImageCount).toBe(1);

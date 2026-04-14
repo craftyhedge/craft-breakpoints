@@ -803,6 +803,7 @@ class TransformEditor extends Component
         array $result,
         array $editScopeBySet = [],
         array $editTabBySet = [],
+        array $preferredOrderBySet = [],
     ): array {
         $rowsByBreakpoint = $this->normalizeReviewRowsByBreakpoint($result['rowsByBreakpoint'] ?? []);
         $breakpoints = $this->normalizeReviewBreakpoints($result['breakpoints'] ?? []);
@@ -810,30 +811,34 @@ class TransformEditor extends Component
             $breakpoints = $this->getReviewConfiguredBreakpoints();
         }
 
-        $warnings = $this->buildReviewWarnings($rowsByBreakpoint);
+        $warningsByTransform = $this->buildReviewWarningsByTransform($rowsByBreakpoint);
         $normalizedScopeState = [];
         $normalizedTabState = [];
 
         return [
-            'warningsHtml' => $this->renderReviewWarningsMarkup($warnings),
+            'warningsHtml' => '',
             'visualResultsHtml' => $this->buildReviewCardsMarkup(
                 $rowsByBreakpoint,
                 $breakpoints,
+                $warningsByTransform,
                 $editScopeBySet,
                 $editTabBySet,
+                $preferredOrderBySet,
                 $normalizedScopeState,
                 $normalizedTabState,
             ),
-            'warningCount' => count($warnings),
+            'warningCount' => $this->countReviewWarningsByTransform($warningsByTransform),
             'editScopeBySet' => $normalizedScopeState,
             'editTabBySet' => $normalizedTabState,
         ];
     }
 
-    private function renderReviewWarningsMarkup(array $warnings): string
+    private function renderReviewWarningsMarkup(array $warnings, bool $showEmptyState = true): string
     {
         if ($warnings === []) {
-            return '<div class="bpi-warning-item bpi-warning-item-success">No warnings detected.</div>';
+            return $showEmptyState
+                ? '<div class="bpi-warning-item bpi-warning-item-success">No warnings detected.</div>'
+                : '';
         }
 
         $chunks = [];
@@ -842,7 +847,12 @@ class TransformEditor extends Component
                 continue;
             }
 
-            $code = $this->escapeReviewHtml((string)($warning['code'] ?? 'warning'));
+            $code = $this->escapeReviewHtml(
+                $this->buildReviewWarningLabel((string)($warning['code'] ?? 'warning'))
+            );
+            if (($warning['testing'] ?? false) === true) {
+                $code .= ' ' . $this->escapeReviewHtml('(testing)');
+            }
             $message = $this->escapeReviewHtml((string)($warning['message'] ?? 'Warning'));
             $transforms = isset($warning['transforms']) && is_array($warning['transforms'])
                 ? $warning['transforms']
@@ -859,40 +869,74 @@ class TransformEditor extends Component
             $rowCount = isset($warning['rowCount']) && is_numeric($warning['rowCount'])
                 ? '<div class="bpi-warning-detail">rows: ' . (int)$warning['rowCount'] . '</div>'
                 : '';
+            $warningActions = $this->buildReviewWarningActionsMarkup((string)($warning['code'] ?? 'warning'));
+            $messageMarkup = '<div class="bpi-warning-detail"><p>' . $message . '</p></div>';
 
             $chunks[] = sprintf(
-                '<div class="%s"><span class="bpi-warning-code">%s</span> - %s%s%s</div>',
+                '<div class="%s"><div class="bpi-warning-copy"><h3 class="bpi-warning-heading">%s</h3></div>%s%s%s%s</div>',
                 $this->buildReviewWarningClass((string)($warning['code'] ?? 'warning')),
                 $code,
-                $message,
+                $messageMarkup,
                 $transformDetail,
                 $rowCount,
+                $warningActions,
             );
         }
 
-        return $chunks === []
-            ? '<div class="bpi-warning-item bpi-warning-item-success">No warnings detected.</div>'
-            : implode('', $chunks);
+        if ($chunks === []) {
+            return $showEmptyState
+                ? '<div class="bpi-warning-item bpi-warning-item-success">No warnings detected.</div>'
+                : '';
+        }
+
+        return implode('', $chunks);
     }
 
     private function buildReviewWarningClass(string $code): string
     {
-        if ($code === 'missing-set-definitions' || $code === 'unknown-set-rows') {
+        if ($code === 'missing-set-definitions') {
             return 'bpi-warning-item bpi-warning-item-danger';
         }
 
         return 'bpi-warning-item bpi-warning-item-neutral';
     }
 
+    private function buildReviewWarningLabel(string $code): string
+    {
+        return match ($code) {
+            'missing-set-definitions' => 'Transform Set Missing',
+            default => $code,
+        };
+    }
+
+    private function buildReviewWarningActionsMarkup(string $code): string
+    {
+        if ($code !== 'missing-set-definitions') {
+            return '';
+        }
+
+        return '<div class="bpi-warning-actions">'
+            . '<button type="button" class="btn small bpi-warning-apply-rendered"'
+            . ' aria-label="Set all breakpoints to rendered values"'
+            . ' title="Set all breakpoints to rendered values"'
+            . ' data-on:click="@post(el.closest(\'.bpi-transforms-page\').dataset.applyCardOperationUrl || \'/actions/craft-breakpoint-images/transforms/apply-card-operation\', {contentType: \'json\', payload: {setName: el.closest(\'.bpi-transform-card\').dataset.set || \'\', field: \'renderedValues\', includeEscapeWidth: (el.closest(\'.bpi-transform-card\').dataset.includeEscapeWidth || \'0\') === \'1\', renderedRows: JSON.parse(el.closest(\'.bpi-transform-card\').dataset.renderedRows || \'[]\'), baseVersion: Number($editor.baseVersion || 1), ...(Craft && Craft.csrfTokenName && Craft.csrfTokenValue ? {[Craft.csrfTokenName]: Craft.csrfTokenValue} : {})}})">'
+            . 'Set to rendered'
+            . '</button>'
+            . '</div>';
+    }
+
     private function buildReviewCardsMarkup(
         array $rowsByBreakpoint,
         array $breakpoints,
+        array $warningsByTransform,
         array $editScopeBySet,
         array $editTabBySet,
+        array $preferredOrderBySet,
         array &$normalizedScopeState,
         array &$normalizedTabState,
     ): string {
         $transformNames = $this->collectReviewTransformNames($rowsByBreakpoint);
+        $transformNames = $this->orderReviewTransformNames($transformNames, $warningsByTransform, $preferredOrderBySet);
         if ($transformNames === []) {
             return '<div class="bpi-empty-state light">No transform sets found in results.</div>';
         }
@@ -915,6 +959,8 @@ class TransformEditor extends Component
             }
 
             $storedTransformConfig = $this->getReviewTransformConfig($storedTransforms, $transformName);
+            $cardWarnings = $warningsByTransform[$transformName] ?? [];
+            $cardWarningsMarkup = $this->renderReviewWarningsMarkup($cardWarnings, false);
             $includeEscapeWidth = ($storedTransformConfig['includeEscapeWidth'] ?? false) === true;
             if ($storedTransformConfig === null) {
                 $includeEscapeWidth = $escapeBreakpoint !== null && in_array($escapeBreakpoint, $observedBreakpoints, true);
@@ -1034,6 +1080,10 @@ class TransformEditor extends Component
                 'transformNameEscaped' => $this->escapeReviewHtml($transformName),
                 'signalKey' => $this->escapeReviewHtml($signalKey),
                 'cardSignals' => $this->escapeReviewHtml($cardSignalsJson),
+                'cardWarningStateClass' => $cardWarningsMarkup !== '' ? 'bpi-transform-card-warning' : '',
+                'cardWarningsHtml' => $cardWarningsMarkup !== ''
+                    ? '<div class="bpi-transform-card-warnings">' . $cardWarningsMarkup . '</div>'
+                    : '',
                 'includeEscapeWidth' => $includeEscapeWidth ? '1' : '0',
                 'transformAssetCount' => (string)$this->getReviewTransformAssetCount($rowsByBreakpoint, $transformName),
                 'renderedRowsForTransformJson' => $this->escapeReviewHtml($renderedRowsForTransformJson),
@@ -1308,6 +1358,55 @@ class TransformEditor extends Component
 
         $transformNames = array_keys($names);
         sort($transformNames, SORT_STRING);
+
+        return $transformNames;
+    }
+
+    private function orderReviewTransformNames(
+        array $transformNames,
+        array $warningsByTransform,
+        array $preferredOrderBySet = [],
+    ): array
+    {
+        $preferredPositions = [];
+        foreach ($preferredOrderBySet as $index => $transformName) {
+            if (!is_string($transformName) || trim($transformName) === '') {
+                continue;
+            }
+
+            $normalizedName = trim($transformName);
+            if (array_key_exists($normalizedName, $preferredPositions)) {
+                continue;
+            }
+
+            $preferredPositions[$normalizedName] = $index;
+        }
+
+        usort($transformNames, static function (string $left, string $right) use ($warningsByTransform, $preferredPositions): int {
+            $leftHasWarnings = !empty($warningsByTransform[$left]);
+            $rightHasWarnings = !empty($warningsByTransform[$right]);
+
+            if ($leftHasWarnings !== $rightHasWarnings) {
+                return $leftHasWarnings ? -1 : 1;
+            }
+
+            $leftPosition = $preferredPositions[$left] ?? null;
+            $rightPosition = $preferredPositions[$right] ?? null;
+
+            if ($leftPosition !== null && $rightPosition !== null) {
+                return $leftPosition <=> $rightPosition;
+            }
+
+            if ($leftPosition !== null) {
+                return -1;
+            }
+
+            if ($rightPosition !== null) {
+                return 1;
+            }
+
+            return strcmp($left, $right);
+        });
 
         return $transformNames;
     }
@@ -1627,9 +1726,9 @@ class TransformEditor extends Component
         ];
     }
 
-    private function buildReviewWarnings(array $rowsByBreakpoint): array
+    private function buildReviewWarningsByTransform(array $rowsByBreakpoint): array
     {
-        $warnings = [];
+        $warningsByTransform = [];
         $storedTransforms = $this->getReviewStoredTransforms();
         $manifestTransformNames = array_keys($storedTransforms);
         sort($manifestTransformNames, SORT_STRING);
@@ -1637,36 +1736,46 @@ class TransformEditor extends Component
         $observedTransformNames = $this->collectReviewTransformNames($rowsByBreakpoint);
         $missingDefinitions = array_values(array_diff($observedTransformNames, $manifestTransformNames));
 
-        if ($missingDefinitions !== []) {
-            $warnings[] = [
-                'code' => 'missing-set-definitions',
-                'message' => 'Transform sets found in markup are missing from manifest configuration.',
-                'transforms' => $missingDefinitions,
-            ];
+        foreach ($missingDefinitions as $transformName) {
+            $warningsByTransform[$transformName][] = $this->buildMissingSetDefinitionWarning();
         }
 
-        $unknownRows = $this->countReviewUnknownTransformRows($rowsByBreakpoint);
-        if ($unknownRows > 0) {
-            $warnings[] = [
-                'code' => 'unknown-set-rows',
-                'message' => 'Some rows were missing the data-set attribute.',
-                'rowCount' => $unknownRows,
-            ];
+        if ($this->_plugin !== null && $this->_plugin->getConfigService()->isReviewWarningTestingEnabled()) {
+            foreach ($observedTransformNames as $transformName) {
+                if (!empty($warningsByTransform[$transformName])) {
+                    continue;
+                }
+
+                $warningsByTransform[$transformName][] = $this->buildMissingSetDefinitionWarning(true);
+            }
         }
 
-        return $warnings;
+        return $warningsByTransform;
     }
 
-    private function countReviewUnknownTransformRows(array $rowsByBreakpoint): int
+    private function buildMissingSetDefinitionWarning(bool $testing = false): array
+    {
+        $warning = [
+            'code' => 'missing-set-definitions',
+            'message' => 'No transforms are saved for this set. Apply the rendered dimensions and/or edit the transforms.',
+        ];
+
+        if ($testing) {
+            $warning['testing'] = true;
+        }
+
+        return $warning;
+    }
+
+    private function countReviewWarningsByTransform(array $warningsByTransform): int
     {
         $count = 0;
-        foreach ($rowsByBreakpoint as $rows) {
-            foreach ($rows as $row) {
-                $transform = trim((string)($row['transform'] ?? ''));
-                if ($transform === '' || $transform === 'unknown') {
-                    $count += 1;
-                }
+        foreach ($warningsByTransform as $warnings) {
+            if (!is_array($warnings)) {
+                continue;
             }
+
+            $count += count($warnings);
         }
 
         return $count;

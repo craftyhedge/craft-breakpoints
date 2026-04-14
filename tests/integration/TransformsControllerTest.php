@@ -107,6 +107,7 @@ final class TransformsControllerTest extends Unit
             'result' => 'not-an-array',
             'editScopeBySet' => 'invalid-scope',
             'editTabBySet' => 'invalid-tab',
+            'preferredOrderBySet' => 'invalid-order',
         ]);
         $response = $controller->actionRenderResultReview();
 
@@ -115,7 +116,8 @@ final class TransformsControllerTest extends Unit
         $this->assertArrayHasKey('warningsHtml', $response->data);
         $this->assertArrayHasKey('visualResultsHtml', $response->data);
         $this->assertArrayHasKey('warningCount', $response->data);
-        $this->assertStringContainsString('No warnings detected.', (string)($response->data['warningsHtml'] ?? ''));
+        $this->assertSame('', $response->data['warningsHtml'] ?? null);
+        $this->assertStringContainsString('No transform sets found in results.', (string)($response->data['visualResultsHtml'] ?? ''));
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
     }

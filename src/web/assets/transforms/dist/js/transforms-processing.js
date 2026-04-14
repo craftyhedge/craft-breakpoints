@@ -979,6 +979,7 @@ export function buildStructuredOutput({
     nowIso = () => new Date().toISOString(),
 }) {
     const assetsById = new Set();
+    const setsByName = new Set();
     let unloadedImageCount = 0;
     let loadedImageCount = 0;
     let brokenImageCount = 0;
@@ -987,6 +988,7 @@ export function buildStructuredOutput({
     Object.values(rowsByBreakpoint).forEach((rows) => {
         rows.forEach((row) => {
             assetsById.add(String(row.assetId || ''));
+            setsByName.add(String(row.transform || ''));
 
             if (row.loaded === true) {
                 loadedImageCount += 1;
@@ -1022,6 +1024,7 @@ export function buildStructuredOutput({
             runs: runCount,
             breakpointCount: breakpoints.length,
             assetCount: Array.from(assetsById).filter((assetId) => assetId !== '').length,
+            setCount: Array.from(setsByName).filter((setName) => setName !== '').length,
             rowCount,
             warningCount: runReport?.totals?.warningCount || 0,
             loadedImageCount,
