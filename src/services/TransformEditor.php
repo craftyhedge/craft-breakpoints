@@ -1730,11 +1730,11 @@ class TransformEditor extends Component
     {
         $warningsByTransform = [];
         $storedTransforms = $this->getReviewStoredTransforms();
-        $manifestTransformNames = array_keys($storedTransforms);
-        sort($manifestTransformNames, SORT_STRING);
+        $configTransformNames = array_keys($storedTransforms);
+        sort($configTransformNames, SORT_STRING);
 
         $observedTransformNames = $this->collectReviewTransformNames($rowsByBreakpoint);
-        $missingDefinitions = array_values(array_diff($observedTransformNames, $manifestTransformNames));
+        $missingDefinitions = array_values(array_diff($observedTransformNames, $configTransformNames));
 
         foreach ($missingDefinitions as $transformName) {
             $warningsByTransform[$transformName][] = $this->buildMissingSetDefinitionWarning();

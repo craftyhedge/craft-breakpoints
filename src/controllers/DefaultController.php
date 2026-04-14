@@ -28,25 +28,25 @@ class DefaultController extends Controller
         ]);
     }
 
-    public function actionManifestTransforms(): Response
+    public function actionConfigTransforms(): Response
     {
-        $manifest = Plugin::getInstance()->getProcessingManifest()->getManifest();
-        $manifestSets = $manifest['sets'] ?? [];
+        $config = Plugin::getInstance()->getProcessingConfig()->getConfig();
+        $configSets = $config['sets'] ?? [];
 
-        if (!is_array($manifestSets)) {
-            $manifestSets = [];
+        if (!is_array($configSets)) {
+            $configSets = [];
         }
 
         $setNames = array_values(array_filter(
-            array_map('strval', array_keys($manifestSets)),
+            array_map('strval', array_keys($configSets)),
             static fn(string $name): bool => $name !== ''
         ));
 
         sort($setNames, SORT_NATURAL | SORT_FLAG_CASE);
 
-        return $this->renderTemplate('craft-breakpoint-images/cp/manifest-transforms', [
+        return $this->renderTemplate('craft-breakpoint-images/cp/config-transforms', [
             'selectedSubnavItem' => 'transforms',
-            'manifestSets' => $manifestSets,
+            'configSets' => $configSets,
             'setNames' => $setNames,
         ]);
     }
@@ -54,7 +54,7 @@ class DefaultController extends Controller
     public function actionTransforms(): Response
     {
         $plugin = Plugin::getInstance();
-        $manifest = $plugin->getProcessingManifest()->getManifest();
+        $config = $plugin->getProcessingConfig()->getConfig();
         $siteId = Craft::$app->getSites()->getCurrentSite()->id;
         $requestedEntryId = (int)($this->request->getQueryParam('entry_id')
             ?? $this->request->getQueryParam('entryId')
@@ -72,13 +72,13 @@ class DefaultController extends Controller
 
         $this->view->registerAssetBundle(TransformsAsset::class);
         $this->view->registerJs(
-            'window.bpiProcessingManifest = ' . Json::htmlEncode($manifest) . ';',
+            'window.bpiProcessingConfig = ' . Json::htmlEncode($config) . ';',
             View::POS_HEAD
         );
 
         return $this->renderTemplate('craft-breakpoint-images/cp/transforms', [
             'selectedSubnavItem' => 'processing',
-            'processingManifest' => $manifest,
+            'processingConfig' => $config,
             'applyCardOperationUrl' => UrlHelper::cpUrl('actions/craft-breakpoint-images/transforms/apply-card-operation'),
             'selectedSourceEntries' => $selectedSourceEntry ? [$selectedSourceEntry] : [],
             'previewCenter' => (bool)$plugin->getConfigService()->get('previewCenter', true),

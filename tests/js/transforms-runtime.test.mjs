@@ -19,7 +19,7 @@ function buildRuntimeDom() {
 async function loadRuntimeHooks() {
     buildRuntimeDom();
 
-    window.bpiProcessingManifest = {
+    window.bpiProcessingConfig = {
         schemaVersion: 2,
         breakpointValues: [480, 768],
         processing: {
@@ -160,10 +160,10 @@ describe('transforms runtime helper logic', () => {
         expect(hooks.getMeasurementWidthForBreakpoint(1)).toBe(1);
         expect(hooks.getMeasurementWidthForBreakpoint('bad')).toBe(1);
 
-        window.bpiProcessingManifest.processing.authorDiagnosticsEnabled = true;
+        window.bpiProcessingConfig.processing.authorDiagnosticsEnabled = true;
         expect(hooks.isAuthorDiagnosticsEnabled()).toBe(true);
 
-        window.bpiProcessingManifest.processing.authorDiagnosticsEnabled = false;
+        window.bpiProcessingConfig.processing.authorDiagnosticsEnabled = false;
         expect(hooks.isAuthorDiagnosticsEnabled()).toBe(false);
     });
 

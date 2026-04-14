@@ -5,7 +5,7 @@ namespace craftyhedge\craftbreakpointimages\services;
 use craftyhedge\craftbreakpointimages\Plugin;
 use yii\base\Component;
 
-class ProcessingManifest extends Component
+class ProcessingConfig extends Component
 {
     private ?Plugin $_plugin = null;
 
@@ -15,7 +15,7 @@ class ProcessingManifest extends Component
         $this->_plugin = Plugin::getInstance();
     }
 
-    public function getManifest(): array
+    public function getConfig(): array
     {
         if ($this->_plugin === null) {
             return [

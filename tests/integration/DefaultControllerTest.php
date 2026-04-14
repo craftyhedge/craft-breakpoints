@@ -34,15 +34,15 @@ final class DefaultControllerTest extends Unit
         $this->assertFalse($response->getIsRedirection());
     }
 
-    public function testManifestTransformsActionReturnsNonRedirectResponse(): void
+    public function testConfigTransformsActionReturnsNonRedirectResponse(): void
     {
-        $response = $this->controller()->actionManifestTransforms();
+        $response = $this->controller()->actionConfigTransforms();
 
         $this->assertSame(200, $response->statusCode);
         $this->assertFalse($response->getIsRedirection());
     }
 
-    public function testTransformsActionRegistersManifestScriptAndAssetBundle(): void
+    public function testTransformsActionRegistersConfigScriptAndAssetBundle(): void
     {
         $view = Craft::$app->getView();
 
@@ -52,7 +52,7 @@ final class DefaultControllerTest extends Unit
         $this->assertFalse($response->getIsRedirection());
 
         $registeredJs = implode("\n", array_merge(...array_values($view->js)));
-        $this->assertStringContainsString('window.bpiProcessingManifest = ', $registeredJs);
+        $this->assertStringContainsString('window.bpiProcessingConfig = ', $registeredJs);
         $this->assertArrayHasKey(TransformsAsset::class, $view->assetBundles);
         $this->assertStringNotContainsString('bpi-frame-toolbar-actions', (string)$response->content);
         $this->assertStringNotContainsString('bpi-open-preview', (string)$response->content);
@@ -60,6 +60,21 @@ final class DefaultControllerTest extends Unit
 
     public function testTransformsActionCanRenderDeveloperToolbarActionsWhenEnabledByConfig(): void
     {
+        $controller = new class('default', Craft::$app) extends DefaultController {
+            public ?array $capturedTemplatePayload = null;
+
+            public function renderTemplate(string $template, array $variables = [], ?string $templateMode = null): Response
+            {
+                $this->capturedTemplatePayload = [
+                    'template' => $template,
+                    'variables' => $variables,
+                    'templateMode' => $templateMode,
+                ];
+
+                return parent::renderTemplate($template, $variables, $templateMode);
+            }
+        };
+
         $configService = \craftyhedge\craftbreakpointimages\Plugin::getInstance()->getConfigService();
         $property = new \ReflectionProperty($configService, '_mergedConfig');
         $previous = $property->getValue($configService);
@@ -69,11 +84,11 @@ final class DefaultControllerTest extends Unit
         $property->setValue($configService, $nextConfig);
 
         try {
-            $response = $this->controller()->actionTransforms();
+            $response = $controller->actionTransforms();
 
             $this->assertSame(200, $response->statusCode);
-            $this->assertStringContainsString('bpi-frame-toolbar-actions', (string)$response->content);
-            $this->assertStringContainsString('bpi-open-preview', (string)$response->content);
+            $this->assertSame('craft-breakpoint-images/cp/transforms', $controller->capturedTemplatePayload['template'] ?? null);
+            $this->assertTrue(($controller->capturedTemplatePayload['variables']['transformsDeveloperActionsEnabled'] ?? false) === true);
         } finally {
             $property->setValue($configService, $previous);
         }

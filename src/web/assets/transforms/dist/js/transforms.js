@@ -42,7 +42,7 @@ import {
     const REPORT_ISSUE_LIMIT = 200;
     const PREPARE_NORMALIZATION_SAMPLE_LIMIT = 12;
 
-    const bpiProcessingManifest = window.bpiProcessingManifest || {};
+    const bpiProcessingConfig = window.bpiProcessingConfig || {};
     const ENTRY_URL_ACTION = 'craft-breakpoint-images/default/entry-url';
     const RENDER_RESULT_REVIEW_ACTION = 'craft-breakpoint-images/transforms/render-result-review';
     const DATASTAR_FETCH_EVENT = 'datastar-fetch';
@@ -228,8 +228,8 @@ import {
     }
 
     function getConfiguredBreakpoints() {
-        const rawBreakpoints = Array.isArray(bpiProcessingManifest?.breakpointValues)
-            ? bpiProcessingManifest.breakpointValues
+        const rawBreakpoints = Array.isArray(bpiProcessingConfig?.breakpointValues)
+            ? bpiProcessingConfig.breakpointValues
             : [];
 
         return rawBreakpoints
@@ -733,7 +733,7 @@ import {
     }
 
     function isAuthorDiagnosticsEnabled() {
-        return bpiProcessingManifest?.processing?.authorDiagnosticsEnabled === true;
+        return bpiProcessingConfig?.processing?.authorDiagnosticsEnabled === true;
     }
 
     function sanitizeIssueSource(rawSource) {
@@ -942,7 +942,7 @@ import {
             rowsByBreakpoint,
             startedAt,
             runReport,
-            manifestSchemaVersion: bpiProcessingManifest?.schemaVersion || null,
+            configSchemaVersion: bpiProcessingConfig?.schemaVersion || null,
             runCount: state.runCount,
             nowMs: () => Date.now(),
             nowIso: () => new Date().toISOString(),

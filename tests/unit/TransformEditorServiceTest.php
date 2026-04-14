@@ -144,7 +144,7 @@ final class TransformEditorServiceTest extends Unit
     {
         $editor = Plugin::getInstance()->getTransformEditor();
 
-        $result = $editor->renderResultReview([
+        $result = $this->withReviewFixtureSets(fn() => $editor->renderResultReview([
             'breakpoints' => [640],
             'rowsByBreakpoint' => [
                 640 => [
@@ -168,7 +168,7 @@ final class TransformEditorServiceTest extends Unit
                     ],
                 ],
             ],
-        ]);
+        ]));
 
         $this->assertStringContainsString('2 assets', (string)($result['visualResultsHtml'] ?? ''));
         $this->assertStringNotContainsString('bpi-transform-stats-warning', (string)($result['visualResultsHtml'] ?? ''));
@@ -178,7 +178,7 @@ final class TransformEditorServiceTest extends Unit
     {
         $editor = Plugin::getInstance()->getTransformEditor();
 
-        $result = $editor->renderResultReview([
+        $result = $this->withReviewFixtureSets(fn() => $editor->renderResultReview([
             'breakpoints' => [640],
             'rowsByBreakpoint' => [
                 640 => [
@@ -193,7 +193,7 @@ final class TransformEditorServiceTest extends Unit
                     ],
                 ],
             ],
-        ]);
+        ]));
 
         $this->assertSame('', $result['warningsHtml'] ?? null);
         $this->assertSame(1, $result['warningCount'] ?? null);
@@ -207,7 +207,7 @@ final class TransformEditorServiceTest extends Unit
     {
         $editor = Plugin::getInstance()->getTransformEditor();
 
-        $result = $editor->renderResultReview([
+        $result = $this->withReviewFixtureSets(fn() => $editor->renderResultReview([
             'breakpoints' => [640],
             'rowsByBreakpoint' => [
                 640 => [
@@ -231,7 +231,7 @@ final class TransformEditorServiceTest extends Unit
                     ],
                 ],
             ],
-        ]);
+        ]));
 
         $this->assertReviewTransformOrder(
             (string)($result['visualResultsHtml'] ?? ''),
@@ -243,7 +243,7 @@ final class TransformEditorServiceTest extends Unit
     {
         $editor = Plugin::getInstance()->getTransformEditor();
 
-        $result = $editor->renderResultReview(
+        $result = $this->withReviewFixtureSets(fn() => $editor->renderResultReview(
             [
                 'breakpoints' => [640],
                 'rowsByBreakpoint' => [
@@ -272,7 +272,7 @@ final class TransformEditorServiceTest extends Unit
             [],
             [],
             ['hero', 'alpha']
-        );
+        ));
 
         $this->assertReviewTransformOrder(
             (string)($result['visualResultsHtml'] ?? ''),
@@ -284,7 +284,7 @@ final class TransformEditorServiceTest extends Unit
     {
         $editor = Plugin::getInstance()->getTransformEditor();
 
-        $result = $editor->renderResultReview(
+        $result = $this->withReviewFixtureSets(fn() => $editor->renderResultReview(
             [
                 'breakpoints' => [640],
                 'rowsByBreakpoint' => [
@@ -313,7 +313,7 @@ final class TransformEditorServiceTest extends Unit
             [],
             [],
             ['hero', 'missing-manifest-set']
-        );
+        ));
 
         $this->assertReviewTransformOrder(
             (string)($result['visualResultsHtml'] ?? ''),
@@ -328,7 +328,7 @@ final class TransformEditorServiceTest extends Unit
         putenv('CRAFT_BREAKPOINT_IMAGES_REVIEW_WARNING_TESTING=true');
 
         try {
-            $result = $editor->renderResultReview([
+            $result = $this->withReviewFixtureSets(fn() => $editor->renderResultReview([
                 'breakpoints' => [640],
                 'rowsByBreakpoint' => [
                     640 => [
@@ -343,7 +343,7 @@ final class TransformEditorServiceTest extends Unit
                         ],
                     ],
                 ],
-            ]);
+            ]));
 
             $this->assertSame(1, $result['warningCount'] ?? null);
             $this->assertReviewWarningMarkup(
@@ -363,6 +363,41 @@ final class TransformEditorServiceTest extends Unit
     {
         $property = new \ReflectionProperty($editor, '_plugin');
         $property->setValue($editor, $plugin);
+    }
+
+    private function withReviewFixtureSets(callable $callback): mixed
+    {
+        return $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'sm' => ['width' => 640, 'height' => null, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => [],
+            ],
+            'alpha' => [
+                'name' => 'alpha',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'sm' => ['width' => 640, 'height' => null, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => [],
+            ],
+        ], $callback);
+    }
+
+    private function withRuntimeSets(array $sets, callable $callback): mixed
+    {
+        $store = Plugin::getInstance()->getTransformStore();
+        $previousSets = $store->getSets();
+        $store->replaceSetsForRuntime($sets);
+
+        try {
+            return $callback();
+        } finally {
+            $store->replaceSetsForRuntime($previousSets);
+        }
     }
 
     private function assertReviewWarningMarkup(string $html, string $expectedHeading): void

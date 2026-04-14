@@ -21,7 +21,7 @@ use craftyhedge\craftbreakpointimages\services\ConfigService;
 use craftyhedge\craftbreakpointimages\services\ImageRenderer;
 use craftyhedge\craftbreakpointimages\services\Images;
 use craftyhedge\craftbreakpointimages\services\ImageTransforms;
-use craftyhedge\craftbreakpointimages\services\ProcessingManifest;
+use craftyhedge\craftbreakpointimages\services\ProcessingConfig;
 use craftyhedge\craftbreakpointimages\services\RenderContextBuilder;
 use craftyhedge\craftbreakpointimages\services\TransformSets;
 use craftyhedge\craftbreakpointimages\services\TransformStore;
@@ -54,7 +54,7 @@ class Plugin extends BasePlugin
                 'imageRenderer' => ImageRenderer::class,
                 'renderContextBuilder' => RenderContextBuilder::class,
                 'imageTransforms' => ImageTransforms::class,
-                'processingManifest' => ProcessingManifest::class,
+                'processingConfig' => ProcessingConfig::class,
                 'transformEditor' => TransformEditor::class,
             ],
         ];
@@ -80,7 +80,7 @@ class Plugin extends BasePlugin
             static function(RegisterUrlRulesEvent $event): void {
                 $event->rules['craft-breakpoint-images'] = 'craft-breakpoint-images/default/index';
                 $event->rules['craft-breakpoint-images/settings'] = 'craft-breakpoint-images/default/settings';
-                $event->rules['craft-breakpoint-images/transforms'] = 'craft-breakpoint-images/default/manifest-transforms';
+                $event->rules['craft-breakpoint-images/transforms'] = 'craft-breakpoint-images/default/config-transforms';
                 $event->rules['craft-breakpoint-images/processing'] = 'craft-breakpoint-images/default/transforms';
             }
         );
@@ -128,9 +128,9 @@ class Plugin extends BasePlugin
         return $this->get('imageTransforms');
     }
 
-    public function getProcessingManifest(): ProcessingManifest
+    public function getProcessingConfig(): ProcessingConfig
     {
-        return $this->get('processingManifest');
+        return $this->get('processingConfig');
     }
 
     public function getTransformEditor(): TransformEditor

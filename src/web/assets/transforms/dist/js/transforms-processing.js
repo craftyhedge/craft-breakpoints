@@ -973,7 +973,7 @@ export function buildStructuredOutput({
     rowsByBreakpoint,
     startedAt,
     runReport = null,
-    manifestSchemaVersion = null,
+    configSchemaVersion = null,
     runCount = 0,
     nowMs = () => Date.now(),
     nowIso = () => new Date().toISOString(),
@@ -1013,7 +1013,7 @@ export function buildStructuredOutput({
 
     return {
         schemaVersion: 2,
-        manifestSchemaVersion,
+        configSchemaVersion,
         runId: runReport?.runId || `run-${nowMs()}`,
         sourceUrl: runReport?.sourceUrl || sourceUrl,
         timestamp: nowIso(),

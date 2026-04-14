@@ -5,12 +5,12 @@
 
 {% block content %}
     {% set setNames = setNames ?? [] %}
-    {% set manifestSets = manifestSets ?? {} %}
+    {% set configSets = configSets ?? {} %}
 
     {% if setNames|length %}
         <ul>
             {% for setName in setNames %}
-                {% set setDefinition = manifestSets[setName] ?? {} %}
+                {% set setDefinition = configSets[setName] ?? {} %}
                 {% set breakpointCount = (setDefinition.variants is defined and setDefinition.variants is iterable)
                     ? setDefinition.variants|length
                     : 0 %}
@@ -21,6 +21,6 @@
             {% endfor %}
         </ul>
     {% else %}
-        <p>{{ 'No transform sets found in manifest.'|t('craft-breakpoint-images') }}</p>
+        <p>{{ 'No transform sets found in config.'|t('craft-breakpoint-images') }}</p>
     {% endif %}
 {% endblock %}
