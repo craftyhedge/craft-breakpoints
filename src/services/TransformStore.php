@@ -73,7 +73,9 @@ class TransformStore extends Component
 
     public function persistSets(array $sets): array
     {
+        $existingSets = $this->getSets();
         $normalized = $this->validateSets($sets);
+        $normalized = $this->stampProcessedTimestamps($normalized, $existingSets);
         $payload = [
             'sets' => $normalized,
         ];
@@ -259,15 +261,65 @@ class TransformStore extends Component
                 throw new InvalidArgumentException('Set config must be an array when provided.');
             }
 
+            $lastUpdatedAt = $this->normalizeIsoDateTime($setDefinition['lastUpdatedAt'] ?? null);
+
             $normalized[$setName] = array_merge($setDefinition, [
                 'name' => (string)($setDefinition['name'] ?? $setName),
                 'variants' => $normalizedVariants,
                 'includeEscapeWidth' => ($setDefinition['includeEscapeWidth'] ?? false) === true,
                 'config' => $config,
+                'lastUpdatedAt' => $lastUpdatedAt,
             ]);
         }
 
         return $normalized;
+    }
+
+    private function stampProcessedTimestamps(array $sets, array $existingSets): array
+    {
+        $now = gmdate('c');
+
+        foreach ($sets as $setName => $setDefinition) {
+            $existingDefinition = isset($existingSets[$setName]) && is_array($existingSets[$setName])
+                ? $existingSets[$setName]
+                : null;
+
+            if ($existingDefinition === null) {
+                $sets[$setName]['lastUpdatedAt'] = $now;
+                continue;
+            }
+
+            $existingComparable = $existingDefinition;
+            $currentComparable = $setDefinition;
+            unset($existingComparable['lastUpdatedAt'], $currentComparable['lastUpdatedAt']);
+
+            if ($existingComparable === $currentComparable) {
+                $sets[$setName]['lastUpdatedAt'] = $this->normalizeIsoDateTime($existingDefinition['lastUpdatedAt'] ?? null);
+                continue;
+            }
+
+            $sets[$setName]['lastUpdatedAt'] = $now;
+        }
+
+        return $sets;
+    }
+
+    private function normalizeIsoDateTime(mixed $value): ?string
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        try {
+            return (new \DateTimeImmutable($value))->format(DATE_ATOM);
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     private function resetImageTransformCaches(): void
@@ -310,6 +362,7 @@ class TransformStore extends Component
                     'variants' => $variants,
                     'includeEscapeWidth' => false,
                     'config' => [],
+                    'lastUpdatedAt' => null,
                 ],
             ],
         ];

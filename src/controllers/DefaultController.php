@@ -30,7 +30,8 @@ class DefaultController extends Controller
 
     public function actionConfigTransforms(): Response
     {
-        $config = Plugin::getInstance()->getProcessingConfig()->getConfig();
+        $plugin = Plugin::getInstance();
+        $config = $plugin->getProcessingConfig()->getConfig();
         $configSets = $config['sets'] ?? [];
 
         if (!is_array($configSets)) {
@@ -44,10 +45,72 @@ class DefaultController extends Controller
 
         sort($setNames, SORT_NATURAL | SORT_FLAG_CASE);
 
+        $telemetry = $plugin->getTelemetry();
+        $recentlySeen = $telemetry->isTelemetryEnabled() ? $telemetry->getRecentlySeen() : [];
+        $transformRows = [];
+
+        foreach ($setNames as $setName) {
+            $setDefinition = $configSets[$setName] ?? [];
+            $transformRows[$setName] = [
+                'transformHandle' => $setName,
+                'inConfig' => true,
+                'lastUpdatedAt' => is_array($setDefinition) ? ($setDefinition['lastUpdatedAt'] ?? null) : null,
+                'sourceElementId' => null,
+                'sourceUrl' => null,
+                'lastSeenAt' => null,
+            ];
+        }
+
+        foreach ($recentlySeen as $row) {
+            $handle = trim((string)($row['transformHandle'] ?? ''));
+            if ($handle === '') {
+                continue;
+            }
+
+            if (!isset($transformRows[$handle])) {
+                $transformRows[$handle] = [
+                    'transformHandle' => $handle,
+                    'inConfig' => false,
+                    'lastUpdatedAt' => null,
+                    'sourceElementId' => null,
+                    'sourceUrl' => null,
+                    'lastSeenAt' => null,
+                ];
+            }
+
+            $transformRows[$handle]['sourceElementId'] = isset($row['sourceElementId']) ? (int)$row['sourceElementId'] : null;
+            $transformRows[$handle]['sourceUrl'] = $row['sourceUrl'] ?? null;
+            $transformRows[$handle]['lastSeenAt'] = $row['lastSeenAt'] ?? null;
+        }
+
+        $sourceElements = [];
+        if (!empty($transformRows)) {
+            $sourceElementIds = [];
+            foreach ($transformRows as $row) {
+                $sourceElementId = isset($row['sourceElementId']) ? (int)$row['sourceElementId'] : 0;
+                if ($sourceElementId > 0) {
+                    $sourceElementIds[$sourceElementId] = true;
+                }
+            }
+
+            foreach (array_keys($sourceElementIds) as $sourceElementId) {
+                $entry = Entry::find()
+                    ->id($sourceElementId)
+                    ->status(null)
+                    ->site('*')
+                    ->one();
+
+                if ($entry !== null) {
+                    $sourceElements[$sourceElementId] = $entry;
+                }
+            }
+        }
+
         return $this->renderTemplate('craft-breakpoint-images/cp/config-transforms', [
             'selectedSubnavItem' => 'transforms',
             'configSets' => $configSets,
-            'setNames' => $setNames,
+            'transformRows' => array_values($transformRows),
+            'sourceElements' => $sourceElements,
         ]);
     }
 

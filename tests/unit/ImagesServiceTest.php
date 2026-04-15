@@ -21,17 +21,6 @@ final class ImagesServiceTest extends Unit
         $this->assertSame('<!-- Breakpoint Images: plugin unavailable -->', (string)$markup);
     }
 
-    public function testRenderPictureReturnsPluginUnavailableCommentWhenPluginMissing(): void
-    {
-        $service = new Images();
-        $this->setServicePlugin($service, null);
-        $asset = $this->createMockAsset();
-
-        $markup = $service->renderPicture([], $asset);
-
-        $this->assertSame('<!-- Breakpoint Images: plugin unavailable -->', (string)$markup);
-    }
-
     public function testGetBreakpointDataReturnsEmptyArrayWhenPluginMissing(): void
     {
         $service = new Images();
@@ -78,29 +67,6 @@ final class ImagesServiceTest extends Unit
 
         $expected = $plugin->getImageRenderer()->render($asset, 'default', $config);
         $actual = $service->render($asset, 'default', $config);
-
-        $this->assertSame((string)$expected, (string)$actual);
-    }
-
-    public function testRenderPictureDelegatesToImageRendererService(): void
-    {
-        $plugin = Plugin::getInstance();
-        $service = $plugin->getImages();
-        $asset = $this->createMockAsset();
-
-        $config = [
-            'pictureTemplatePath' => 'craft-breakpoint-images/does-not-exist.twig',
-            'transformName' => 'default',
-            'imageId' => (int)$asset->id,
-            'assetTitle' => 'Mock asset',
-            'breakpoints' => ['xs' => 480],
-            'escapeWidth' => 0,
-            'imgClass' => 'images-service-picture-test',
-            'secondaryFormat' => 'none',
-        ];
-
-        $expected = $plugin->getImageRenderer()->renderPicture($config, $asset);
-        $actual = $service->renderPicture($config, $asset);
 
         $this->assertSame((string)$expected, (string)$actual);
     }

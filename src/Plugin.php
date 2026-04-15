@@ -26,10 +26,12 @@ use craftyhedge\craftbreakpointimages\services\RenderContextBuilder;
 use craftyhedge\craftbreakpointimages\services\TransformSets;
 use craftyhedge\craftbreakpointimages\services\TransformStore;
 use craftyhedge\craftbreakpointimages\services\TransformEditor;
+use craftyhedge\craftbreakpointimages\services\TelemetryService;
 use craftyhedge\craftbreakpointimages\web\twig\Extension;
 use Monolog\Formatter\LineFormatter;
 use Psr\Log\LogLevel;
 use yii\base\Event;
+use yii\base\Application;
 use yii\log\Logger;
 
 class Plugin extends BasePlugin
@@ -56,6 +58,7 @@ class Plugin extends BasePlugin
                 'imageTransforms' => ImageTransforms::class,
                 'processingConfig' => ProcessingConfig::class,
                 'transformEditor' => TransformEditor::class,
+                'telemetry' => TelemetryService::class,
             ],
         ];
     }
@@ -82,6 +85,13 @@ class Plugin extends BasePlugin
                 $event->rules['craft-breakpoint-images/settings'] = 'craft-breakpoint-images/default/settings';
                 $event->rules['craft-breakpoint-images/transforms'] = 'craft-breakpoint-images/default/config-transforms';
                 $event->rules['craft-breakpoint-images/processing'] = 'craft-breakpoint-images/default/transforms';
+            }
+        );
+
+        Craft::$app->on(
+            Application::EVENT_AFTER_REQUEST,
+            function(): void {
+                $this->getTelemetry()->flushPendingUsage();
             }
         );
 
@@ -136,6 +146,11 @@ class Plugin extends BasePlugin
     public function getTransformEditor(): TransformEditor
     {
         return $this->get('transformEditor');
+    }
+
+    public function getTelemetry(): TelemetryService
+    {
+        return $this->get('telemetry');
     }
 
     public static function info(string $message): void

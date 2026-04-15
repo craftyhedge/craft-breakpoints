@@ -260,6 +260,11 @@ class ImageTransforms extends Component
             return [];
         }
 
+        $telemetryHandle = trim((string)($config['setName'] ?? $setName));
+        if ($telemetryHandle !== '') {
+            $this->_plugin->getTelemetry()->recordUsage($telemetryHandle);
+        }
+
         if (!isset($config['setName']) || $config['setName'] === '') {
             $config['setName'] = $setName;
         }

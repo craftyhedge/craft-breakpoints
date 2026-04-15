@@ -6,6 +6,8 @@ use Craft;
 use craftyhedge\craftbreakpointimages\Plugin;
 use craftyhedge\craftbreakpointimages\models\Settings;
 use craft\helpers\App;
+use craft\helpers\ArrayHelper;
+use craft\helpers\StringHelper;
 use yii\base\Component;
 
 class ConfigService extends Component
@@ -127,6 +129,27 @@ class ConfigService extends Component
         ) ?? false;
     }
 
+    public function isTelemetryEnabled(array $overrides = []): bool
+    {
+        return App::parseBooleanEnv(
+            $this->get('enableTelemetry', true, $overrides)
+        ) ?? true;
+    }
+
+    public function isInsightsCpEnabled(array $overrides = []): bool
+    {
+        return App::parseBooleanEnv(
+            $this->get('enableInsightsCp', true, $overrides)
+        ) ?? true;
+    }
+
+    public function allowTransformEditing(array $overrides = []): bool
+    {
+        return App::parseBooleanEnv(
+            $this->get('allowTransformEditing', false, $overrides)
+        ) ?? false;
+    }
+
     private function buildMergedConfig(): array
     {
         return array_merge(
@@ -148,7 +171,11 @@ class ConfigService extends Component
         }
 
         $config = require $path;
-        return is_array($config) ? $config : [];
+        if (!is_array($config)) {
+            return [];
+        }
+
+        return $this->resolveEnvironmentConfig($config);
     }
 
     private function getPluginSettingsArray(): array
@@ -208,6 +235,31 @@ class ConfigService extends Component
             Plugin::warning('Could not load project config for craft-breakpoint-images.');
             return [];
         }
+    }
+
+    private function resolveEnvironmentConfig(array $config): array
+    {
+        if (!array_key_exists('*', $config)) {
+            return $config;
+        }
+
+        $environment = Craft::$app->getConfig()->env;
+        if ($environment === null || $environment === '') {
+            return is_array($config['*'] ?? null) ? $config['*'] : [];
+        }
+
+        $mergedConfig = [];
+        foreach ($config as $env => $envConfig) {
+            if (!is_array($envConfig)) {
+                continue;
+            }
+
+            if ($env === '*' || StringHelper::contains($environment, (string)$env)) {
+                $mergedConfig = ArrayHelper::merge($mergedConfig, $envConfig);
+            }
+        }
+
+        return $mergedConfig;
     }
 
     private function normalizeBreakpoints(mixed $breakpoints): array

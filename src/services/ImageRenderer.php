@@ -30,10 +30,10 @@ class ImageRenderer extends Component
         $config['setName'] = $setName;
         $config['assetTitle'] = (string)($image->title ?? '');
 
-        return $this->renderPicture($config, $image);
+        return $this->renderTemplateMarkup($config, $image);
     }
 
-    public function renderPicture(array $config, Asset $image): Markup
+    private function renderTemplateMarkup(array $config, Asset $image): Markup
     {
         if ($this->_plugin === null) {
             return new Markup('<!-- Breakpoint Images: plugin unavailable -->', 'UTF-8');

@@ -27,16 +27,6 @@ class Images extends Component
         return $plugin->getImageRenderer()->render($image, $setName, $config);
     }
 
-    public function renderPicture(array $config, Asset $image): Markup
-    {
-        $plugin = $this->plugin();
-        if ($plugin === null) {
-            return new Markup('<!-- Breakpoint Images: plugin unavailable -->', 'UTF-8');
-        }
-
-        return $plugin->getImageRenderer()->renderPicture($config, $image);
-    }
-
     public function getBreakpointData(int $loopIndex, int $breakpoint, array $config, Asset $image): array
     {
         $plugin = $this->plugin();

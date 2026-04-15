@@ -9,6 +9,7 @@ use craftyhedge\craftbreakpointimages\Plugin;
 use starfederation\datastar\events\PatchSignals;
 use starfederation\datastar\ServerSentEventGenerator;
 use yii\web\Response;
+use yii\web\ForbiddenHttpException;
 
 class TransformsController extends Controller
 {
@@ -40,6 +41,10 @@ class TransformsController extends Controller
     {
         $this->requireCpRequest();
         $this->requirePostRequest();
+
+        if (!Plugin::getInstance()->getTelemetry()->canEditTransforms()) {
+            throw new ForbiddenHttpException('Transform editing is disabled in this environment.');
+        }
 
         $editor = Plugin::getInstance()->getTransformEditor();
         $baseVersion = max(1, (int)$this->request->getBodyParam('baseVersion', 1));
@@ -123,6 +128,10 @@ class TransformsController extends Controller
     {
         $this->requireCpRequest();
         $this->requirePostRequest();
+
+        if (!Plugin::getInstance()->getTelemetry()->canEditTransforms()) {
+            throw new ForbiddenHttpException('Transform editing is disabled in this environment.');
+        }
 
         $editor = Plugin::getInstance()->getTransformEditor();
 
