@@ -36,7 +36,9 @@ import {
     const PREVIEW_FRAME_TAG = 'ifr' + 'ame';
     const IMAGE_WAIT_SOFT_DEADLINE_MS = 4000;
     const IMAGE_WAIT_POLL_MS = 250;
-    const CARD_UPDATE_STATUS_CLEAR_DELAY_MS = 1800;
+    const CARD_UPDATE_STATUS_CLEAR_DELAY_MS = 1000;
+    const CARD_UPDATE_STATUS_ERROR_CLEAR_DELAY_MS = 3600;
+    const CARD_UPDATE_STATUS_PENDING_MIN_DURATION_MS = 600;
     const REPORT_SCHEMA_VERSION = 1;
     const REPORT_ISSUE_LIMIT = 200;
     const PREPARE_NORMALIZATION_SAMPLE_LIMIT = 12;
@@ -91,6 +93,10 @@ import {
         selectedEntryId: null,
         dragScrollSuppressClick: false,
         updateStatusResetTimersByTransform: {},
+        updateStatusTransitionTimersByTransform: {},
+        updateStatusStartedAtByTransform: {},
+        updateStatusRunIdByTransform: {},
+        updateStatusByTransform: {},
         pendingTransformUpdates: new Set(),
         progressBar: null,
         dragScroll: {
@@ -1478,6 +1484,24 @@ import {
         }
     }
 
+    function clearUpdateStatusTransitionTimer(transformName) {
+        const existingTimer = state.updateStatusTransitionTimersByTransform[transformName] || null;
+        if (existingTimer !== null) {
+            window.clearTimeout(existingTimer);
+            delete state.updateStatusTransitionTimersByTransform[transformName];
+        }
+    }
+
+    function getUpdateStatusRunId(transformName) {
+        return Number(state.updateStatusRunIdByTransform[transformName] || 0);
+    }
+
+    function nextUpdateStatusRunId(transformName) {
+        const nextId = getUpdateStatusRunId(transformName) + 1;
+        state.updateStatusRunIdByTransform[transformName] = nextId;
+        return nextId;
+    }
+
     function findTransformCard(transformName) {
         if (!elements.visualResults || !transformName) {
             return null;
@@ -1487,7 +1511,7 @@ import {
         return cards.find((card) => (card.getAttribute('data-set') || '') === transformName) || null;
     }
 
-    function setTransformUpdateStatus(transformName, message, statusState) {
+    function applyTransformUpdateStatusToDom(transformName, message, statusState) {
         const card = findTransformCard(transformName);
         if (!card) {
             return;
@@ -1498,14 +1522,73 @@ import {
             return;
         }
 
-        statusElement.textContent = message;
+        const labelElement = statusElement.querySelector('[data-role="transform-update-status-label"]');
+        if (labelElement) {
+            const normalizedMessage = typeof message === 'string' ? message : '';
+            if (statusState === 'pending') {
+                labelElement.textContent = normalizedMessage || 'Saving...';
+            } else if (statusState === 'error') {
+                labelElement.textContent = normalizedMessage || 'Update failed';
+            } else {
+                labelElement.textContent = '';
+            }
+        }
+
+        const ariaMessage = statusState === 'pending'
+            ? (typeof message === 'string' && message.trim() !== '' ? message : 'Saving...')
+            : (statusState === 'success'
+                ? 'Saved'
+                : (statusState === 'error' ? (typeof message === 'string' ? message : 'Update failed') : ''));
+        statusElement.setAttribute('aria-label', ariaMessage);
         statusElement.setAttribute('data-state', statusState);
     }
 
-    function scheduleTransformUpdateStatusClear(transformName, delayMs = CARD_UPDATE_STATUS_CLEAR_DELAY_MS) {
+    function setTransformUpdateStatus(transformName, message, statusState) {
+        if (!transformName) {
+            return;
+        }
+
+        const normalizedMessage = typeof message === 'string' ? message : '';
+        const normalizedStatusState = typeof statusState === 'string' ? statusState : 'idle';
+
+        if (normalizedStatusState === 'idle' || normalizedMessage.trim() === '') {
+            delete state.updateStatusByTransform[transformName];
+        } else {
+            state.updateStatusByTransform[transformName] = {
+                message: normalizedMessage,
+                statusState: normalizedStatusState,
+            };
+        }
+
+        if (normalizedStatusState === 'pending') {
+            state.updateStatusStartedAtByTransform[transformName] = Date.now();
+        }
+
+        applyTransformUpdateStatusToDom(transformName, normalizedMessage, normalizedStatusState);
+    }
+
+    function reapplyTransformUpdateStatuses() {
+        const entries = Object.entries(state.updateStatusByTransform || {});
+        if (entries.length < 1) {
+            return;
+        }
+
+        entries.forEach(([transformName, status]) => {
+            const message = typeof status?.message === 'string' ? status.message : '';
+            const statusState = typeof status?.statusState === 'string' ? status.statusState : 'idle';
+            applyTransformUpdateStatusToDom(transformName, message, statusState);
+        });
+    }
+
+    function scheduleTransformUpdateStatusClear(transformName, delayMs = CARD_UPDATE_STATUS_CLEAR_DELAY_MS, runId = null) {
         clearUpdateStatusResetTimer(transformName);
 
         const timer = window.setTimeout(() => {
+            if (runId !== null && getUpdateStatusRunId(transformName) !== Number(runId)) {
+                clearUpdateStatusResetTimer(transformName);
+                return;
+            }
+
             setTransformUpdateStatus(transformName, '', 'idle');
             clearUpdateStatusResetTimer(transformName);
         }, delayMs);
@@ -1519,6 +1602,34 @@ import {
         }
 
         state.pendingTransformUpdates.delete(transformName);
+    }
+
+    function scheduleTransformTerminalStatus(transformName, message, statusState, clearDelayMs, runId) {
+        const startedAt = Number(state.updateStatusStartedAtByTransform[transformName] || 0);
+        const elapsedMs = startedAt > 0 ? (Date.now() - startedAt) : 0;
+        const remainingPendingMs = Math.max(0, CARD_UPDATE_STATUS_PENDING_MIN_DURATION_MS - elapsedMs);
+
+        clearUpdateStatusTransitionTimer(transformName);
+
+        const applyTerminalStatus = () => {
+            if (runId !== null && getUpdateStatusRunId(transformName) !== Number(runId)) {
+                clearUpdateStatusTransitionTimer(transformName);
+                return;
+            }
+
+            delete state.updateStatusStartedAtByTransform[transformName];
+            setTransformUpdateStatus(transformName, message, statusState);
+            scheduleTransformUpdateStatusClear(transformName, clearDelayMs, runId);
+            clearUpdateStatusTransitionTimer(transformName);
+        };
+
+        if (remainingPendingMs > 0) {
+            const timer = window.setTimeout(applyTerminalStatus, remainingPendingMs);
+            state.updateStatusTransitionTimersByTransform[transformName] = timer;
+            return;
+        }
+
+        applyTerminalStatus();
     }
 
     async function refreshReviewCardsAfterSuccessfulUpdate() {
@@ -1546,8 +1657,8 @@ import {
 
         if (kind === 'success') {
             pendingTransforms.forEach((transformName) => {
-                setTransformUpdateStatus(transformName, 'Updated', 'success');
-                scheduleTransformUpdateStatusClear(transformName);
+                const runId = getUpdateStatusRunId(transformName);
+                scheduleTransformTerminalStatus(transformName, 'Updated', 'success', CARD_UPDATE_STATUS_CLEAR_DELAY_MS, runId);
             });
 
             void refreshReviewCardsAfterSuccessfulUpdate().catch((error) => {
@@ -1558,8 +1669,8 @@ import {
         }
 
         pendingTransforms.forEach((transformName) => {
-            setTransformUpdateStatus(transformName, 'Update failed', 'error');
-            scheduleTransformUpdateStatusClear(transformName, 2600);
+            const runId = getUpdateStatusRunId(transformName);
+            scheduleTransformTerminalStatus(transformName, 'Update failed', 'error', CARD_UPDATE_STATUS_ERROR_CLEAR_DELAY_MS, runId);
         });
     }
 
@@ -1575,18 +1686,17 @@ import {
         }
 
         removePendingTransformUpdate(transformName);
+        const runId = getUpdateStatusRunId(transformName);
 
         if (kind === 'success') {
-            setTransformUpdateStatus(transformName, 'Updated', 'success');
-            scheduleTransformUpdateStatusClear(transformName);
+            scheduleTransformTerminalStatus(transformName, 'Updated', 'success', CARD_UPDATE_STATUS_CLEAR_DELAY_MS, runId);
             void refreshReviewCardsAfterSuccessfulUpdate().catch((error) => {
                 console.error(error);
             });
             return;
         }
 
-        setTransformUpdateStatus(transformName, 'Update failed', 'error');
-        scheduleTransformUpdateStatusClear(transformName, 2600);
+        scheduleTransformTerminalStatus(transformName, 'Update failed', 'error', CARD_UPDATE_STATUS_ERROR_CLEAR_DELAY_MS, runId);
     }
 
     function parseServerStatusFromPatchSignalsArgs(argsRaw) {
@@ -1689,21 +1799,22 @@ import {
             if (detail.type === 'started') {
                 state.pendingTransformUpdates.add(transformName);
                 clearUpdateStatusResetTimer(transformName);
-                setTransformUpdateStatus(transformName, 'Updating...', 'pending');
+                clearUpdateStatusTransitionTimer(transformName);
+                state.updateStatusStartedAtByTransform[transformName] = Date.now();
+                nextUpdateStatusRunId(transformName);
+                setTransformUpdateStatus(transformName, 'Saving...', 'pending');
                 return;
             }
 
             if (detail.type === 'finished') {
-                if (state.pendingTransformUpdates.has(transformName)) {
-                    setTransformUpdateStatus(transformName, 'Syncing...', 'pending');
-                }
+                // Keep the visible pending copy stable; terminal status will apply after min linger.
                 return;
             }
 
             if (detail.type === 'error' || detail.type === 'retries-failed') {
                 removePendingTransformUpdate(transformName);
-                setTransformUpdateStatus(transformName, 'Update failed', 'error');
-                scheduleTransformUpdateStatusClear(transformName, 2600);
+                const runId = getUpdateStatusRunId(transformName);
+                scheduleTransformTerminalStatus(transformName, 'Update failed', 'error', CARD_UPDATE_STATUS_ERROR_CLEAR_DELAY_MS, runId);
             }
         });
     }
@@ -1749,6 +1860,8 @@ import {
             if (!visualResultsPatched) {
                 elements.visualResults.innerHTML = payload.visualResultsHtml;
             }
+
+            reapplyTransformUpdateStatuses();
             scheduleBreakpointPreviewHeightSync();
             window.setTimeout(scheduleBreakpointPreviewHeightSync, 120);
 
