@@ -35,6 +35,24 @@
     <div id="revision-indicators"></div>
 {% endblock %}
 
+{% block sidebar %}
+    {% set transformSets = processingConfig.sets ?? {} %}
+    <nav aria-label="{{ 'Transform Sets'|t('craft-breakpoint-images') }}">
+        <ul>
+            <li>
+                <a class="sel" aria-current="page">{{ 'All'|t('app') }}</a>
+            </li>
+            {% for setName in transformSets|keys %}
+                <li>
+                    <a>{{ setName }}</a>
+                </li>
+            {% else %}
+                <li><a>{{ 'No transform sets found.'|t('craft-breakpoint-images') }}</a></li>
+            {% endfor %}
+        </ul>
+    </nav>
+{% endblock %}
+
 {% block actionButton %}
     <div class="buttons bpi-header-controls">
         <div class="bpi-source-entry-control">

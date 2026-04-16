@@ -37,7 +37,6 @@ import {
     const IMAGE_WAIT_SOFT_DEADLINE_MS = 4000;
     const IMAGE_WAIT_POLL_MS = 250;
     const CARD_UPDATE_STATUS_CLEAR_DELAY_MS = 1800;
-    const LEAVE_PAGE_WARNING_MESSAGE = 'Are you sure? The current results will be lost.';
     const REPORT_SCHEMA_VERSION = 1;
     const REPORT_ISSUE_LIMIT = 200;
     const PREPARE_NORMALIZATION_SAMPLE_LIMIT = 12;
@@ -45,6 +44,7 @@ import {
     const bpiProcessingConfig = window.bpiProcessingConfig || {};
     const ENTRY_URL_ACTION = 'craft-breakpoint-images/default/entry-url';
     const RENDER_RESULT_REVIEW_ACTION = 'craft-breakpoint-images/transforms/render-result-review';
+    const RENDER_INITIAL_REVIEW_ACTION = 'craft-breakpoint-images/transforms/render-initial-review';
     const DATASTAR_FETCH_EVENT = 'datastar-fetch';
     const DATASTAR_PATCH_ELEMENTS_EVENT = 'datastar-patch-elements';
     const DATASTAR_PATCH_SIGNALS_EVENT = 'datastar-patch-signals';
@@ -1269,6 +1269,15 @@ import {
         state.pendingTransformUpdates.delete(transformName);
     }
 
+    async function refreshReviewCardsAfterSuccessfulUpdate() {
+        if (state.lastResult) {
+            await renderResultReview(state.lastResult);
+            return;
+        }
+
+        await renderInitialStoredReview();
+    }
+
     function finalizePendingTransformUpdatesFromServerStatus(serverStatus) {
         const status = serverStatus && typeof serverStatus === 'object' ? serverStatus : null;
         const kind = String(status?.kind || '').trim().toLowerCase();
@@ -1289,11 +1298,9 @@ import {
                 scheduleTransformUpdateStatusClear(transformName);
             });
 
-            if (state.lastResult) {
-                void renderResultReview(state.lastResult).catch((error) => {
-                    console.error(error);
-                });
-            }
+            void refreshReviewCardsAfterSuccessfulUpdate().catch((error) => {
+                console.error(error);
+            });
 
             return;
         }
@@ -1320,11 +1327,9 @@ import {
         if (kind === 'success') {
             setTransformUpdateStatus(transformName, 'Updated', 'success');
             scheduleTransformUpdateStatusClear(transformName);
-            if (state.lastResult) {
-                void renderResultReview(state.lastResult).catch((error) => {
-                    console.error(error);
-                });
-            }
+            void refreshReviewCardsAfterSuccessfulUpdate().catch((error) => {
+                console.error(error);
+            });
             return;
         }
 
@@ -1531,6 +1536,30 @@ import {
         const response = await Craft.sendActionRequest('POST', RENDER_RESULT_REVIEW_ACTION, {
             data: {
                 result,
+                editScopeBySet,
+                editTabBySet,
+                preferredOrderBySet,
+            },
+        });
+
+        const payload = response?.data || null;
+        applyRenderedReviewPayload(payload);
+        return payload;
+    }
+
+    async function renderInitialStoredReview() {
+        if (typeof Craft === 'undefined' || typeof Craft.sendActionRequest !== 'function') {
+            return null;
+        }
+
+        const {
+            editScopeBySet,
+            editTabBySet,
+            preferredOrderBySet,
+        } = collectReviewEditStateFromDom();
+
+        const response = await Craft.sendActionRequest('POST', RENDER_INITIAL_REVIEW_ACTION, {
+            data: {
                 editScopeBySet,
                 editTabBySet,
                 preferredOrderBySet,
@@ -1802,20 +1831,6 @@ import {
         }
     }
 
-    function shouldWarnOnPageLeave() {
-        return state.lastResult !== null;
-    }
-
-    function handleBeforeUnload(event) {
-        if (!shouldWarnOnPageLeave()) {
-            return;
-        }
-
-        event.preventDefault();
-        event.returnValue = LEAVE_PAGE_WARNING_MESSAGE;
-        return LEAVE_PAGE_WARNING_MESSAGE;
-    }
-
     if (elements.btnRun) {
         elements.btnRun.addEventListener('click', async () => {
             await runProcessing();
@@ -1908,6 +1923,8 @@ import {
             buildWaitingStatusMessage,
             publishRunReport,
             getLastReport: () => state.lastReport,
+            renderInitialStoredReview,
+            applyRenderedReviewPayload,
             setPreviewFrameForTests: (frameDocument, frameWindow = window) => {
                 state.previewFrame = {
                     contentDocument: frameDocument,
@@ -1934,8 +1951,10 @@ import {
     setButtonsDisabled(false);
     setupDragToScroll();
     setupDatastarCardUpdateStatus();
-    window.addEventListener('beforeunload', handleBeforeUnload);
     window.addEventListener('resize', scheduleBreakpointPreviewHeightSync);
     getConfiguredBreakpoints();
+    void renderInitialStoredReview().catch((error) => {
+        console.error(error);
+    });
     void loadInitialPreview();
 })();

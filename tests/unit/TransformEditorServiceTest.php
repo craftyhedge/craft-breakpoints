@@ -321,42 +321,113 @@ final class TransformEditorServiceTest extends Unit
         );
     }
 
-    public function testRenderResultReviewCanForceDeveloperWarningMarkupForTesting(): void
+    public function testRenderInitialStoredReviewRendersCardsAndHidesRenderedApplyAll(): void
     {
         $editor = Plugin::getInstance()->getTransformEditor();
-        $previous = getenv('CRAFT_BREAKPOINT_IMAGES_REVIEW_WARNING_TESTING');
-        putenv('CRAFT_BREAKPOINT_IMAGES_REVIEW_WARNING_TESTING=true');
 
-        try {
-            $result = $this->withReviewFixtureSets(fn() => $editor->renderResultReview([
-                'breakpoints' => [640],
-                'rowsByBreakpoint' => [
-                    640 => [
-                        [
-                            'assetId' => '100',
-                            'transform' => 'hero',
-                            'enabled' => true,
-                            'isVisible' => true,
-                            'loaded' => true,
-                            'rendered' => ['width' => 600, 'height' => 340],
-                            'transformDimensions' => ['width' => 600, 'height' => 340, 'autoDimension' => null],
-                        ],
+        $result = $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'xs' => ['width' => 640, 'height' => null, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => [],
+            ],
+        ], fn() => $editor->renderInitialStoredReview());
+
+        $this->assertSame('', $result['warningsHtml'] ?? null);
+        $this->assertSame(0, $result['warningCount'] ?? null);
+
+        $xpath = $this->createReviewMarkupXPath((string)($result['visualResultsHtml'] ?? ''));
+        $cards = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi-transform-card ') and @data-set='hero']");
+        $this->assertNotFalse($cards);
+        $this->assertSame(1, $cards->length);
+
+        $hiddenApplyButtons = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpi-rendered-apply-all ') and contains(concat(' ', normalize-space(@class), ' '), ' bpi-force-hidden ')]");
+        $this->assertNotFalse($hiddenApplyButtons);
+        $this->assertSame(1, $hiddenApplyButtons->length);
+
+        $hiddenColumnButtons = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpi-rendered-apply-single ') and contains(concat(' ', normalize-space(@class), ' '), ' bpi-force-hidden ')]");
+        $this->assertNotFalse($hiddenColumnButtons);
+        $this->assertGreaterThan(0, $hiddenColumnButtons->length);
+    }
+
+    public function testRenderInitialStoredReviewUsesEmptyStateWhenNoStoredTransformsExist(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $result = $this->withRuntimeSets([], fn() => $editor->renderInitialStoredReview());
+
+        $this->assertStringContainsString('No transform sets found in results.', (string)($result['visualResultsHtml'] ?? ''));
+    }
+
+    public function testRenderInitialStoredReviewOmitsEscapeBreakpointForTransformsWithoutEscapeWidth(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $result = $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'xs' => ['width' => null, 'height' => null, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => [],
+            ],
+        ], fn() => $editor->renderInitialStoredReview());
+
+        $xpath = $this->createReviewMarkupXPath((string)($result['visualResultsHtml'] ?? ''));
+        $escapeColumns = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi-transform-card ') and @data-set='hero']//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi-breakpoint-column ') and @data-breakpoint='1920']");
+        $this->assertNotFalse($escapeColumns);
+        $this->assertSame(0, $escapeColumns->length);
+    }
+
+    public function testRenderInitialStoredReviewUsesDeterministicPlaceholderDimensionsForMissingOrAutoDimensions(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $result = $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'xs' => ['width' => null, 'height' => null, 'enabled' => true, 'autoDimension' => 'width'],
+                ],
+                'config' => [],
+            ],
+        ], fn() => $editor->renderInitialStoredReview());
+
+        $this->assertStringContainsString('data:image/svg+xml,', (string)($result['visualResultsHtml'] ?? ''));
+        $this->assertStringContainsString('width%3D%221200%22', (string)($result['visualResultsHtml'] ?? ''));
+        $this->assertStringContainsString('height%3D%22800%22', (string)($result['visualResultsHtml'] ?? ''));
+    }
+
+    public function testRenderResultReviewKeepsRenderedApplyAllVisibleByDefault(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $result = $this->withReviewFixtureSets(fn() => $editor->renderResultReview([
+            'breakpoints' => [640],
+            'rowsByBreakpoint' => [
+                640 => [
+                    [
+                        'assetId' => '100',
+                        'transform' => 'hero',
+                        'enabled' => true,
+                        'isVisible' => true,
+                        'loaded' => true,
+                        'rendered' => ['width' => 600, 'height' => 340],
+                        'transformDimensions' => ['width' => 600, 'height' => 340, 'autoDimension' => null],
                     ],
                 ],
-            ]));
+            ],
+        ]));
 
-            $this->assertSame(1, $result['warningCount'] ?? null);
-            $this->assertReviewWarningMarkup(
-                (string)($result['visualResultsHtml'] ?? ''),
-                'Transform Set Missing (testing)'
-            );
-        } finally {
-            if ($previous === false) {
-                putenv('CRAFT_BREAKPOINT_IMAGES_REVIEW_WARNING_TESTING');
-            } else {
-                putenv('CRAFT_BREAKPOINT_IMAGES_REVIEW_WARNING_TESTING=' . $previous);
-            }
-        }
+        $xpath = $this->createReviewMarkupXPath((string)($result['visualResultsHtml'] ?? ''));
+        $visibleApplyButtons = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpi-rendered-apply-all ') and not(contains(concat(' ', normalize-space(@class), ' '), ' bpi-force-hidden '))]");
+        $this->assertNotFalse($visibleApplyButtons);
+        $this->assertSame(1, $visibleApplyButtons->length);
     }
 
     private function setEditorPlugin(TransformEditor $editor, ?Plugin $plugin): void

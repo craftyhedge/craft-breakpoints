@@ -15,7 +15,6 @@ class ConfigService extends Component
     private const DEFAULT_TEMPLATE_PATH = 'craft-breakpoint-images/picture.twig';
     private const DEFAULT_SVG_TEMPLATE_PATH = 'craft-breakpoint-images/svg.twig';
     private const PROCESSING_DIAGNOSTICS_ENV = 'CRAFT_BREAKPOINT_IMAGES_PROCESSING_DIAGNOSTICS';
-    private const REVIEW_WARNING_TESTING_ENV = 'CRAFT_BREAKPOINT_IMAGES_REVIEW_WARNING_TESTING';
 
     private ?Plugin $_plugin = null;
     private ?array $_mergedConfig = null;
@@ -101,20 +100,6 @@ class ConfigService extends Component
         );
 
         $envValue = App::parseBooleanEnv(App::env(self::PROCESSING_DIAGNOSTICS_ENV));
-        if ($envValue !== null) {
-            return $envValue;
-        }
-
-        return $configValue ?? false;
-    }
-
-    public function isReviewWarningTestingEnabled(array $overrides = []): bool
-    {
-        $configValue = App::parseBooleanEnv(
-            $this->get('reviewWarningTestingEnabled', false, $overrides)
-        );
-
-        $envValue = App::parseBooleanEnv(App::env(self::REVIEW_WARNING_TESTING_ENV));
         if ($envValue !== null) {
             return $envValue;
         }
@@ -209,7 +194,7 @@ class ConfigService extends Component
             'dpr',
         ];
 
-        // Keep processingDiagnosticsEnabled and reviewWarningTestingEnabled config/env-only (not persisted in Settings model).
+        // Keep processingDiagnosticsEnabled config/env-only (not persisted in Settings model).
 
         $overrides = [];
         foreach ($keys as $key) {
@@ -296,7 +281,6 @@ class ConfigService extends Component
             'nativeLazyLoadingEnabled' => (bool)$value,
             'previewCenter' => (bool)$value,
             'processingDiagnosticsEnabled' => App::parseBooleanEnv($value) ?? false,
-            'reviewWarningTestingEnabled' => App::parseBooleanEnv($value) ?? false,
             'pictureTemplatePath' => $this->normalizeTemplatePath($value, self::DEFAULT_TEMPLATE_PATH),
             'svgTemplatePath' => $this->normalizeTemplatePath($value, self::DEFAULT_SVG_TEMPLATE_PATH),
             'dpr' => $this->normalizeDpr($value),

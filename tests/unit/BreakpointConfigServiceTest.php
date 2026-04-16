@@ -85,7 +85,8 @@ final class BreakpointConfigServiceTest extends Unit
         $plugin = Plugin::getInstance();
         $service = $plugin->getConfigService();
 
-        $pluginConfig = require CRAFT_ROOT_PATH . '/src/config.php';
+        $pluginConfigRoot = require CRAFT_ROOT_PATH . '/src/config.php';
+        $pluginConfig = is_array($pluginConfigRoot['*'] ?? null) ? $pluginConfigRoot['*'] : $pluginConfigRoot;
         $this->assertIsArray($pluginConfig);
 
         $projectConfig = Craft::$app->getConfig()->getConfigFromFile('craft-breakpoint-images');
@@ -142,34 +143,6 @@ final class BreakpointConfigServiceTest extends Unit
                 putenv('CRAFT_BREAKPOINT_IMAGES_PROCESSING_DIAGNOSTICS');
             } else {
                 putenv('CRAFT_BREAKPOINT_IMAGES_PROCESSING_DIAGNOSTICS=' . $previous);
-            }
-        }
-    }
-
-    public function testReviewWarningTestingFlagUsesConfigAndCanBeOverriddenByEnv(): void
-    {
-        $service = Plugin::getInstance()->getConfigService();
-
-        $this->assertFalse($service->isReviewWarningTestingEnabled([
-            'reviewWarningTestingEnabled' => false,
-        ]));
-
-        $this->assertTrue($service->isReviewWarningTestingEnabled([
-            'reviewWarningTestingEnabled' => true,
-        ]));
-
-        $previous = getenv('CRAFT_BREAKPOINT_IMAGES_REVIEW_WARNING_TESTING');
-        putenv('CRAFT_BREAKPOINT_IMAGES_REVIEW_WARNING_TESTING=true');
-
-        try {
-            $this->assertTrue($service->isReviewWarningTestingEnabled([
-                'reviewWarningTestingEnabled' => false,
-            ]));
-        } finally {
-            if ($previous === false) {
-                putenv('CRAFT_BREAKPOINT_IMAGES_REVIEW_WARNING_TESTING');
-            } else {
-                putenv('CRAFT_BREAKPOINT_IMAGES_REVIEW_WARNING_TESTING=' . $previous);
             }
         }
     }

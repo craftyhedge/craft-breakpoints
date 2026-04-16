@@ -8,10 +8,23 @@ use Codeception\Test\Unit;
 use Craft;
 use craftyhedge\craftbreakpointimages\controllers\TransformsController;
 use craftyhedge\craftbreakpointimages\Plugin;
+use craftyhedge\craftbreakpointimages\services\TelemetryService;
 use yii\web\Response;
 
 final class TransformsControllerTest extends Unit
 {
+    protected function _before(): void
+    {
+        parent::_before();
+
+        Plugin::getInstance()->set('telemetry', new class() extends TelemetryService {
+            public function canEditTransforms(): bool
+            {
+                return true;
+            }
+        });
+    }
+
     public function testEditorInitReturnsEventStreamPayloadAndNormalizesBaseVersion(): void
     {
         $controller = $this->controllerWithBody([
@@ -118,6 +131,26 @@ final class TransformsControllerTest extends Unit
         $this->assertArrayHasKey('warningCount', $response->data);
         $this->assertSame('', $response->data['warningsHtml'] ?? null);
         $this->assertStringContainsString('No transform sets found in results.', (string)($response->data['visualResultsHtml'] ?? ''));
+        $this->assertTrue($controller->cpRequestChecked);
+        $this->assertTrue($controller->postRequestChecked);
+    }
+
+    public function testRenderInitialReviewCoercesNonArrayPayloadsToArrays(): void
+    {
+        $controller = $this->controllerWithBody([
+            'editScopeBySet' => 'invalid-scope',
+            'editTabBySet' => 'invalid-tab',
+            'preferredOrderBySet' => 'invalid-order',
+        ]);
+        $response = $controller->actionRenderInitialReview();
+
+        $this->assertSame(Response::FORMAT_JSON, $response->format);
+        $this->assertIsArray($response->data);
+        $this->assertArrayHasKey('warningsHtml', $response->data);
+        $this->assertArrayHasKey('visualResultsHtml', $response->data);
+        $this->assertArrayHasKey('warningCount', $response->data);
+        $this->assertArrayHasKey('editScopeBySet', $response->data);
+        $this->assertArrayHasKey('editTabBySet', $response->data);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
     }

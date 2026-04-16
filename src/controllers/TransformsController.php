@@ -349,6 +349,29 @@ class TransformsController extends Controller
         return $this->asJson($rendered);
     }
 
+    public function actionRenderInitialReview(): Response
+    {
+        $this->requireCpRequest();
+        $this->requirePostRequest();
+
+        $editor = Plugin::getInstance()->getTransformEditor();
+        $rawEditScopeBySet = $this->request->getBodyParam('editScopeBySet', []);
+        $rawEditTabBySet = $this->request->getBodyParam('editTabBySet', []);
+        $rawPreferredOrderBySet = $this->request->getBodyParam('preferredOrderBySet', []);
+
+        $editScopeBySet = is_array($rawEditScopeBySet) ? $rawEditScopeBySet : [];
+        $editTabBySet = is_array($rawEditTabBySet) ? $rawEditTabBySet : [];
+        $preferredOrderBySet = is_array($rawPreferredOrderBySet) ? $rawPreferredOrderBySet : [];
+
+        $rendered = $editor->renderInitialStoredReview(
+            $editScopeBySet,
+            $editTabBySet,
+            $preferredOrderBySet,
+        );
+
+        return $this->asJson($rendered);
+    }
+
     private function asDatastarSignalsPatch(array $signals): Response
     {
         $event = new PatchSignals($signals);

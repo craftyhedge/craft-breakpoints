@@ -41,7 +41,8 @@
                     "autoDimension": null
                 }
             },
-            "config": []
+            "config": [],
+            "lastUpdatedAt": null
         }
     }
 }

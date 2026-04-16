@@ -28,7 +28,6 @@ return [
         'enableInsightsCp' => true,
         'transformsDeveloperActionsEnabled' => false,
         'processingDiagnosticsEnabled' => false,
-        'reviewWarningTestingEnabled' => false,
         'dpr' => [1, 2],
     ],
     'dev' => [

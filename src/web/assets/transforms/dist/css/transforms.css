@@ -4,6 +4,16 @@
     min-width: 0;
 }
 
+.bpi-force-hidden {
+     display: none !important;
+}
+
+.content-pane {
+    background: none;
+    padding: 0px;
+    box-shadow: none;
+}
+
 .bpi-header-status-wrap {
     display: flex;
     flex-direction: column;

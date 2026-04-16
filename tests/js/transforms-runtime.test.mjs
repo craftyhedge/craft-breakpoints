@@ -41,13 +41,67 @@ async function loadRuntimeHooks() {
 
 describe('transforms runtime helper logic', () => {
     let hooks;
+    let originalCraft;
 
     beforeAll(async () => {
         hooks = await loadRuntimeHooks();
+        originalCraft = window.Craft;
+    });
+
+    afterAll(() => {
+        window.Craft = originalCraft;
     });
 
     afterEach(() => {
         hooks.clearPreviewFrameForTests();
+    });
+
+    it('applies initial stored review payload without requiring processing', async () => {
+        const patchListener = (event) => {
+            const detail = event?.detail || {};
+            if (detail.type !== 'datastar-patch-elements') {
+                return;
+            }
+
+            const selector = detail.argsRaw?.selector;
+            const mode = detail.argsRaw?.mode;
+            const markup = detail.argsRaw?.elements;
+            const target = typeof selector === 'string' ? document.querySelector(selector) : null;
+            if (!target || mode !== 'inner' || typeof markup !== 'string') {
+                return;
+            }
+
+            target.innerHTML = markup;
+        };
+        document.addEventListener('datastar-fetch', patchListener);
+
+        const sendActionRequest = vi.fn().mockResolvedValue({
+            data: {
+                warningsHtml: '<div class="warning-marker">Initial warning</div>',
+                visualResultsHtml: '<div class="initial-review-marker">Initial cards</div>',
+                warningCount: 3,
+                editScopeBySet: {},
+                editTabBySet: {},
+            },
+        });
+
+        window.Craft = {
+            sendActionRequest,
+        };
+
+        const result = await hooks.renderInitialStoredReview();
+
+        document.removeEventListener('datastar-fetch', patchListener);
+
+        expect(sendActionRequest).toHaveBeenCalledWith(
+            'POST',
+            'craft-breakpoint-images/transforms/render-initial-review',
+            expect.any(Object),
+        );
+        expect(result.warningCount).toBe(3);
+        expect(document.getElementById('bpi-visual-results').innerHTML).toContain('Initial cards');
+        expect(document.getElementById('bpi-warnings').innerHTML).toContain('Initial warning');
+        expect(document.getElementById('bpi-copy-output').hidden).toBe(true);
     });
 
     it('sanitizes issue source URLs by removing query and hash', () => {

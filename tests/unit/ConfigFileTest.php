@@ -10,7 +10,8 @@ final class ConfigFileTest extends Unit
 {
     public function testConfigFileReturnsExpectedShapeAndDefaults(): void
     {
-        $config = require CRAFT_ROOT_PATH . '/src/config.php';
+        $configRoot = require CRAFT_ROOT_PATH . '/src/config.php';
+        $config = is_array($configRoot['*'] ?? null) ? $configRoot['*'] : $configRoot;
 
         $this->assertIsArray($config);
 
@@ -21,7 +22,6 @@ final class ConfigFileTest extends Unit
         $this->assertArrayHasKey('pictureTemplatePath', $config);
         $this->assertArrayHasKey('svgTemplatePath', $config);
         $this->assertArrayHasKey('processingDiagnosticsEnabled', $config);
-        $this->assertArrayHasKey('reviewWarningTestingEnabled', $config);
         $this->assertArrayHasKey('previewCenter', $config);
         $this->assertArrayHasKey('transformsDeveloperActionsEnabled', $config);
         $this->assertArrayHasKey('dpr', $config);
@@ -50,7 +50,6 @@ final class ConfigFileTest extends Unit
         $this->assertLessThanOrEqual(100, (int)$config['quality']);
         $this->assertIsBool($config['nativeLazyLoadingEnabled']);
         $this->assertIsBool($config['processingDiagnosticsEnabled']);
-        $this->assertIsBool($config['reviewWarningTestingEnabled']);
         $this->assertIsBool($config['previewCenter']);
         $this->assertIsBool($config['transformsDeveloperActionsEnabled']);
     }

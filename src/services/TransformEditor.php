@@ -7,6 +7,11 @@ use yii\base\Component;
 
 class TransformEditor extends Component
 {
+    private const INITIAL_PLACEHOLDER_FALLBACK_WIDTH = 1200;
+    private const INITIAL_PLACEHOLDER_FALLBACK_HEIGHT = 800;
+    private const INITIAL_PLACEHOLDER_DEFAULT_RATIO_WIDTH = 3;
+    private const INITIAL_PLACEHOLDER_DEFAULT_RATIO_HEIGHT = 2;
+
     private ?Plugin $_plugin = null;
     private array $_reviewTemplateCache = [];
 
@@ -804,6 +809,7 @@ class TransformEditor extends Component
         array $editScopeBySet = [],
         array $editTabBySet = [],
         array $preferredOrderBySet = [],
+        bool $hideRenderedApply = false,
     ): array {
         $rowsByBreakpoint = $this->normalizeReviewRowsByBreakpoint($result['rowsByBreakpoint'] ?? []);
         $breakpoints = $this->normalizeReviewBreakpoints($result['breakpoints'] ?? []);
@@ -826,11 +832,95 @@ class TransformEditor extends Component
                 $preferredOrderBySet,
                 $normalizedScopeState,
                 $normalizedTabState,
+                $hideRenderedApply,
             ),
             'warningCount' => $this->countReviewWarningsByTransform($warningsByTransform),
             'editScopeBySet' => $normalizedScopeState,
             'editTabBySet' => $normalizedTabState,
         ];
+    }
+
+    public function renderInitialStoredReview(
+        array $editScopeBySet = [],
+        array $editTabBySet = [],
+        array $preferredOrderBySet = [],
+    ): array {
+        $storedTransforms = $this->getReviewStoredTransforms();
+        $syntheticRowsByBreakpoint = [];
+
+        foreach ($storedTransforms as $setName => $transformDefinition) {
+            if (!is_string($setName) || $setName === '' || !is_array($transformDefinition)) {
+                continue;
+            }
+
+            $includeEscapeWidth = ($transformDefinition['includeEscapeWidth'] ?? false) === true;
+            $breakpoints = $this->getBreakpointsForTransform($includeEscapeWidth);
+            $entries = isset($transformDefinition['transforms']) && is_array($transformDefinition['transforms'])
+                ? array_values($transformDefinition['transforms'])
+                : [];
+
+            foreach ($breakpoints as $index => $breakpoint) {
+                if (!is_int($breakpoint) || $breakpoint <= 0) {
+                    continue;
+                }
+
+                $entry = isset($entries[$index]) && is_array($entries[$index])
+                    ? $entries[$index]
+                    : [];
+
+                $autoDimension = $this->normalizeAutoDimension($entry['autoDimension'] ?? null);
+                $width = $this->normalizeNullablePositiveInt($entry['width'] ?? null);
+                $height = $this->normalizeNullablePositiveInt($entry['height'] ?? null);
+
+                if ($autoDimension === 'width') {
+                    $width = null;
+                }
+
+                if ($autoDimension === 'height') {
+                    $height = null;
+                }
+
+                $placeholderSrc = $this->buildInitialReviewPlaceholderDataUri(
+                    $width,
+                    $height,
+                    $autoDimension,
+                );
+
+                $syntheticRowsByBreakpoint[$breakpoint][] = [
+                    'transform' => $setName,
+                    'assetId' => '',
+                    'title' => $setName . ' ' . $breakpoint . 'px placeholder',
+                    'enabled' => true,
+                    'isVisible' => true,
+                    'loaded' => true,
+                    'broken' => false,
+                    'unresolved' => false,
+                    'sourceUsed' => $placeholderSrc,
+                    'src' => $placeholderSrc,
+                    'rendered' => [
+                        'width' => 0,
+                        'height' => 0,
+                    ],
+                    'intrinsic' => [
+                        'width' => 0,
+                        'height' => 0,
+                    ],
+                    'transformDimensions' => [
+                        'width' => $width,
+                        'height' => $height,
+                        'autoDimension' => $autoDimension,
+                    ],
+                ];
+            }
+        }
+
+        return $this->renderResultReview(
+            ['rowsByBreakpoint' => $syntheticRowsByBreakpoint],
+            $editScopeBySet,
+            $editTabBySet,
+            $preferredOrderBySet,
+            hideRenderedApply: true,
+        );
     }
 
     private function renderReviewWarningsMarkup(array $warnings, bool $showEmptyState = true): string
@@ -850,9 +940,6 @@ class TransformEditor extends Component
             $code = $this->escapeReviewHtml(
                 $this->buildReviewWarningLabel((string)($warning['code'] ?? 'warning'))
             );
-            if (($warning['testing'] ?? false) === true) {
-                $code .= ' ' . $this->escapeReviewHtml('(testing)');
-            }
             $message = $this->escapeReviewHtml((string)($warning['message'] ?? 'Warning'));
             $transforms = isset($warning['transforms']) && is_array($warning['transforms'])
                 ? $warning['transforms']
@@ -934,6 +1021,7 @@ class TransformEditor extends Component
         array $preferredOrderBySet,
         array &$normalizedScopeState,
         array &$normalizedTabState,
+        bool $hideRenderedApply,
     ): string {
         $transformNames = $this->collectReviewTransformNames($rowsByBreakpoint);
         $transformNames = $this->orderReviewTransformNames($transformNames, $warningsByTransform, $preferredOrderBySet);
@@ -1060,6 +1148,7 @@ class TransformEditor extends Component
                     $selectedBreakpoint,
                     $scope['mode'] === 'all',
                     $escapeBreakpoint,
+                    $hideRenderedApply,
                 );
             }
 
@@ -1086,7 +1175,9 @@ class TransformEditor extends Component
                     : '',
                 'includeEscapeWidth' => $includeEscapeWidth ? '1' : '0',
                 'transformAssetCount' => (string)$this->getReviewTransformAssetCount($rowsByBreakpoint, $transformName),
+                'transformAssetCountHiddenClass' => $hideRenderedApply ? 'bpi-force-hidden' : '',
                 'renderedRowsForTransformJson' => $this->escapeReviewHtml($renderedRowsForTransformJson),
+                'renderedApplyHiddenClass' => $hideRenderedApply ? 'bpi-force-hidden' : '',
                 'breakpointColumns' => $breakpointColumns,
                 'editPanelId' => $this->escapeReviewHtml($editPanelId),
                 'signalPathBase' => $this->escapeReviewHtml($signalPathBase),
@@ -1128,6 +1219,7 @@ class TransformEditor extends Component
         ?int $selectedBreakpoint,
         bool $allSelected,
         ?int $escapeBreakpoint,
+        bool $hideRenderedApply,
     ): string {
         $summary = $this->summarizeReviewRows($rows);
         $renderedRowsPayload = $this->buildReviewRenderedRowsPayload($rows, $breakpoint);
@@ -1140,16 +1232,26 @@ class TransformEditor extends Component
         $renderedHeight = (int)($summary['renderedHeight'] ?? 0);
         $previewRow = $this->pickReviewPreviewRow($rows);
         $previewSrc = is_array($previewRow) ? (string)($previewRow['src'] ?? '') : '';
-        $aspectRatio = $renderedWidth > 0 && $renderedHeight > 0
-            ? $renderedWidth . ' / ' . $renderedHeight
-            : '1 / 1';
-        $relativeWidth = $breakpoint > 0
-            ? max(0.0, min(100.0, ($renderedWidth / $breakpoint) * 100))
-            : 0.0;
-
         $currentWidth = $this->normalizeNullablePositiveInt($currentRow['width'] ?? null);
         $currentHeight = $this->normalizeNullablePositiveInt($currentRow['height'] ?? null);
         $autoDimension = $this->normalizeAutoDimension($currentRow['autoDimension'] ?? null);
+
+        $displayWidth = $renderedWidth;
+        $displayHeight = $renderedHeight;
+        if ($displayWidth < 1 && $displayHeight < 1) {
+            [$displayWidth, $displayHeight] = $this->resolveInitialPreviewBoxDimensions(
+                $currentWidth,
+                $currentHeight,
+                $autoDimension,
+            );
+        }
+
+        $aspectRatio = $displayWidth > 0 && $displayHeight > 0
+            ? $displayWidth . ' / ' . $displayHeight
+            : '1 / 1';
+        $relativeWidth = $breakpoint > 0
+            ? max(0.0, min(100.0, ($displayWidth / $breakpoint) * 100))
+            : 0.0;
 
         $widthClass = $this->getReviewRenderedDimensionClass($renderedWidth, $currentWidth, $autoDimension, 'width');
         $heightClass = $this->getReviewRenderedDimensionClass($renderedHeight, $currentHeight, $autoDimension, 'height');
@@ -1197,6 +1299,8 @@ class TransformEditor extends Component
             'unloadedBadge' => $unloadedBadge,
             'renderedRowsPayloadJson' => $this->escapeReviewHtml($renderedRowsPayloadJson),
             'breakpointDisabledAttr' => $renderedRowsPayload === [] ? 'disabled' : '',
+            'breakpointRenderedApplyHiddenClass' => $hideRenderedApply ? 'bpi-force-hidden' : '',
+            'breakpointRenderedRowHiddenClass' => $hideRenderedApply ? 'bpi-force-hidden' : '',
             'relativeWidth' => (string)$relativeWidth,
             'previewMedia' => $previewMedia,
             'widthClass' => $widthClass,
@@ -1740,31 +1844,61 @@ class TransformEditor extends Component
             $warningsByTransform[$transformName][] = $this->buildMissingSetDefinitionWarning();
         }
 
-        if ($this->_plugin !== null && $this->_plugin->getConfigService()->isReviewWarningTestingEnabled()) {
-            foreach ($observedTransformNames as $transformName) {
-                if (!empty($warningsByTransform[$transformName])) {
-                    continue;
-                }
-
-                $warningsByTransform[$transformName][] = $this->buildMissingSetDefinitionWarning(true);
-            }
-        }
-
         return $warningsByTransform;
     }
 
-    private function buildMissingSetDefinitionWarning(bool $testing = false): array
+    private function buildMissingSetDefinitionWarning(): array
     {
-        $warning = [
+        return [
             'code' => 'missing-set-definitions',
             'message' => 'No transforms are saved for this set. Apply the rendered dimensions and/or edit the transforms.',
         ];
+    }
 
-        if ($testing) {
-            $warning['testing'] = true;
+    private function buildInitialReviewPlaceholderDataUri(
+        ?int $width,
+        ?int $height,
+        ?string $autoDimension,
+    ): string {
+        [$boxWidth, $boxHeight] = $this->resolveInitialPreviewBoxDimensions($width, $height, $autoDimension);
+
+        $svg = sprintf(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="%1$d" height="%2$d" viewBox="0 0 %1$d %2$d" role="img" aria-label="Placeholder"><rect width="100%%" height="100%%" fill="#e7edf5"/><rect x="1" y="1" width="%3$d" height="%4$d" fill="none" stroke="#98a9be" stroke-width="2"/></svg>',
+            $boxWidth,
+            $boxHeight,
+            max(1, $boxWidth - 2),
+            max(1, $boxHeight - 2),
+        );
+
+        return 'data:image/svg+xml,' . rawurlencode($svg);
+    }
+
+    /**
+     * @return array{0:int,1:int}
+     */
+    private function resolveInitialPreviewBoxDimensions(?int $width, ?int $height, ?string $autoDimension): array
+    {
+        $effectiveWidth = $autoDimension === 'width' ? null : $width;
+        $effectiveHeight = $autoDimension === 'height' ? null : $height;
+
+        if ($effectiveWidth !== null && $effectiveHeight !== null) {
+            return [$effectiveWidth, $effectiveHeight];
         }
 
-        return $warning;
+        if ($effectiveWidth !== null) {
+            $derivedHeight = (int)round(($effectiveWidth * self::INITIAL_PLACEHOLDER_DEFAULT_RATIO_HEIGHT) / self::INITIAL_PLACEHOLDER_DEFAULT_RATIO_WIDTH);
+            return [$effectiveWidth, max(1, $derivedHeight)];
+        }
+
+        if ($effectiveHeight !== null) {
+            $derivedWidth = (int)round(($effectiveHeight * self::INITIAL_PLACEHOLDER_DEFAULT_RATIO_WIDTH) / self::INITIAL_PLACEHOLDER_DEFAULT_RATIO_HEIGHT);
+            return [max(1, $derivedWidth), $effectiveHeight];
+        }
+
+        return [
+            self::INITIAL_PLACEHOLDER_FALLBACK_WIDTH,
+            self::INITIAL_PLACEHOLDER_FALLBACK_HEIGHT,
+        ];
     }
 
     private function countReviewWarningsByTransform(array $warningsByTransform): int
