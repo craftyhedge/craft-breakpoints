@@ -7,6 +7,7 @@ namespace craftyhedge\craftbreakpointimages\tests\unit;
 use Codeception\Test\Unit;
 use craftyhedge\craftbreakpointimages\Plugin;
 use craftyhedge\craftbreakpointimages\services\TransformEditor;
+use craftyhedge\craftbreakpointimages\services\TelemetryService;
 
 final class TransformEditorServiceTest extends Unit
 {
@@ -401,6 +402,61 @@ final class TransformEditorServiceTest extends Unit
         $this->assertStringContainsString('data:image/svg+xml,', (string)($result['visualResultsHtml'] ?? ''));
         $this->assertStringContainsString('width%3D%221200%22', (string)($result['visualResultsHtml'] ?? ''));
         $this->assertStringContainsString('height%3D%22800%22', (string)($result['visualResultsHtml'] ?? ''));
+    }
+
+    public function testRenderInitialStoredReviewUsesSavedSnapshotAssetUrlForCardPreview(): void
+    {
+        $plugin = Plugin::getInstance();
+        $previousTelemetry = $plugin->get('telemetry');
+
+        $plugin->set('telemetry', new class() extends TelemetryService {
+            public function getLatestRunSnapshot(): ?array
+            {
+                return [
+                    'runStatus' => 'completed',
+                    'ranAt' => '2026-04-16 10:20:30',
+                    'durationMs' => 4321,
+                    'entryId' => 123,
+                    'rows' => [
+                        [
+                            'transformHandle' => 'hero',
+                            'breakpointWidth' => 640,
+                            'displayAssetUrl' => 'https://example.test/saved-preview.jpg',
+                            'rowStatus' => 'unprocessed',
+                        ],
+                    ],
+                ];
+            }
+        });
+
+        try {
+            $editor = $plugin->getTransformEditor();
+            $result = $this->withRuntimeSets([
+                'hero' => [
+                    'name' => 'hero',
+                    'includeEscapeWidth' => false,
+                    'variants' => [
+                        'sm' => ['width' => 640, 'height' => null, 'enabled' => true, 'autoDimension' => null],
+                    ],
+                    'config' => [],
+                ],
+            ], fn() => $editor->renderInitialStoredReview());
+
+            $this->assertStringContainsString('https://example.test/saved-preview.jpg', (string)($result['visualResultsHtml'] ?? ''));
+            $this->assertStringContainsString('bpi-transform-last-process-pane', (string)($result['visualResultsHtml'] ?? ''));
+            $this->assertStringContainsString('bpi-transform-last-process-status-icon-success', (string)($result['visualResultsHtml'] ?? ''));
+            $this->assertStringContainsString('data-icon="check"', (string)($result['visualResultsHtml'] ?? ''));
+            $this->assertStringContainsString('Details', (string)($result['visualResultsHtml'] ?? ''));
+            $this->assertStringContainsString('data-bpi-open-process-details="true"', (string)($result['visualResultsHtml'] ?? ''));
+            $this->assertStringContainsString('data-transform-handle="hero"', (string)($result['visualResultsHtml'] ?? ''));
+            $this->assertStringContainsString('data-entry-id="123"', (string)($result['visualResultsHtml'] ?? ''));
+            $this->assertStringContainsString('2026-04-16 10:20:30', (string)($result['visualResultsHtml'] ?? ''));
+            $this->assertStringNotContainsString('4321 ms', (string)($result['visualResultsHtml'] ?? ''));
+            $this->assertStringNotContainsString('Saved breakpoints', (string)($result['visualResultsHtml'] ?? ''));
+            $this->assertStringNotContainsString('<dt>Status</dt>', (string)($result['visualResultsHtml'] ?? ''));
+        } finally {
+            $plugin->set('telemetry', $previousTelemetry);
+        }
     }
 
     public function testRenderResultReviewKeepsRenderedApplyAllVisibleByDefault(): void

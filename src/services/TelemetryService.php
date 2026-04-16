@@ -12,6 +12,20 @@ use yii\base\Component;
 class TelemetryService extends Component
 {
     private const PROCESSING_QUERY_PARAM = '__bpiProcessing';
+    private const RUN_STATUS_COMPLETED = 'completed';
+    private const RUN_STATUS_FAILED = 'failed';
+    private const RUN_STATUS_CANCELLED = 'cancelled';
+    private const RUN_SNAPSHOT_TABLE = '{{%bpi_processing_run_snapshot}}';
+    private const RUN_SNAPSHOT_ROWS_TABLE = '{{%bpi_processing_run_snapshot_breakpoints}}';
+    private const SOURCE_URL_MAX_LENGTH = 255;
+    private const RUN_ID_MAX_LENGTH = 64;
+
+    /** @var array<string, bool> */
+    private const VALID_RUN_STATUSES = [
+        self::RUN_STATUS_COMPLETED => true,
+        self::RUN_STATUS_FAILED => true,
+        self::RUN_STATUS_CANCELLED => true,
+    ];
 
     /** @var array<string, bool> */
     private array $_seenHandles = [];
@@ -157,5 +171,285 @@ class TelemetryService extends Component
             ->orderBy(['lastSeenAt' => SORT_DESC])
             ->limit($limit)
             ->all();
+    }
+
+    public function persistRunSnapshot(array $payload): bool
+    {
+        $db = Craft::$app->getDb();
+        if (!$db->tableExists(self::RUN_SNAPSHOT_TABLE) || !$db->tableExists(self::RUN_SNAPSHOT_ROWS_TABLE)) {
+            Plugin::warning('Run snapshot tables are missing; skipping snapshot persistence.');
+            return false;
+        }
+
+        $runId = mb_substr(trim((string)($payload['runId'] ?? '')), 0, self::RUN_ID_MAX_LENGTH);
+        if ($runId === '') {
+            return false;
+        }
+
+        $status = strtolower(trim((string)($payload['runStatus'] ?? '')));
+        if (!isset(self::VALID_RUN_STATUSES[$status])) {
+            return false;
+        }
+
+        $rawTimestamp = trim((string)($payload['timestamp'] ?? ''));
+        if ($rawTimestamp === '') {
+            return false;
+        }
+
+        try {
+            $ranAt = Db::prepareDateForDb(new \DateTimeImmutable($rawTimestamp));
+        } catch (\Throwable) {
+            return false;
+        }
+
+        $durationMs = max(0, (int)($payload['durationMs'] ?? 0));
+        $entryId = null;
+        if (is_numeric($payload['entryId'] ?? null)) {
+            $normalizedEntryId = (int)$payload['entryId'];
+            if ($normalizedEntryId > 0) {
+                $entryId = $normalizedEntryId;
+            }
+        }
+
+        $sourceUrl = $this->normalizeSourceUrl($payload['sourceUrl'] ?? null);
+        $failureReasonCounts = $this->normalizeFailureReasonCounts($payload['failureReasonCounts'] ?? []);
+        $snapshotRows = $this->normalizeSnapshotRowsByBreakpoint($payload['rowsByBreakpoint'] ?? []);
+
+        $failureReasonCountsJson = json_encode($failureReasonCounts, JSON_UNESCAPED_SLASHES);
+        if (!is_string($failureReasonCountsJson)) {
+            return false;
+        }
+
+        $transaction = $db->beginTransaction();
+
+        try {
+            Db::upsert(self::RUN_SNAPSHOT_TABLE, [
+                'id' => 1,
+                'ranAt' => $ranAt,
+                'runStatus' => $status,
+                'durationMs' => $durationMs,
+                'entryId' => $entryId,
+                'sourceUrl' => $sourceUrl,
+                'runId' => $runId,
+                'failureReasonCounts' => $failureReasonCountsJson,
+            ]);
+
+            $db->createCommand()
+                ->delete(self::RUN_SNAPSHOT_ROWS_TABLE, ['snapshotId' => 1])
+                ->execute();
+
+            if ($snapshotRows !== []) {
+                $now = Db::prepareDateForDb(new \DateTimeImmutable());
+                $batchRows = [];
+                foreach ($snapshotRows as $row) {
+                    $batchRows[] = [
+                        1,
+                        $row['transformHandle'],
+                        $row['breakpointWidth'],
+                        $row['displayAssetUrl'],
+                        $row['rowStatus'],
+                        $now,
+                        $now,
+                    ];
+                }
+
+                $db->createCommand()
+                    ->batchInsert(
+                        self::RUN_SNAPSHOT_ROWS_TABLE,
+                        ['snapshotId', 'transformHandle', 'breakpointWidth', 'displayAssetUrl', 'rowStatus', 'dateCreated', 'dateUpdated'],
+                        $batchRows
+                    )
+                    ->execute();
+            }
+
+            $transaction->commit();
+            return true;
+        } catch (\Throwable $e) {
+            $transaction->rollBack();
+            Plugin::warning('Run snapshot persistence failed: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function getLatestRunSnapshot(): ?array
+    {
+        $db = Craft::$app->getDb();
+        if (!$db->tableExists(self::RUN_SNAPSHOT_TABLE) || !$db->tableExists(self::RUN_SNAPSHOT_ROWS_TABLE)) {
+            return null;
+        }
+
+        $snapshot = (new Query())
+            ->from(self::RUN_SNAPSHOT_TABLE)
+            ->orderBy(['ranAt' => SORT_DESC, 'id' => SORT_DESC])
+            ->one();
+
+        if (!is_array($snapshot)) {
+            return null;
+        }
+
+        $snapshotId = isset($snapshot['id']) ? (int)$snapshot['id'] : 0;
+        $rows = [];
+        if ($snapshotId > 0) {
+            $rows = (new Query())
+                ->select(['transformHandle', 'breakpointWidth', 'displayAssetUrl', 'rowStatus'])
+                ->from(self::RUN_SNAPSHOT_ROWS_TABLE)
+                ->where(['snapshotId' => $snapshotId])
+                ->orderBy(['transformHandle' => SORT_ASC, 'breakpointWidth' => SORT_ASC])
+                ->all();
+        }
+
+        $snapshot['failureReasonCounts'] = $this->decodeFailureReasonCounts($snapshot['failureReasonCounts'] ?? null);
+        $snapshot['rows'] = $rows;
+
+        return $snapshot;
+    }
+
+    private function normalizeSourceUrl(mixed $sourceUrl): ?string
+    {
+        if (!is_string($sourceUrl)) {
+            return null;
+        }
+
+        $trimmed = trim($sourceUrl);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        try {
+            $parts = parse_url($trimmed);
+            if (!is_array($parts)) {
+                throw new \RuntimeException('Could not parse source URL.');
+            }
+
+            $path = isset($parts['path']) ? (string)$parts['path'] : '';
+            if ($path === '') {
+                $path = '/';
+            }
+
+            if (isset($parts['scheme'], $parts['host'])) {
+                $port = isset($parts['port']) ? ':' . (int)$parts['port'] : '';
+                $normalized = strtolower((string)$parts['scheme']) . '://' . (string)$parts['host'] . $port . $path;
+                return mb_substr($normalized, 0, self::SOURCE_URL_MAX_LENGTH);
+            }
+
+            return mb_substr($path, 0, self::SOURCE_URL_MAX_LENGTH);
+        } catch (\Throwable) {
+            $queryStripped = explode('?', $trimmed, 2)[0] ?? $trimmed;
+            $fragmentStripped = explode('#', $queryStripped, 2)[0] ?? $queryStripped;
+            return mb_substr(trim($fragmentStripped), 0, self::SOURCE_URL_MAX_LENGTH);
+        }
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function normalizeFailureReasonCounts(mixed $rawCounts): array
+    {
+        if (!is_array($rawCounts)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($rawCounts as $reason => $count) {
+            if (!is_string($reason)) {
+                continue;
+            }
+
+            $reasonKey = trim($reason);
+            if ($reasonKey === '') {
+                continue;
+            }
+
+            $normalized[$reasonKey] = max(0, (int)$count);
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizeSnapshotRowsByBreakpoint(mixed $rawRowsByBreakpoint): array
+    {
+        if (!is_array($rawRowsByBreakpoint)) {
+            return [];
+        }
+
+        $normalizedRows = [];
+        foreach ($rawRowsByBreakpoint as $breakpointKey => $rows) {
+            if (!is_array($rows)) {
+                continue;
+            }
+
+            $breakpointWidth = is_numeric($breakpointKey) ? (int)$breakpointKey : 0;
+            if ($breakpointWidth <= 0) {
+                continue;
+            }
+
+            foreach ($rows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $transformHandle = trim((string)($row['transform'] ?? ''));
+                if ($transformHandle === '') {
+                    continue;
+                }
+
+                $dedupeKey = $transformHandle . '|' . $breakpointWidth;
+                if (isset($normalizedRows[$dedupeKey])) {
+                    continue;
+                }
+
+                $displayAssetUrl = trim((string)($row['src'] ?? ''));
+                if ($displayAssetUrl === '') {
+                    $displayAssetUrl = null;
+                } elseif (mb_strlen($displayAssetUrl) > 1024) {
+                    $displayAssetUrl = mb_substr($displayAssetUrl, 0, 1024);
+                }
+
+                $enabled = ($row['enabled'] ?? true) === true;
+                $loaded = ($row['loaded'] ?? false) === true;
+                $broken = ($row['broken'] ?? false) === true;
+                $unresolved = ($row['unresolved'] ?? false) === true;
+
+                $rowStatus = 'unprocessed';
+                if ($enabled === false) {
+                    $rowStatus = 'disabled';
+                } elseif ($loaded) {
+                    $rowStatus = 'loaded';
+                } elseif ($broken) {
+                    $rowStatus = 'broken';
+                } elseif ($unresolved) {
+                    $rowStatus = 'unresolved';
+                }
+
+                $normalizedRows[$dedupeKey] = [
+                    'transformHandle' => $transformHandle,
+                    'breakpointWidth' => $breakpointWidth,
+                    'displayAssetUrl' => $displayAssetUrl,
+                    'rowStatus' => $rowStatus,
+                ];
+            }
+        }
+
+        return array_values($normalizedRows);
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function decodeFailureReasonCounts(mixed $rawCounts): array
+    {
+        if (!is_string($rawCounts) || trim($rawCounts) === '') {
+            return [];
+        }
+
+        $decoded = json_decode($rawCounts, true);
+        if (!is_array($decoded)) {
+            return [];
+        }
+
+        return $this->normalizeFailureReasonCounts($decoded);
     }
 }

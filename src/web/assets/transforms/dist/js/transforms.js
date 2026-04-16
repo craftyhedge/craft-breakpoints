@@ -43,8 +43,11 @@ import {
 
     const bpiProcessingConfig = window.bpiProcessingConfig || {};
     const ENTRY_URL_ACTION = 'craft-breakpoint-images/default/entry-url';
+    const PROCESS_DETAILS_SLIDEOUT_ACTION = 'craft-breakpoint-images/default/processing-run-details';
+    const PROCESS_DETAILS_CP_URL = 'craft-breakpoint-images/processing-run-details';
     const RENDER_RESULT_REVIEW_ACTION = 'craft-breakpoint-images/transforms/render-result-review';
     const RENDER_INITIAL_REVIEW_ACTION = 'craft-breakpoint-images/transforms/render-initial-review';
+    const PERSIST_RUN_SNAPSHOT_ACTION = 'craft-breakpoint-images/transforms/persist-run-snapshot';
     const DATASTAR_FETCH_EVENT = 'datastar-fetch';
     const DATASTAR_PATCH_ELEMENTS_EVENT = 'datastar-patch-elements';
     const DATASTAR_PATCH_SIGNALS_EVENT = 'datastar-patch-signals';
@@ -179,6 +182,255 @@ import {
             elements.progressHost.hidden = true;
             elements.progressHost.setAttribute('aria-hidden', 'true');
         }
+    }
+
+    function parsePositiveInt(value) {
+        const parsed = Number.parseInt(String(value ?? ''), 10);
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+    }
+
+    function openEntrySlideout(link) {
+        const elementId = parsePositiveInt(link?.dataset?.entryId);
+        const fallbackSiteId = parsePositiveInt(elements.page?.dataset?.siteId)
+            || parsePositiveInt(typeof Craft !== 'undefined' ? Craft.siteId : null);
+        const siteId = parsePositiveInt(link?.dataset?.siteId) || fallbackSiteId;
+
+        if (!elementId || !siteId || typeof Craft?.createElementEditor !== 'function') {
+            return false;
+        }
+
+        Craft.createElementEditor('craft\\elements\\Entry', {
+            elementId,
+            siteId,
+            params: {
+                fresh: 1,
+            },
+        });
+
+        return true;
+    }
+
+    function bindEntrySlideoutLinks() {
+        if (document.documentElement.dataset.bpiEntrySlideoutBound === '1') {
+            return;
+        }
+
+        document.documentElement.dataset.bpiEntrySlideoutBound = '1';
+
+        document.addEventListener('click', (event) => {
+            const target = event.target instanceof Element
+                ? event.target.closest('.bpi-entry-link[data-bpi-open-entry="true"]')
+                : null;
+
+            if (!(target instanceof Element)) {
+                return;
+            }
+
+            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+                return;
+            }
+
+            const opened = openEntrySlideout(target);
+            if (opened) {
+                event.preventDefault();
+            }
+        });
+    }
+
+    function openProcessDetailsSlideout(link) {
+        const transformHandle = String(link?.dataset?.transformHandle || '').trim();
+        if (!transformHandle) {
+            return;
+        }
+
+        const entryId = parsePositiveInt(link?.dataset?.entryId);
+        const params = {
+            transformHandle,
+        };
+
+        if (entryId) {
+            params.entryId = entryId;
+        }
+
+        if (typeof Craft?.CpScreenSlideout === 'function') {
+            new Craft.CpScreenSlideout(PROCESS_DETAILS_SLIDEOUT_ACTION, {
+                params,
+                containerElement: 'div',
+            });
+            return;
+        }
+
+        if (typeof Craft?.getCpUrl === 'function') {
+            window.location.href = Craft.getCpUrl(PROCESS_DETAILS_CP_URL, params);
+        }
+    }
+
+    function bindProcessDetailsSlideoutLinks() {
+        if (document.documentElement.dataset.bpiProcessDetailsSlideoutBound === '1') {
+            return;
+        }
+
+        document.documentElement.dataset.bpiProcessDetailsSlideoutBound = '1';
+
+        document.addEventListener('click', (event) => {
+            const target = event.target instanceof Element
+                ? event.target.closest('.bpi-process-details-link[data-bpi-open-process-details="true"]')
+                : null;
+
+            if (!(target instanceof Element)) {
+                return;
+            }
+
+            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+                return;
+            }
+
+            event.preventDefault();
+            openProcessDetailsSlideout(target);
+        });
+    }
+
+
+    function getSourceEntrySelectInput() {
+        if (!elements.sourceEntry || typeof window.jQuery !== 'function') {
+            return null;
+        }
+
+        const instance = window.jQuery(elements.sourceEntry).data('elementSelect');
+        if (!instance || typeof instance !== 'object') {
+            return null;
+        }
+
+        return instance;
+    }
+
+    async function setSourceEntryFromRun(entryIdRaw) {
+        const entryId = parsePositiveInt(entryIdRaw);
+        if (!entryId || !elements.sourceEntry) {
+            return false;
+        }
+
+        const selectedEntryId = getSelectedEntryId();
+        if (selectedEntryId === entryId) {
+            syncSelectedEntryIdToUrl(entryId);
+            return true;
+        }
+
+        const sourceSelectInput = getSourceEntrySelectInput();
+        const siteId = parsePositiveInt(elements.page?.dataset?.siteId)
+            || parsePositiveInt(typeof Craft !== 'undefined' ? Craft.siteId : null);
+
+        if (sourceSelectInput
+            && typeof sourceSelectInput.selectElements === 'function'
+            && typeof Craft?.sendActionRequest === 'function'
+            && typeof Craft?.getElementInfo === 'function') {
+            try {
+                if (sourceSelectInput.$elements && sourceSelectInput.$elements.length && typeof sourceSelectInput.removeElements === 'function') {
+                    sourceSelectInput.removeElements(sourceSelectInput.$elements);
+                }
+
+                const response = await Craft.sendActionRequest('POST', 'app/render-elements', {
+                    data: {
+                        elements: [
+                            {
+                                type: 'craft\\elements\\Entry',
+                                id: [entryId],
+                                siteId: siteId || undefined,
+                                instances: [
+                                    {
+                                        context: 'field',
+                                        ui: 'chip',
+                                        size: 'small',
+                                        showActionMenu: true,
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                });
+
+                const renderedCollection = response?.data?.elements || {};
+                const renderedElement = renderedCollection?.[entryId]?.[0] || renderedCollection?.[String(entryId)]?.[0];
+                if (renderedElement) {
+                    const elementInfo = Craft.getElementInfo(renderedElement);
+                    await sourceSelectInput.selectElements([elementInfo]);
+                }
+            } catch (_error) {
+                // Fall back to hidden input update below.
+            }
+        }
+
+        const hiddenInputs = Array.from(elements.sourceEntry.querySelectorAll('input[type="hidden"][name="bpi-source-entry-id"]'));
+        if (hiddenInputs.length) {
+            hiddenInputs[hiddenInputs.length - 1].value = String(entryId);
+            hiddenInputs[hiddenInputs.length - 1].dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        syncSelectedEntryIdToUrl(entryId);
+        state.selectedEntryId = getSelectedEntryId();
+        setButtonsDisabled(false);
+
+        return getSelectedEntryId() === entryId;
+    }
+
+    function closeProcessDetailsPanel(triggerElement) {
+        if (!(triggerElement instanceof Element) || typeof window.jQuery !== 'function') {
+            return;
+        }
+
+        const screenContainer = triggerElement.closest('.cp-screen');
+        if (!(screenContainer instanceof Element)) {
+            return;
+        }
+
+        const cpScreen = window.jQuery(screenContainer).data('cpScreen');
+        if (cpScreen && typeof cpScreen.close === 'function') {
+            cpScreen.close();
+        }
+    }
+
+    function bindProcessAgainButtons() {
+        if (document.documentElement.dataset.bpiProcessAgainBound === '1') {
+            return;
+        }
+
+        document.documentElement.dataset.bpiProcessAgainBound = '1';
+
+        document.addEventListener('click', (event) => {
+            const target = event.target instanceof Element
+                ? event.target.closest('.bpi-process-again-button[data-bpi-process-again="true"]')
+                : null;
+
+            if (!(target instanceof Element)) {
+                return;
+            }
+
+            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+                return;
+            }
+
+            event.preventDefault();
+
+            void (async () => {
+                const entryId = parsePositiveInt(target.dataset.entryId);
+                if (!entryId) {
+                    setStatus('No entry is associated with this run.');
+                    return;
+                }
+
+                const selected = await setSourceEntryFromRun(entryId);
+                if (!selected) {
+                    setStatus('Could not select the run entry.');
+                    return;
+                }
+
+                closeProcessDetailsPanel(target);
+
+                if (elements.btnRun) {
+                    elements.btnRun.click();
+                }
+            })();
+        });
     }
 
     function updateCopyButtonVisibility() {
@@ -1587,6 +1839,65 @@ import {
         }));
     }
 
+    function summarizeFailureReasonCountsFromReport(report) {
+        const counts = {
+            network: 0,
+            decode: 0,
+            'unsupported-source': 0,
+            cancelled: 0,
+        };
+
+        const issues = Array.isArray(report?.issues) ? report.issues : [];
+        issues.forEach((issue) => {
+            const code = String(issue?.code || '').trim();
+            if (code === 'decode-failure') {
+                counts.decode += 1;
+                return;
+            }
+
+            if (code === 'unsupported-source') {
+                counts['unsupported-source'] += 1;
+                return;
+            }
+
+            if (code === 'network-failure') {
+                counts.network += 1;
+                return;
+            }
+
+            if (code === 'unresolved-on-cancel') {
+                counts.cancelled += 1;
+            }
+        });
+
+        return counts;
+    }
+
+    async function persistRunSnapshot(report, rowsByBreakpoint) {
+        if (!report || typeof report !== 'object') {
+            return false;
+        }
+
+        if (typeof Craft === 'undefined' || typeof Craft.sendActionRequest !== 'function') {
+            return false;
+        }
+
+        const response = await Craft.sendActionRequest('POST', PERSIST_RUN_SNAPSHOT_ACTION, {
+            data: {
+                runId: String(report.runId || ''),
+                timestamp: String(report.completedAt || new Date().toISOString()),
+                runStatus: String(report.status || 'failed'),
+                durationMs: Math.max(0, Number(report.durationMs) || 0),
+                entryId: getSelectedEntryId(),
+                sourceUrl: String(report.sourceUrl || ''),
+                failureReasonCounts: summarizeFailureReasonCountsFromReport(report),
+                rowsByBreakpoint: rowsByBreakpoint && typeof rowsByBreakpoint === 'object' ? rowsByBreakpoint : {},
+            },
+        });
+
+        return response?.data?.ok === true;
+    }
+
     function buildWaitingStatusMessage(breakpoint, pendingCount, waitedMs = null) {
         return processingBuildWaitingStatusMessage(breakpoint, pendingCount, waitedMs);
     }
@@ -1791,11 +2102,22 @@ import {
             );
 
             await publishResult(result);
+            let snapshotPersisted = true;
+            try {
+                snapshotPersisted = await persistRunSnapshot(finalizedReport, rowsByBreakpoint);
+            } catch (error) {
+                // Snapshot persistence should never block processing completion UX.
+                console.error(error);
+                snapshotPersisted = false;
+            }
             const setCount = Math.max(0, Number(result.summary.setCount) || 0);
             const warningCount = Math.max(0, Number(result.summary.warningCount) || 0);
             const setLabel = setCount === 1 ? 'set' : 'sets';
             const warningLabel = warningCount === 1 ? 'warning' : 'warnings';
-            setStatus(`Done. ${setCount} ${setLabel} processed. ${warningCount} ${warningLabel} to address.`);
+            const completionStatus = `Done. ${setCount} ${setLabel} processed. ${warningCount} ${warningLabel} to address.`;
+            setStatus(snapshotPersisted
+                ? completionStatus
+                : `${completionStatus} Run details were not saved.`);
         } catch (error) {
             const cancelled = error instanceof ProcessingCancelledError;
 
@@ -1814,11 +2136,20 @@ import {
                 failureMessage: String(error?.message || 'Processing failed.'),
             });
             publishRunReport(finalizedReport);
+            let snapshotPersisted = true;
+            try {
+                snapshotPersisted = await persistRunSnapshot(finalizedReport, rowsByBreakpoint);
+            } catch (persistError) {
+                // Snapshot persistence should never block failure/cancel status updates.
+                console.error(persistError);
+                snapshotPersisted = false;
+            }
 
+            const snapshotFailureNote = snapshotPersisted ? '' : ' Run details were not saved.';
             if (cancelled) {
-                setStatus('Processing cancelled. No partial results were published.');
+                setStatus(`Processing cancelled. No partial results were published.${snapshotFailureNote}`);
             } else {
-                setStatus(`Error: ${error.message}`);
+                setStatus(`Error: ${error.message}${snapshotFailureNote}`);
             }
         } finally {
             state.busy = false;
@@ -1948,6 +2279,9 @@ import {
     state.selectedEntryId = getSelectedEntryId();
     setupDatastarModalIgnoreGuard();
     bindSourceSelectionSync();
+    bindEntrySlideoutLinks();
+    bindProcessDetailsSlideoutLinks();
+    bindProcessAgainButtons();
     setButtonsDisabled(false);
     setupDragToScroll();
     setupDatastarCardUpdateStatus();

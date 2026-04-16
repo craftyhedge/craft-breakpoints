@@ -372,6 +372,39 @@ class TransformsController extends Controller
         return $this->asJson($rendered);
     }
 
+    public function actionPersistRunSnapshot(): Response
+    {
+        $this->requireCpRequest();
+        $this->requireAcceptsJson();
+        $this->requirePostRequest();
+
+        if (!Plugin::getInstance()->getTelemetry()->canEditTransforms()) {
+            throw new ForbiddenHttpException('Transform editing is disabled in this environment.');
+        }
+
+        $payload = [
+            'runId' => $this->request->getBodyParam('runId'),
+            'timestamp' => $this->request->getBodyParam('timestamp'),
+            'runStatus' => $this->request->getBodyParam('runStatus'),
+            'durationMs' => $this->request->getBodyParam('durationMs'),
+            'entryId' => $this->request->getBodyParam('entryId'),
+            'sourceUrl' => $this->request->getBodyParam('sourceUrl'),
+            'failureReasonCounts' => $this->request->getBodyParam('failureReasonCounts', []),
+            'rowsByBreakpoint' => $this->request->getBodyParam('rowsByBreakpoint', []),
+        ];
+
+        $persisted = Plugin::getInstance()->getTelemetry()->persistRunSnapshot($payload);
+        if (!$persisted) {
+            return $this->asJson([
+                'ok' => false,
+            ]);
+        }
+
+        return $this->asJson([
+            'ok' => true,
+        ]);
+    }
+
     private function asDatastarSignalsPatch(array $signals): Response
     {
         $event = new PatchSignals($signals);

@@ -846,6 +846,7 @@ class TransformEditor extends Component
         array $preferredOrderBySet = [],
     ): array {
         $storedTransforms = $this->getReviewStoredTransforms();
+        $snapshotRowsByTransformAndBreakpoint = $this->getLatestRunSnapshotRowsByTransformAndBreakpoint();
         $syntheticRowsByBreakpoint = [];
 
         foreach ($storedTransforms as $setName => $transformDefinition) {
@@ -886,17 +887,30 @@ class TransformEditor extends Component
                     $autoDimension,
                 );
 
+                $snapshotRow = $snapshotRowsByTransformAndBreakpoint[$setName . '|' . $breakpoint] ?? null;
+                $savedDisplayAssetUrl = is_array($snapshotRow)
+                    ? trim((string)($snapshotRow['displayAssetUrl'] ?? ''))
+                    : '';
+                $previewSrc = $savedDisplayAssetUrl !== '' ? $savedDisplayAssetUrl : $placeholderSrc;
+                $rowStatus = is_array($snapshotRow)
+                    ? trim((string)($snapshotRow['rowStatus'] ?? 'unprocessed'))
+                    : 'loaded';
+                $enabled = $rowStatus !== 'disabled';
+                $loaded = $rowStatus === 'loaded' || $rowStatus === 'disabled';
+                $broken = $rowStatus === 'broken';
+                $unresolved = $rowStatus === 'unresolved';
+
                 $syntheticRowsByBreakpoint[$breakpoint][] = [
                     'transform' => $setName,
                     'assetId' => '',
                     'title' => $setName . ' ' . $breakpoint . 'px placeholder',
-                    'enabled' => true,
+                    'enabled' => $enabled,
                     'isVisible' => true,
-                    'loaded' => true,
-                    'broken' => false,
-                    'unresolved' => false,
-                    'sourceUsed' => $placeholderSrc,
-                    'src' => $placeholderSrc,
+                    'loaded' => $loaded,
+                    'broken' => $broken,
+                    'unresolved' => $unresolved,
+                    'sourceUsed' => $previewSrc,
+                    'src' => $previewSrc,
                     'rendered' => [
                         'width' => 0,
                         'height' => 0,
@@ -1032,6 +1046,8 @@ class TransformEditor extends Component
         $configuredBreakpoints = $breakpoints !== [] ? $breakpoints : $this->getReviewConfiguredBreakpoints();
         $escapeBreakpoint = $this->getReviewEscapeBreakpoint();
         $storedTransforms = $this->getReviewStoredTransforms();
+        $latestRunSnapshot = $this->getLatestRunSnapshotForReview();
+        $latestRunSummariesByTransform = $this->buildLatestRunSummaryByTransform($latestRunSnapshot);
         $cards = [];
 
         foreach ($transformNames as $transformName) {
@@ -1159,6 +1175,11 @@ class TransformEditor extends Component
             $scopeLabel = $scope['mode'] === 'all'
                 ? 'All'
                 : ($scope['mode'] === 'breakpoint' ? ($scope['breakpoint'] . 'px') : 'Select scope');
+            $lastProcessPanelHtml = $this->buildLastProcessPanelMarkup(
+                $latestRunSnapshot,
+                $latestRunSummariesByTransform[$transformName] ?? null,
+                $transformName,
+            );
 
             $renderedRowsForTransformJson = json_encode($renderedRowsForTransform, JSON_UNESCAPED_SLASHES);
             if (!is_string($renderedRowsForTransformJson)) {
@@ -1199,6 +1220,7 @@ class TransformEditor extends Component
                 'ratioHeightInputId' => $this->escapeReviewHtml($editPanelId . '-ratio-height'),
                 'ratioSourceName' => $this->escapeReviewHtml($editPanelId . '-ratio-source'),
                 'ratioSourceBreakpointOptions' => $ratioSourceBreakpointOptions,
+                'lastProcessPanelHtml' => $lastProcessPanelHtml,
             ]);
         }
 
@@ -1575,6 +1597,223 @@ class TransformEditor extends Component
 
         $transforms = $this->_plugin->getTransformStore()->getTransforms();
         return is_array($transforms) ? $transforms : [];
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private function getLatestRunSnapshotRowsByTransformAndBreakpoint(): array
+    {
+        if ($this->_plugin === null) {
+            return [];
+        }
+
+        $snapshot = $this->_plugin->getTelemetry()->getLatestRunSnapshot();
+        if (!is_array($snapshot)) {
+            return [];
+        }
+
+        $rows = isset($snapshot['rows']) && is_array($snapshot['rows'])
+            ? $snapshot['rows']
+            : [];
+        if ($rows === []) {
+            return [];
+        }
+
+        $indexed = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $transformHandle = trim((string)($row['transformHandle'] ?? ''));
+            $breakpointWidth = isset($row['breakpointWidth']) && is_numeric($row['breakpointWidth'])
+                ? (int)$row['breakpointWidth']
+                : 0;
+            if ($transformHandle === '' || $breakpointWidth <= 0) {
+                continue;
+            }
+
+            $indexed[$transformHandle . '|' . $breakpointWidth] = $row;
+        }
+
+        return $indexed;
+    }
+
+    private function getLatestRunSnapshotForReview(): ?array
+    {
+        if ($this->_plugin === null) {
+            return null;
+        }
+
+        $snapshot = $this->_plugin->getTelemetry()->getLatestRunSnapshot();
+        return is_array($snapshot) ? $snapshot : null;
+    }
+
+    /**
+     * @param array<string, mixed>|null $snapshot
+     * @return array<string, array<string, mixed>>
+     */
+    private function buildLatestRunSummaryByTransform(?array $snapshot): array
+    {
+        if (!is_array($snapshot)) {
+            return [];
+        }
+
+        $rows = isset($snapshot['rows']) && is_array($snapshot['rows'])
+            ? $snapshot['rows']
+            : [];
+        if ($rows === []) {
+            return [];
+        }
+
+        $summaries = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $transformHandle = trim((string)($row['transformHandle'] ?? ''));
+            $breakpointWidth = isset($row['breakpointWidth']) && is_numeric($row['breakpointWidth'])
+                ? (int)$row['breakpointWidth']
+                : 0;
+            if ($transformHandle === '' || $breakpointWidth <= 0) {
+                continue;
+            }
+
+            if (!isset($summaries[$transformHandle])) {
+                $summaries[$transformHandle] = [
+                    'rowsTotal' => 0,
+                    'previewCount' => 0,
+                    'statusCounts' => [
+                        'loaded' => 0,
+                        'broken' => 0,
+                        'unresolved' => 0,
+                        'disabled' => 0,
+                        'unprocessed' => 0,
+                    ],
+                    'statusByBreakpoint' => [],
+                ];
+            }
+
+            $rowStatus = $this->normalizeLatestRunRowStatus((string)($row['rowStatus'] ?? ''));
+            $displayAssetUrl = trim((string)($row['displayAssetUrl'] ?? ''));
+
+            $summaries[$transformHandle]['rowsTotal'] += 1;
+            if ($displayAssetUrl !== '') {
+                $summaries[$transformHandle]['previewCount'] += 1;
+            }
+
+            if (!isset($summaries[$transformHandle]['statusCounts'][$rowStatus])) {
+                $summaries[$transformHandle]['statusCounts'][$rowStatus] = 0;
+            }
+
+            $summaries[$transformHandle]['statusCounts'][$rowStatus] += 1;
+            $summaries[$transformHandle]['statusByBreakpoint'][(string)$breakpointWidth] = $rowStatus;
+        }
+
+        foreach ($summaries as $transformHandle => $summary) {
+            $statusByBreakpoint = $summary['statusByBreakpoint'];
+            if (is_array($statusByBreakpoint)) {
+                ksort($statusByBreakpoint, SORT_NUMERIC);
+                $summaries[$transformHandle]['statusByBreakpoint'] = $statusByBreakpoint;
+            }
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @param array<string, mixed>|null $snapshot
+    * @param array<string, mixed>|null $transformSummary
+    * @param string $transformHandle
+     */
+    private function buildLastProcessPanelMarkup(?array $snapshot, ?array $_transformSummary, string $transformHandle): string
+    {
+        if (!is_array($snapshot)) {
+            return '<aside class="bpi-transform-last-process-pane"><div class="bpi-transform-last-process-header"><span class="bpi-transform-last-process-status-icon bpi-transform-last-process-status-icon-unknown" aria-label="Unknown" title="Unknown"><span data-icon="alert" aria-hidden="true"></span></span></div><p class="light bpi-transform-last-process-empty">No saved run data yet.</p></aside>';
+        }
+
+        $runStatus = $this->normalizeLatestRunStatus((string)($snapshot['runStatus'] ?? 'unknown'));
+        $ranAtLabel = $this->formatLatestRunTimestamp($snapshot['ranAt'] ?? null);
+        $entryId = is_numeric($snapshot['entryId'] ?? null) ? (int)$snapshot['entryId'] : 0;
+
+        $statusIconClass = match ($runStatus) {
+            'completed' => 'bpi-transform-last-process-status-icon-success',
+            'failed', 'cancelled' => 'bpi-transform-last-process-status-icon-failed',
+            default => 'bpi-transform-last-process-status-icon-unknown',
+        };
+        $statusLabel = match ($runStatus) {
+            'completed' => 'Completed',
+            'failed' => 'Failed',
+            'cancelled' => 'Cancelled',
+            default => 'Unknown',
+        };
+        $statusIconName = match ($runStatus) {
+            'completed' => 'check',
+            'failed', 'cancelled' => 'xmark',
+            default => 'alert',
+        };
+
+        return sprintf(
+            '<button type="button" class="bpi-transform-last-process-pane bpi-process-details-link" data-bpi-open-process-details="true" data-transform-handle="%s" data-entry-id="%s" title="Details" aria-label="Details">'
+            . '<div class="bpi-transform-last-process-header">'
+            . '<span class="bpi-transform-last-process-status-icon %s" aria-label="%s" title="%s"><span data-icon="%s" aria-hidden="true"></span></span>'
+            . '<p class="bpi-transform-last-process-compact-meta">%s</p>'
+            . '</div>'
+            . '</button>',
+            $this->escapeReviewHtml($transformHandle),
+            $this->escapeReviewHtml((string)max(0, $entryId)),
+            $this->escapeReviewHtml($statusIconClass),
+            $this->escapeReviewHtml($statusLabel),
+            $this->escapeReviewHtml($statusLabel),
+            $this->escapeReviewHtml($statusIconName),
+            $this->escapeReviewHtml($ranAtLabel),
+        );
+    }
+
+    private function normalizeLatestRunRowStatus(string $status): string
+    {
+        $normalized = strtolower(trim($status));
+        if ($normalized === 'success') {
+            return 'loaded';
+        }
+
+        if ($normalized === 'failed' || $normalized === 'cancelled') {
+            return 'unprocessed';
+        }
+
+        return match ($normalized) {
+            'loaded', 'broken', 'unresolved', 'disabled', 'unprocessed' => $normalized,
+            default => 'unprocessed',
+        };
+    }
+
+    private function normalizeLatestRunStatus(string $status): string
+    {
+        $normalized = strtolower(trim($status));
+
+        return match ($normalized) {
+            'completed', 'success' => 'completed',
+            'failed' => 'failed',
+            'cancelled' => 'cancelled',
+            default => 'unknown',
+        };
+    }
+
+    private function formatLatestRunTimestamp(mixed $rawValue): string
+    {
+        $raw = trim((string)$rawValue);
+        if ($raw === '') {
+            return '-';
+        }
+
+        try {
+            $date = new \DateTimeImmutable($raw);
+            return $date->format('Y-m-d H:i:s');
+        } catch (\Throwable) {
+            return $raw;
+        }
     }
 
     private function getReviewTransformConfig(array $storedTransforms, string $transformName): ?array

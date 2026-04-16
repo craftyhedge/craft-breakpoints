@@ -23,11 +23,63 @@ class Install extends Migration
             $this->createIndex(null, '{{%bpi_transform_last_processed}}', ['lastSeenAt'], false);
         }
 
+        if (!$this->db->tableExists('{{%bpi_processing_run_snapshot}}')) {
+            $this->createTable('{{%bpi_processing_run_snapshot}}', [
+                'id' => $this->primaryKey(),
+                'ranAt' => $this->dateTime()->notNull(),
+                'runStatus' => $this->string(16)->notNull(),
+                'durationMs' => $this->integer()->notNull()->defaultValue(0),
+                'entryId' => $this->integer()->null()->defaultValue(null),
+                'sourceUrl' => $this->string(255)->null()->defaultValue(null),
+                'runId' => $this->string(64)->null()->defaultValue(null),
+                'failureReasonCounts' => $this->text()->notNull(),
+                'dateCreated' => $this->dateTime()->notNull(),
+                'dateUpdated' => $this->dateTime()->notNull(),
+            ]);
+
+            $this->createIndex(null, '{{%bpi_processing_run_snapshot}}', ['ranAt'], false);
+            $this->createIndex(null, '{{%bpi_processing_run_snapshot}}', ['entryId'], false);
+        }
+
+        if (!$this->db->tableExists('{{%bpi_processing_run_snapshot_breakpoints}}')) {
+            $this->createTable('{{%bpi_processing_run_snapshot_breakpoints}}', [
+                'id' => $this->primaryKey(),
+                'snapshotId' => $this->integer()->notNull(),
+                'transformHandle' => $this->string()->notNull(),
+                'breakpointWidth' => $this->integer()->notNull(),
+                'displayAssetUrl' => $this->string(1024)->null()->defaultValue(null),
+                'rowStatus' => $this->string(24)->notNull()->defaultValue('unprocessed'),
+                'dateCreated' => $this->dateTime()->notNull(),
+                'dateUpdated' => $this->dateTime()->notNull(),
+            ]);
+
+            $this->createIndex(
+                null,
+                '{{%bpi_processing_run_snapshot_breakpoints}}',
+                ['snapshotId', 'transformHandle', 'breakpointWidth'],
+                true
+            );
+            $this->createIndex(null, '{{%bpi_processing_run_snapshot_breakpoints}}', ['transformHandle'], false);
+            $this->createIndex(null, '{{%bpi_processing_run_snapshot_breakpoints}}', ['breakpointWidth'], false);
+
+            $this->addForeignKey(
+                null,
+                '{{%bpi_processing_run_snapshot_breakpoints}}',
+                ['snapshotId'],
+                '{{%bpi_processing_run_snapshot}}',
+                ['id'],
+                'CASCADE',
+                'CASCADE'
+            );
+        }
+
         return true;
     }
 
     public function safeDown(): bool
     {
+        $this->dropTableIfExists('{{%bpi_processing_run_snapshot_breakpoints}}');
+        $this->dropTableIfExists('{{%bpi_processing_run_snapshot}}');
         $this->dropTableIfExists('{{%bpi_transform_last_processed}}');
 
         return true;

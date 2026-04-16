@@ -6,6 +6,115 @@
 {% block content %}
     {% set configSets = configSets ?? {} %}
     {% set transformRows = transformRows ?? [] %}
+    {% set latestRunSnapshot = latestRunSnapshot ?? null %}
+    {% set latestRunRows = latestRunSnapshot and latestRunSnapshot.rows is defined and latestRunSnapshot.rows is iterable ? latestRunSnapshot.rows : [] %}
+    {% set latestRunFailureCounts = latestRunSnapshot and latestRunSnapshot.failureReasonCounts is defined and latestRunSnapshot.failureReasonCounts is iterable ? latestRunSnapshot.failureReasonCounts : {} %}
+
+    {% if latestRunSnapshot %}
+        <div class="meta read-only bpi-run-snapshot-summary">
+            <h2>{{ 'Last Processing Run'|t('craft-breakpoint-images') }}</h2>
+            <table class="data fullwidth">
+                <tbody>
+                    <tr>
+                        <th scope="row" class="nowrap">{{ 'Status'|t('craft-breakpoint-images') }}</th>
+                        <td>{{ latestRunSnapshot.runStatus ?? 'unknown' }}</td>
+                    </tr>
+                    <tr>
+                        <th scope="row" class="nowrap">{{ 'Completed At'|t('craft-breakpoint-images') }}</th>
+                        <td>
+                            {% if latestRunSnapshot.ranAt %}
+                                {{ latestRunSnapshot.ranAt|date('Y-m-d') }} <span class="light">{{ latestRunSnapshot.ranAt|date('H:i:s') }}</span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row" class="nowrap">{{ 'Duration (ms)'|t('craft-breakpoint-images') }}</th>
+                        <td>{{ latestRunSnapshot.durationMs ?? 0 }}</td>
+                    </tr>
+                    <tr>
+                        <th scope="row" class="nowrap">{{ 'Run ID'|t('craft-breakpoint-images') }}</th>
+                        <td>{{ latestRunSnapshot.runId ?? '-' }}</td>
+                    </tr>
+                    <tr>
+                        <th scope="row" class="nowrap">{{ 'Entry'|t('craft-breakpoint-images') }}</th>
+                        <td>
+                            {% if latestRunEntry %}
+                                <a
+                                    class="go bpi-entry-link"
+                                    href="{{ latestRunEntry.cpEditUrl ?? '#' }}"
+                                    title="{{ 'Open entry in side panel'|t('craft-breakpoint-images') }}"
+                                    data-bpi-open-entry="true"
+                                    data-entry-id="{{ latestRunEntry.id }}"
+                                    data-site-id="{{ latestRunEntry.siteId }}"
+                                >
+                                    {{ latestRunEntry.title ?: 'Untitled'|t('app') }} <span class="light">({{ latestRunEntry.id }})</span>
+                                </a>
+                            {% elseif latestRunSnapshot.entryId %}
+                                {{ latestRunSnapshot.entryId }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row" class="nowrap">{{ 'Source URL'|t('craft-breakpoint-images') }}</th>
+                        <td>
+                            {% if latestRunSnapshot.sourceUrl %}
+                                <a href="{{ latestRunSnapshot.sourceUrl }}" target="_blank" rel="noopener">{{ latestRunSnapshot.sourceUrl }}</a>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row" class="nowrap">{{ 'Failure Counts'|t('craft-breakpoint-images') }}</th>
+                        <td>
+                            {% if latestRunFailureCounts|length %}
+                                {% for reason, count in latestRunFailureCounts %}
+                                    <span class="bpi-run-failure-chip">{{ reason }}: {{ count }}</span>
+                                {% endfor %}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        {% if latestRunRows|length %}
+            <div class="tablepane bpi-transform-tablepane">
+                <table class="data fullwidth">
+                    <thead>
+                        <tr>
+                            <th scope="col" class="nowrap">{{ 'Transform'|t('craft-breakpoint-images') }}</th>
+                            <th scope="col" class="nowrap">{{ 'Breakpoint'|t('craft-breakpoint-images') }}</th>
+                            <th scope="col" class="nowrap">{{ 'Status'|t('craft-breakpoint-images') }}</th>
+                            <th scope="col" class="nowrap">{{ 'Display Asset URL'|t('craft-breakpoint-images') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in latestRunRows %}
+                            <tr>
+                                <td class="nowrap"><code>{{ row.transformHandle }}</code></td>
+                                <td class="nowrap">{{ row.breakpointWidth }}px</td>
+                                <td class="nowrap">{{ row.rowStatus ?? 'unprocessed' }}</td>
+                                <td class="nowrap">
+                                    {% if row.displayAssetUrl %}
+                                        <a href="{{ row.displayAssetUrl }}" target="_blank" rel="noopener">{{ row.displayAssetUrl }}</a>
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
+    {% endif %}
 
     {% if transformRows|length %}
         <p class="light">{{ 'Observation columns are populated from runtime telemetry when available.'|t('craft-breakpoint-images') }}</p>
@@ -83,6 +192,15 @@
     .bpi-entry-link {
         display: inline-block;
         cursor: pointer;
+    }
+
+    .bpi-run-snapshot-summary {
+        margin-bottom: 1rem;
+    }
+
+    .bpi-run-failure-chip {
+        display: inline-block;
+        margin-right: 0.4rem;
     }
 {% endcss %}
 
