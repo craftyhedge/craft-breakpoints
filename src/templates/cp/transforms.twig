@@ -1,6 +1,6 @@
 {% extends "_layouts/cp" %}
 {% import '_includes/forms' as forms %}
-{% set title = 'Process and Review'|t('craft-breakpoint-images') %}
+{% set title = 'Transform Sets'|t('craft-breakpoint-images') %}
 {% set selectedSubnavItem = selectedSubnavItem ?? 'processing' %}
 {% set toolbar %}
     <div class="bpi-header-status-wrap">
@@ -37,14 +37,11 @@
 
 {% block sidebar %}
     {% set transformSets = processingConfig.sets ?? {} %}
-    <nav aria-label="{{ 'Transform Sets'|t('craft-breakpoint-images') }}">
-        <ul>
-            <li>
-                <a class="sel" aria-current="page">{{ 'All'|t('app') }}</a>
-            </li>
+    <nav id="bpi-transform-sets-sidebar" aria-label="{{ 'Transform Sets'|t('craft-breakpoint-images') }}">
+        <ul id="bpi-transform-sets-list">
             {% for setName in transformSets|keys %}
-                <li>
-                    <a>{{ setName }}</a>
+                <li data-set="{{ setName|e('html_attr') }}">
+                    <a href="#" class="bpi-transform-sidebar-link" data-set="{{ setName|e('html_attr') }}">{{ setName }}</a>
                 </li>
             {% else %}
                 <li><a>{{ 'No transform sets found.'|t('craft-breakpoint-images') }}</a></li>
@@ -67,7 +64,6 @@
         </div>
         {{ forms.button({
             id: 'bpi-run-processing',
-            class: 'submit',
             label: 'Process'|t('craft-breakpoint-images'),
             disabled: true
         }) }}
@@ -101,7 +97,7 @@
         </div>
 
         <div class="bpi-results-heading-wrap">
-            <h2 id="bpi-results-heading" class="heading">{{ 'Saved Transform Sets'|t('craft-breakpoint-images') }}</h2>
+            <h2 id="bpi-results-heading" class="heading">{{ 'Saved Sets'|t('craft-breakpoint-images') }}</h2>
         </div>
 
         <div class="bpi-results-pane">

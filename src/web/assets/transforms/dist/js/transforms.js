@@ -56,6 +56,8 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
     const elements = {
         page: document.querySelector('.bpi-transforms-page'),
+        transformSetsSidebar: document.getElementById('bpi-transform-sets-sidebar'),
+        transformSetsList: document.getElementById('bpi-transform-sets-list'),
         sourceEntry: document.getElementById('bpi-source-entry'),
         status: document.getElementById('bpi-status'),
         progressHost: document.getElementById('bpi-progress-host'),
@@ -103,10 +105,10 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
     const RESULTS_COPY = {
         saved: {
-            heading: 'Saved Transform Sets',
+            heading: 'Saved Sets',
         },
         processed: {
-            heading: 'Processed Results',
+            heading: 'Processed Sets',
         },
     };
 
@@ -492,6 +494,90 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         elements.resultsOrderingNoteLabel.textContent = showWarningOrder
             ? 'Warnings first'
             : '';
+    }
+
+    function getVisualResultCardOrder() {
+        if (!elements.visualResults) {
+            return [];
+        }
+
+        const cards = Array.from(elements.visualResults.querySelectorAll('.bpi-transform-card[data-set]'));
+        return cards
+            .map((card) => String(card.getAttribute('data-set') || '').trim())
+            .filter((setName) => setName !== '');
+    }
+
+    function syncSidebarTransformOrderToCards() {
+        const list = elements.transformSetsList;
+        if (!(list instanceof HTMLElement)) {
+            return;
+        }
+
+        const cardOrder = getVisualResultCardOrder();
+        if (cardOrder.length < 1) {
+            return;
+        }
+
+        const allItem = list.querySelector('li[data-role="all"]');
+        const setItems = Array.from(list.querySelectorAll('li[data-set]'));
+        const setItemByName = new Map();
+
+        setItems.forEach((item) => {
+            const setName = String(item.getAttribute('data-set') || '').trim();
+            if (setName !== '' && !setItemByName.has(setName)) {
+                setItemByName.set(setName, item);
+            }
+        });
+
+        const orderedItems = [];
+        cardOrder.forEach((setName) => {
+            const item = setItemByName.get(setName) || null;
+            if (item) {
+                orderedItems.push(item);
+                setItemByName.delete(setName);
+            }
+        });
+
+        const remainingItems = Array.from(setItemByName.values());
+        const destinationItems = orderedItems.concat(remainingItems);
+
+        destinationItems.forEach((item) => {
+            list.appendChild(item);
+        });
+
+        if (allItem) {
+            list.insertBefore(allItem, list.firstChild);
+        }
+    }
+
+    function bindTransformSidebarCardNavigation() {
+        const list = elements.transformSetsList;
+        if (!(list instanceof HTMLElement)) {
+            return;
+        }
+
+        list.addEventListener('click', (event) => {
+            const target = event.target instanceof Element
+                ? event.target.closest('a.bpi-transform-sidebar-link[data-set]')
+                : null;
+
+            if (!(target instanceof HTMLAnchorElement)) {
+                return;
+            }
+
+            const setName = String(target.getAttribute('data-set') || '').trim();
+            if (setName === '') {
+                return;
+            }
+
+            const card = findTransformCard(setName);
+            if (!(card instanceof HTMLElement)) {
+                return;
+            }
+
+            event.preventDefault();
+            card.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
+        });
     }
 
     function setStopButtonVisibility(isVisible) {
@@ -1846,6 +1932,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                 elements.visualResults.innerHTML = payload.visualResultsHtml;
             }
 
+            syncSidebarTransformOrderToCards();
             reapplyTransformUpdateStatuses();
             scheduleBreakpointPreviewHeightSync();
             window.setTimeout(scheduleBreakpointPreviewHeightSync, 120);
@@ -2410,6 +2497,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     bindProcessDetailsSlideoutLinks();
     bindProcessAgainButtons();
     bindAssetPaginationReviewRerender();
+    bindTransformSidebarCardNavigation();
     setButtonsDisabled(false);
     setupDragToScroll();
     setupDatastarCardUpdateStatus();

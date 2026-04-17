@@ -1638,18 +1638,27 @@ class TransformEditor extends Component
 
         $widthClass = $this->getReviewRenderedDimensionClass($renderedWidth, $currentWidth, $autoDimension, 'width');
         $heightClass = $this->getReviewRenderedDimensionClass($renderedHeight, $currentHeight, $autoDimension, 'height');
+        $renderedApplyNoop = $this->isReviewRenderedApplyNoop(
+            $renderedRowsPayload,
+            $currentWidth,
+            $currentHeight,
+            $autoDimension,
+        );
 
-        $previewMedia = $previewSrc !== ''
-            ? sprintf(
-                '<img src="%s" alt="%s" class="bpi_breakpoint-result-image" draggable="false" style="--bpi-aspect-ratio:%s;">',
-                $this->escapeReviewHtml($previewSrc),
-                $this->escapeReviewHtml('Preview ' . $transformName . ' ' . $breakpoint . 'px'),
-                $this->escapeReviewHtml($aspectRatio),
-            )
-            : sprintf(
-                '<div class="bpi_breakpoint-result-image" style="--bpi-aspect-ratio:%s;"></div>',
-                $this->escapeReviewHtml($aspectRatio),
-            );
+        $currentEnabled = ($currentRow['enabled'] ?? true) === true;
+        $previewMedia = $currentEnabled
+            ? ($previewSrc !== ''
+                ? sprintf(
+                    '<img src="%s" alt="%s" class="bpi_breakpoint-result-image" draggable="false" style="--bpi-aspect-ratio:%s;">',
+                    $this->escapeReviewHtml($previewSrc),
+                    $this->escapeReviewHtml('Preview ' . $transformName . ' ' . $breakpoint . 'px'),
+                    $this->escapeReviewHtml($aspectRatio),
+                )
+                : sprintf(
+                    '<div class="bpi_breakpoint-result-image" style="--bpi-aspect-ratio:%s;"></div>',
+                    $this->escapeReviewHtml($aspectRatio),
+                ))
+            : '';
 
         $hiddenCount = (int)($summary['hiddenCount'] ?? 0);
         $unloadedCount = (int)($summary['unloadedCount'] ?? 0);
@@ -1659,7 +1668,6 @@ class TransformEditor extends Component
         $unloadedBadge = $unloadedCount > 0
             ? '<span class="bpi-row-badge">Unloaded ' . $unloadedCount . '</span>'
             : '';
-        $currentEnabled = ($currentRow['enabled'] ?? true) === true;
         $escapeBadge = $escapeBreakpoint !== null && $escapeBreakpoint === $breakpoint
             ? '<span class="bpi_escaped-notice">ESC</span>'
             : '';
@@ -1694,6 +1702,18 @@ class TransformEditor extends Component
             'breakpointEnableAriaChecked' => $currentEnabled ? 'true' : 'false',
             'renderedRowsPayloadJson' => $this->escapeReviewHtml($renderedRowsPayloadJson),
             'breakpointDisabledAttr' => $renderedRowsPayload === [] ? 'disabled' : '',
+            'breakpointRenderedApplyMatchClass' => $renderedApplyNoop ? 'bpi-rendered-apply-single-noop' : '',
+            'breakpointRenderedApplyAriaLabel' => $this->escapeReviewHtml(
+                ($renderedApplyNoop ? 'Rendered values already match for ' : 'Apply rendered values for ')
+                . $breakpoint
+                . 'px'
+            ),
+            'breakpointRenderedApplyTitle' => $this->escapeReviewHtml(
+                ($renderedApplyNoop ? 'Rendered values already match for ' : 'Apply rendered values for ')
+                . $breakpoint
+                . 'px'
+            ),
+            'breakpointRenderedApplyIconName' => $renderedApplyNoop ? 'check' : 'arrow-down',
             'breakpointRenderedApplyHiddenClass' => $hideRenderedApply ? 'bpi-force-hidden' : '',
             'breakpointRenderedRowHiddenClass' => $hideRenderedApply ? 'bpi-force-hidden' : '',
             'relativeWidth' => (string)$relativeWidth,
@@ -3095,6 +3115,51 @@ class TransformEditor extends Component
         }
 
         return (string)$value;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $renderedRowsPayload
+     */
+    private function isReviewRenderedApplyNoop(
+        array $renderedRowsPayload,
+        ?int $currentWidth,
+        ?int $currentHeight,
+        ?string $autoDimension,
+    ): bool {
+        if ($renderedRowsPayload === []) {
+            return false;
+        }
+
+        $candidateDimensionCount = 0;
+        $hasComparedChange = false;
+
+        foreach ($renderedRowsPayload as $renderedRow) {
+            if (!is_array($renderedRow)) {
+                continue;
+            }
+
+            $renderedWidth = $this->normalizeNullablePositiveInt($renderedRow['width'] ?? null);
+            if ($renderedWidth !== null) {
+                $candidateDimensionCount += 1;
+                if ($autoDimension !== 'width' && $currentWidth !== $renderedWidth) {
+                    $hasComparedChange = true;
+                }
+            }
+
+            $renderedHeight = $this->normalizeNullablePositiveInt($renderedRow['height'] ?? null);
+            if ($renderedHeight !== null) {
+                $candidateDimensionCount += 1;
+                if ($autoDimension !== 'height' && $currentHeight !== $renderedHeight) {
+                    $hasComparedChange = true;
+                }
+            }
+        }
+
+        if ($candidateDimensionCount < 1) {
+            return false;
+        }
+
+        return $hasComparedChange === false;
     }
 
     private function slugifyReviewTransformName(string $transformName): string

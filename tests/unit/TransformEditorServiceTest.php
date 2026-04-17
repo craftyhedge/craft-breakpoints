@@ -297,6 +297,38 @@ final class TransformEditorServiceTest extends Unit
         $html = (string)($result['visualResultsHtml'] ?? '');
         $this->assertStringNotContainsString('bpi-breakpoint-column-mismatch', $html);
         $this->assertStringNotContainsString('bpi-transform-asset-page-mismatch', $html);
+
+        $xpath = $this->createReviewMarkupXPath($html);
+        $noopApplyButtons = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpi-rendered-apply-single ') and contains(concat(' ', normalize-space(@class), ' '), ' bpi-rendered-apply-single-noop ')]");
+        $this->assertNotFalse($noopApplyButtons);
+        $this->assertGreaterThan(0, $noopApplyButtons->length);
+    }
+
+    public function testRenderResultReviewMarksRenderedApplySingleNoopWhenDimensionsAlreadyMatch(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $result = $this->withReviewFixtureSets(fn() => $editor->renderResultReview([
+            'breakpoints' => [640],
+            'rowsByBreakpoint' => [
+                640 => [
+                    [
+                        'assetId' => '100',
+                        'transform' => 'hero',
+                        'enabled' => true,
+                        'isVisible' => true,
+                        'loaded' => true,
+                        'rendered' => ['width' => 600, 'height' => 340],
+                        'transformDimensions' => ['width' => 600, 'height' => 340, 'autoDimension' => null],
+                    ],
+                ],
+            ],
+        ]));
+
+        $xpath = $this->createReviewMarkupXPath((string)($result['visualResultsHtml'] ?? ''));
+        $noopApplyButtons = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpi-rendered-apply-single ') and contains(concat(' ', normalize-space(@class), ' '), ' bpi-rendered-apply-single-noop ') and contains(@title, 'already match')]");
+        $this->assertNotFalse($noopApplyButtons);
+        $this->assertSame(1, $noopApplyButtons->length);
     }
 
     public function testBuildLatestRunHealthByTransformIgnoresAutoWidthMismatch(): void
@@ -651,6 +683,38 @@ final class TransformEditorServiceTest extends Unit
         $visibleApplyButtons = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpi-rendered-apply-all ') and not(contains(concat(' ', normalize-space(@class), ' '), ' bpi-force-hidden '))]");
         $this->assertNotFalse($visibleApplyButtons);
         $this->assertSame(1, $visibleApplyButtons->length);
+    }
+
+    public function testRenderResultReviewDoesNotRenderDummyPreviewHolderForDisabledBreakpoint(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $result = $this->withReviewFixtureSets(fn() => $editor->renderResultReview([
+            'breakpoints' => [640],
+            'rowsByBreakpoint' => [
+                640 => [
+                    [
+                        'assetId' => '100',
+                        'transform' => 'hero',
+                        'enabled' => false,
+                        'isVisible' => false,
+                        'loaded' => false,
+                        'src' => 'https://example.test/disabled-preview.jpg',
+                        'rendered' => ['width' => 0, 'height' => 0],
+                        'transformDimensions' => ['width' => 600, 'height' => 340, 'autoDimension' => null],
+                    ],
+                ],
+            ],
+        ]));
+
+        $xpath = $this->createReviewMarkupXPath((string)($result['visualResultsHtml'] ?? ''));
+        $disabledColumns = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi-breakpoint-column-disabled ') and @data-breakpoint='640']");
+        $this->assertNotFalse($disabledColumns);
+        $this->assertSame(1, $disabledColumns->length);
+
+        $dummyHolders = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi-breakpoint-column-disabled ') and @data-breakpoint='640']//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi_breakpoint-result-image ')]");
+        $this->assertNotFalse($dummyHolders);
+        $this->assertSame(0, $dummyHolders->length);
     }
 
     private function setEditorPlugin(TransformEditor $editor, ?Plugin $plugin): void
