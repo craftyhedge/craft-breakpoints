@@ -36,10 +36,9 @@ final class PluginRegistrationTest extends Unit
         $this->assertIsArray($cpNavItem);
         $this->assertArrayHasKey('subnav', $cpNavItem);
         $this->assertArrayHasKey('settings', $cpNavItem['subnav']);
-        $this->assertArrayHasKey('transforms', $cpNavItem['subnav']);
         $this->assertArrayHasKey('processing', $cpNavItem['subnav']);
+        $this->assertArrayNotHasKey('transforms', $cpNavItem['subnav']);
         $this->assertSame('craft-breakpoint-images/settings', $cpNavItem['subnav']['settings']['url']);
-        $this->assertSame('craft-breakpoint-images/transforms', $cpNavItem['subnav']['transforms']['url']);
         $this->assertSame('craft-breakpoint-images/processing', $cpNavItem['subnav']['processing']['url']);
     }
 

@@ -31,6 +31,7 @@
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
+    height: 34px;
 }
 
 .bpi-page-title-wrap {
@@ -225,6 +226,10 @@
 
 .bpi-results-pane {
     min-width: 0;
+}
+
+.bpi-transforms-page.bpi-review-hydrating .bpi-visual-results .bpi-transform-card {
+    display: none;
 }
 
 .bpi-results-meta {
@@ -1322,6 +1327,14 @@ button.bpi-transform-input-addon:hover:not(:disabled) {
 
 .bpi-transform-dimensions-actions .bpi-transform-dimensions-apply {
     white-space: nowrap;
+}
+
+.bpi-transform-dimensions-actions .bpi-transform-dimensions-apply:disabled,
+.bpi-transform-dimensions-actions .bpi-transform-ratio-apply:disabled,
+.bpi-transform-dimensions-actions .bpi-transform-dimensions-apply[disabled],
+.bpi-transform-dimensions-actions .bpi-transform-ratio-apply[disabled] {
+    opacity: 0.55;
+    cursor: not-allowed;
 }
 
 @media (max-width: 460px) {

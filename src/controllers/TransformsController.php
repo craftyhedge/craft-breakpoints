@@ -225,6 +225,8 @@ class TransformsController extends Controller
 
         $widthAuto = $parseNullableBool($widthAutoRaw);
         $heightAuto = $parseNullableBool($heightAutoRaw);
+        $forceAll = $parseNullableBool($this->request->getBodyParam('forceAll')) === true;
+        $clearAuto = $parseNullableBool($this->request->getBodyParam('clearAuto')) === true;
 
         $ratioWidth = null;
         if (is_numeric($ratioWidthRaw)) {
@@ -258,6 +260,7 @@ class TransformsController extends Controller
                 $setName,
                 $renderedRows,
                 $includeEscapeWidth,
+                $clearAuto,
             );
         } elseif ($field === 'dimensions') {
             $operationResult = $editor->applySetDimensionsOperation(
@@ -269,6 +272,7 @@ class TransformsController extends Controller
                 $includeEscapeWidth,
                 $widthAuto,
                 $heightAuto,
+                $forceAll,
             );
         } elseif ($field === 'ratio') {
             $operationResult = $editor->applySetRatioOperation(

@@ -59,6 +59,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         sourceEntry: document.getElementById('bpi-source-entry'),
         status: document.getElementById('bpi-status'),
         progressHost: document.getElementById('bpi-progress-host'),
+        resultsHeading: document.getElementById('bpi-results-heading'),
         resultsMeta: document.getElementById('bpi-results-meta'),
         resultsOrderingNote: document.getElementById('bpi-results-ordering-note'),
         resultsOrderingNoteLabel: document.getElementById('bpi-results-ordering-note-label'),
@@ -99,6 +100,15 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         progressBar: null,
     };
 
+    const RESULTS_COPY = {
+        saved: {
+            heading: 'Saved Transform Sets',
+        },
+        processed: {
+            heading: 'Processed Results',
+        },
+    };
+
     function setStatus(message) {
         if (elements.status) {
             elements.status.textContent = message;
@@ -111,6 +121,14 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         }
 
         elements.page.classList.toggle('is-processing', Boolean(isProcessing));
+    }
+
+    function setReviewHydrated(isHydrated) {
+        if (!elements.page) {
+            return;
+        }
+
+        elements.page.classList.toggle('bpi-review-hydrating', !Boolean(isHydrated));
     }
 
     function getOrCreateProgressBar() {
@@ -439,10 +457,23 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         elements.btnCopy.setAttribute('aria-hidden', hasResult ? 'false' : 'true');
     }
 
+    function updateResultsHeadingCopy() {
+        if (!elements.resultsHeading) {
+            return;
+        }
+
+        const hasRun = state.lastResult !== null;
+        const copy = hasRun ? RESULTS_COPY.processed : RESULTS_COPY.saved;
+
+        elements.resultsHeading.textContent = copy.heading;
+    }
+
     function updateResultsOrderingNote() {
         if (!elements.resultsMeta || !elements.resultsOrderingNote || !elements.resultsOrderingNoteLabel) {
             return;
         }
+
+        updateResultsHeadingCopy();
 
         const hasRun = state.lastResult !== null;
         if (!hasRun) {
@@ -1646,12 +1677,13 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         const isRenderedAction = classList?.contains('bpi-rendered-apply-single')
             || classList?.contains('bpi-rendered-apply-all')
             || classList?.contains('bpi-warning-apply-rendered');
+        const isAutoToggle = classList?.contains('bpi-transform-auto-toggle');
 
         if (isRenderedAction) {
             return 'renderedValues';
         }
 
-        if (isDimensionsApply) {
+        if (isDimensionsApply || isAutoToggle) {
             return 'dimensions';
         }
 
@@ -1770,6 +1802,8 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         if (!payload || typeof payload !== 'object') {
             return;
         }
+
+        setReviewHydrated(true);
 
         if (elements.warnings && typeof payload.warningsHtml === 'string') {
             const warningsPatched = patchElementsWithDatastar('#bpi-warnings', payload.warningsHtml, 'inner');
@@ -2337,6 +2371,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
     setPreviewVisibility(false);
     setProcessingState(false);
+    setReviewHydrated(false);
     setStopButtonVisibility(false);
     updateCopyButtonVisibility();
     updateResultsOrderingNote();
@@ -2354,6 +2389,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     getConfiguredBreakpoints();
     void renderInitialStoredReview().catch((error) => {
         console.error(error);
+        setReviewHydrated(true);
     });
     void loadInitialPreview();
 })();

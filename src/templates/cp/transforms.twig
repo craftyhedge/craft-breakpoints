@@ -85,7 +85,7 @@
 
 {% block content %}
     <div
-        class="bpi-transforms-page"
+        class="bpi-transforms-page bpi-review-hydrating"
         data-signals="{editor: {baseVersion: 1, cards: {}}}"
         data-apply-card-operation-url="{{ applyCardOperationUrl }}"
         data-preview-center="{{ (previewCenter ?? true) ? '1' : '0' }}"
@@ -100,6 +100,10 @@
             </div>
         </div>
 
+        <div class="bpi-results-heading-wrap">
+            <h2 id="bpi-results-heading" class="heading">{{ 'Saved Transform Sets'|t('craft-breakpoint-images') }}</h2>
+        </div>
+
         <div class="bpi-results-pane">
             <div class="bpi-results-meta" hidden id="bpi-results-meta">
                 <span id="bpi-results-ordering-note" class="bpi-results-ordering-note" hidden>
@@ -107,11 +111,7 @@
                     <span id="bpi-results-ordering-note-label"></span>
                 </span>
             </div>
-            <div id="bpi-visual-results" class="bpi-visual-results" aria-live="polite">
-                <div class="bpi-empty-state light">
-                    {{ 'Select an entry with images then hit process.'|t('craft-breakpoint-images') }}
-                </div>
-            </div>
+            <div id="bpi-visual-results" class="bpi-visual-results" aria-live="polite"></div>
         </div>
     </div>
 {% endblock %}

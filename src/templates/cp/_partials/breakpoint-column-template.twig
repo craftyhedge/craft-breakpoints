@@ -13,7 +13,7 @@
                     title="Apply rendered values for __BREAKPOINT__px"
                     data-rendered-rows="__RENDERED_ROWS_PAYLOAD_JSON__"
                     __BREAKPOINT_DISABLED_ATTR__
-                    data-on:click__throttle.300ms="@post(el.closest('.bpi-transforms-page').dataset.applyCardOperationUrl || '/actions/craft-breakpoint-images/transforms/apply-card-operation', {contentType: 'json', payload: {setName: el.closest('.bpi-transform-card').dataset.set || '', field: 'renderedValues', includeEscapeWidth: (el.closest('.bpi-transform-card').dataset.includeEscapeWidth || '0') === '1', renderedRows: JSON.parse(el.dataset.renderedRows || '[]'), baseVersion: Number($editor.baseVersion || 1), ...(Craft && Craft.csrfTokenName && Craft.csrfTokenValue ? {[Craft.csrfTokenName]: Craft.csrfTokenValue} : {})}})">
+                    data-on:click__throttle.300ms="@post(el.closest('.bpi-transforms-page').dataset.applyCardOperationUrl || '/actions/craft-breakpoint-images/transforms/apply-card-operation', {contentType: 'json', payload: {setName: String($editor.cards.__SIGNAL_KEY__.setName || ''), field: 'renderedValues', includeEscapeWidth: String($editor.cards.__SIGNAL_KEY__.includeEscapeWidth || '0') === '1', renderedRows: JSON.parse(el.dataset.renderedRows || '[]'), baseVersion: Number($editor.baseVersion || 1), ...(Craft && Craft.csrfTokenName && Craft.csrfTokenValue ? {[Craft.csrfTokenName]: Craft.csrfTokenValue} : {})}})">
                     <svg class="bpi-rendered-apply-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
                         <path d="M6.2 2.2H9.8V7.4H12.9L8 12.3 3.1 7.4H6.2Z"></path>
                         <path d="M1.8 13.2H14.2V15.2H1.8Z"></path>

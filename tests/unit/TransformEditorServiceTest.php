@@ -175,6 +175,84 @@ final class TransformEditorServiceTest extends Unit
         $this->assertStringNotContainsString('bpi-transform-stats-warning', (string)($result['visualResultsHtml'] ?? ''));
     }
 
+    public function testRenderResultReviewIgnoresAutoWidthForProcessedMismatchClasses(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $result = $this->withReviewFixtureSets(fn() => $editor->renderResultReview([
+            'breakpoints' => [640],
+            'rowsByBreakpoint' => [
+                640 => [
+                    [
+                        'assetId' => '100',
+                        'transform' => 'hero',
+                        'enabled' => true,
+                        'isVisible' => true,
+                        'loaded' => true,
+                        'rendered' => ['width' => 600, 'height' => 340],
+                        'transformDimensions' => ['width' => null, 'height' => 340, 'autoDimension' => 'width'],
+                    ],
+                    [
+                        'assetId' => '101',
+                        'transform' => 'hero',
+                        'enabled' => true,
+                        'isVisible' => true,
+                        'loaded' => true,
+                        'rendered' => ['width' => 560, 'height' => 340],
+                        'transformDimensions' => ['width' => null, 'height' => 340, 'autoDimension' => 'width'],
+                    ],
+                ],
+            ],
+        ]));
+
+        $html = (string)($result['visualResultsHtml'] ?? '');
+        $this->assertStringNotContainsString('bpi-breakpoint-column-mismatch', $html);
+        $this->assertStringNotContainsString('bpi-transform-asset-page-mismatch', $html);
+    }
+
+    public function testBuildLatestRunHealthByTransformIgnoresAutoWidthMismatch(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $health = $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'sm' => ['width' => null, 'height' => 340, 'enabled' => true, 'autoDimension' => 'width'],
+                ],
+                'config' => [],
+            ],
+        ], fn() => $editor->buildLatestRunHealthByTransform([
+            'rowsPayloadStatusReliable' => true,
+            'rowsPayload' => [
+                [
+                    'transformHandle' => 'hero',
+                    'breakpointWidth' => 640,
+                    'assetId' => '100',
+                    'renderedWidth' => 600,
+                    'renderedHeight' => 340,
+                    'rowStatus' => 'loaded',
+                ],
+                [
+                    'transformHandle' => 'hero',
+                    'breakpointWidth' => 640,
+                    'assetId' => '101',
+                    'renderedWidth' => 560,
+                    'renderedHeight' => 340,
+                    'rowStatus' => 'loaded',
+                ],
+            ],
+        ]));
+
+        $this->assertArrayHasKey('hero', $health);
+        $this->assertFalse(($health['hero']['hasMismatch'] ?? true) === true);
+        $this->assertSame(0, (int)($health['hero']['mismatchBreakpointCount'] ?? -1));
+        $rows = $health['hero']['breakpointRows'] ?? [];
+        $this->assertIsArray($rows);
+        $this->assertSame('Matching', (string)($rows[0]['statusLabel'] ?? ''));
+    }
+
     public function testRenderResultReviewRendersMissingDefinitionWarningWithinTransformCard(): void
     {
         $editor = Plugin::getInstance()->getTransformEditor();
