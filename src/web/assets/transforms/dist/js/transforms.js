@@ -24,13 +24,12 @@ import {
     toPositiveIntOrNull as processingToPositiveIntOrNull,
     waitForImagesToSettle as processingWaitForImagesToSettle,
 } from './transforms-processing.js';
+import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
 (() => {
     const BREAKPOINT_SAFETY_PX = 2;
-    const DRAG_SCROLL_THRESHOLD_PX = 8;
     const PROCESSING_QUERY_PARAM = '__bpiProcessing';
     const ENTRY_ID_QUERY_PARAM = 'entry_id';
-    const LEGACY_ENTRY_ID_QUERY_PARAMS = ['entryId', 'id'];
     const PREVIEW_WIDTH_SETTLE_TIMEOUT_MS = 800;
     const PREVIEW_WIDTH_SETTLE_TOLERANCE_PX = 2;
     const PREVIEW_FRAME_TAG = 'ifr' + 'ame';
@@ -91,7 +90,6 @@ import {
         previewHeightSyncRaf: null,
         sourceSyncRaf: null,
         selectedEntryId: null,
-        dragScrollSuppressClick: false,
         updateStatusResetTimersByTransform: {},
         updateStatusTransitionTimersByTransform: {},
         updateStatusStartedAtByTransform: {},
@@ -99,15 +97,6 @@ import {
         updateStatusByTransform: {},
         pendingTransformUpdates: new Set(),
         progressBar: null,
-        dragScroll: {
-            active: false,
-            moved: false,
-            pointerId: null,
-            grid: null,
-            startX: 0,
-            startY: 0,
-            startScrollLeft: 0
-        }
     };
 
     function setStatus(message) {
@@ -811,9 +800,6 @@ import {
         try {
             const currentUrl = new URL(window.location.href);
             currentUrl.searchParams.set(ENTRY_ID_QUERY_PARAM, String(entryId));
-            LEGACY_ENTRY_ID_QUERY_PARAMS.forEach((paramName) => {
-                currentUrl.searchParams.delete(paramName);
-            });
 
             const nextUrl = currentUrl.toString();
             if (nextUrl !== window.location.href) {
@@ -1263,150 +1249,22 @@ import {
         grid.classList.toggle('bpi-scroll-fade-right', isScrollable && !atEnd);
     }
 
-    function endDragScroll(pointerId = null) {
-        const drag = state.dragScroll;
-        if (!drag.active) {
-            return;
-        }
-
-        if (pointerId !== null && drag.pointerId !== pointerId) {
-            return;
-        }
-
-        if (drag.grid) {
-            drag.grid.classList.remove('bpi-drag-scrolling');
-
-            if (drag.pointerId !== null && drag.grid.hasPointerCapture?.(drag.pointerId)) {
-                try {
-                    drag.grid.releasePointerCapture(drag.pointerId);
-                } catch (_error) {
-                    // Ignore pointer capture release errors.
-                }
-            }
-        }
-
-        drag.active = false;
-        drag.moved = false;
-        drag.pointerId = null;
-        drag.grid = null;
-        drag.startX = 0;
-        drag.startY = 0;
-        drag.startScrollLeft = 0;
-    }
-
     function setupDragToScroll() {
-        if (!elements.visualResults) {
-            return;
-        }
-
-        const interactiveSelector = 'a, button, input, select, textarea, label, [role="button"], .btn';
-
-        elements.visualResults.addEventListener('pointerdown', (event) => {
-            if (event.pointerType !== 'mouse' || event.button !== 0) {
-                return;
-            }
-
-            const grid = event.target.closest('.bpi-breakpoint-grid');
-            if (!grid || !elements.visualResults.contains(grid)) {
-                return;
-            }
-
-            if (!grid.classList.contains('bpi-drag-scrollable')) {
-                return;
-            }
-
-            if (event.target.closest(interactiveSelector)) {
-                return;
-            }
-
-            state.dragScroll.active = true;
-            state.dragScroll.moved = false;
-            state.dragScroll.pointerId = event.pointerId;
-            state.dragScroll.grid = grid;
-            state.dragScroll.startX = event.clientX;
-            state.dragScroll.startY = event.clientY;
-            state.dragScroll.startScrollLeft = grid.scrollLeft;
+        bindHorizontalDragScroll({
+            bindingKey: '__BPI_TRANSFORMS_GRID_DRAG_BOUND',
+            findGridFromTarget: (target) => (target instanceof Element ? target.closest('.bpi-breakpoint-grid') : null),
+            isManagedGrid: (grid) => Boolean(grid instanceof Element && elements.visualResults && elements.visualResults.contains(grid)),
+            onPotentialDragStart: (grid) => {
+                updateGridScrollAffordance(grid);
+            },
+            onDragMove: (grid) => {
+                updateGridScrollAffordance(grid);
+            },
+            onScrollGrid: (grid) => {
+                updateGridScrollAffordance(grid);
+            },
+            preventDragStartSelector: '.bpi_breakpoint-result-image',
         });
-
-        window.addEventListener('pointermove', (event) => {
-            const drag = state.dragScroll;
-            if (!drag.active || drag.pointerId !== event.pointerId || !drag.grid) {
-                return;
-            }
-
-            const deltaX = event.clientX - drag.startX;
-            const deltaY = event.clientY - drag.startY;
-            const absDeltaX = Math.abs(deltaX);
-            const absDeltaY = Math.abs(deltaY);
-
-            if (!drag.moved && absDeltaX < DRAG_SCROLL_THRESHOLD_PX && absDeltaY < DRAG_SCROLL_THRESHOLD_PX) {
-                return;
-            }
-
-            if (!drag.moved && absDeltaY > absDeltaX) {
-                endDragScroll(event.pointerId);
-                return;
-            }
-
-            if (!drag.moved) {
-                drag.moved = true;
-                drag.grid.classList.add('bpi-drag-scrolling');
-                state.dragScrollSuppressClick = true;
-
-                if (drag.grid.setPointerCapture) {
-                    try {
-                        drag.grid.setPointerCapture(event.pointerId);
-                    } catch (_error) {
-                        // Ignore pointer capture errors.
-                    }
-                }
-            }
-
-            event.preventDefault();
-            drag.grid.scrollLeft = drag.startScrollLeft - deltaX;
-            updateGridScrollAffordance(drag.grid);
-        }, { passive: false });
-
-        window.addEventListener('pointerup', (event) => {
-            endDragScroll(event.pointerId);
-        });
-
-        window.addEventListener('pointercancel', (event) => {
-            endDragScroll(event.pointerId);
-        });
-
-        elements.visualResults.addEventListener('dragstart', (event) => {
-            if (event.target.closest('.bpi_breakpoint-result-image')) {
-                event.preventDefault();
-            }
-        });
-
-        elements.visualResults.addEventListener('scroll', (event) => {
-            const target = event.target;
-            if (!target || typeof target.closest !== 'function') {
-                return;
-            }
-
-            const grid = target.closest('.bpi-breakpoint-grid');
-            if (!grid || !elements.visualResults.contains(grid)) {
-                return;
-            }
-
-            updateGridScrollAffordance(grid);
-        }, true);
-
-        elements.visualResults.addEventListener('click', (event) => {
-            if (!state.dragScrollSuppressClick) {
-                return;
-            }
-
-            if (event.target.closest('.bpi-breakpoint-grid')) {
-                event.preventDefault();
-                event.stopPropagation();
-            }
-
-            state.dragScrollSuppressClick = false;
-        }, true);
     }
 
     function scheduleBreakpointPreviewHeightSync() {
@@ -1423,12 +1281,14 @@ import {
     function collectReviewEditStateFromDom() {
         const editScopeBySet = {};
         const editTabBySet = {};
+        const selectedAssetKeyBySet = {};
         const preferredOrderBySet = [];
 
         if (!elements.visualResults) {
             return {
                 editScopeBySet,
                 editTabBySet,
+                selectedAssetKeyBySet,
                 preferredOrderBySet,
             };
         }
@@ -1467,13 +1327,76 @@ import {
             editTabBySet[transformName] = activeTab === 'ratio'
                 ? activeTab
                 : 'dimensions';
+
+            const selectedAssetKey = String(card.getAttribute('data-selected-asset-key') || '').trim();
+            selectedAssetKeyBySet[transformName] = selectedAssetKey;
         });
 
         return {
             editScopeBySet,
             editTabBySet,
+            selectedAssetKeyBySet,
             preferredOrderBySet,
         };
+    }
+
+    function bindAssetPaginationReviewRerender() {
+        if (document.documentElement.dataset.bpiAssetPaginationBound === '1') {
+            return;
+        }
+
+        document.documentElement.dataset.bpiAssetPaginationBound = '1';
+
+        document.addEventListener('click', (event) => {
+            const target = event.target instanceof Element
+                ? event.target.closest('.bpi-transform-asset-page[data-asset-key]')
+                : null;
+
+            if (!(target instanceof Element)) {
+                return;
+            }
+
+            if (!elements.visualResults) {
+                return;
+            }
+
+            const card = target.closest('.bpi-transform-card[data-set]');
+            if (!(card instanceof Element) || !elements.visualResults.contains(card)) {
+                return;
+            }
+
+            const nextAssetKey = String(target.getAttribute('data-asset-key') || '').trim();
+            if (!nextAssetKey) {
+                return;
+            }
+
+            const transformName = String(card.getAttribute('data-set') || '').trim();
+            if (!transformName) {
+                return;
+            }
+
+            const selectedAssetKeyBySetOverride = {
+                [transformName]: nextAssetKey,
+            };
+
+            event.preventDefault();
+            void (async () => {
+                try {
+                    if (state.lastResult && typeof state.lastResult === 'object') {
+                        await renderResultReview(state.lastResult, {
+                            selectedAssetKeyBySetOverride,
+                        });
+                        return;
+                    }
+
+                    await renderInitialStoredReview({
+                        selectedAssetKeyBySetOverride,
+                    });
+                } catch (error) {
+                    console.error(error);
+                }
+            })();
+        });
     }
 
     function clearUpdateStatusResetTimer(transformName) {
@@ -1883,7 +1806,7 @@ import {
         }
     }
 
-    async function renderResultReview(result) {
+    async function renderResultReview(result, options = null) {
         if (!result || typeof result !== 'object') {
             return null;
         }
@@ -1895,14 +1818,28 @@ import {
         const {
             editScopeBySet,
             editTabBySet,
+            selectedAssetKeyBySet,
             preferredOrderBySet,
         } = collectReviewEditStateFromDom();
+        const selectedAssetKeyBySetOverride = options
+            && typeof options === 'object'
+            && options.selectedAssetKeyBySetOverride
+            && typeof options.selectedAssetKeyBySetOverride === 'object'
+            ? options.selectedAssetKeyBySetOverride
+            : null;
+        const mergedSelectedAssetKeyBySet = selectedAssetKeyBySetOverride
+            ? {
+                ...selectedAssetKeyBySet,
+                ...selectedAssetKeyBySetOverride,
+            }
+            : selectedAssetKeyBySet;
 
         const response = await Craft.sendActionRequest('POST', RENDER_RESULT_REVIEW_ACTION, {
             data: {
                 result,
                 editScopeBySet,
                 editTabBySet,
+                selectedAssetKeyBySet: mergedSelectedAssetKeyBySet,
                 preferredOrderBySet,
             },
         });
@@ -1912,7 +1849,7 @@ import {
         return payload;
     }
 
-    async function renderInitialStoredReview() {
+    async function renderInitialStoredReview(options = null) {
         if (typeof Craft === 'undefined' || typeof Craft.sendActionRequest !== 'function') {
             return null;
         }
@@ -1920,13 +1857,27 @@ import {
         const {
             editScopeBySet,
             editTabBySet,
+            selectedAssetKeyBySet,
             preferredOrderBySet,
         } = collectReviewEditStateFromDom();
+        const selectedAssetKeyBySetOverride = options
+            && typeof options === 'object'
+            && options.selectedAssetKeyBySetOverride
+            && typeof options.selectedAssetKeyBySetOverride === 'object'
+            ? options.selectedAssetKeyBySetOverride
+            : null;
+        const mergedSelectedAssetKeyBySet = selectedAssetKeyBySetOverride
+            ? {
+                ...selectedAssetKeyBySet,
+                ...selectedAssetKeyBySetOverride,
+            }
+            : selectedAssetKeyBySet;
 
         const response = await Craft.sendActionRequest('POST', RENDER_INITIAL_REVIEW_ACTION, {
             data: {
                 editScopeBySet,
                 editTabBySet,
+                selectedAssetKeyBySet: mergedSelectedAssetKeyBySet,
                 preferredOrderBySet,
             },
         });
@@ -2395,6 +2346,7 @@ import {
     bindEntrySlideoutLinks();
     bindProcessDetailsSlideoutLinks();
     bindProcessAgainButtons();
+    bindAssetPaginationReviewRerender();
     setButtonsDisabled(false);
     setupDragToScroll();
     setupDatastarCardUpdateStatus();

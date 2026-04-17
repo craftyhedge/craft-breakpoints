@@ -5,28 +5,43 @@
 {% set otherTransformHandles = otherTransformHandles ?? [] %}
 {% set lastObserved = lastObserved ?? null %}
 {% set lastObservedEntry = lastObservedEntry ?? null %}
-{% set rows = rows ?? [] %}
+{% set breakpointRows = breakpointRows ?? [] %}
 {% set statusCounts = statusCounts ?? {} %}
 {% set transformHandle = transformHandle ?? '' %}
-{% set runStatus = snapshot and snapshot.runStatus is defined ? (snapshot.runStatus|lower|trim) : 'unknown' %}
-{% set runStatusIcon = runStatus == 'completed' ? 'check' : (runStatus in ['failed', 'cancelled'] ? 'xmark' : 'alert') %}
-{% set runStatusClass = runStatus == 'completed' ? 'success' : (runStatus in ['failed', 'cancelled'] ? 'failed' : 'unknown') %}
+{% set healthStatusClass = healthStatusClass ?? 'unknown' %}
+{% set healthStatusIcon = healthStatusIcon ?? 'alert' %}
+{% set healthStatusLabel = healthStatusLabel ?? ('No Health Data'|t('craft-breakpoint-images')) %}
+{% set loadedCount = statusCounts.loaded ?? 0 %}
+{% set brokenCount = statusCounts.broken ?? 0 %}
+{% set unresolvedCount = statusCounts.unresolved ?? 0 %}
+{% set disabledCount = statusCounts.disabled ?? 0 %}
+{% set unprocessedCount = statusCounts.unprocessed ?? 0 %}
 
 <div class="bpi-process-details-screen">
     {% if snapshot %}
         <div class="bpi-process-details-card bpi-process-details-summary-card">
             <div class="bpi-process-details-summary-top">
                 <div class="bpi-process-details-summary-primary">
-                    <div class="bpi-process-details-run-status bpi-process-details-run-status-{{ runStatusClass }}">
-                        <span data-icon="{{ runStatusIcon }}" aria-hidden="true"></span>
-                        <span>{{ snapshot.runStatus ?? 'unknown' }}</span>
+                    <div class="bpi-process-details-run-status bpi-process-details-run-status-{{ healthStatusClass }}">
+                        <span data-icon="{{ healthStatusIcon }}" aria-hidden="true"></span>
+                        <span>{{ healthStatusLabel }}</span>
                     </div>
                     <div class="bpi-process-details-counts bpi-process-details-counts-inline" aria-label="{{ 'Run totals'|t('craft-breakpoint-images') }}">
-                        <span class="bpi-process-details-count-pill bpi-process-details-count-loaded">{{ 'Loaded'|t('craft-breakpoint-images') }}: {{ statusCounts.loaded ?? 0 }}</span>
-                        <span class="bpi-process-details-count-pill bpi-process-details-count-broken">{{ 'Broken'|t('craft-breakpoint-images') }}: {{ statusCounts.broken ?? 0 }}</span>
-                        <span class="bpi-process-details-count-pill bpi-process-details-count-unresolved">{{ 'Unresolved'|t('craft-breakpoint-images') }}: {{ statusCounts.unresolved ?? 0 }}</span>
-                        <span class="bpi-process-details-count-pill bpi-process-details-count-disabled">{{ 'Disabled'|t('craft-breakpoint-images') }}: {{ statusCounts.disabled ?? 0 }}</span>
-                        <span class="bpi-process-details-count-pill bpi-process-details-count-unprocessed">{{ 'Unprocessed'|t('craft-breakpoint-images') }}: {{ statusCounts.unprocessed ?? 0 }}</span>
+                        {% if loadedCount > 0 %}
+                            <span class="bpi-process-details-count-pill bpi-process-details-count-loaded">{{ 'Loaded'|t('craft-breakpoint-images') }}: {{ loadedCount }}</span>
+                        {% endif %}
+                        {% if brokenCount > 0 %}
+                            <span class="bpi-process-details-count-pill bpi-process-details-count-broken">{{ 'Broken'|t('craft-breakpoint-images') }}: {{ brokenCount }}</span>
+                        {% endif %}
+                        {% if unresolvedCount > 0 %}
+                            <span class="bpi-process-details-count-pill bpi-process-details-count-unresolved">{{ 'Unresolved'|t('craft-breakpoint-images') }}: {{ unresolvedCount }}</span>
+                        {% endif %}
+                        {% if disabledCount > 0 %}
+                            <span class="bpi-process-details-count-pill bpi-process-details-count-disabled">{{ 'Disabled'|t('craft-breakpoint-images') }}: {{ disabledCount }}</span>
+                        {% endif %}
+                        {% if unprocessedCount > 0 %}
+                            <span class="bpi-process-details-count-pill bpi-process-details-count-unprocessed">{{ 'Unprocessed'|t('craft-breakpoint-images') }}: {{ unprocessedCount }}</span>
+                        {% endif %}
                     </div>
                 </div>
                 <div class="bpi-process-details-summary-actions">
@@ -48,6 +63,10 @@
             <div class="meta read-only bpi-process-details-meta-block">
                 <table class="data fullwidth bpi-process-details-table">
                     <tbody>
+                        <tr>
+                            <th scope="row" class="nowrap">{{ 'Execution Status'|t('craft-breakpoint-images') }}</th>
+                            <td>{{ snapshot.runStatus ?? 'unknown' }}</td>
+                        </tr>
                         <tr>
                             <th scope="row" class="nowrap">{{ 'Completed At'|t('craft-breakpoint-images') }}</th>
                             <td>
@@ -167,33 +186,28 @@
 
         <div class="bpi-process-details-card bpi-process-details-breakpoints-card">
             <h2 class="bpi-process-details-heading">{{ 'Breakpoints'|t('craft-breakpoint-images') }}</h2>
+
             <div class="tablepane bpi-process-details-tablepane">
                 <table class="data fullwidth">
                     <thead>
                         <tr>
                             <th scope="col" class="nowrap">{{ 'Breakpoint'|t('craft-breakpoint-images') }}</th>
                             <th scope="col" class="nowrap">{{ 'Status'|t('craft-breakpoint-images') }}</th>
-                            <th scope="col">{{ 'Display Asset URL'|t('craft-breakpoint-images') }}</th>
+                            <th scope="col">{{ 'Mismatch Details'|t('craft-breakpoint-images') }}</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% if rows|length %}
-                            {% for row in rows %}
+                        {% if breakpointRows|length %}
+                            {% for row in breakpointRows %}
                                 <tr>
                                     <td class="nowrap">{{ row.breakpointWidth ?? '-' }}px</td>
-                                    <td class="nowrap">{{ row.rowStatus ?? 'unprocessed' }}</td>
-                                    <td>
-                                        {% if row.displayAssetUrl %}
-                                            <a href="{{ row.displayAssetUrl }}" target="_blank" rel="noopener">{{ row.displayAssetUrl }}</a>
-                                        {% else %}
-                                            -
-                                        {% endif %}
-                                    </td>
+                                    <td class="nowrap">{{ row.statusLabel ?? 'Matching' }}</td>
+                                    <td class="bpi-process-details-mismatch-cell">{{ row.mismatchInfo ?? '-' }}</td>
                                 </tr>
                             {% endfor %}
                         {% else %}
                             <tr>
-                                <td colspan="3" class="light">{{ 'No saved rows found for this transform in the latest run.'|t('craft-breakpoint-images') }}</td>
+                                <td colspan="3" class="light">{{ 'No saved breakpoint rows found for this transform in the latest run.'|t('craft-breakpoint-images') }}</td>
                             </tr>
                         {% endif %}
                     </tbody>

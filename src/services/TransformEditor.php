@@ -7,6 +7,9 @@ use yii\base\Component;
 
 class TransformEditor extends Component
 {
+    private const REVIEW_MODE_PROCESSED = 'processed';
+    private const REVIEW_MODE_SAVED = 'saved';
+
     private const INITIAL_PLACEHOLDER_FALLBACK_WIDTH = 1200;
     private const INITIAL_PLACEHOLDER_FALLBACK_HEIGHT = 800;
     private const INITIAL_PLACEHOLDER_DEFAULT_RATIO_WIDTH = 3;
@@ -808,9 +811,13 @@ class TransformEditor extends Component
         array $result,
         array $editScopeBySet = [],
         array $editTabBySet = [],
+        array $selectedAssetKeyBySet = [],
         array $preferredOrderBySet = [],
         bool $hideRenderedApply = false,
+        bool $hideAssetPagination = false,
+        string $reviewMode = self::REVIEW_MODE_PROCESSED,
     ): array {
+        $normalizedReviewMode = $this->normalizeReviewMode($reviewMode);
         $rowsByBreakpoint = $this->normalizeReviewRowsByBreakpoint($result['rowsByBreakpoint'] ?? []);
         $breakpoints = $this->normalizeReviewBreakpoints($result['breakpoints'] ?? []);
         if ($breakpoints === []) {
@@ -820,6 +827,7 @@ class TransformEditor extends Component
         $warningsByTransform = $this->buildReviewWarningsByTransform($rowsByBreakpoint);
         $normalizedScopeState = [];
         $normalizedTabState = [];
+        $normalizedSelectedAssetKeyBySet = [];
 
         return [
             'warningsHtml' => '',
@@ -829,20 +837,26 @@ class TransformEditor extends Component
                 $warningsByTransform,
                 $editScopeBySet,
                 $editTabBySet,
+                $selectedAssetKeyBySet,
                 $preferredOrderBySet,
                 $normalizedScopeState,
                 $normalizedTabState,
                 $hideRenderedApply,
+                $normalizedSelectedAssetKeyBySet,
+                $hideAssetPagination,
+                $normalizedReviewMode,
             ),
             'warningCount' => $this->countReviewWarningsByTransform($warningsByTransform),
             'editScopeBySet' => $normalizedScopeState,
             'editTabBySet' => $normalizedTabState,
+            'selectedAssetKeyBySet' => $normalizedSelectedAssetKeyBySet,
         ];
     }
 
     public function renderInitialStoredReview(
         array $editScopeBySet = [],
         array $editTabBySet = [],
+        array $selectedAssetKeyBySet = [],
         array $preferredOrderBySet = [],
     ): array {
         $storedTransforms = $this->getReviewStoredTransforms();
@@ -891,10 +905,16 @@ class TransformEditor extends Component
                 $savedDisplayAssetUrl = is_array($snapshotRow)
                     ? trim((string)($snapshotRow['displayAssetUrl'] ?? ''))
                     : '';
+                $snapshotRenderedWidth = is_array($snapshotRow) && isset($snapshotRow['renderedWidth'])
+                    ? max(0, (int)$snapshotRow['renderedWidth'])
+                    : 0;
+                $snapshotRenderedHeight = is_array($snapshotRow) && isset($snapshotRow['renderedHeight'])
+                    ? max(0, (int)$snapshotRow['renderedHeight'])
+                    : 0;
                 $previewSrc = $savedDisplayAssetUrl !== '' ? $savedDisplayAssetUrl : $placeholderSrc;
                 $rowStatus = is_array($snapshotRow)
                     ? trim((string)($snapshotRow['rowStatus'] ?? 'unprocessed'))
-                    : 'loaded';
+                    : 'unprocessed';
                 $enabled = $rowStatus !== 'disabled';
                 $loaded = $rowStatus === 'loaded' || $rowStatus === 'disabled';
                 $broken = $rowStatus === 'broken';
@@ -912,12 +932,12 @@ class TransformEditor extends Component
                     'sourceUsed' => $previewSrc,
                     'src' => $previewSrc,
                     'rendered' => [
-                        'width' => 0,
-                        'height' => 0,
+                        'width' => $snapshotRenderedWidth,
+                        'height' => $snapshotRenderedHeight,
                     ],
                     'intrinsic' => [
-                        'width' => 0,
-                        'height' => 0,
+                        'width' => $snapshotRenderedWidth,
+                        'height' => $snapshotRenderedHeight,
                     ],
                     'transformDimensions' => [
                         'width' => $width,
@@ -932,8 +952,11 @@ class TransformEditor extends Component
             ['rowsByBreakpoint' => $syntheticRowsByBreakpoint],
             $editScopeBySet,
             $editTabBySet,
+            $selectedAssetKeyBySet,
             $preferredOrderBySet,
             hideRenderedApply: true,
+            hideAssetPagination: true,
+            reviewMode: self::REVIEW_MODE_SAVED,
         );
     }
 
@@ -1032,11 +1055,16 @@ class TransformEditor extends Component
         array $warningsByTransform,
         array $editScopeBySet,
         array $editTabBySet,
+        array $selectedAssetKeyBySet,
         array $preferredOrderBySet,
         array &$normalizedScopeState,
         array &$normalizedTabState,
         bool $hideRenderedApply,
+        array &$normalizedSelectedAssetKeyBySet,
+        bool $hideAssetPagination,
+        string $reviewMode,
     ): string {
+        $isProcessedReview = $reviewMode === self::REVIEW_MODE_PROCESSED;
         $transformNames = $this->collectReviewTransformNames($rowsByBreakpoint);
         $transformNames = $this->orderReviewTransformNames($transformNames, $warningsByTransform, $preferredOrderBySet);
         if ($transformNames === []) {
@@ -1080,6 +1108,23 @@ class TransformEditor extends Component
 
             $currentRows = $this->buildReviewCurrentRowsForTransform(
                 $storedTransformConfig,
+                $transformBreakpoints,
+            );
+
+            $assetCollection = $this->buildReviewAssetCollectionForTransform(
+                $rowsByBreakpoint,
+                $transformName,
+                $transformBreakpoints,
+            );
+            $assetKeys = $assetCollection['assetKeys'];
+            $selectedAssetKey = $this->normalizeReviewSelectedAssetKey(
+                $selectedAssetKeyBySet[$transformName] ?? null,
+                $assetKeys,
+            );
+            $normalizedSelectedAssetKeyBySet[$transformName] = $selectedAssetKey;
+            $selectedAssetRowsByBreakpoint = $this->buildReviewSelectedAssetRowsByBreakpoint(
+                $assetCollection['rowsByAssetByBreakpoint'],
+                $selectedAssetKey,
                 $transformBreakpoints,
             );
 
@@ -1135,6 +1180,7 @@ class TransformEditor extends Component
                             'scopeMode' => $scope['mode'],
                             'scopeBreakpoint' => $scope['mode'] === 'breakpoint' ? (string)$scope['breakpoint'] : '',
                             'scopeActive' => $this->isReviewScopeActive($scope) ? '1' : '0',
+                            'selectedAssetKey' => $selectedAssetKey,
                         ],
                     ],
                 ],
@@ -1149,7 +1195,7 @@ class TransformEditor extends Component
             $breakpointColumns = '';
             $renderedRowsForTransform = [];
             foreach ($transformBreakpoints as $breakpoint) {
-                $rows = $this->getReviewRowsForTransformBreakpoint($rowsByBreakpoint, $transformName, $breakpoint);
+                $rows = $selectedAssetRowsByBreakpoint[$breakpoint] ?? [];
                 $renderedRowsForTransform = array_merge(
                     $renderedRowsForTransform,
                     $this->buildReviewRenderedRowsPayload($rows, $breakpoint),
@@ -1165,8 +1211,25 @@ class TransformEditor extends Component
                     $scope['mode'] === 'all',
                     $escapeBreakpoint,
                     $hideRenderedApply,
+                    $reviewMode,
                 );
             }
+            $assetMismatchByKey = ($isProcessedReview && !$hideAssetPagination)
+                ? $this->buildReviewAssetMismatchByKey(
+                    $assetKeys,
+                    $assetCollection['rowsByAssetByBreakpoint'],
+                    $transformBreakpoints,
+                    $currentRows,
+                )
+                : [];
+            $assetPaginationHtml = $this->buildReviewAssetPaginationMarkup(
+                $assetKeys,
+                $assetCollection['assetLabelsByKey'],
+                $assetMismatchByKey,
+                $selectedAssetKey,
+                $signalKey,
+                $hideAssetPagination,
+            );
 
             $slug = $this->slugifyReviewTransformName($transformName);
             $editPanelId = 'bpi-edit-panel-' . $slug;
@@ -1175,9 +1238,14 @@ class TransformEditor extends Component
             $scopeLabel = $scope['mode'] === 'all'
                 ? 'All'
                 : ($scope['mode'] === 'breakpoint' ? ($scope['breakpoint'] . 'px') : 'Select scope');
+            $latestRunSummaryForTransform = $latestRunSummariesByTransform[$transformName] ?? null;
+            $hasMismatchWarning = $isProcessedReview
+                && is_array($latestRunSummaryForTransform)
+                && (($latestRunSummaryForTransform['hasMismatch'] ?? false) === true);
+
             $lastProcessPanelHtml = $this->buildLastProcessPanelMarkup(
                 $latestRunSnapshot,
-                $latestRunSummariesByTransform[$transformName] ?? null,
+                $latestRunSummaryForTransform,
                 $transformName,
             );
 
@@ -1190,16 +1258,18 @@ class TransformEditor extends Component
                 'transformNameEscaped' => $this->escapeReviewHtml($transformName),
                 'signalKey' => $this->escapeReviewHtml($signalKey),
                 'cardSignals' => $this->escapeReviewHtml($cardSignalsJson),
-                'cardWarningStateClass' => $cardWarningsMarkup !== '' ? 'bpi-transform-card-warning' : '',
+                'cardWarningStateClass' => ($cardWarningsMarkup !== '' || $hasMismatchWarning)
+                    ? 'bpi-transform-card-warning'
+                    : '',
                 'cardWarningsHtml' => $cardWarningsMarkup !== ''
                     ? '<div class="bpi-transform-card-warnings">' . $cardWarningsMarkup . '</div>'
                     : '',
                 'includeEscapeWidth' => $includeEscapeWidth ? '1' : '0',
-                'transformAssetCount' => (string)$this->getReviewTransformAssetCount($rowsByBreakpoint, $transformName),
-                'transformAssetCountHiddenClass' => $hideRenderedApply ? 'bpi-force-hidden' : '',
                 'renderedRowsForTransformJson' => $this->escapeReviewHtml($renderedRowsForTransformJson),
+                'selectedAssetKey' => $this->escapeReviewHtml($selectedAssetKey),
                 'renderedApplyHiddenClass' => $hideRenderedApply ? 'bpi-force-hidden' : '',
                 'breakpointColumns' => $breakpointColumns,
+                'assetPaginationHtml' => $assetPaginationHtml,
                 'editPanelId' => $this->escapeReviewHtml($editPanelId),
                 'signalPathBase' => $this->escapeReviewHtml($signalPathBase),
                 'editScopeDefaultLabel' => $this->escapeReviewHtml($scopeLabel),
@@ -1242,6 +1312,7 @@ class TransformEditor extends Component
         bool $allSelected,
         ?int $escapeBreakpoint,
         bool $hideRenderedApply,
+        string $reviewMode,
     ): string {
         $summary = $this->summarizeReviewRows($rows);
         $renderedRowsPayload = $this->buildReviewRenderedRowsPayload($rows, $breakpoint);
@@ -1301,6 +1372,8 @@ class TransformEditor extends Component
         $escapeBadge = $escapeBreakpoint !== null && $escapeBreakpoint === $breakpoint
             ? '<span class="bpi_escaped-notice">ESC</span>'
             : '';
+        $hasBreakpointMismatch = $reviewMode === self::REVIEW_MODE_PROCESSED
+            && $this->hasReviewMismatchForRowsCurrent($rows, $currentRow);
 
         $isSelected = $allSelected || ($selectedBreakpoint !== null && $selectedBreakpoint === $breakpoint);
         $breakpointColumnWidth = (float)($breakpointColumnWidths[(string)$breakpoint] ?? 1.0);
@@ -1310,6 +1383,7 @@ class TransformEditor extends Component
 
         return $this->renderReviewTemplate('breakpoint-column-template.twig', [
             'breakpointColumnSelectedClass' => $isSelected ? 'bpi-breakpoint-column-selected' : '',
+            'breakpointColumnMismatchClass' => $hasBreakpointMismatch ? 'bpi-breakpoint-column-mismatch' : '',
             'breakpoint' => (string)$breakpoint,
             'breakpointColumnWidth' => (string)$breakpointColumnWidth,
             'signalKey' => $this->escapeReviewHtml($signalKey),
@@ -1404,6 +1478,11 @@ class TransformEditor extends Component
                 $loaded = ($row['loaded'] ?? false) === true;
                 $broken = ($row['broken'] ?? false) === true;
                 $unresolved = ($row['unresolved'] ?? false) === true;
+                $transformName = (string)($row['transform'] ?? 'unknown');
+                $assetId = trim((string)($row['assetId'] ?? ''));
+                $sourceUsed = (string)($row['sourceUsed'] ?? '');
+                $src = (string)($row['src'] ?? ($row['sourceUsed'] ?? ''));
+                $title = (string)($row['title'] ?? '');
 
                 if ($loaded) {
                     $broken = false;
@@ -1417,16 +1496,18 @@ class TransformEditor extends Component
                 }
 
                 $normalizedRows[] = [
-                    'assetId' => (string)($row['assetId'] ?? ''),
-                    'transform' => (string)($row['transform'] ?? 'unknown'),
-                    'title' => (string)($row['title'] ?? ''),
+                    'assetId' => $assetId,
+                    'assetKey' => $this->buildReviewAssetKey($transformName, $assetId, $sourceUsed, $src, $title),
+                    'rowKey' => $this->buildReviewRowKey($breakpoint, $transformName, $assetId, $sourceUsed, $src, $title),
+                    'transform' => $transformName,
+                    'title' => $title,
                     'enabled' => ($row['enabled'] ?? true) === true,
                     'isVisible' => ($row['isVisible'] ?? false) === true,
                     'loaded' => $loaded,
                     'broken' => $broken,
                     'unresolved' => $unresolved,
-                    'sourceUsed' => (string)($row['sourceUsed'] ?? ''),
-                    'src' => (string)($row['src'] ?? ($row['sourceUsed'] ?? '')),
+                    'sourceUsed' => $sourceUsed,
+                    'src' => $src,
                     'rendered' => [
                         'width' => $this->toNonNegativeInt($row['rendered']['width'] ?? 0),
                         'height' => $this->toNonNegativeInt($row['rendered']['height'] ?? 0),
@@ -1654,6 +1735,197 @@ class TransformEditor extends Component
      * @param array<string, mixed>|null $snapshot
      * @return array<string, array<string, mixed>>
      */
+    public function buildLatestRunHealthByTransform(?array $snapshot = null): array
+    {
+        $resolvedSnapshot = is_array($snapshot) ? $snapshot : $this->getLatestRunSnapshotForReview();
+        if (!is_array($resolvedSnapshot)) {
+            return [];
+        }
+
+        $rowsPayloadStatusReliable = ($resolvedSnapshot['rowsPayloadStatusReliable'] ?? true) === true;
+
+        $rowsPayload = isset($resolvedSnapshot['rowsPayload']) && is_array($resolvedSnapshot['rowsPayload'])
+            ? $resolvedSnapshot['rowsPayload']
+            : [];
+        if ($rowsPayload === []) {
+            return [];
+        }
+
+        $payloadByTransform = [];
+        foreach ($rowsPayload as $payloadRow) {
+            if (!is_array($payloadRow)) {
+                continue;
+            }
+
+            $transformHandle = trim((string)($payloadRow['transformHandle'] ?? ''));
+            $breakpointWidth = isset($payloadRow['breakpointWidth']) && is_numeric($payloadRow['breakpointWidth'])
+                ? (int)$payloadRow['breakpointWidth']
+                : 0;
+            if ($transformHandle === '' || $breakpointWidth <= 0) {
+                continue;
+            }
+
+            $payloadByTransform[$transformHandle][$breakpointWidth][] = [
+                'assetId' => trim((string)($payloadRow['assetId'] ?? '')),
+                'rowStatus' => $this->normalizeLatestRunRowStatus((string)($payloadRow['rowStatus'] ?? '')),
+                'renderedWidth' => max(0, (int)($payloadRow['renderedWidth'] ?? 0)),
+                'renderedHeight' => max(0, (int)($payloadRow['renderedHeight'] ?? 0)),
+            ];
+        }
+
+        if ($payloadByTransform === []) {
+            return [];
+        }
+
+        $configuredBreakpoints = $this->getReviewConfiguredBreakpoints();
+        $storedTransforms = $this->getReviewStoredTransforms();
+        $healthByTransform = [];
+
+        foreach ($payloadByTransform as $transformHandle => $breakpointEntriesByWidth) {
+            $transformConfig = $this->getReviewTransformConfig($storedTransforms, $transformHandle);
+            $includeEscapeWidth = ($transformConfig['includeEscapeWidth'] ?? false) === true;
+            $transformBreakpoints = $this->getReviewBreakpointsForTransformConfig($includeEscapeWidth, $configuredBreakpoints);
+            $currentRowsByBreakpoint = $this->buildReviewCurrentRowsForTransform($transformConfig, $transformBreakpoints);
+
+            $breakpointRows = $this->buildLatestRunBreakpointHealthRows(
+                $breakpointEntriesByWidth,
+                $currentRowsByBreakpoint,
+                $rowsPayloadStatusReliable,
+            );
+
+            $mismatchBreakpoints = [];
+            foreach ($breakpointRows as $breakpointRow) {
+                if (!is_array($breakpointRow)) {
+                    continue;
+                }
+
+                $statusLabel = strtolower(trim((string)($breakpointRow['statusLabel'] ?? 'matching')));
+                $breakpointWidth = isset($breakpointRow['breakpointWidth']) && is_numeric($breakpointRow['breakpointWidth'])
+                    ? (int)$breakpointRow['breakpointWidth']
+                    : 0;
+
+                if ($statusLabel === 'mismatches' && $breakpointWidth > 0) {
+                    $mismatchBreakpoints[] = $breakpointWidth;
+                }
+            }
+
+            sort($mismatchBreakpoints, SORT_NUMERIC);
+            $healthByTransform[$transformHandle] = [
+                'hasMismatch' => $mismatchBreakpoints !== [],
+                'mismatchBreakpointCount' => count($mismatchBreakpoints),
+                'mismatchBreakpoints' => $mismatchBreakpoints,
+                'breakpointRows' => $breakpointRows,
+            ];
+        }
+
+        return $healthByTransform;
+    }
+
+    /**
+     * @param array<int, array<int, array<string, mixed>>> $breakpointEntriesByWidth
+     * @param array<int, array<string, mixed>> $currentRowsByBreakpoint
+     * @param bool $statusReliable
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildLatestRunBreakpointHealthRows(
+        array $breakpointEntriesByWidth,
+        array $currentRowsByBreakpoint,
+        bool $statusReliable,
+    ): array
+    {
+        ksort($breakpointEntriesByWidth, SORT_NUMERIC);
+        $rows = [];
+
+        foreach ($breakpointEntriesByWidth as $breakpointWidth => $breakpointEntries) {
+            if (!is_array($breakpointEntries) || $breakpointEntries === []) {
+                continue;
+            }
+
+            $referenceEntry = $breakpointEntries[0];
+            foreach ($breakpointEntries as $candidateEntry) {
+                if (($candidateEntry['renderedWidth'] ?? 0) > 0 && ($candidateEntry['renderedHeight'] ?? 0) > 0) {
+                    $referenceEntry = $candidateEntry;
+                    break;
+                }
+            }
+
+            $expectedAssetWidth = max(0, (int)($referenceEntry['renderedWidth'] ?? 0));
+            $expectedAssetHeight = max(0, (int)($referenceEntry['renderedHeight'] ?? 0));
+            $savedRow = isset($currentRowsByBreakpoint[$breakpointWidth]) && is_array($currentRowsByBreakpoint[$breakpointWidth])
+                ? $currentRowsByBreakpoint[$breakpointWidth]
+                : null;
+
+            $expectedConfigWidth = $savedRow !== null
+                ? $this->normalizeNullablePositiveInt($savedRow['width'] ?? null)
+                : null;
+            $expectedConfigHeight = $savedRow !== null
+                ? $this->normalizeNullablePositiveInt($savedRow['height'] ?? null)
+                : null;
+
+            $mismatchDetails = [];
+            if ($savedRow === null) {
+                $mismatchDetails[] = 'No saved transform row for breakpoint.';
+            }
+
+            foreach ($breakpointEntries as $entryIndex => $entry) {
+                $assetLabel = trim((string)($entry['assetId'] ?? ''));
+                if ($assetLabel === '') {
+                    $assetLabel = 'Asset ' . (string)($entryIndex + 1);
+                }
+
+                $status = $this->normalizeLatestRunRowStatus((string)($entry['rowStatus'] ?? ''));
+                $renderedWidth = max(0, (int)($entry['renderedWidth'] ?? 0));
+                $renderedHeight = max(0, (int)($entry['renderedHeight'] ?? 0));
+
+                if ($statusReliable && $status !== 'loaded') {
+                    $mismatchDetails[] = $assetLabel . ': status ' . $status;
+                }
+
+                if ($renderedWidth < 1 || $renderedHeight < 1) {
+                    if ($statusReliable) {
+                        $mismatchDetails[] = $assetLabel . ': size unavailable';
+                    }
+                    continue;
+                }
+
+                if ($expectedAssetWidth > 0 && $expectedAssetHeight > 0
+                    && (abs($renderedWidth - $expectedAssetWidth) > 2 || abs($renderedHeight - $expectedAssetHeight) > 2)) {
+                    $mismatchDetails[] = $assetLabel . ': '
+                        . $renderedWidth . 'x' . $renderedHeight
+                        . ' expected asset ' . $expectedAssetWidth . 'x' . $expectedAssetHeight;
+                }
+
+                if ($expectedConfigWidth !== null && abs($renderedWidth - $expectedConfigWidth) > 2) {
+                    $mismatchDetails[] = $assetLabel . ': width '
+                        . $renderedWidth . ' expected transform ' . $expectedConfigWidth;
+                }
+
+                if ($expectedConfigHeight !== null && abs($renderedHeight - $expectedConfigHeight) > 2) {
+                    $mismatchDetails[] = $assetLabel . ': height '
+                        . $renderedHeight . ' expected transform ' . $expectedConfigHeight;
+                }
+            }
+
+            $isMismatch = $mismatchDetails !== [];
+            $visibleDetails = array_slice($mismatchDetails, 0, 6);
+            if (count($mismatchDetails) > 6) {
+                $visibleDetails[] = '+' . (string)(count($mismatchDetails) - 6) . ' more';
+            }
+
+            $rows[] = [
+                'breakpointWidth' => (int)$breakpointWidth,
+                'statusLabel' => $isMismatch ? 'Mismatches' : 'Matching',
+                'mismatchInfo' => $isMismatch ? implode('; ', $visibleDetails) : '-',
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param array<string, mixed>|null $snapshot
+     * @return array<string, array<string, mixed>>
+     */
     private function buildLatestRunSummaryByTransform(?array $snapshot): array
     {
         if (!is_array($snapshot)) {
@@ -1693,6 +1965,9 @@ class TransformEditor extends Component
                         'unprocessed' => 0,
                     ],
                     'statusByBreakpoint' => [],
+                    'hasMismatch' => false,
+                    'mismatchBreakpointCount' => 0,
+                    'mismatchBreakpoints' => [],
                 ];
             }
 
@@ -1712,6 +1987,35 @@ class TransformEditor extends Component
             $summaries[$transformHandle]['statusByBreakpoint'][(string)$breakpointWidth] = $rowStatus;
         }
 
+        $healthByTransform = $this->buildLatestRunHealthByTransform($snapshot);
+        foreach ($healthByTransform as $transformHandle => $health) {
+            if (!isset($summaries[$transformHandle])) {
+                $summaries[$transformHandle] = [
+                    'rowsTotal' => 0,
+                    'previewCount' => 0,
+                    'statusCounts' => [
+                        'loaded' => 0,
+                        'broken' => 0,
+                        'unresolved' => 0,
+                        'disabled' => 0,
+                        'unprocessed' => 0,
+                    ],
+                    'statusByBreakpoint' => [],
+                    'hasMismatch' => false,
+                    'mismatchBreakpointCount' => 0,
+                    'mismatchBreakpoints' => [],
+                ];
+            }
+
+            $summaries[$transformHandle]['hasMismatch'] = ($health['hasMismatch'] ?? false) === true;
+            $summaries[$transformHandle]['mismatchBreakpointCount'] = isset($health['mismatchBreakpointCount'])
+                ? max(0, (int)$health['mismatchBreakpointCount'])
+                : 0;
+            $summaries[$transformHandle]['mismatchBreakpoints'] = isset($health['mismatchBreakpoints']) && is_array($health['mismatchBreakpoints'])
+                ? array_values($health['mismatchBreakpoints'])
+                : [];
+        }
+
         foreach ($summaries as $transformHandle => $summary) {
             $statusByBreakpoint = $summary['statusByBreakpoint'];
             if (is_array($statusByBreakpoint)) {
@@ -1725,50 +2029,75 @@ class TransformEditor extends Component
 
     /**
      * @param array<string, mixed>|null $snapshot
-    * @param array<string, mixed>|null $transformSummary
-    * @param string $transformHandle
+     * @param array<string, mixed>|null $transformSummary
+     * @param string $transformHandle
      */
-    private function buildLastProcessPanelMarkup(?array $snapshot, ?array $_transformSummary, string $transformHandle): string
+    private function buildLastProcessPanelMarkup(?array $snapshot, ?array $transformSummary, string $transformHandle): string
     {
         if (!is_array($snapshot)) {
             return '<aside class="bpi-transform-last-process-pane"><div class="bpi-transform-last-process-header"><span class="bpi-transform-last-process-status-icon bpi-transform-last-process-status-icon-unknown" aria-label="Unknown" title="Unknown"><span data-icon="alert" aria-hidden="true"></span></span></div><p class="light bpi-transform-last-process-empty">No saved run data yet.</p></aside>';
         }
 
-        $runStatus = $this->normalizeLatestRunStatus((string)($snapshot['runStatus'] ?? 'unknown'));
         $ranAtLabel = $this->formatLatestRunTimestamp($snapshot['ranAt'] ?? null);
         $entryId = is_numeric($snapshot['entryId'] ?? null) ? (int)$snapshot['entryId'] : 0;
+        $mismatchBreakpointCount = is_array($transformSummary) && is_numeric($transformSummary['mismatchBreakpointCount'] ?? null)
+            ? max(0, (int)$transformSummary['mismatchBreakpointCount'])
+            : 0;
+        $hasHealthData = is_array($transformSummary);
+        $hasMismatch = $hasHealthData && $mismatchBreakpointCount > 0;
 
-        $statusIconClass = match ($runStatus) {
-            'completed' => 'bpi-transform-last-process-status-icon-success',
-            'failed', 'cancelled' => 'bpi-transform-last-process-status-icon-failed',
-            default => 'bpi-transform-last-process-status-icon-unknown',
-        };
-        $statusLabel = match ($runStatus) {
-            'completed' => 'Completed',
-            'failed' => 'Failed',
-            'cancelled' => 'Cancelled',
-            default => 'Unknown',
-        };
-        $statusIconName = match ($runStatus) {
-            'completed' => 'check',
-            'failed', 'cancelled' => 'xmark',
-            default => 'alert',
-        };
+        if (!$hasHealthData) {
+            $statusIconClass = 'bpi-transform-last-process-status-icon-unknown';
+            $statusLabel = 'No Health Data';
+            $statusIconName = 'alert';
+        } elseif ($hasMismatch) {
+            $statusIconClass = 'bpi-transform-last-process-status-icon-failed';
+            $statusLabel = 'Needs Review';
+            $statusIconName = 'alert';
+        } else {
+            $statusIconClass = 'bpi-transform-last-process-status-icon-success';
+            $statusLabel = 'Transform Sets Valid';
+            $statusIconName = 'check';
+        }
+
+        $actionLabel = $hasMismatch ? 'Review' : 'Details';
+        $detailsButtonMarkup = sprintf(
+            '<button type="button" class="btn small bpi-process-details-link" data-bpi-open-process-details="true" data-transform-handle="%s" data-entry-id="%s" title="%s" aria-label="%s">%s</button>',
+            $this->escapeReviewHtml($transformHandle),
+            $this->escapeReviewHtml((string)max(0, $entryId)),
+            $this->escapeReviewHtml($actionLabel),
+            $this->escapeReviewHtml($actionLabel),
+            $this->escapeReviewHtml($actionLabel),
+        );
+
+        $mismatchMarkup = '';
+        if ($hasMismatch) {
+            $breakpointLabel = $mismatchBreakpointCount === 1 ? 'breakpoint' : 'breakpoints';
+            $mismatchMarkup = sprintf(
+                '<div class="bpi-transform-last-process-mismatch">'
+                . '<span class="bpi-transform-last-process-mismatch-text">%s</span>'
+                . '</div>',
+                $this->escapeReviewHtml(sprintf('Mismatches in %d %s', $mismatchBreakpointCount, $breakpointLabel)),
+            );
+        }
 
         return sprintf(
-            '<button type="button" class="bpi-transform-last-process-pane bpi-process-details-link" data-bpi-open-process-details="true" data-transform-handle="%s" data-entry-id="%s" title="Details" aria-label="Details">'
+            '<aside class="bpi-transform-last-process-pane%s">'
             . '<div class="bpi-transform-last-process-header">'
             . '<span class="bpi-transform-last-process-status-icon %s" aria-label="%s" title="%s"><span data-icon="%s" aria-hidden="true"></span></span>'
             . '<p class="bpi-transform-last-process-compact-meta">%s</p>'
+            . '%s'
             . '</div>'
-            . '</button>',
-            $this->escapeReviewHtml($transformHandle),
-            $this->escapeReviewHtml((string)max(0, $entryId)),
+            . '%s'
+            . '</aside>',
+            $hasMismatch ? ' bpi-transform-last-process-pane-has-mismatch' : '',
             $this->escapeReviewHtml($statusIconClass),
             $this->escapeReviewHtml($statusLabel),
             $this->escapeReviewHtml($statusLabel),
             $this->escapeReviewHtml($statusIconName),
             $this->escapeReviewHtml($ranAtLabel),
+            $detailsButtonMarkup,
+            $mismatchMarkup,
         );
     }
 
@@ -1846,6 +2175,303 @@ class TransformEditor extends Component
         }
 
         return $filtered;
+    }
+
+    private function buildReviewAssetKey(
+        string $transformName,
+        string $assetId,
+        string $sourceUsed,
+        string $src,
+        string $title,
+    ): string {
+        $normalizedTransform = trim($transformName) !== '' ? trim($transformName) : 'unknown';
+        $normalizedAssetId = trim($assetId);
+
+        if ($normalizedAssetId !== '') {
+            return 'asset:' . $normalizedTransform . ':' . $normalizedAssetId;
+        }
+
+        $sourceSignature = $this->normalizeReviewSourceSignature($sourceUsed, $src, $title);
+        return 'asset:' . $normalizedTransform . ':sig-' . substr(sha1($sourceSignature), 0, 16);
+    }
+
+    private function buildReviewRowKey(
+        int $breakpoint,
+        string $transformName,
+        string $assetId,
+        string $sourceUsed,
+        string $src,
+        string $title,
+    ): string {
+        return $this->buildReviewAssetKey($transformName, $assetId, $sourceUsed, $src, $title)
+            . ':bp-' . (string)$breakpoint;
+    }
+
+    private function normalizeReviewSourceSignature(string $sourceUsed, string $src, string $title): string
+    {
+        $candidates = [
+            trim($sourceUsed),
+            trim($src),
+            trim($title),
+        ];
+
+        foreach ($candidates as $candidate) {
+            if ($candidate === '') {
+                continue;
+            }
+
+            $querySplit = explode('?', $candidate, 2);
+            $base = $querySplit[0] ?? $candidate;
+            $hashSplit = explode('#', $base, 2);
+            $normalized = trim((string)($hashSplit[0] ?? $base));
+            if ($normalized !== '') {
+                return $normalized;
+            }
+        }
+
+        return 'missing-source';
+    }
+
+    /**
+     * @param array<int, array<int, array<string, mixed>>> $rowsByBreakpoint
+     * @param array<int, int> $transformBreakpoints
+     * @return array{assetKeys: array<int, string>, rowsByAssetByBreakpoint: array<string, array<int, array<int, array<string, mixed>>>>, assetLabelsByKey: array<string, string>}
+     */
+    private function buildReviewAssetCollectionForTransform(
+        array $rowsByBreakpoint,
+        string $transformName,
+        array $transformBreakpoints,
+    ): array {
+        $assetKeys = [];
+        $assetSeen = [];
+        $rowsByAssetByBreakpoint = [];
+        $assetLabelsByKey = [];
+
+        foreach ($transformBreakpoints as $breakpoint) {
+            $rows = $this->getReviewRowsForTransformBreakpoint($rowsByBreakpoint, $transformName, $breakpoint);
+            foreach ($rows as $row) {
+                $assetKey = trim((string)($row['assetKey'] ?? ''));
+                if ($assetKey === '') {
+                    $assetKey = $this->buildReviewAssetKey(
+                        (string)($row['transform'] ?? $transformName),
+                        (string)($row['assetId'] ?? ''),
+                        (string)($row['sourceUsed'] ?? ''),
+                        (string)($row['src'] ?? ''),
+                        (string)($row['title'] ?? ''),
+                    );
+                }
+
+                if (!isset($assetSeen[$assetKey])) {
+                    $assetSeen[$assetKey] = true;
+                    $assetKeys[] = $assetKey;
+                }
+
+                if (!isset($rowsByAssetByBreakpoint[$assetKey])) {
+                    $rowsByAssetByBreakpoint[$assetKey] = [];
+                }
+
+                if (!isset($rowsByAssetByBreakpoint[$assetKey][$breakpoint])) {
+                    $rowsByAssetByBreakpoint[$assetKey][$breakpoint] = [];
+                }
+
+                $rowsByAssetByBreakpoint[$assetKey][$breakpoint][] = $row;
+
+                if (!isset($assetLabelsByKey[$assetKey])) {
+                    $assetLabelsByKey[$assetKey] = $this->buildReviewAssetLabel($row, count($assetKeys));
+                }
+            }
+        }
+
+        return [
+            'assetKeys' => $assetKeys,
+            'rowsByAssetByBreakpoint' => $rowsByAssetByBreakpoint,
+            'assetLabelsByKey' => $assetLabelsByKey,
+        ];
+    }
+
+    private function normalizeReviewSelectedAssetKey(mixed $rawSelectedAssetKey, array $assetKeys): string
+    {
+        if ($assetKeys === []) {
+            return '';
+        }
+
+        $selectedAssetKey = is_string($rawSelectedAssetKey)
+            ? trim($rawSelectedAssetKey)
+            : '';
+
+        if ($selectedAssetKey !== '' && in_array($selectedAssetKey, $assetKeys, true)) {
+            return $selectedAssetKey;
+        }
+
+        return $assetKeys[0];
+    }
+
+    /**
+     * @param array<string, array<int, array<int, array<string, mixed>>>> $rowsByAssetByBreakpoint
+     * @param array<int, int> $transformBreakpoints
+     * @return array<int, array<int, array<string, mixed>>>
+     */
+    private function buildReviewSelectedAssetRowsByBreakpoint(
+        array $rowsByAssetByBreakpoint,
+        string $selectedAssetKey,
+        array $transformBreakpoints,
+    ): array {
+        $rowsByBreakpoint = [];
+        foreach ($transformBreakpoints as $breakpoint) {
+            $rows = $rowsByAssetByBreakpoint[$selectedAssetKey][$breakpoint] ?? [];
+            $selectedRow = $this->pickReviewPreviewRow($rows);
+            $rowsByBreakpoint[$breakpoint] = $selectedRow !== null ? [$selectedRow] : [];
+        }
+
+        return $rowsByBreakpoint;
+    }
+
+    private function buildReviewAssetLabel(array $row, int $fallbackIndex): string
+    {
+        $assetId = trim((string)($row['assetId'] ?? ''));
+        if ($assetId !== '') {
+            return $assetId;
+        }
+
+        $title = trim((string)($row['title'] ?? ''));
+        if ($title !== '') {
+            return $title;
+        }
+
+        return 'Asset ' . (string)$fallbackIndex;
+    }
+
+    private function buildReviewAssetPaginationMarkup(
+        array $assetKeys,
+        array $assetLabelsByKey,
+        array $assetMismatchByKey,
+        string $selectedAssetKey,
+        string $signalKey,
+        bool $hideAssetPagination,
+    ): string {
+        if ($hideAssetPagination || count($assetKeys) < 2) {
+            return '';
+        }
+
+        $buttons = '';
+        foreach ($assetKeys as $assetIndex => $assetKey) {
+            $label = trim((string)($assetLabelsByKey[$assetKey] ?? ''));
+            if ($label === '') {
+                $label = 'Asset ' . (string)($assetIndex + 1);
+            }
+
+            $assetKeyJs = json_encode($assetKey, JSON_UNESCAPED_SLASHES);
+            if (!is_string($assetKeyJs)) {
+                $assetKeyJs = '""';
+            }
+
+            $escapedAssetKey = $this->escapeReviewHtml($assetKey);
+            $escapedLabel = $this->escapeReviewHtml($label);
+            $escapedAssetKeyJs = $this->escapeReviewHtml($assetKeyJs);
+            $isActive = $assetKey === $selectedAssetKey;
+            $hasMismatch = ($assetMismatchByKey[$assetKey] ?? false) === true;
+
+            $buttons .= sprintf(
+                '<button type="button" class="btn small bpi-transform-asset-page%s%s" data-asset-key="%s" data-on:click="$editor.cards.%s.selectedAssetKey=%s" data-class:active="$editor.cards.%s.selectedAssetKey === %s" data-attr:aria-pressed="$editor.cards.%s.selectedAssetKey === %s ? \'true\' : \'false\'" aria-label="Show %s" title="Show %s"%s>%d</button>',
+                $isActive ? ' active' : '',
+                $hasMismatch ? ' bpi-transform-asset-page-mismatch' : '',
+                $escapedAssetKey,
+                $signalKey,
+                $escapedAssetKeyJs,
+                $signalKey,
+                $escapedAssetKeyJs,
+                $signalKey,
+                $escapedAssetKeyJs,
+                $escapedLabel,
+                $escapedLabel,
+                $isActive ? ' aria-pressed="true"' : '',
+                $assetIndex + 1,
+            );
+        }
+
+        return '<div class="bpi-transform-asset-pagination" role="toolbar" aria-label="Asset pagination">' . $buttons . '</div>';
+    }
+
+    /**
+     * @param array<int, string> $assetKeys
+     * @param array<string, array<int, array<int, array<string, mixed>>>> $rowsByAssetByBreakpoint
+     * @param array<int, int> $transformBreakpoints
+     * @param array<int, array<string, mixed>> $currentRows
+     * @return array<string, bool>
+     */
+    private function buildReviewAssetMismatchByKey(
+        array $assetKeys,
+        array $rowsByAssetByBreakpoint,
+        array $transformBreakpoints,
+        array $currentRows,
+    ): array {
+        $assetMismatchByKey = [];
+
+        foreach ($assetKeys as $assetKey) {
+            $hasMismatch = false;
+
+            foreach ($transformBreakpoints as $breakpoint) {
+                $rows = $rowsByAssetByBreakpoint[$assetKey][$breakpoint] ?? [];
+                if (!is_array($rows) || $rows === []) {
+                    continue;
+                }
+                $currentRow = isset($currentRows[$breakpoint]) && is_array($currentRows[$breakpoint])
+                    ? $currentRows[$breakpoint]
+                    : $this->buildDefaultTransformEntry();
+
+                if ($this->hasReviewMismatchForRowsCurrent($rows, $currentRow)) {
+                    $hasMismatch = true;
+                    break;
+                }
+            }
+
+            $assetMismatchByKey[$assetKey] = $hasMismatch;
+        }
+
+        return $assetMismatchByKey;
+    }
+
+    private function hasReviewMismatchForRowsCurrent(array $rows, array $currentRow): bool
+    {
+        $hasLoadedRow = false;
+
+        foreach ($rows as $row) {
+            $enabled = ($row['enabled'] ?? false) === true;
+            if ($enabled && ($row['loaded'] ?? false) === true) {
+                $hasLoadedRow = true;
+            }
+
+            if ($enabled && (($row['broken'] ?? false) === true || ($row['unresolved'] ?? false) === true)) {
+                return true;
+            }
+        }
+
+        // Unprocessed placeholders should stay neutral until we have measured output.
+        if (!$hasLoadedRow) {
+            return false;
+        }
+
+        $summary = $this->summarizeReviewRows($rows);
+        $renderedWidth = max(0, (int)($summary['renderedWidth'] ?? 0));
+        $renderedHeight = max(0, (int)($summary['renderedHeight'] ?? 0));
+
+        $currentWidth = $this->normalizeNullablePositiveInt($currentRow['width'] ?? null);
+        $currentHeight = $this->normalizeNullablePositiveInt($currentRow['height'] ?? null);
+        $autoDimension = $this->normalizeAutoDimension($currentRow['autoDimension'] ?? null);
+
+        if ($autoDimension !== 'width' && $currentWidth !== null) {
+            if ($renderedWidth < 1 || abs($renderedWidth - $currentWidth) > 2) {
+                return true;
+            }
+        }
+
+        if ($autoDimension !== 'height' && $currentHeight !== null) {
+            if ($renderedHeight < 1 || abs($renderedHeight - $currentHeight) > 2) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function summarizeReviewRows(array $rows): array
@@ -1998,13 +2624,22 @@ class TransformEditor extends Component
 
     private function getReviewTransformSignalKey(string $transformName): string
     {
-        return 't_' . str_replace('-', '_', $this->slugifyReviewTransformName($transformName));
+        $base = str_replace('-', '_', $this->slugifyReviewTransformName($transformName));
+        return 't_' . $base . '_' . substr(sha1($transformName), 0, 8);
     }
 
     private function normalizeReviewTab(mixed $rawTab): string
     {
         $tab = is_string($rawTab) ? $rawTab : '';
         return in_array($tab, ['dimensions', 'ratio'], true) ? $tab : 'dimensions';
+    }
+
+    private function normalizeReviewMode(mixed $rawReviewMode): string
+    {
+        $reviewMode = is_string($rawReviewMode) ? strtolower(trim($rawReviewMode)) : '';
+        return in_array($reviewMode, [self::REVIEW_MODE_PROCESSED, self::REVIEW_MODE_SAVED], true)
+            ? $reviewMode
+            : self::REVIEW_MODE_PROCESSED;
     }
 
     private function normalizeReviewScope(mixed $rawScope, array $transformBreakpoints): array
@@ -2183,25 +2818,6 @@ class TransformEditor extends Component
         }
 
         return $rows;
-    }
-
-    private function getReviewTransformAssetCount(array $rowsByBreakpoint, string $transformName): int
-    {
-        $assetIds = [];
-        foreach ($rowsByBreakpoint as $rows) {
-            foreach ($rows as $row) {
-                if (($row['transform'] ?? '') !== $transformName) {
-                    continue;
-                }
-
-                $assetId = (string)($row['assetId'] ?? '');
-                if ($assetId !== '') {
-                    $assetIds[$assetId] = true;
-                }
-            }
-        }
-
-        return count($assetIds);
     }
 
     private function escapeReviewHtml(string $value): string

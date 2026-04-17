@@ -3,17 +3,18 @@
         data-set="__TRANSFORM_NAME_ESCAPED__"
         data-signal-key="__SIGNAL_KEY__"
         data-rendered-rows="__RENDERED_ROWS_FOR_TRANSFORM_JSON__"
+        data-selected-asset-key="__SELECTED_ASSET_KEY__"
         data-signals="__CARD_SIGNALS__"
         data-attr:data-scope-mode="$editor.cards.__SIGNAL_KEY__.scopeMode || ''"
         data-attr:data-scope-breakpoint="$editor.cards.__SIGNAL_KEY__.scopeMode === 'breakpoint' ? String(Number($editor.cards.__SIGNAL_KEY__.scopeBreakpoint || 0) || '') : ''"
         data-attr:data-active-tab="$editor.cards.__SIGNAL_KEY__.activeTab || 'dimensions'"
+        data-attr:data-selected-asset-key="$editor.cards.__SIGNAL_KEY__.selectedAssetKey || ''"
         data-class:bpi-transform-card-controls-disabled="Number($editor.cards.__SIGNAL_KEY__.scopeActive || 0) !== 1"
         data-include-escape-width="__INCLUDE_ESCAPE_WIDTH__">
         __CARD_WARNINGS_HTML__
         <header class="bpi-transform-card-header">
             <div class="bpi-transform-title-wrap">
                 <h2 class="bpi-transform-name">__TRANSFORM_NAME_ESCAPED__</h2>
-                <div class="bpi-transform-stats __TRANSFORM_ASSET_COUNT_HIDDEN_CLASS__">__TRANSFORM_ASSET_COUNT__ assets</div>
                 <span class="bpi-transform-update-status" data-role="transform-update-status" data-state="idle" aria-live="polite" aria-label="">
                     <span class="bpi-transform-update-status-icon bpi-transform-update-status-icon-saving" aria-hidden="true"><span class="icon" data-icon="refresh"></span></span>
                     <span class="bpi-transform-update-status-icon bpi-transform-update-status-icon-success" aria-hidden="true"><span class="icon" data-icon="check"></span></span>
@@ -37,6 +38,7 @@
             </div>
         </header>
         <div class="bpi-breakpoint-grid">__BREAKPOINT_COLUMNS__</div>
+        __ASSET_PAGINATION_HTML__
         <section class="bpi-transform-edit-panel" id="__EDIT_PANEL_ID__">
             <div class="bpi-transform-edit-layout">
                 <div class="bpi-transform-edit-main">

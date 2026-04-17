@@ -332,17 +332,20 @@ class TransformsController extends Controller
         $rawResult = $this->request->getBodyParam('result', []);
         $rawEditScopeBySet = $this->request->getBodyParam('editScopeBySet', []);
         $rawEditTabBySet = $this->request->getBodyParam('editTabBySet', []);
+        $rawSelectedAssetKeyBySet = $this->request->getBodyParam('selectedAssetKeyBySet', []);
         $rawPreferredOrderBySet = $this->request->getBodyParam('preferredOrderBySet', []);
 
         $result = is_array($rawResult) ? $rawResult : [];
         $editScopeBySet = is_array($rawEditScopeBySet) ? $rawEditScopeBySet : [];
         $editTabBySet = is_array($rawEditTabBySet) ? $rawEditTabBySet : [];
+        $selectedAssetKeyBySet = is_array($rawSelectedAssetKeyBySet) ? $rawSelectedAssetKeyBySet : [];
         $preferredOrderBySet = is_array($rawPreferredOrderBySet) ? $rawPreferredOrderBySet : [];
 
         $rendered = $editor->renderResultReview(
             $result,
             $editScopeBySet,
             $editTabBySet,
+            $selectedAssetKeyBySet,
             $preferredOrderBySet,
         );
 
@@ -357,15 +360,18 @@ class TransformsController extends Controller
         $editor = Plugin::getInstance()->getTransformEditor();
         $rawEditScopeBySet = $this->request->getBodyParam('editScopeBySet', []);
         $rawEditTabBySet = $this->request->getBodyParam('editTabBySet', []);
+        $rawSelectedAssetKeyBySet = $this->request->getBodyParam('selectedAssetKeyBySet', []);
         $rawPreferredOrderBySet = $this->request->getBodyParam('preferredOrderBySet', []);
 
         $editScopeBySet = is_array($rawEditScopeBySet) ? $rawEditScopeBySet : [];
         $editTabBySet = is_array($rawEditTabBySet) ? $rawEditTabBySet : [];
+        $selectedAssetKeyBySet = is_array($rawSelectedAssetKeyBySet) ? $rawSelectedAssetKeyBySet : [];
         $preferredOrderBySet = is_array($rawPreferredOrderBySet) ? $rawPreferredOrderBySet : [];
 
         $rendered = $editor->renderInitialStoredReview(
             $editScopeBySet,
             $editTabBySet,
+            $selectedAssetKeyBySet,
             $preferredOrderBySet,
         );
 

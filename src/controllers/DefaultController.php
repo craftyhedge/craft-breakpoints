@@ -8,6 +8,7 @@ use craft\helpers\UrlHelper;
 use craft\web\Controller;
 use craft\web\View;
 use craftyhedge\craftbreakpointimages\Plugin;
+use craftyhedge\craftbreakpointimages\web\assets\transforms\ProcessDetailsAsset;
 use craftyhedge\craftbreakpointimages\web\assets\transforms\TransformsAsset;
 use yii\helpers\Json;
 use yii\web\BadRequestHttpException;
@@ -133,9 +134,12 @@ class DefaultController extends Controller
     {
         $this->requireCpRequest();
 
+        $this->view->registerAssetBundle(ProcessDetailsAsset::class);
+
         $plugin = Plugin::getInstance();
         $transformHandle = trim((string)$this->request->getQueryParam('transformHandle', ''));
         $telemetry = $plugin->getTelemetry();
+        $transformEditor = $plugin->getTransformEditor();
         $snapshot = $telemetry->getLatestRunSnapshot();
         $allRows = is_array($snapshot['rows'] ?? null) ? $snapshot['rows'] : [];
         $rows = $allRows;
@@ -249,6 +253,43 @@ class DefaultController extends Controller
             $counts[$status] += 1;
         }
 
+        $healthByTransform = $transformEditor->buildLatestRunHealthByTransform(is_array($snapshot) ? $snapshot : null);
+        $breakpointRows = [];
+        if ($transformHandle !== '') {
+            $health = $healthByTransform[$transformHandle] ?? null;
+            if (is_array($health) && isset($health['breakpointRows']) && is_array($health['breakpointRows'])) {
+                $breakpointRows = $health['breakpointRows'];
+            }
+        }
+
+        $mismatchBreakpointCount = 0;
+        foreach ($breakpointRows as $breakpointRow) {
+            if (!is_array($breakpointRow)) {
+                continue;
+            }
+
+            $statusLabel = strtolower(trim((string)($breakpointRow['statusLabel'] ?? 'matching')));
+            if ($statusLabel === 'mismatches') {
+                $mismatchBreakpointCount += 1;
+            }
+        }
+
+        $healthStatusClass = 'unknown';
+        $healthStatusIcon = 'alert';
+        $healthStatusLabel = Craft::t('craft-breakpoint-images', 'No Health Data');
+
+        if ($breakpointRows !== []) {
+            if ($mismatchBreakpointCount > 0) {
+                $healthStatusClass = 'failed';
+                $healthStatusIcon = 'alert';
+                $healthStatusLabel = Craft::t('craft-breakpoint-images', 'Needs Review');
+            } else {
+                $healthStatusClass = 'success';
+                $healthStatusIcon = 'check';
+                $healthStatusLabel = Craft::t('craft-breakpoint-images', 'Transform Sets Valid');
+            }
+        }
+
         $response = $this->asCpScreen()
             ->title($transformHandle !== ''
                 ? Craft::t('craft-breakpoint-images', 'Process Details: {name}', ['name' => $transformHandle])
@@ -262,8 +303,11 @@ class DefaultController extends Controller
                 'otherTransformHandles' => $otherTransformHandles,
                 'lastObserved' => $lastObserved,
                 'lastObservedEntry' => $lastObservedEntry,
-                'rows' => $rows,
+                'breakpointRows' => $breakpointRows,
                 'statusCounts' => $counts,
+                'healthStatusClass' => $healthStatusClass,
+                'healthStatusIcon' => $healthStatusIcon,
+                'healthStatusLabel' => $healthStatusLabel,
             ]);
 
         return $response;
@@ -274,10 +318,7 @@ class DefaultController extends Controller
         $plugin = Plugin::getInstance();
         $config = $plugin->getProcessingConfig()->getConfig();
         $siteId = Craft::$app->getSites()->getCurrentSite()->id;
-        $requestedEntryId = (int)($this->request->getQueryParam('entry_id')
-            ?? $this->request->getQueryParam('entryId')
-            ?? $this->request->getQueryParam('id')
-            ?? 0);
+        $requestedEntryId = (int)($this->request->getQueryParam('entry_id') ?? 0);
 
         $selectedSourceEntry = null;
         if ($requestedEntryId > 0) {

@@ -17,6 +17,10 @@ class TelemetryService extends Component
     private const RUN_STATUS_CANCELLED = 'cancelled';
     private const RUN_SNAPSHOT_TABLE = '{{%bpi_processing_run_snapshot}}';
     private const RUN_SNAPSHOT_ROWS_TABLE = '{{%bpi_processing_run_snapshot_breakpoints}}';
+    private const SNAPSHOT_FAILURE_COUNTS_KEY = 'counts';
+    private const SNAPSHOT_OVERLAY_ROWS_KEY = 'overlayRows';
+    private const SNAPSHOT_OVERLAY_STATUS_RELIABLE_KEY = 'overlayStatusReliable';
+    private const SNAPSHOT_META_MAX_BYTES = 64000;
     private const SOURCE_URL_MAX_LENGTH = 255;
     private const RUN_ID_MAX_LENGTH = 64;
 
@@ -214,9 +218,26 @@ class TelemetryService extends Component
         $sourceUrl = $this->normalizeSourceUrl($payload['sourceUrl'] ?? null);
         $failureReasonCounts = $this->normalizeFailureReasonCounts($payload['failureReasonCounts'] ?? []);
         $snapshotRows = $this->normalizeSnapshotRowsByBreakpoint($payload['rowsByBreakpoint'] ?? []);
+        $snapshotOverlayRows = $this->normalizeSnapshotOverlayRowsByBreakpoint($payload['rowsByBreakpoint'] ?? []);
+        $snapshotOverlayPayload = $this->encodeSnapshotOverlayRows($snapshotOverlayRows, true);
 
-        $failureReasonCountsJson = json_encode($failureReasonCounts, JSON_UNESCAPED_SLASHES);
-        if (!is_string($failureReasonCountsJson)) {
+        $snapshotMetaJson = json_encode([
+            self::SNAPSHOT_FAILURE_COUNTS_KEY => $failureReasonCounts,
+            self::SNAPSHOT_OVERLAY_ROWS_KEY => $snapshotOverlayPayload,
+        ], JSON_UNESCAPED_SLASHES);
+        if (!is_string($snapshotMetaJson)) {
+            return false;
+        }
+
+        if (strlen($snapshotMetaJson) > self::SNAPSHOT_META_MAX_BYTES) {
+            $snapshotOverlayPayload = $this->encodeSnapshotOverlayRows($snapshotOverlayRows, false);
+            $snapshotMetaJson = json_encode([
+                self::SNAPSHOT_FAILURE_COUNTS_KEY => $failureReasonCounts,
+                self::SNAPSHOT_OVERLAY_ROWS_KEY => $snapshotOverlayPayload,
+            ], JSON_UNESCAPED_SLASHES);
+        }
+
+        if (!is_string($snapshotMetaJson) || strlen($snapshotMetaJson) > self::SNAPSHOT_META_MAX_BYTES) {
             return false;
         }
 
@@ -231,7 +252,7 @@ class TelemetryService extends Component
                 'entryId' => $entryId,
                 'sourceUrl' => $sourceUrl,
                 'runId' => $runId,
-                'failureReasonCounts' => $failureReasonCountsJson,
+                'failureReasonCounts' => $snapshotMetaJson,
             ]);
 
             $db->createCommand()
@@ -298,7 +319,10 @@ class TelemetryService extends Component
                 ->all();
         }
 
-        $snapshot['failureReasonCounts'] = $this->decodeFailureReasonCounts($snapshot['failureReasonCounts'] ?? null);
+        $snapshotMeta = $this->decodeSnapshotMeta($snapshot['failureReasonCounts'] ?? null);
+        $snapshot['failureReasonCounts'] = $snapshotMeta[self::SNAPSHOT_FAILURE_COUNTS_KEY];
+        $snapshot['rowsPayload'] = $snapshotMeta[self::SNAPSHOT_OVERLAY_ROWS_KEY];
+        $snapshot['rowsPayloadStatusReliable'] = $snapshotMeta[self::SNAPSHOT_OVERLAY_STATUS_RELIABLE_KEY];
         $snapshot['rows'] = $rows;
 
         return $snapshot;
@@ -413,16 +437,7 @@ class TelemetryService extends Component
                 $broken = ($row['broken'] ?? false) === true;
                 $unresolved = ($row['unresolved'] ?? false) === true;
 
-                $rowStatus = 'unprocessed';
-                if ($enabled === false) {
-                    $rowStatus = 'disabled';
-                } elseif ($loaded) {
-                    $rowStatus = 'loaded';
-                } elseif ($broken) {
-                    $rowStatus = 'broken';
-                } elseif ($unresolved) {
-                    $rowStatus = 'unresolved';
-                }
+                $rowStatus = $this->resolveSnapshotRowStatus($enabled, $loaded, $broken, $unresolved);
 
                 $normalizedRows[$dedupeKey] = [
                     'transformHandle' => $transformHandle,
@@ -437,19 +452,320 @@ class TelemetryService extends Component
     }
 
     /**
-     * @return array<string, int>
+     * @return array<int, array<string, mixed>>
      */
-    private function decodeFailureReasonCounts(mixed $rawCounts): array
+    private function normalizeSnapshotOverlayRowsByBreakpoint(mixed $rawRowsByBreakpoint): array
     {
-        if (!is_string($rawCounts) || trim($rawCounts) === '') {
+        if (!is_array($rawRowsByBreakpoint)) {
             return [];
         }
 
-        $decoded = json_decode($rawCounts, true);
-        if (!is_array($decoded)) {
-            return [];
+        $normalizedRows = [];
+        foreach ($rawRowsByBreakpoint as $breakpointKey => $rows) {
+            if (!is_array($rows)) {
+                continue;
+            }
+
+            $breakpointWidth = is_numeric($breakpointKey) ? (int)$breakpointKey : 0;
+            if ($breakpointWidth <= 0) {
+                continue;
+            }
+
+            foreach ($rows as $index => $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $transformHandle = trim((string)($row['transform'] ?? ''));
+                if ($transformHandle === '') {
+                    continue;
+                }
+
+                $assetId = trim((string)($row['assetId'] ?? ''));
+                if ($assetId !== '') {
+                    $assetId = mb_substr($assetId, 0, 255);
+                }
+
+                $displayAssetUrl = trim((string)($row['src'] ?? ''));
+                if ($displayAssetUrl === '') {
+                    $displayAssetUrl = null;
+                } elseif (mb_strlen($displayAssetUrl) > 1024) {
+                    $displayAssetUrl = mb_substr($displayAssetUrl, 0, 1024);
+                }
+
+                $renderedWidth = max(0, (int)($row['rendered']['width'] ?? 0));
+                $renderedHeight = max(0, (int)($row['rendered']['height'] ?? 0));
+
+                $enabled = ($row['enabled'] ?? true) === true;
+                $loaded = ($row['loaded'] ?? false) === true;
+                $broken = ($row['broken'] ?? false) === true;
+                $unresolved = ($row['unresolved'] ?? false) === true;
+                $rowStatus = $this->resolveSnapshotRowStatus($enabled, $loaded, $broken, $unresolved);
+
+                $dedupeKey = implode('|', [
+                    $transformHandle,
+                    (string)$breakpointWidth,
+                    $assetId !== '' ? $assetId : ('row-' . (string)$index),
+                    (string)($displayAssetUrl ?? ''),
+                ]);
+
+                if (isset($normalizedRows[$dedupeKey])) {
+                    continue;
+                }
+
+                $normalizedRows[$dedupeKey] = [
+                    'transformHandle' => $transformHandle,
+                    'breakpointWidth' => $breakpointWidth,
+                    'renderedWidth' => $renderedWidth,
+                    'renderedHeight' => $renderedHeight,
+                    'rowStatus' => $rowStatus,
+                ];
+            }
         }
 
-        return $this->normalizeFailureReasonCounts($decoded);
+        return array_values($normalizedRows);
     }
+
+    /**
+     * @return array{counts: array<string, int>, overlayRows: array<int, array<string, mixed>>, overlayStatusReliable: bool}
+     */
+    private function decodeSnapshotMeta(mixed $rawMeta): array
+    {
+        if (!is_string($rawMeta) || trim($rawMeta) === '') {
+            return [
+                self::SNAPSHOT_FAILURE_COUNTS_KEY => [],
+                self::SNAPSHOT_OVERLAY_ROWS_KEY => [],
+                self::SNAPSHOT_OVERLAY_STATUS_RELIABLE_KEY => false,
+            ];
+        }
+
+        $decoded = json_decode($rawMeta, true);
+        if (!is_array($decoded)) {
+            return [
+                self::SNAPSHOT_FAILURE_COUNTS_KEY => [],
+                self::SNAPSHOT_OVERLAY_ROWS_KEY => [],
+                self::SNAPSHOT_OVERLAY_STATUS_RELIABLE_KEY => false,
+            ];
+        }
+
+        $decodedOverlay = $this->decodeSnapshotOverlayRows(
+            $decoded[self::SNAPSHOT_OVERLAY_ROWS_KEY] ?? [],
+        );
+
+        return [
+            self::SNAPSHOT_FAILURE_COUNTS_KEY => $this->normalizeFailureReasonCounts(
+                $decoded[self::SNAPSHOT_FAILURE_COUNTS_KEY] ?? [],
+            ),
+            self::SNAPSHOT_OVERLAY_ROWS_KEY => $decodedOverlay['rows'],
+            self::SNAPSHOT_OVERLAY_STATUS_RELIABLE_KEY => $decodedOverlay['statusReliable'],
+        ];
+    }
+
+    /**
+     * @return array{rows: array<int, array<string, mixed>>, statusReliable: bool}
+     */
+    private function decodeSnapshotOverlayRows(mixed $rawRows): array
+    {
+        if (is_array($rawRows)) {
+            $decoded = $rawRows;
+        } elseif (is_string($rawRows) && trim($rawRows) !== '') {
+            $decoded = json_decode($rawRows, true);
+        } else {
+            return [
+                'rows' => [],
+                'statusReliable' => false,
+            ];
+        }
+
+        if (!is_array($decoded)) {
+            return [
+                'rows' => [],
+                'statusReliable' => false,
+            ];
+        }
+
+        if (($decoded['v'] ?? null) !== 1 || !isset($decoded['rows']) || !is_array($decoded['rows'])) {
+            return [
+                'rows' => [],
+                'statusReliable' => false,
+            ];
+        }
+
+        $statusReliable = isset($decoded['s'])
+            ? ((int)$decoded['s'] === 1)
+            : $this->hasSnapshotOverlayStatusEntries($decoded['rows']);
+
+        return [
+            'rows' => $this->decodeCompactSnapshotOverlayRows($decoded['rows']),
+            'statusReliable' => $statusReliable,
+        ];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<string, mixed>
+     */
+    private function encodeSnapshotOverlayRows(array $rows, bool $includeStatus): array
+    {
+        $grouped = [];
+
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $transformHandle = trim((string)($row['transformHandle'] ?? ''));
+            $breakpointWidth = is_numeric($row['breakpointWidth'] ?? null) ? (int)$row['breakpointWidth'] : 0;
+            if ($transformHandle === '' || $breakpointWidth <= 0) {
+                continue;
+            }
+
+            $groupKey = $transformHandle . '|' . $breakpointWidth;
+            $grouped[$groupKey] ??= [
+                't' => $transformHandle,
+                'b' => $breakpointWidth,
+                'd' => [],
+            ];
+
+            $w = max(0, (int)($row['renderedWidth'] ?? 0));
+            $h = max(0, (int)($row['renderedHeight'] ?? 0));
+
+            if ($includeStatus) {
+                $status = strtolower(trim((string)($row['rowStatus'] ?? 'unprocessed')));
+                $statusCode = match ($status) {
+                    'loaded' => 1,
+                    'broken' => 2,
+                    'unresolved' => 3,
+                    'disabled' => 4,
+                    default => 0,
+                };
+                $grouped[$groupKey]['d'][] = [$w, $h, $statusCode];
+            } else {
+                $grouped[$groupKey]['d'][] = [$w, $h];
+            }
+        }
+
+        $rowsPayload = array_values($grouped);
+        usort($rowsPayload, static function(array $left, array $right): int {
+            $leftT = (string)($left['t'] ?? '');
+            $rightT = (string)($right['t'] ?? '');
+            if ($leftT !== $rightT) {
+                return strcmp($leftT, $rightT);
+            }
+
+            $leftB = (int)($left['b'] ?? 0);
+            $rightB = (int)($right['b'] ?? 0);
+            return $leftB <=> $rightB;
+        });
+
+        return [
+            'v' => 1,
+            's' => $includeStatus ? 1 : 0,
+            'rows' => $rowsPayload,
+        ];
+    }
+
+    /**
+     * @param array<int, mixed> $rowsPayload
+     */
+    private function hasSnapshotOverlayStatusEntries(array $rowsPayload): bool
+    {
+        foreach ($rowsPayload as $group) {
+            if (!is_array($group)) {
+                continue;
+            }
+
+            $dimensions = $group['d'] ?? null;
+            if (!is_array($dimensions)) {
+                continue;
+            }
+
+            foreach ($dimensions as $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+
+                if (count($entry) >= 3) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<int, mixed> $rowsPayload
+     * @return array<int, array<string, mixed>>
+     */
+    private function decodeCompactSnapshotOverlayRows(array $rowsPayload): array
+    {
+        $decoded = [];
+
+        foreach ($rowsPayload as $group) {
+            if (!is_array($group)) {
+                continue;
+            }
+
+            $transformHandle = trim((string)($group['t'] ?? ''));
+            $breakpointWidth = is_numeric($group['b'] ?? null) ? (int)$group['b'] : 0;
+            $dimensions = $group['d'] ?? null;
+
+            if ($transformHandle === '' || $breakpointWidth <= 0 || !is_array($dimensions)) {
+                continue;
+            }
+
+            foreach ($dimensions as $entry) {
+                if (!is_array($entry) || count($entry) < 2) {
+                    continue;
+                }
+
+                $renderedWidth = max(0, (int)($entry[0] ?? 0));
+                $renderedHeight = max(0, (int)($entry[1] ?? 0));
+                $statusCode = is_numeric($entry[2] ?? null) ? (int)$entry[2] : 0;
+
+                $rowStatus = match ($statusCode) {
+                    1 => 'loaded',
+                    2 => 'broken',
+                    3 => 'unresolved',
+                    4 => 'disabled',
+                    default => 'unprocessed',
+                };
+
+                $decoded[] = [
+                    'transformHandle' => $transformHandle,
+                    'breakpointWidth' => $breakpointWidth,
+                    'assetId' => '',
+                    'renderedWidth' => $renderedWidth,
+                    'renderedHeight' => $renderedHeight,
+                    'rowStatus' => $rowStatus,
+                ];
+            }
+        }
+
+        return $decoded;
+    }
+
+
+    private function resolveSnapshotRowStatus(bool $enabled, bool $loaded, bool $broken, bool $unresolved): string
+    {
+        if ($enabled === false) {
+            return 'disabled';
+        }
+
+        if ($loaded) {
+            return 'loaded';
+        }
+
+        if ($broken) {
+            return 'broken';
+        }
+
+        if ($unresolved) {
+            return 'unresolved';
+        }
+
+        return 'unprocessed';
+    }
+
 }
