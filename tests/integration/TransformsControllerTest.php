@@ -114,6 +114,24 @@ final class TransformsControllerTest extends Unit
         $this->assertTrue($controller->postRequestChecked);
     }
 
+    public function testApplyCardOperationRoutesBreakpointEnabledField(): void
+    {
+        $controller = $this->controllerWithBody([
+            'baseVersion' => 6,
+            'field' => 'breakpointEnabled',
+            'setName' => '',
+            'scopeBreakpoint' => 640,
+            'enabled' => false,
+        ]);
+        $response = $controller->actionApplyCardOperation();
+
+        $this->assertSame(Response::FORMAT_RAW, $response->format);
+        $this->assertStringContainsString('Breakpoint state update failed.', (string)$response->content);
+        $this->assertStringContainsString('setName is required.', (string)$response->content);
+        $this->assertTrue($controller->cpRequestChecked);
+        $this->assertTrue($controller->postRequestChecked);
+    }
+
     public function testRenderResultReviewCoercesNonArrayPayloadsToArrays(): void
     {
         $controller = $this->controllerWithBody([

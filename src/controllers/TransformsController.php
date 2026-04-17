@@ -150,7 +150,7 @@ class TransformsController extends Controller
         $ratioSourceDimensionRaw = $this->request->getBodyParam('ratioSourceDimension');
         $baseVersion = max(1, (int)$this->request->getBodyParam('baseVersion', 1));
 
-        if ($field !== 'width' && $field !== 'height' && $field !== 'dimensions' && $field !== 'ratio' && $field !== 'renderedValues') {
+        if ($field !== 'width' && $field !== 'height' && $field !== 'dimensions' && $field !== 'ratio' && $field !== 'breakpointEnabled' && $field !== 'renderedValues' && $field !== 'deleteSet') {
             $field = 'width';
         }
 
@@ -262,6 +262,8 @@ class TransformsController extends Controller
                 $includeEscapeWidth,
                 $clearAuto,
             );
+        } elseif ($field === 'deleteSet') {
+            $operationResult = $editor->deleteSetOperation($setName);
         } elseif ($field === 'dimensions') {
             $operationResult = $editor->applySetDimensionsOperation(
                 $setName,
@@ -284,6 +286,13 @@ class TransformsController extends Controller
                 $ratioSourceDimension,
                 $includeEscapeWidth,
             );
+        } elseif ($field === 'breakpointEnabled') {
+            $operationResult = $editor->applySetBreakpointEnabledOperation(
+                $setName,
+                $scopeBreakpoint,
+                $parseNullableBool($this->request->getBodyParam('enabled')),
+                $includeEscapeWidth,
+            );
         } else {
             $operationResult = $editor->applySetDimensionOperation(
                 $setName,
@@ -302,14 +311,18 @@ class TransformsController extends Controller
         $statusMessage = $persisted
             ? match ($field) {
                 'renderedValues' => 'Rendered values applied.',
+                'deleteSet' => 'Transform set deleted.',
                 'dimensions' => 'Dimensions updated.',
                 'ratio' => 'Ratio applied.',
+                'breakpointEnabled' => 'Breakpoint state updated.',
                 default => ucfirst($field) . ' updated.',
             }
             : match ($field) {
                 'renderedValues' => 'Rendered values apply failed.',
+                'deleteSet' => 'Transform set delete failed.',
                 'dimensions' => 'Dimensions update failed.',
                 'ratio' => 'Ratio apply failed.',
+                'breakpointEnabled' => 'Breakpoint state update failed.',
                 default => ucfirst($field) . ' update failed.',
             };
 

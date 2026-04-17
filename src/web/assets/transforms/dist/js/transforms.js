@@ -97,6 +97,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         updateStatusRunIdByTransform: {},
         updateStatusByTransform: {},
         pendingTransformUpdates: new Set(),
+        pendingTransformActionsByName: {},
         progressBar: null,
     };
 
@@ -1225,35 +1226,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     }
 
     function syncBreakpointPreviewHeights() {
-        if (!elements.visualResults) {
-            return;
-        }
-
-        const grids = Array.from(elements.visualResults.querySelectorAll('.bpi-breakpoint-grid'));
-        grids.forEach((grid) => {
-            const resultBlocks = Array.from(grid.querySelectorAll('.bpi_breakpoint-result'));
-            if (!resultBlocks.length) {
-                return;
-            }
-
-            resultBlocks.forEach((block) => {
-                block.style.removeProperty('min-height');
-            });
-
-            const tallest = Math.max(
-                0,
-                ...resultBlocks.map((block) => Math.ceil(block.getBoundingClientRect().height || 0))
-            );
-
-            if (tallest < 1) {
-                return;
-            }
-
-            resultBlocks.forEach((block) => {
-                block.style.minHeight = `${tallest}px`;
-            });
-        });
-
+        // Preview min-heights are now provided by server-rendered CSS vars per breakpoint column.
         updateDragScrollability();
     }
 
@@ -1556,6 +1529,33 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         }
 
         state.pendingTransformUpdates.delete(transformName);
+        delete state.pendingTransformActionsByName[transformName];
+    }
+
+    function removeTransformFromLastResult(transformName) {
+        if (!transformName || !state.lastResult || typeof state.lastResult !== 'object') {
+            return;
+        }
+
+        const rowsByBreakpoint = state.lastResult.rowsByBreakpoint;
+        if (!rowsByBreakpoint || typeof rowsByBreakpoint !== 'object') {
+            return;
+        }
+
+        Object.keys(rowsByBreakpoint).forEach((breakpoint) => {
+            const rows = rowsByBreakpoint[breakpoint];
+            if (!Array.isArray(rows)) {
+                return;
+            }
+
+            rowsByBreakpoint[breakpoint] = rows.filter((row) => {
+                if (!row || typeof row !== 'object') {
+                    return true;
+                }
+
+                return String(row.transform || '') !== transformName;
+            });
+        });
     }
 
     function scheduleTransformTerminalStatus(transformName, message, statusState, clearDelayMs, runId) {
@@ -1607,10 +1607,22 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             return;
         }
 
+        const pendingTransformEntries = pendingTransforms.map((transformName) => ({
+            transformName,
+            action: String(state.pendingTransformActionsByName[transformName] || ''),
+        }));
+
         state.pendingTransformUpdates.clear();
+        pendingTransformEntries.forEach(({ transformName }) => {
+            delete state.pendingTransformActionsByName[transformName];
+        });
 
         if (kind === 'success') {
-            pendingTransforms.forEach((transformName) => {
+            pendingTransformEntries.forEach(({ transformName, action }) => {
+                if (action === 'deleteSet') {
+                    removeTransformFromLastResult(transformName);
+                }
+
                 const runId = getUpdateStatusRunId(transformName);
                 scheduleTransformTerminalStatus(transformName, 'Updated', 'success', CARD_UPDATE_STATUS_CLEAR_DELAY_MS, runId);
             });
@@ -1622,7 +1634,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             return;
         }
 
-        pendingTransforms.forEach((transformName) => {
+        pendingTransformEntries.forEach(({ transformName }) => {
             const runId = getUpdateStatusRunId(transformName);
             scheduleTransformTerminalStatus(transformName, 'Update failed', 'error', CARD_UPDATE_STATUS_ERROR_CLEAR_DELAY_MS, runId);
         });
@@ -1639,10 +1651,15 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             return;
         }
 
+        const action = String(state.pendingTransformActionsByName[transformName] || '');
         removePendingTransformUpdate(transformName);
         const runId = getUpdateStatusRunId(transformName);
 
         if (kind === 'success') {
+            if (action === 'deleteSet') {
+                removeTransformFromLastResult(transformName);
+            }
+
             scheduleTransformTerminalStatus(transformName, 'Updated', 'success', CARD_UPDATE_STATUS_CLEAR_DELAY_MS, runId);
             void refreshReviewCardsAfterSuccessfulUpdate().catch((error) => {
                 console.error(error);
@@ -1678,6 +1695,12 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             || classList?.contains('bpi-rendered-apply-all')
             || classList?.contains('bpi-warning-apply-rendered');
         const isAutoToggle = classList?.contains('bpi-transform-auto-toggle');
+        const isBreakpointEnableToggle = classList?.contains('bpi-breakpoint-enable-toggle-wrap');
+        const isDeleteSetAction = classList?.contains('bpi-transform-delete-set');
+
+        if (isDeleteSetAction) {
+            return 'deleteSet';
+        }
 
         if (isRenderedAction) {
             return 'renderedValues';
@@ -1689,6 +1712,10 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
         if (isRatioApply) {
             return 'ratio';
+        }
+
+        if (isBreakpointEnableToggle) {
+            return 'breakpointEnabled';
         }
 
         if (isWidthInput) {
@@ -1753,6 +1780,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
             if (detail.type === 'started') {
                 state.pendingTransformUpdates.add(transformName);
+                state.pendingTransformActionsByName[transformName] = action;
                 clearUpdateStatusResetTimer(transformName);
                 clearUpdateStatusTransitionTimer(transformName);
                 state.updateStatusStartedAtByTransform[transformName] = Date.now();

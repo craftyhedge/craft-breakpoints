@@ -606,6 +606,128 @@ class TransformEditor extends Component
         ];
     }
 
+    public function applySetBreakpointEnabledOperation(
+        string $transformName,
+        ?int $scopeBreakpoint,
+        ?bool $enabled,
+        ?bool $includeEscapeWidth = null,
+    ): array {
+        $validation = $this->defaultValidation();
+
+        if ($this->_plugin === null) {
+            $this->addGlobalError($validation, 'Plugin instance is not available.');
+
+            return [
+                'persisted' => false,
+                'validation' => $validation,
+            ];
+        }
+
+        if ($transformName === '') {
+            $this->addGlobalError($validation, 'setName is required.');
+
+            return [
+                'persisted' => false,
+                'validation' => $validation,
+            ];
+        }
+
+        if ($scopeBreakpoint === null) {
+            $this->addGlobalError($validation, 'scopeBreakpoint is required when updating breakpoint state.');
+
+            return [
+                'persisted' => false,
+                'validation' => $validation,
+            ];
+        }
+
+        if ($enabled === null) {
+            $this->addGlobalError($validation, 'enabled must be a boolean value.');
+
+            return [
+                'persisted' => false,
+                'validation' => $validation,
+            ];
+        }
+
+        $transforms = $this->_plugin->getTransformStore()->getTransforms();
+        $hasExistingTransform = isset($transforms[$transformName]) && is_array($transforms[$transformName]);
+
+        if ($hasExistingTransform) {
+            $transformDefinition = $transforms[$transformName];
+            $resolvedIncludeEscapeWidth = ($transformDefinition['includeEscapeWidth'] ?? false) === true;
+        } else {
+            $resolvedIncludeEscapeWidth = $includeEscapeWidth === true;
+            $transformDefinition = [
+                'name' => $transformName,
+                'includeEscapeWidth' => $resolvedIncludeEscapeWidth,
+                'transforms' => [],
+                'config' => [],
+            ];
+        }
+
+        $breakpoints = $this->getBreakpointsForTransform($resolvedIncludeEscapeWidth);
+        $breakpointIndex = array_search($scopeBreakpoint, $breakpoints, true);
+        if (!is_int($breakpointIndex)) {
+            $this->addGlobalError($validation, 'Selected breakpoint is not valid for the transform.');
+
+            return [
+                'persisted' => false,
+                'validation' => $validation,
+            ];
+        }
+
+        $rawEntries = isset($transformDefinition['transforms']) && is_array($transformDefinition['transforms'])
+            ? array_values($transformDefinition['transforms'])
+            : [];
+
+        $entries = [];
+        foreach ($breakpoints as $index => $_breakpoint) {
+            $entry = isset($rawEntries[$index]) && is_array($rawEntries[$index])
+                ? $rawEntries[$index]
+                : [];
+
+            $normalizedEntry = [
+                'width' => $this->normalizeNullablePositiveInt($entry['width'] ?? null),
+                'height' => $this->normalizeNullablePositiveInt($entry['height'] ?? null),
+                'enabled' => ($entry['enabled'] ?? true) !== false,
+                'autoDimension' => $this->normalizeAutoDimension($entry['autoDimension'] ?? null),
+            ];
+
+            if ($normalizedEntry['autoDimension'] === 'width') {
+                $normalizedEntry['width'] = null;
+            }
+
+            if ($normalizedEntry['autoDimension'] === 'height') {
+                $normalizedEntry['height'] = null;
+            }
+
+            $entries[$index] = $normalizedEntry;
+        }
+
+        $entry = isset($entries[$breakpointIndex]) && is_array($entries[$breakpointIndex])
+            ? $entries[$breakpointIndex]
+            : $this->buildDefaultTransformEntry();
+        $entry['enabled'] = $enabled;
+        $entries[$breakpointIndex] = $entry;
+
+        $transforms[$transformName] = array_merge($transformDefinition, [
+            'name' => (string)($transformDefinition['name'] ?? $transformName),
+            'includeEscapeWidth' => $resolvedIncludeEscapeWidth,
+            'transforms' => array_values($entries),
+            'config' => isset($transformDefinition['config']) && is_array($transformDefinition['config'])
+                ? $transformDefinition['config']
+                : [],
+        ]);
+
+        $this->_plugin->getTransformStore()->persistTransforms($transforms);
+
+        return [
+            'persisted' => true,
+            'validation' => $validation,
+        ];
+    }
+
     public function applyRenderedValuesOperation(
         string $transformName,
         array $renderedRows,
@@ -836,6 +958,45 @@ class TransformEditor extends Component
             $value,
             'width',
         );
+    }
+
+    public function deleteSetOperation(string $transformName): array
+    {
+        $validation = $this->defaultValidation();
+
+        if ($this->_plugin === null) {
+            $this->addGlobalError($validation, 'Plugin instance is not available.');
+
+            return [
+                'persisted' => false,
+                'validation' => $validation,
+            ];
+        }
+
+        if ($transformName === '') {
+            $this->addGlobalError($validation, 'setName is required.');
+
+            return [
+                'persisted' => false,
+                'validation' => $validation,
+            ];
+        }
+
+        $transforms = $this->_plugin->getTransformStore()->getTransforms();
+        if (!isset($transforms[$transformName]) || !is_array($transforms[$transformName])) {
+            return [
+                'persisted' => true,
+                'validation' => $validation,
+            ];
+        }
+
+        unset($transforms[$transformName]);
+        $this->_plugin->getTransformStore()->persistTransforms($transforms);
+
+        return [
+            'persisted' => true,
+            'validation' => $validation,
+        ];
     }
 
     public function buildResultSummary(array $summary = []): array
@@ -1265,6 +1426,11 @@ class TransformEditor extends Component
             }
 
             $columnWidths = $this->calculateReviewBreakpointColumnWidths($transformBreakpoints);
+            $previewLockHeightsByBreakpoint = $this->calculateReviewBreakpointPreviewLockHeights(
+                $assetCollection['rowsByAssetByBreakpoint'],
+                $transformBreakpoints,
+                $columnWidths,
+            );
             $referenceRenderedByBreakpoint = [];
             foreach ($transformBreakpoints as $breakpoint) {
                 foreach ($assetKeys as $firstAssetKey) {
@@ -1295,6 +1461,7 @@ class TransformEditor extends Component
                     $rows,
                     $currentRows[$breakpoint] ?? $this->buildDefaultTransformEntry(),
                     $columnWidths,
+                    $previewLockHeightsByBreakpoint,
                     $signalKey,
                     $selectedBreakpoint,
                     $scope['mode'] === 'all',
@@ -1397,6 +1564,7 @@ class TransformEditor extends Component
         array $rows,
         array $currentRow,
         array $breakpointColumnWidths,
+        array $previewLockHeightsByBreakpoint,
         string $signalKey,
         ?int $selectedBreakpoint,
         bool $allSelected,
@@ -1422,12 +1590,43 @@ class TransformEditor extends Component
 
         $displayWidth = $renderedWidth;
         $displayHeight = $renderedHeight;
-        if ($displayWidth < 1 && $displayHeight < 1) {
-            [$displayWidth, $displayHeight] = $this->resolveInitialPreviewBoxDimensions(
-                $currentWidth,
-                $currentHeight,
-                $autoDimension,
-            );
+        if (is_array($previewRow)) {
+            $previewRenderedWidth = $this->toNonNegativeInt($previewRow['rendered']['width'] ?? 0);
+            $previewRenderedHeight = $this->toNonNegativeInt($previewRow['rendered']['height'] ?? 0);
+            if ($previewRenderedWidth > 0 && $previewRenderedHeight > 0) {
+                $displayWidth = $previewRenderedWidth;
+                $displayHeight = $previewRenderedHeight;
+            }
+
+            if ($displayWidth < 1 || $displayHeight < 1) {
+                $previewTransformDimensions = is_array($previewRow['transformDimensions'] ?? null)
+                    ? $previewRow['transformDimensions']
+                    : [];
+                [$fallbackWidth, $fallbackHeight] = $this->resolveInitialPreviewBoxDimensions(
+                    $this->normalizeNullablePositiveInt($previewTransformDimensions['width'] ?? null),
+                    $this->normalizeNullablePositiveInt($previewTransformDimensions['height'] ?? null),
+                    $this->normalizeAutoDimension($previewTransformDimensions['autoDimension'] ?? null),
+                );
+
+                if ($fallbackWidth > 0 && $fallbackHeight > 0) {
+                    $displayWidth = $fallbackWidth;
+                    $displayHeight = $fallbackHeight;
+                }
+            }
+        }
+
+        if ($displayWidth < 1 || $displayHeight < 1) {
+            if ($previewSrc !== '' && $breakpoint > 0) {
+                // Keep unknown preview dimensions bounded to breakpoint box to avoid oversizing.
+                $displayWidth = $breakpoint;
+                $displayHeight = $breakpoint;
+            } else {
+                [$displayWidth, $displayHeight] = $this->resolveInitialPreviewBoxDimensions(
+                    $currentWidth,
+                    $currentHeight,
+                    $autoDimension,
+                );
+            }
         }
 
         $aspectRatio = $displayWidth > 0 && $displayHeight > 0
@@ -1460,6 +1659,7 @@ class TransformEditor extends Component
         $unloadedBadge = $unloadedCount > 0
             ? '<span class="bpi-row-badge">Unloaded ' . $unloadedCount . '</span>'
             : '';
+        $currentEnabled = ($currentRow['enabled'] ?? true) === true;
         $escapeBadge = $escapeBreakpoint !== null && $escapeBreakpoint === $breakpoint
             ? '<span class="bpi_escaped-notice">ESC</span>'
             : '';
@@ -1471,19 +1671,27 @@ class TransformEditor extends Component
         if ($breakpointColumnWidth < 1.0) {
             $breakpointColumnWidth = 1.0;
         }
+        $previewLockHeight = max(48, (int)($previewLockHeightsByBreakpoint[(string)$breakpoint] ?? 48));
 
         return $this->renderReviewTemplate('breakpoint-column-template.twig', [
             'breakpointColumnSelectedClass' => $isSelected ? 'bpi-breakpoint-column-selected' : '',
             'breakpointColumnMismatchClass' => $hasBreakpointMismatch ? 'bpi-breakpoint-column-mismatch' : '',
+            'breakpointColumnDisabledClass' => !$currentEnabled ? 'bpi-breakpoint-column-disabled' : '',
             'breakpoint' => (string)$breakpoint,
             'breakpointColumnWidth' => (string)$breakpointColumnWidth,
+            'previewLockHeight' => (string)$previewLockHeight,
             'signalKey' => $this->escapeReviewHtml($signalKey),
             'currentWidthValue' => $currentWidth !== null ? (string)$currentWidth : '',
             'currentHeightValue' => $currentHeight !== null ? (string)$currentHeight : '',
+            'currentEnabledValue' => $currentEnabled ? '1' : '0',
             'currentAutoDimension' => $autoDimension ?? '',
             'escapeBadge' => $escapeBadge,
             'hiddenBadge' => $hiddenBadge,
             'unloadedBadge' => $unloadedBadge,
+            'breakpointEnableOnClass' => $currentEnabled ? 'on' : '',
+            'breakpointEnableTitle' => $this->escapeReviewHtml(($currentEnabled ? 'Disable' : 'Enable') . ' ' . $breakpoint . 'px breakpoint'),
+            'breakpointEnableAriaLabel' => $this->escapeReviewHtml(($currentEnabled ? 'Disable' : 'Enable') . ' ' . $breakpoint . 'px breakpoint'),
+            'breakpointEnableAriaChecked' => $currentEnabled ? 'true' : 'false',
             'renderedRowsPayloadJson' => $this->escapeReviewHtml($renderedRowsPayloadJson),
             'breakpointDisabledAttr' => $renderedRowsPayload === [] ? 'disabled' : '',
             'breakpointRenderedApplyHiddenClass' => $hideRenderedApply ? 'bpi-force-hidden' : '',
@@ -2772,10 +2980,87 @@ class TransformEditor extends Component
         $firstBreakpoint = $breakpoints[0] > 0 ? $breakpoints[0] : 1;
         $widths = [];
         foreach ($breakpoints as $breakpoint) {
-            $widths[(string)$breakpoint] = ($breakpoint / $firstBreakpoint) * 120;
+            $widths[(string)$breakpoint] = ($breakpoint / $firstBreakpoint) * 160;
         }
 
         return $widths;
+    }
+
+    private function calculateReviewBreakpointPreviewLockHeights(
+        array $rowsByAssetByBreakpoint,
+        array $transformBreakpoints,
+        array $breakpointColumnWidths,
+    ): array {
+        $globalLockHeight = 48;
+
+        foreach ($transformBreakpoints as $breakpoint) {
+            $columnWidth = (float)($breakpointColumnWidths[(string)$breakpoint] ?? 0.0);
+            $availablePreviewWidth = max(1.0, $columnWidth - 20.0);
+
+            foreach ($rowsByAssetByBreakpoint as $rowsByBreakpoint) {
+                if (!is_array($rowsByBreakpoint)) {
+                    continue;
+                }
+
+                $rows = $rowsByBreakpoint[$breakpoint] ?? [];
+                if (!is_array($rows)) {
+                    continue;
+                }
+
+                $summary = $this->summarizeReviewRows($rows);
+                $displayWidth = max(0, (int)($summary['renderedWidth'] ?? 0));
+                $displayHeight = max(0, (int)($summary['renderedHeight'] ?? 0));
+                $previewRow = $this->pickReviewPreviewRow($rows);
+
+                if (is_array($previewRow)) {
+                    $previewRenderedWidth = $this->toNonNegativeInt($previewRow['rendered']['width'] ?? 0);
+                    $previewRenderedHeight = $this->toNonNegativeInt($previewRow['rendered']['height'] ?? 0);
+                    if ($previewRenderedWidth > 0 && $previewRenderedHeight > 0) {
+                        $displayWidth = $previewRenderedWidth;
+                        $displayHeight = $previewRenderedHeight;
+                    }
+
+                    if ($displayWidth < 1 || $displayHeight < 1) {
+                        $previewTransformDimensions = is_array($previewRow['transformDimensions'] ?? null)
+                            ? $previewRow['transformDimensions']
+                            : [];
+                        [$fallbackWidth, $fallbackHeight] = $this->resolveInitialPreviewBoxDimensions(
+                            $this->normalizeNullablePositiveInt($previewTransformDimensions['width'] ?? null),
+                            $this->normalizeNullablePositiveInt($previewTransformDimensions['height'] ?? null),
+                            $this->normalizeAutoDimension($previewTransformDimensions['autoDimension'] ?? null),
+                        );
+
+                        if ($fallbackWidth > 0 && $fallbackHeight > 0) {
+                            $displayWidth = $fallbackWidth;
+                            $displayHeight = $fallbackHeight;
+                        }
+                    }
+                }
+
+                if (($displayWidth < 1 || $displayHeight < 1) && is_array($previewRow) && $breakpoint > 0) {
+                    $previewSrc = (string)($previewRow['src'] ?? '');
+                    if ($previewSrc !== '') {
+                        $displayWidth = $breakpoint;
+                        $displayHeight = $breakpoint;
+                    }
+                }
+
+                if ($displayWidth < 1 || $displayHeight < 1 || $breakpoint < 1) {
+                    continue;
+                }
+
+                $candidateHeight = (int)ceil(($availablePreviewWidth * $displayHeight) / $breakpoint);
+                $globalLockHeight = max($globalLockHeight, $candidateHeight);
+            }
+        }
+
+        $globalLockHeight = max(48, $globalLockHeight);
+        $lockHeightsByBreakpoint = [];
+        foreach ($transformBreakpoints as $breakpoint) {
+            $lockHeightsByBreakpoint[(string)$breakpoint] = $globalLockHeight;
+        }
+
+        return $lockHeightsByBreakpoint;
     }
 
     private function getReviewRenderedDimensionClass(

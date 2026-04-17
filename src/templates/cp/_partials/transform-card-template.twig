@@ -37,10 +37,14 @@
                         <path d="M1.8 13.2H14.2V15.2H1.8Z"></path>
                     </svg>
                 </button>
+                <button type="button" class="btn small submit bpi-transform-delete-set"
+                    aria-label="Delete transform set"
+                    title="Delete transform set"
+                    data-on:click__throttle.300ms="if(!window.confirm('Delete this transform set?')){ return; } const page=el.closest('.bpi-transforms-page'); const url=page?.dataset?.applyCardOperationUrl || '/actions/craft-breakpoint-images/transforms/apply-card-operation'; const csrf=Craft && Craft.csrfTokenName && Craft.csrfTokenValue ? {[Craft.csrfTokenName]: Craft.csrfTokenValue} : {}; @post(url, {contentType: 'json', payload: {setName: String($editor.cards.__SIGNAL_KEY__.setName || ''), field: 'deleteSet', baseVersion: Number($editor.baseVersion || 1), ...csrf}})">Delete</button>
             </div>
         </header>
-        <div class="bpi-breakpoint-grid">__BREAKPOINT_COLUMNS__</div>
         __ASSET_PAGINATION_HTML__
+        <div class="bpi-breakpoint-grid">__BREAKPOINT_COLUMNS__</div>
         <section class="bpi-transform-edit-panel" id="__EDIT_PANEL_ID__">
             <div class="bpi-transform-edit-layout">
                 <div class="bpi-transform-edit-main">

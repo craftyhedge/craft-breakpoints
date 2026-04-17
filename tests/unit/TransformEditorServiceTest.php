@@ -90,6 +90,62 @@ final class TransformEditorServiceTest extends Unit
         );
     }
 
+    public function testApplySetBreakpointEnabledOperationRequiresBooleanEnabledValue(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $result = $editor->applySetBreakpointEnabledOperation(
+            'hero',
+            640,
+            null,
+            false,
+        );
+
+        $this->assertFalse($result['persisted'] ?? true);
+        $this->assertContains('enabled must be a boolean value.', $result['validation']['global'] ?? []);
+    }
+
+    public function testApplySetBreakpointEnabledOperationUpdatesSelectedBreakpoint(): void
+    {
+        $plugin = Plugin::getInstance();
+        $editor = $plugin->getTransformEditor();
+        $breakpoints = $plugin->getConfigService()->getBreakpoints();
+        unset($breakpoints['escape']);
+
+        $firstBreakpointName = (string)array_key_first($breakpoints);
+        $firstBreakpointValue = (int)($breakpoints[$firstBreakpointName] ?? 0);
+
+        $this->assertNotSame('', $firstBreakpointName);
+        $this->assertGreaterThan(0, $firstBreakpointValue);
+
+        $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    $firstBreakpointName => ['width' => 640, 'height' => null, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => [],
+            ],
+        ], function () use ($editor, $firstBreakpointName, $firstBreakpointValue): void {
+            $result = $editor->applySetBreakpointEnabledOperation(
+                'hero',
+                $firstBreakpointValue,
+                false,
+                false,
+            );
+
+            $this->assertTrue(($result['persisted'] ?? false) === true);
+            $this->assertTrue(($result['validation']['hasErrors'] ?? true) === false);
+
+            $sets = Plugin::getInstance()->getTransformStore()->getSets();
+            $variant = $sets['hero']['variants'][$firstBreakpointName] ?? null;
+
+            $this->assertIsArray($variant);
+            $this->assertFalse(($variant['enabled'] ?? true) === true);
+        });
+    }
+
     public function testBuildResultSummaryNormalizesNegativeValuesAndUsesDefaultBreakpoints(): void
     {
         $plugin = Plugin::getInstance();
@@ -126,6 +182,39 @@ final class TransformEditorServiceTest extends Unit
         );
 
         $this->assertSame($viaSetDimension, $viaWidthOperation);
+    }
+
+    public function testDeleteSetOperationRemovesOnlyRequestedSet(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'sm' => ['width' => 640, 'height' => null, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => [],
+            ],
+            'alpha' => [
+                'name' => 'alpha',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'sm' => ['width' => 480, 'height' => null, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => [],
+            ],
+        ], function () use ($editor): void {
+            $result = $editor->deleteSetOperation('hero');
+
+            $this->assertTrue(($result['persisted'] ?? false) === true);
+            $this->assertTrue(($result['validation']['hasErrors'] ?? true) === false);
+
+            $sets = Plugin::getInstance()->getTransformStore()->getSets();
+            $this->assertArrayNotHasKey('hero', $sets);
+            $this->assertArrayHasKey('alpha', $sets);
+        });
     }
 
     public function testApplyDraftPersistsWhenProvidedValidDraftFromStore(): void

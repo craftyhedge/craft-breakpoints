@@ -1,24 +1,21 @@
 <template id="bpi-template-breakpoint-column">
-    <div class="bpi-breakpoint-column __BREAKPOINT_COLUMN_SELECTED_CLASS__ __BREAKPOINT_COLUMN_MISMATCH_CLASS__" data-breakpoint="__BREAKPOINT__" data-current-width="__CURRENT_WIDTH_VALUE__" data-current-height="__CURRENT_HEIGHT_VALUE__" data-current-auto-dimension="__CURRENT_AUTO_DIMENSION__" style="--bpi-breakpoint-column-width:__BREAKPOINT_COLUMN_WIDTH__px;"
+    <div class="bpi-breakpoint-column __BREAKPOINT_COLUMN_SELECTED_CLASS__ __BREAKPOINT_COLUMN_MISMATCH_CLASS__ __BREAKPOINT_COLUMN_DISABLED_CLASS__" data-breakpoint="__BREAKPOINT__" data-current-width="__CURRENT_WIDTH_VALUE__" data-current-height="__CURRENT_HEIGHT_VALUE__" data-current-auto-dimension="__CURRENT_AUTO_DIMENSION__" data-current-enabled="__CURRENT_ENABLED_VALUE__" style="--bpi-breakpoint-column-width:__BREAKPOINT_COLUMN_WIDTH__px; --bpi-preview-lock-height:__PREVIEW_LOCK_HEIGHT__px;"
         data-class:bpi-breakpoint-column-selected="$editor.cards.__SIGNAL_KEY__.scopeMode === 'all' || ($editor.cards.__SIGNAL_KEY__.scopeMode === 'breakpoint' && Number($editor.cards.__SIGNAL_KEY__.scopeBreakpoint || 0) === __BREAKPOINT__)"
-        data-on:click="if(evt&&evt.target&&evt.target.closest('.bpi-rendered-apply-single')){return;} const autoDim=String(el.dataset.currentAutoDimension||''); const widthValue=String(el.dataset.currentWidth||''); const heightValue=String(el.dataset.currentHeight||''); const currentTab=String($editor.cards.__SIGNAL_KEY__.activeTab||'').trim().toLowerCase(); $editor.cards.__SIGNAL_KEY__.scopeMode='breakpoint'; $editor.cards.__SIGNAL_KEY__.scopeBreakpoint=String(Number(__BREAKPOINT__)||''); $editor.cards.__SIGNAL_KEY__.scopeActive='1'; $editor.cards.__SIGNAL_KEY__.widthAuto=(autoDim==='width')?'1':'0'; $editor.cards.__SIGNAL_KEY__.heightAuto=(autoDim==='height')?'1':'0'; $editor.cards.__SIGNAL_KEY__.widthInput=autoDim==='width'?'':widthValue; $editor.cards.__SIGNAL_KEY__.heightInput=autoDim==='height'?'':heightValue; $editor.cards.__SIGNAL_KEY__.ratioWidthInput=autoDim==='width'?'':widthValue; $editor.cards.__SIGNAL_KEY__.ratioHeightInput=autoDim==='height'?'':heightValue; $editor.cards.__SIGNAL_KEY__.ratioSourceBreakpoint=String(Number(__BREAKPOINT__)||''); if(autoDim==='width'||autoDim==='height'||(currentTab!=='dimensions'&&currentTab!=='ratio')){ $editor.cards.__SIGNAL_KEY__.activeTab='dimensions'; }">
+        data-on:click="if(evt&&evt.target&&evt.target.closest('.bpi-rendered-apply-single, .bpi-breakpoint-enable-toggle-wrap')){return;} const autoDim=String(el.dataset.currentAutoDimension||''); const widthValue=String(el.dataset.currentWidth||''); const heightValue=String(el.dataset.currentHeight||''); const currentTab=String($editor.cards.__SIGNAL_KEY__.activeTab||'').trim().toLowerCase(); $editor.cards.__SIGNAL_KEY__.scopeMode='breakpoint'; $editor.cards.__SIGNAL_KEY__.scopeBreakpoint=String(Number(__BREAKPOINT__)||''); $editor.cards.__SIGNAL_KEY__.scopeActive='1'; $editor.cards.__SIGNAL_KEY__.widthAuto=(autoDim==='width')?'1':'0'; $editor.cards.__SIGNAL_KEY__.heightAuto=(autoDim==='height')?'1':'0'; $editor.cards.__SIGNAL_KEY__.widthInput=autoDim==='width'?'':widthValue; $editor.cards.__SIGNAL_KEY__.heightInput=autoDim==='height'?'':heightValue; $editor.cards.__SIGNAL_KEY__.ratioWidthInput=autoDim==='width'?'':widthValue; $editor.cards.__SIGNAL_KEY__.ratioHeightInput=autoDim==='height'?'':heightValue; $editor.cards.__SIGNAL_KEY__.ratioSourceBreakpoint=String(Number(__BREAKPOINT__)||''); if(autoDim==='width'||autoDim==='height'||(currentTab!=='dimensions'&&currentTab!=='ratio')){ $editor.cards.__SIGNAL_KEY__.activeTab='dimensions'; }">
         <div class="bpi_breakpoint-size-heading">
             <span>__BREAKPOINT__px</span>
             __ESCAPE_BADGE__
             __HIDDEN_BADGE__
             __UNLOADED_BADGE__
             <div class="bpi-breakpoint-column-actions">
-                <button type="button" class="btn small bpi-rendered-apply-single __BREAKPOINT_RENDERED_APPLY_HIDDEN_CLASS__"
-                    aria-label="Apply rendered values for __BREAKPOINT__px"
-                    title="Apply rendered values for __BREAKPOINT__px"
-                    data-rendered-rows="__RENDERED_ROWS_PAYLOAD_JSON__"
-                    __BREAKPOINT_DISABLED_ATTR__
-                    data-on:click__throttle.300ms="@post(el.closest('.bpi-transforms-page').dataset.applyCardOperationUrl || '/actions/craft-breakpoint-images/transforms/apply-card-operation', {contentType: 'json', payload: {setName: String($editor.cards.__SIGNAL_KEY__.setName || ''), field: 'renderedValues', includeEscapeWidth: String($editor.cards.__SIGNAL_KEY__.includeEscapeWidth || '0') === '1', renderedRows: JSON.parse(el.dataset.renderedRows || '[]'), baseVersion: Number($editor.baseVersion || 1), ...(Craft && Craft.csrfTokenName && Craft.csrfTokenValue ? {[Craft.csrfTokenName]: Craft.csrfTokenValue} : {})}})">
-                    <svg class="bpi-rendered-apply-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                        <path d="M6.2 2.2H9.8V7.4H12.9L8 12.3 3.1 7.4H6.2Z"></path>
-                        <path d="M1.8 13.2H14.2V15.2H1.8Z"></path>
-                    </svg>
-                </button>
+                <div class="lightswitch small bpi-breakpoint-enable-toggle-wrap __BREAKPOINT_ENABLE_ON_CLASS__" title="__BREAKPOINT_ENABLE_TITLE__" role="switch" tabindex="0" aria-label="__BREAKPOINT_ENABLE_ARIA_LABEL__" aria-checked="__BREAKPOINT_ENABLE_ARIA_CHECKED__"
+                    data-class:on="String(el.closest('.bpi-breakpoint-column')?.dataset?.currentEnabled || '1') === '1'"
+                    data-on:click__throttle.300ms="const column=el.closest('.bpi-breakpoint-column'); const page=el.closest('.bpi-transforms-page'); const url=page?.dataset?.applyCardOperationUrl || '/actions/craft-breakpoint-images/transforms/apply-card-operation'; const currentlyEnabled=String(column?.dataset?.currentEnabled || '1') === '1'; const csrf=Craft && Craft.csrfTokenName && Craft.csrfTokenValue ? {[Craft.csrfTokenName]: Craft.csrfTokenValue} : {}; @post(url, {contentType: 'json', payload: {setName: String($editor.cards.__SIGNAL_KEY__.setName || ''), field: 'breakpointEnabled', includeEscapeWidth: String($editor.cards.__SIGNAL_KEY__.includeEscapeWidth || '0') === '1', scopeBreakpoint: Number(__BREAKPOINT__) || null, enabled: !currentlyEnabled, baseVersion: Number($editor.baseVersion || 1), ...csrf}})"
+                    data-on:keydown="if(!evt|| (evt.key!=='Enter' && evt.key!==' ')){return;} evt.preventDefault(); const column=el.closest('.bpi-breakpoint-column'); const page=el.closest('.bpi-transforms-page'); const url=page?.dataset?.applyCardOperationUrl || '/actions/craft-breakpoint-images/transforms/apply-card-operation'; const currentlyEnabled=String(column?.dataset?.currentEnabled || '1') === '1'; const csrf=Craft && Craft.csrfTokenName && Craft.csrfTokenValue ? {[Craft.csrfTokenName]: Craft.csrfTokenValue} : {}; @post(url, {contentType: 'json', payload: {setName: String($editor.cards.__SIGNAL_KEY__.setName || ''), field: 'breakpointEnabled', includeEscapeWidth: String($editor.cards.__SIGNAL_KEY__.includeEscapeWidth || '0') === '1', scopeBreakpoint: Number(__BREAKPOINT__) || null, enabled: !currentlyEnabled, baseVersion: Number($editor.baseVersion || 1), ...csrf}})">
+                    <div class="lightswitch-container">
+                        <div class="handle"></div>
+                    </div>
+                </div>
             </div>
         </div>
         <div class="bpi_image-display-section">
@@ -43,6 +40,17 @@
                     <span class="bpi_rendered-dimension __WIDTH_CLASS__" role="cell">__RENDERED_WIDTH__</span>
                     <span class="bpi_rendered-dimension __HEIGHT_CLASS__" role="cell">__RENDERED_HEIGHT__</span>
                 </div>
+                <button type="button" class="btn bpi-rendered-apply-single __BREAKPOINT_RENDERED_APPLY_HIDDEN_CLASS__"
+                    aria-label="Apply rendered values for __BREAKPOINT__px"
+                    title="Apply rendered values for __BREAKPOINT__px"
+                    data-rendered-rows="__RENDERED_ROWS_PAYLOAD_JSON__"
+                    __BREAKPOINT_DISABLED_ATTR__
+                    data-on:click__throttle.300ms="@post(el.closest('.bpi-transforms-page').dataset.applyCardOperationUrl || '/actions/craft-breakpoint-images/transforms/apply-card-operation', {contentType: 'json', payload: {setName: String($editor.cards.__SIGNAL_KEY__.setName || ''), field: 'renderedValues', includeEscapeWidth: String($editor.cards.__SIGNAL_KEY__.includeEscapeWidth || '0') === '1', renderedRows: JSON.parse(el.dataset.renderedRows || '[]'), baseVersion: Number($editor.baseVersion || 1), ...(Craft && Craft.csrfTokenName && Craft.csrfTokenValue ? {[Craft.csrfTokenName]: Craft.csrfTokenValue} : {})}})">
+                    <svg class="bpi-rendered-apply-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                        <path d="M6.2 2.2H9.8V7.4H12.9L8 12.3 3.1 7.4H6.2Z"></path>
+                        <path d="M1.8 13.2H14.2V15.2H1.8Z"></path>
+                    </svg>
+                </button>
                 <div class="bpi-dimension-row" role="row">
                     <span class="bpi-dimension-icon bpi-dimension-icon-current" role="rowheader" title="Current" aria-label="Current">
                         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
