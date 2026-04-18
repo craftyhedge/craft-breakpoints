@@ -22,6 +22,7 @@ class TelemetryService extends Component
     private const SNAPSHOT_OVERLAY_STATUS_RELIABLE_KEY = 'overlayStatusReliable';
     private const SNAPSHOT_META_MAX_BYTES = 64000;
     private const SOURCE_URL_MAX_LENGTH = 255;
+    private const DISPLAY_ASSET_URL_MAX_LENGTH = 1024;
     private const RUN_ID_MAX_LENGTH = 64;
 
     /** @var array<string, bool> */
@@ -34,24 +35,34 @@ class TelemetryService extends Component
     /** @var array<string, bool> */
     private array $_seenHandles = [];
 
-    public function isTelemetryEnabled(): bool
+    private function getConfigService(): ?ConfigService
     {
         $plugin = Plugin::getInstance();
         if ($plugin === null) {
+            return null;
+        }
+
+        return $plugin->getConfigService();
+    }
+
+    public function isTelemetryEnabled(): bool
+    {
+        $configService = $this->getConfigService();
+        if ($configService === null) {
             return false;
         }
 
-        return $plugin->getConfigService()->isTelemetryEnabled();
+        return $configService->isTelemetryEnabled();
     }
 
     public function isInsightsCpEnabled(): bool
     {
-        $plugin = Plugin::getInstance();
-        if ($plugin === null) {
+        $configService = $this->getConfigService();
+        if ($configService === null) {
             return false;
         }
 
-        return $plugin->getConfigService()->isInsightsCpEnabled();
+        return $configService->isInsightsCpEnabled();
     }
 
     public function canWriteTelemetry(): bool
@@ -61,12 +72,12 @@ class TelemetryService extends Component
 
     public function canEditTransforms(): bool
     {
-        $plugin = Plugin::getInstance();
-        if ($plugin === null) {
+        $configService = $this->getConfigService();
+        if ($configService === null) {
             return false;
         }
 
-        return $plugin->getConfigService()->allowTransformEditing();
+        return $configService->allowTransformEditing();
     }
 
     public function recordUsage(string $transformHandle): void
@@ -149,7 +160,7 @@ class TelemetryService extends Component
         $now = Db::prepareDateForDb(new \DateTime());
         $normalizedSourceUrl = $sourceUrl;
         if (is_string($normalizedSourceUrl) && $normalizedSourceUrl !== '') {
-            $normalizedSourceUrl = mb_substr($normalizedSourceUrl, 0, 255);
+            $normalizedSourceUrl = mb_substr($normalizedSourceUrl, 0, self::SOURCE_URL_MAX_LENGTH);
         }
 
         try {
@@ -428,8 +439,8 @@ class TelemetryService extends Component
                 $displayAssetUrl = trim((string)($row['src'] ?? ''));
                 if ($displayAssetUrl === '') {
                     $displayAssetUrl = null;
-                } elseif (mb_strlen($displayAssetUrl) > 1024) {
-                    $displayAssetUrl = mb_substr($displayAssetUrl, 0, 1024);
+                } elseif (mb_strlen($displayAssetUrl) > self::DISPLAY_ASSET_URL_MAX_LENGTH) {
+                    $displayAssetUrl = mb_substr($displayAssetUrl, 0, self::DISPLAY_ASSET_URL_MAX_LENGTH);
                 }
 
                 $enabled = ($row['enabled'] ?? true) === true;
@@ -489,8 +500,8 @@ class TelemetryService extends Component
                 $displayAssetUrl = trim((string)($row['src'] ?? ''));
                 if ($displayAssetUrl === '') {
                     $displayAssetUrl = null;
-                } elseif (mb_strlen($displayAssetUrl) > 1024) {
-                    $displayAssetUrl = mb_substr($displayAssetUrl, 0, 1024);
+                } elseif (mb_strlen($displayAssetUrl) > self::DISPLAY_ASSET_URL_MAX_LENGTH) {
+                    $displayAssetUrl = mb_substr($displayAssetUrl, 0, self::DISPLAY_ASSET_URL_MAX_LENGTH);
                 }
 
                 $renderedWidth = max(0, (int)($row['rendered']['width'] ?? 0));
@@ -632,13 +643,7 @@ class TelemetryService extends Component
 
             if ($includeStatus) {
                 $status = strtolower(trim((string)($row['rowStatus'] ?? 'unprocessed')));
-                $statusCode = match ($status) {
-                    'loaded' => 1,
-                    'broken' => 2,
-                    'unresolved' => 3,
-                    'disabled' => 4,
-                    default => 0,
-                };
+                $statusCode = $this->encodeSnapshotRowStatus($status);
                 $grouped[$groupKey]['d'][] = [$w, $h, $statusCode];
             } else {
                 $grouped[$groupKey]['d'][] = [$w, $h];
@@ -724,13 +729,7 @@ class TelemetryService extends Component
                 $renderedHeight = max(0, (int)($entry[1] ?? 0));
                 $statusCode = is_numeric($entry[2] ?? null) ? (int)$entry[2] : 0;
 
-                $rowStatus = match ($statusCode) {
-                    1 => 'loaded',
-                    2 => 'broken',
-                    3 => 'unresolved',
-                    4 => 'disabled',
-                    default => 'unprocessed',
-                };
+                $rowStatus = $this->decodeSnapshotRowStatus($statusCode);
 
                 $decoded[] = [
                     'transformHandle' => $transformHandle,
@@ -746,6 +745,27 @@ class TelemetryService extends Component
         return $decoded;
     }
 
+    private function encodeSnapshotRowStatus(string $status): int
+    {
+        return match ($status) {
+            'loaded' => 1,
+            'broken' => 2,
+            'unresolved' => 3,
+            'disabled' => 4,
+            default => 0,
+        };
+    }
+
+    private function decodeSnapshotRowStatus(int $statusCode): string
+    {
+        return match ($statusCode) {
+            1 => 'loaded',
+            2 => 'broken',
+            3 => 'unresolved',
+            4 => 'disabled',
+            default => 'unprocessed',
+        };
+    }
 
     private function resolveSnapshotRowStatus(bool $enabled, bool $loaded, bool $broken, bool $unresolved): string
     {

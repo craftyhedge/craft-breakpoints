@@ -1,48 +1,26 @@
 {
+    "version": "2026-04-18T16:00:04.421452Z",
     "sets": {
-        "default": {
-            "name": "default",
+        "hero": {
+            "name": "hero",
             "includeEscapeWidth": false,
             "variants": {
-                "xs": {
-                    "width": 480,
-                    "height": null,
-                    "enabled": true,
-                    "autoDimension": null
-                },
+                "xs": [],
                 "sm": {
                     "width": 640,
-                    "height": null,
+                    "height": 340,
                     "enabled": true,
                     "autoDimension": null
                 },
-                "md": {
-                    "width": 768,
-                    "height": null,
-                    "enabled": true,
-                    "autoDimension": null
-                },
-                "lg": {
-                    "width": 1024,
-                    "height": null,
-                    "enabled": true,
-                    "autoDimension": null
-                },
-                "xl": {
-                    "width": 1280,
-                    "height": null,
-                    "enabled": true,
-                    "autoDimension": null
-                },
-                "2xl": {
-                    "width": 1536,
-                    "height": null,
-                    "enabled": true,
-                    "autoDimension": null
-                }
+                "md": [],
+                "lg": [],
+                "xl": [],
+                "2xl": []
             },
-            "config": [],
-            "lastUpdatedAt": null
+            "config": {
+                "passHeightWhenRenderedLteSaved": false
+            },
+            "lastUpdatedAt": "2026-04-18T16:00:04+00:00"
         }
     }
 }

@@ -54,6 +54,7 @@ describe('transforms runtime helper logic', () => {
 
     afterEach(() => {
         hooks.clearPreviewFrameForTests();
+        hooks.clearRunProcessingOverridesForTests();
     });
 
     it('applies initial stored review payload without requiring processing', async () => {
@@ -989,5 +990,315 @@ describe('transforms runtime helper logic', () => {
 
         expect(eventPayload).toBe(report);
         expect(hooks.getLastReport()).toBe(report);
+    });
+
+    it('collects review edit state from rendered transform cards', () => {
+        const visualResults = document.getElementById('bpi-visual-results');
+        visualResults.innerHTML = `
+            <article class="bpi-transform-card" data-set="hero" data-scope-mode="all" data-active-tab="settings" data-selected-asset-key="asset-hero"></article>
+            <article class="bpi-transform-card" data-set="card" data-scope-mode="breakpoint" data-scope-breakpoint="768" data-active-tab="ratio" data-selected-asset-key="asset-card"></article>
+            <article class="bpi-transform-card" data-set="teaser" data-scope-mode="invalid" data-active-tab="invalid"></article>
+        `;
+
+        const state = hooks.collectReviewEditStateFromDom();
+
+        expect(state.preferredOrderBySet).toEqual(['hero', 'card', 'teaser']);
+        expect(state.editScopeBySet.hero).toEqual({ mode: 'all', breakpoint: null });
+        expect(state.editScopeBySet.card).toEqual({ mode: 'breakpoint', breakpoint: 768 });
+        expect(state.editScopeBySet.teaser).toEqual({ mode: 'unset', breakpoint: null });
+        expect(state.editTabBySet.hero).toBe('settings');
+        expect(state.editTabBySet.card).toBe('ratio');
+        expect(state.editTabBySet.teaser).toBe('dimensions');
+        expect(state.selectedAssetKeyBySet.hero).toBe('asset-hero');
+        expect(state.selectedAssetKeyBySet.card).toBe('asset-card');
+    });
+
+    it('maps report issue codes into failure reason counts', () => {
+        const counts = hooks.summarizeFailureReasonCountsFromReport({
+            issues: [
+                { code: 'network-failure' },
+                { code: 'network-failure' },
+                { code: 'decode-failure' },
+                { code: 'unsupported-source' },
+                { code: 'unresolved-on-cancel' },
+                { code: 'other' },
+            ],
+        });
+
+        expect(counts).toEqual({
+            network: 2,
+            decode: 1,
+            'unsupported-source': 1,
+            cancelled: 1,
+        });
+    });
+
+    it('persists run snapshots and refreshes review when persistence succeeds', async () => {
+        const report = hooks.createRunReport('https://example.test/source', [480], false);
+        report.status = 'completed';
+        report.completedAt = '2026-04-18T00:00:00.000Z';
+
+        hooks.setLastResultForTests({
+            summary: { warningCount: 0 },
+            rowsByBreakpoint: { 480: [] },
+        });
+
+        const sendActionRequest = vi.fn().mockImplementation((_method, action) => {
+            if (action === 'craft-breakpoint-images/transforms/persist-run-snapshot') {
+                return Promise.resolve({ data: { ok: true } });
+            }
+
+            if (action === 'craft-breakpoint-images/transforms/render-result-review') {
+                return Promise.resolve({
+                    data: {
+                        warningsHtml: '<div>ok</div>',
+                        visualResultsHtml: '<div class="bpi-transform-card" data-set="hero"></div>',
+                        warningCount: 0,
+                    },
+                });
+            }
+
+            return Promise.reject(new Error(`Unexpected action: ${action}`));
+        });
+
+        window.Craft = { sendActionRequest };
+
+        const ok = await hooks.persistRunSnapshot(report, { 480: [] });
+
+        expect(ok).toBe(true);
+        expect(sendActionRequest).toHaveBeenNthCalledWith(
+            1,
+            'POST',
+            'craft-breakpoint-images/transforms/persist-run-snapshot',
+            expect.objectContaining({
+                data: expect.objectContaining({
+                    runStatus: 'completed',
+                    sourceUrl: 'https://example.test/source',
+                }),
+            }),
+        );
+        expect(sendActionRequest).toHaveBeenNthCalledWith(
+            2,
+            'POST',
+            'craft-breakpoint-images/transforms/render-result-review',
+            expect.any(Object),
+        );
+    });
+
+    it('returns false when snapshot persistence response is not ok', async () => {
+        const report = hooks.createRunReport('https://example.test/source', [480], false);
+        hooks.setLastResultForTests({ summary: { warningCount: 0 }, rowsByBreakpoint: { 480: [] } });
+
+        const sendActionRequest = vi.fn().mockResolvedValue({ data: { ok: false } });
+        window.Craft = { sendActionRequest };
+
+        const ok = await hooks.persistRunSnapshot(report, { 480: [] });
+
+        expect(ok).toBe(false);
+        expect(sendActionRequest).toHaveBeenCalledTimes(1);
+        expect(sendActionRequest).toHaveBeenCalledWith(
+            'POST',
+            'craft-breakpoint-images/transforms/persist-run-snapshot',
+            expect.any(Object),
+        );
+    });
+
+    it('short-circuits processing with status when no configured breakpoints exist', async () => {
+        window.bpiProcessingConfig.breakpointValues = [];
+
+        await hooks.runProcessing();
+
+        expect(document.getElementById('bpi-status').textContent)
+            .toContain('No configured breakpoints available. Check plugin settings.');
+
+        window.bpiProcessingConfig.breakpointValues = [480, 768];
+    });
+
+    it('completes runProcessing success flow with expected report and completion status', async () => {
+        const sourceEntry = document.getElementById('bpi-source-entry');
+        sourceEntry.innerHTML = '<input type="hidden" name="bpi-source-entry-id" value="42" />';
+
+        let publishedResult = null;
+        let persistCallCount = 0;
+        let preloadCallCount = 0;
+        let waitCallCount = 0;
+
+        hooks.setRunProcessingOverridesForTests({
+            resolveSelectedEntryUrl: async () => 'https://example.test/page?secret=1',
+            ensurePreviewFrame: async () => null,
+            setPreviewWidth: async () => null,
+            prepareBreakpointImages: () => ({
+                activationStrategies: ['none'],
+                normalizationCount: 0,
+                normalizationSamples: [],
+            }),
+            preloadBreakpointSources: async () => {
+                preloadCallCount += 1;
+                return new Map([['pic-1', true]]);
+            },
+            buildBreakpointReadinessTracker: () => ({
+                readinessByKey: new Map([
+                    ['pic-1', {
+                        status: 'loaded',
+                        reason: 'preload',
+                        sourceUsed: 'https://example.test/asset.jpg',
+                        img: document.createElement('img'),
+                        picture: document.createElement('picture'),
+                    }],
+                ]),
+                cleanup: () => { },
+            }),
+            waitForImagesToSettle: async () => {
+                waitCallCount += 1;
+                return {
+                    aborted: false,
+                    waitedMs: 6,
+                };
+            },
+            extractRowsForBreakpoint: (breakpoint) => [{
+                assetId: `asset-${breakpoint}`,
+                transform: 'hero',
+                loaded: true,
+                broken: false,
+                unresolved: false,
+            }],
+            publishResult: async (result) => {
+                publishedResult = result;
+            },
+            persistRunSnapshot: async () => {
+                persistCallCount += 1;
+                return true;
+            },
+        });
+
+        await hooks.runProcessing();
+
+        expect(preloadCallCount).toBe(2);
+        expect(waitCallCount).toBe(2);
+        expect(persistCallCount).toBe(1);
+        expect(publishedResult).toBeTruthy();
+        expect(publishedResult.summary.loadedImageCount).toBe(2);
+        expect(hooks.getLastReport().status).toBe('completed');
+        expect(hooks.getLastReport().resultPublished).toBe(true);
+        expect(document.getElementById('bpi-status').textContent)
+            .toContain('Done. 1 set processed. 0 warnings to address.');
+    });
+
+    it('reports cancelled processing when wait is aborted and avoids publishing results', async () => {
+        const sourceEntry = document.getElementById('bpi-source-entry');
+        sourceEntry.innerHTML = '<input type="hidden" name="bpi-source-entry-id" value="42" />';
+
+        let publishCount = 0;
+        let persistCallCount = 0;
+
+        hooks.setRunProcessingOverridesForTests({
+            resolveSelectedEntryUrl: async () => 'https://example.test/page?secret=1',
+            ensurePreviewFrame: async () => null,
+            setPreviewWidth: async () => null,
+            prepareBreakpointImages: () => ({
+                activationStrategies: ['none'],
+                normalizationCount: 0,
+                normalizationSamples: [],
+            }),
+            preloadBreakpointSources: async () => new Map([['pic-1', false]]),
+            buildBreakpointReadinessTracker: () => ({
+                readinessByKey: new Map([
+                    ['pic-1', {
+                        status: 'unresolved',
+                        reason: 'cancelled',
+                        sourceUsed: 'https://example.test/asset.jpg',
+                        img: document.createElement('img'),
+                        picture: document.createElement('picture'),
+                    }],
+                ]),
+                cleanup: () => { },
+            }),
+            waitForImagesToSettle: async () => ({
+                aborted: true,
+                waitedMs: 20,
+            }),
+            extractRowsForBreakpoint: () => [{
+                assetId: 'asset-1',
+                transform: 'hero',
+                loaded: false,
+                broken: false,
+                unresolved: true,
+            }],
+            publishResult: async () => {
+                publishCount += 1;
+            },
+            persistRunSnapshot: async () => {
+                persistCallCount += 1;
+                return true;
+            },
+        });
+
+        await hooks.runProcessing();
+
+        expect(publishCount).toBe(0);
+        expect(persistCallCount).toBe(1);
+        expect(hooks.getLastReport().status).toBe('cancelled');
+        expect(hooks.getLastReport().resultPublished).toBe(false);
+        expect(document.getElementById('bpi-status').textContent)
+            .toContain('Processing cancelled. No partial results were published.');
+    });
+
+    it('updates transform status through datastar started and success signal events', async () => {
+        vi.useFakeTimers();
+
+        const visualResults = document.getElementById('bpi-visual-results');
+        visualResults.innerHTML = `
+            <article class="bpi-transform-card" data-set="hero">
+                <button data-bpi-action="saveSet" id="bpi-datastar-trigger"></button>
+                <div data-role="transform-update-status" data-state="idle" aria-label="">
+                    <span data-role="transform-update-status-label"></span>
+                </div>
+            </article>
+        `;
+
+        const sendActionRequest = vi.fn().mockResolvedValue({
+            data: {
+                warningsHtml: '',
+                visualResultsHtml: visualResults.innerHTML,
+                warningCount: 0,
+            },
+        });
+
+        window.Craft = { sendActionRequest };
+
+        const trigger = document.getElementById('bpi-datastar-trigger');
+        document.dispatchEvent(new CustomEvent('datastar-fetch', {
+            detail: {
+                type: 'started',
+                el: trigger,
+            },
+        }));
+
+        let statusElement = document.querySelector('#bpi-visual-results [data-role="transform-update-status"]');
+        let labelElement = document.querySelector('#bpi-visual-results [data-role="transform-update-status-label"]');
+
+        expect(statusElement.getAttribute('data-state')).toBe('pending');
+        expect(labelElement.textContent).toBe('Saving...');
+
+        document.dispatchEvent(new CustomEvent('datastar-fetch', {
+            detail: {
+                type: 'datastar-patch-signals',
+                el: trigger,
+                argsRaw: {
+                    signals: JSON.stringify({ editor: { serverStatus: { kind: 'success' } } }),
+                },
+            },
+        }));
+
+        await vi.advanceTimersByTimeAsync(700);
+        statusElement = document.querySelector('#bpi-visual-results [data-role="transform-update-status"]');
+        expect(statusElement.getAttribute('data-state')).toBe('success');
+        expect(statusElement.getAttribute('aria-label')).toBe('Saved');
+
+        await vi.advanceTimersByTimeAsync(1200);
+        statusElement = document.querySelector('#bpi-visual-results [data-role="transform-update-status"]');
+        expect(statusElement.getAttribute('data-state')).toBe('idle');
+
+        vi.useRealTimers();
     });
 });

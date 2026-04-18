@@ -101,6 +101,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         pendingTransformUpdates: new Set(),
         pendingTransformActionsByName: {},
         progressBar: null,
+        testRunProcessingOverrides: null,
     };
 
     const RESULTS_COPY = {
@@ -2216,6 +2217,16 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             return;
         }
 
+        const getRunOverride = (name) => {
+            const overrides = state.testRunProcessingOverrides;
+            if (!overrides || typeof overrides !== 'object') {
+                return null;
+            }
+
+            const candidate = overrides[name];
+            return typeof candidate === 'function' ? candidate : null;
+        };
+
         const breakpoints = getConfiguredBreakpoints();
         const totalProgressSteps = breakpoints.length + 1;
         let completedProgressSteps = 0;
@@ -2241,14 +2252,16 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
         try {
             failureStage = 'resolve-entry-url';
-            const sourceUrl = await resolveSelectedEntryUrl();
+            const sourceUrlResolver = getRunOverride('resolveSelectedEntryUrl') || resolveSelectedEntryUrl;
+            const sourceUrl = await sourceUrlResolver();
             runReport.sourceUrl = sanitizeIssueSource(sourceUrl);
 
             syncSelectedEntryIdToUrl(getSelectedEntryId());
             getOrCreatePreviewFrame();
 
             failureStage = 'ensure-preview-frame';
-            await ensurePreviewFrame(sourceUrl, true);
+            const ensureFrame = getRunOverride('ensurePreviewFrame') || ensurePreviewFrame;
+            await ensureFrame(sourceUrl, true);
             completedProgressSteps += 1;
             updateProcessingProgress(completedProgressSteps);
 
@@ -2262,11 +2275,13 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                 setStatus(`Processing ${breakpoint}px...`);
 
                 failureStage = 'set-breakpoint-width';
-                await setPreviewWidth(measurementWidth);
+                const previewWidthSetter = getRunOverride('setPreviewWidth') || setPreviewWidth;
+                await previewWidthSetter(measurementWidth);
 
                 failureStage = 'prepare-breakpoint-images';
                 const prepareStartedAt = Date.now();
-                const prepareResult = prepareBreakpointImages(breakpoint);
+                const breakpointPreparer = getRunOverride('prepareBreakpointImages') || prepareBreakpointImages;
+                const prepareResult = breakpointPreparer(breakpoint);
                 breakpointReport.activationStrategies = prepareResult.activationStrategies.slice();
                 breakpointReport.normalizationCount = prepareResult.normalizationCount;
 
@@ -2294,7 +2309,8 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
                 failureStage = 'preload-breakpoint-sources';
                 const preloadStartedAt = Date.now();
-                const preloadStates = await preloadBreakpointSources(breakpoint);
+                const breakpointPreloader = getRunOverride('preloadBreakpointSources') || preloadBreakpointSources;
+                const preloadStates = await breakpointPreloader(breakpoint);
                 if (runReport.authorDiagnostics) {
                     runReport.authorDiagnostics.stageTimings.push({
                         stage: 'preload-breakpoint-sources',
@@ -2304,12 +2320,14 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                 }
 
                 failureStage = 'wait-for-image-readiness';
-                const readinessTracker = buildBreakpointReadinessTracker(breakpoint, preloadStates);
+                const readinessTrackerBuilder = getRunOverride('buildBreakpointReadinessTracker') || buildBreakpointReadinessTracker;
+                const readinessTracker = readinessTrackerBuilder(breakpoint, preloadStates);
                 const waitStartedAt = Date.now();
                 let waitResult = null;
 
                 try {
-                    waitResult = await waitForImagesToSettle({
+                    const imagesSettleWaiter = getRunOverride('waitForImagesToSettle') || waitForImagesToSettle;
+                    waitResult = await imagesSettleWaiter({
                         readinessByKey: readinessTracker.readinessByKey,
                         shouldStop: () => state.stopRequested,
                         onSoftDeadline: ({ pendingCount }) => {
@@ -2336,7 +2354,8 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                 state.waitSoftLimitReached = false;
                 setStopButtonVisibility(false);
 
-                rowsByBreakpoint[breakpoint] = extractRowsForBreakpoint(
+                const rowExtractor = getRunOverride('extractRowsForBreakpoint') || extractRowsForBreakpoint;
+                rowsByBreakpoint[breakpoint] = rowExtractor(
                     breakpoint,
                     preloadStates,
                     readinessTracker.readinessByKey,
@@ -2381,10 +2400,12 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                 finalizedReport,
             );
 
-            await publishResult(result);
+            const resultPublisher = getRunOverride('publishResult') || publishResult;
+            await resultPublisher(result);
             let snapshotPersisted = true;
             try {
-                snapshotPersisted = await persistRunSnapshot(finalizedReport, rowsByBreakpoint);
+                const snapshotPersister = getRunOverride('persistRunSnapshot') || persistRunSnapshot;
+                snapshotPersisted = await snapshotPersister(finalizedReport, rowsByBreakpoint);
             } catch (error) {
                 // Snapshot persistence should never block processing completion UX.
                 console.error(error);
@@ -2418,7 +2439,8 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             publishRunReport(finalizedReport);
             let snapshotPersisted = true;
             try {
-                snapshotPersisted = await persistRunSnapshot(finalizedReport, rowsByBreakpoint);
+                const snapshotPersister = getRunOverride('persistRunSnapshot') || persistRunSnapshot;
+                snapshotPersisted = await snapshotPersister(finalizedReport, rowsByBreakpoint);
             } catch (persistError) {
                 // Snapshot persistence should never block failure/cancel status updates.
                 console.error(persistError);
@@ -2534,8 +2556,25 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             buildWaitingStatusMessage,
             publishRunReport,
             getLastReport: () => state.lastReport,
+            runProcessing,
+            persistRunSnapshot,
+            summarizeFailureReasonCountsFromReport,
+            collectReviewEditStateFromDom,
+            parseServerStatusFromPatchSignalsArgs,
             renderInitialStoredReview,
+            renderResultReview,
             applyRenderedReviewPayload,
+            setLastResultForTests: (result) => {
+                state.lastResult = result;
+            },
+            setRunProcessingOverridesForTests: (overrides) => {
+                state.testRunProcessingOverrides = overrides && typeof overrides === 'object'
+                    ? overrides
+                    : null;
+            },
+            clearRunProcessingOverridesForTests: () => {
+                state.testRunProcessingOverrides = null;
+            },
             setPreviewFrameForTests: (frameDocument, frameWindow = window) => {
                 state.previewFrame = {
                     contentDocument: frameDocument,

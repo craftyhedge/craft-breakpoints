@@ -101,7 +101,7 @@ final class ImageTransformsServiceTest extends Unit
         });
     }
 
-    public function testDisabledBreakpointReturnsPlaceholderSources(): void
+    public function testDisabledBreakpointIsParkedAsPlaceholderForFrontendVisibilityContract(): void
     {
         $service = Plugin::getInstance()->getImageTransforms();
         $asset = $this->createMockAsset();
@@ -120,8 +120,10 @@ final class ImageTransformsServiceTest extends Unit
         ], $asset);
 
         $this->assertTrue($breakpointData['disabled']);
+        $this->assertSame('false', $breakpointData['primarySourceAttributes']['data-bp-enabled']);
         $this->assertSame('data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', $breakpointData['primarySourceAttributes']['srcset']);
         $this->assertSame('image/gif', $breakpointData['primarySourceAttributes']['type']);
+        $this->assertSame('gif', $breakpointData['primaryFormat']['format']);
         $this->assertSame('(max-width: 29.9375rem)', $breakpointData['primarySourceAttributes']['media']);
         $this->assertSame('image/gif', $breakpointData['secondarySourceAttributes']['type']);
     }

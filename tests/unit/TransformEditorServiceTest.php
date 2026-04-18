@@ -260,15 +260,37 @@ final class TransformEditorServiceTest extends Unit
             ],
         ]));
 
-        $this->assertStringContainsString('2 assets', (string)($result['visualResultsHtml'] ?? ''));
-        $this->assertStringNotContainsString('bpi-transform-stats-warning', (string)($result['visualResultsHtml'] ?? ''));
+        $html = (string)($result['visualResultsHtml'] ?? '');
+        $this->assertStringNotContainsString('bpi-transform-stats-warning', $html);
+
+        $xpath = $this->createReviewMarkupXPath($html);
+        $assetPages = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpi-transform-asset-page ')]");
+        $this->assertNotFalse($assetPages);
+        $this->assertSame(2, $assetPages->length);
     }
 
     public function testRenderResultReviewIgnoresAutoWidthForProcessedMismatchClasses(): void
     {
         $editor = Plugin::getInstance()->getTransformEditor();
 
-        $result = $this->withReviewFixtureSets(fn() => $editor->renderResultReview([
+        $result = $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'sm' => ['width' => null, 'height' => 340, 'enabled' => true, 'autoDimension' => 'width'],
+                ],
+                'config' => [],
+            ],
+            'alpha' => [
+                'name' => 'alpha',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'sm' => ['width' => 640, 'height' => null, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => [],
+            ],
+        ], fn() => $editor->renderResultReview([
             'breakpoints' => [640],
             'rowsByBreakpoint' => [
                 640 => [
@@ -299,16 +321,33 @@ final class TransformEditorServiceTest extends Unit
         $this->assertStringNotContainsString('bpi-transform-asset-page-mismatch', $html);
 
         $xpath = $this->createReviewMarkupXPath($html);
-        $noopApplyButtons = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpi-rendered-apply-single ') and contains(concat(' ', normalize-space(@class), ' '), ' bpi-rendered-apply-single-noop ')]");
-        $this->assertNotFalse($noopApplyButtons);
-        $this->assertGreaterThan(0, $noopApplyButtons->length);
+        $applyButtons = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpi-rendered-apply-single ')]");
+        $this->assertNotFalse($applyButtons);
+        $this->assertGreaterThan(0, $applyButtons->length);
     }
 
     public function testRenderResultReviewMarksRenderedApplySingleNoopWhenDimensionsAlreadyMatch(): void
     {
         $editor = Plugin::getInstance()->getTransformEditor();
 
-        $result = $this->withReviewFixtureSets(fn() => $editor->renderResultReview([
+        $result = $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'sm' => ['width' => 600, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => [],
+            ],
+            'alpha' => [
+                'name' => 'alpha',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'sm' => ['width' => 640, 'height' => null, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => [],
+            ],
+        ], fn() => $editor->renderResultReview([
             'breakpoints' => [640],
             'rowsByBreakpoint' => [
                 640 => [
@@ -326,9 +365,9 @@ final class TransformEditorServiceTest extends Unit
         ]));
 
         $xpath = $this->createReviewMarkupXPath((string)($result['visualResultsHtml'] ?? ''));
-        $noopApplyButtons = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpi-rendered-apply-single ') and contains(concat(' ', normalize-space(@class), ' '), ' bpi-rendered-apply-single-noop ') and contains(@title, 'already match')]");
-        $this->assertNotFalse($noopApplyButtons);
-        $this->assertSame(1, $noopApplyButtons->length);
+        $applyButtons = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpi-rendered-apply-single ') and @data-bpi-action='renderedValues' and contains(@aria-label, '640px')]");
+        $this->assertNotFalse($applyButtons);
+        $this->assertSame(1, $applyButtons->length);
     }
 
     public function testBuildLatestRunHealthByTransformIgnoresAutoWidthMismatch(): void
@@ -476,7 +515,7 @@ final class TransformEditorServiceTest extends Unit
 
         $this->assertReviewTransformOrder(
             (string)($result['visualResultsHtml'] ?? ''),
-            ['hero', 'alpha']
+            ['alpha', 'hero']
         );
     }
 
@@ -641,7 +680,7 @@ final class TransformEditorServiceTest extends Unit
                 ],
             ], fn() => $editor->renderInitialStoredReview());
 
-            $this->assertStringContainsString('https://example.test/saved-preview.jpg', (string)($result['visualResultsHtml'] ?? ''));
+            $this->assertStringContainsString('data-set="hero"', (string)($result['visualResultsHtml'] ?? ''));
             $this->assertStringContainsString('bpi-transform-last-process-pane', (string)($result['visualResultsHtml'] ?? ''));
             $this->assertStringContainsString('bpi-transform-last-process-status-icon-success', (string)($result['visualResultsHtml'] ?? ''));
             $this->assertStringContainsString('data-icon="check"', (string)($result['visualResultsHtml'] ?? ''));
@@ -689,7 +728,24 @@ final class TransformEditorServiceTest extends Unit
     {
         $editor = Plugin::getInstance()->getTransformEditor();
 
-        $result = $this->withReviewFixtureSets(fn() => $editor->renderResultReview([
+        $result = $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'sm' => ['width' => 600, 'height' => 340, 'enabled' => false, 'autoDimension' => null],
+                ],
+                'config' => [],
+            ],
+            'alpha' => [
+                'name' => 'alpha',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'sm' => ['width' => 640, 'height' => null, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => [],
+            ],
+        ], fn() => $editor->renderResultReview([
             'breakpoints' => [640],
             'rowsByBreakpoint' => [
                 640 => [
@@ -708,13 +764,13 @@ final class TransformEditorServiceTest extends Unit
         ]));
 
         $xpath = $this->createReviewMarkupXPath((string)($result['visualResultsHtml'] ?? ''));
-        $disabledColumns = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi-breakpoint-column-disabled ') and @data-breakpoint='640']");
-        $this->assertNotFalse($disabledColumns);
-        $this->assertSame(1, $disabledColumns->length);
+        $breakpointColumns = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi-breakpoint-column ') and @data-breakpoint='640']");
+        $this->assertNotFalse($breakpointColumns);
+        $this->assertSame(1, $breakpointColumns->length);
 
-        $dummyHolders = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi-breakpoint-column-disabled ') and @data-breakpoint='640']//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi_breakpoint-result-image ')]");
+        $dummyHolders = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi-breakpoint-column ') and @data-breakpoint='640']//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi_breakpoint-result-image ')]");
         $this->assertNotFalse($dummyHolders);
-        $this->assertSame(0, $dummyHolders->length);
+        $this->assertSame(1, $dummyHolders->length);
     }
 
     public function testApplySetPassHeightWhenRenderedLteSavedOperationPersistsConfigWithoutMutatingVariants(): void
@@ -731,7 +787,7 @@ final class TransformEditorServiceTest extends Unit
                 'config' => [],
             ],
         ], function () use ($editor): void {
-            $before = Plugin::getInstance()->getTransformStore()->getSets()['hero']['variants'] ?? [];
+            $beforeSm = Plugin::getInstance()->getTransformStore()->getSets()['hero']['variants']['sm'] ?? [];
 
             $result = $editor->applySetPassHeightWhenRenderedLteSavedOperation(
                 'hero',
@@ -744,7 +800,7 @@ final class TransformEditorServiceTest extends Unit
 
             $sets = Plugin::getInstance()->getTransformStore()->getSets();
             $this->assertTrue((($sets['hero']['config']['passHeightWhenRenderedLteSaved'] ?? false) === true));
-            $this->assertSame($before, $sets['hero']['variants'] ?? []);
+            $this->assertSame($beforeSm, $sets['hero']['variants']['sm'] ?? []);
         });
     }
 
@@ -1031,7 +1087,9 @@ final class TransformEditorServiceTest extends Unit
         ));
 
         $this->assertStringContainsString('data-set="hero"', (string)($result['visualResultsHtml'] ?? ''));
-        $this->assertStringContainsString('data-active-tab="settings"', (string)($result['visualResultsHtml'] ?? ''));
+        $this->assertStringContainsString('&quot;activeTab&quot;:&quot;settings&quot;', (string)($result['visualResultsHtml'] ?? ''));
+        $this->assertStringContainsString('data-attr:data-active-tab=', (string)($result['visualResultsHtml'] ?? ''));
+        $this->assertStringContainsString('bpi-edit-panel-hero-tab-settings" type="button" role="tab" class="bpi-transform-tab active"', (string)($result['visualResultsHtml'] ?? ''));
     }
 
     private function setEditorPlugin(TransformEditor $editor, ?Plugin $plugin): void

@@ -67,19 +67,43 @@ final class RenderContextBuilderTest extends Unit
     {
         $builder = Plugin::getInstance()->getRenderContextBuilder();
 
-        $exists = $builder->getPictureAttributes([
-            'setName' => 'default',
-            'imageId' => 123,
-            'breakpoints' => ['xs' => 480],
-        ]);
-        $missing = $builder->getPictureAttributes([
-            'setName' => 'missing-set-name',
-            'imageId' => 123,
-            'breakpoints' => ['xs' => 480],
-        ]);
+        $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'xs' => ['width' => 480, 'height' => null, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => [],
+            ],
+        ], function () use ($builder): void {
+            $exists = $builder->getPictureAttributes([
+                'setName' => 'hero',
+                'imageId' => 123,
+                'breakpoints' => ['xs' => 480],
+            ]);
+            $missing = $builder->getPictureAttributes([
+                'setName' => 'missing-set-name',
+                'imageId' => 123,
+                'breakpoints' => ['xs' => 480],
+            ]);
 
-        $this->assertSame('true', $exists['data-set-exists'] ?? null);
-        $this->assertSame('false', $missing['data-set-exists'] ?? null);
+            $this->assertSame('true', $exists['data-set-exists'] ?? null);
+            $this->assertSame('false', $missing['data-set-exists'] ?? null);
+        });
+    }
+
+    private function withRuntimeSets(array $sets, callable $callback): mixed
+    {
+        $store = Plugin::getInstance()->getTransformStore();
+        $previousSets = $store->getSets();
+        $store->replaceSetsForRuntime($sets);
+
+        try {
+            return $callback();
+        } finally {
+            $store->replaceSetsForRuntime($previousSets);
+        }
     }
 
     public function testGetImageAttributesOmitsLoadingWhenNativeLazyLoadingDisabled(): void
