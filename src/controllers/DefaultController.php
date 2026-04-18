@@ -237,6 +237,7 @@ class DefaultController extends Controller
         return $this->renderTemplate('craft-breakpoint-images/cp/transforms', [
             'selectedSubnavItem' => 'processing',
             'processingConfig' => $config,
+            'currentBaseVersion' => $plugin->getTransformStore()->getCurrentVersion(),
             'applyCardOperationUrl' => UrlHelper::cpUrl('actions/craft-breakpoint-images/transforms/apply-card-operation'),
             'selectedSourceEntries' => $selectedSourceEntry ? [$selectedSourceEntry] : [],
             'previewCenter' => (bool)$plugin->getConfigService()->get('previewCenter', true),

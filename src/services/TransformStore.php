@@ -15,6 +15,7 @@ class TransformStore extends Component
 
     private ?Plugin $_plugin = null;
     private ?array $_sets = null;
+    private string $_version = '';
 
     public function init(): void
     {
@@ -45,6 +46,15 @@ class TransformStore extends Component
         return $this->_sets;
     }
 
+    public function getCurrentVersion(): string
+    {
+        if ($this->_sets === null) {
+            $this->_sets = $this->loadSetsConfiguration();
+        }
+
+        return $this->_version;
+    }
+
     public function getTransforms(): array
     {
         return $this->convertSetsToLegacyTransforms($this->getSets());
@@ -71,12 +81,25 @@ class TransformStore extends Component
         $this->replaceTransformsForRuntime($transforms);
     }
 
-    public function persistSets(array $sets): array
+    public function persistSets(array $sets, string $expectedVersion): array
     {
+        $currentVersion = $this->getCurrentVersion();
         $existingSets = $this->getSets();
+
+        if ($expectedVersion !== $currentVersion) {
+            return [
+                'persisted' => false,
+                'conflict' => true,
+                'currentVersion' => $currentVersion,
+                'sets' => $existingSets,
+            ];
+        }
+
         $normalized = $this->validateSets($sets);
         $normalized = $this->stampProcessedTimestamps($normalized, $existingSets);
+        $nextVersion = $this->nextRevisionToken($currentVersion);
         $payload = [
+            'version' => $nextVersion,
             'sets' => $normalized,
         ];
         $encoded = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
@@ -92,16 +115,32 @@ class TransformStore extends Component
         }
 
         $this->_sets = $normalized;
+        $this->_version = $nextVersion;
         $this->resetImageTransformCaches();
 
-        return $normalized;
+        return [
+            'persisted' => true,
+            'conflict' => false,
+            'currentVersion' => $this->_version,
+            'sets' => $normalized,
+        ];
     }
 
-    public function persistTransforms(array $transforms): array
+    public function persistTransforms(array $transforms, string $expectedVersion): array
     {
-        $persistedSets = $this->persistSets($this->convertLegacyTransformsToSets($transforms));
+        $persistResult = $this->persistSets(
+            $this->convertLegacyTransformsToSets($transforms),
+            $expectedVersion,
+        );
 
-        return $this->convertSetsToLegacyTransforms($persistedSets);
+        $persistedSets = is_array($persistResult['sets'] ?? null) ? $persistResult['sets'] : [];
+
+        return [
+            'persisted' => ($persistResult['persisted'] ?? false) === true,
+            'conflict' => ($persistResult['conflict'] ?? false) === true,
+            'currentVersion' => (string)($persistResult['currentVersion'] ?? $this->getCurrentVersion()),
+            'transforms' => $this->convertSetsToLegacyTransforms($persistedSets),
+        ];
     }
 
     public function getSet(string $setName): ?array
@@ -164,66 +203,40 @@ class TransformStore extends Component
         $filePath = $this->getSetsConfigPath();
 
         if (!is_file($filePath)) {
+            $this->_version = $this->buildRevisionToken();
             return [];
         }
 
         $json = file_get_contents($filePath);
         if ($json === false) {
             Plugin::warning('Could not read transform-sets.json config file.');
+            $this->_version = $this->buildRevisionToken();
             return [];
         }
 
         $decoded = json_decode($json, true);
         if (!is_array($decoded)) {
             Plugin::warning('Invalid transform-sets.json content. Expected valid JSON object.');
+            $this->_version = $this->buildRevisionToken();
             return [];
         }
 
-        $rawSets = $this->resolveRawSets($decoded);
-        if ($rawSets === null) {
-            Plugin::warning('Invalid transform-sets.json content. Expected top-level sets object.');
+        $version = $decoded['version'] ?? null;
+        $rawSets = $decoded['sets'] ?? null;
+        if (!is_string($version) || trim($version) === '' || !is_array($rawSets)) {
+            Plugin::warning('Invalid transform-sets.json content. Expected top-level version timestamp and sets object.');
+            $this->_version = $this->buildRevisionToken();
             return [];
         }
 
         try {
+            $this->_version = trim($version);
             return $this->validateSets($rawSets);
         } catch (InvalidArgumentException $e) {
             Plugin::warning('Invalid transform-sets.json content structure.');
+            $this->_version = $this->buildRevisionToken();
             return [];
         }
-    }
-
-    private function resolveRawSets(array $decoded): ?array
-    {
-        $wrappedSets = $decoded['sets'] ?? null;
-        if (is_array($wrappedSets)) {
-            return $wrappedSets;
-        }
-
-        if ($decoded === []) {
-            return [];
-        }
-
-        if ($this->looksLikeUnwrappedSets($decoded)) {
-            return $decoded;
-        }
-
-        return null;
-    }
-
-    private function looksLikeUnwrappedSets(array $decoded): bool
-    {
-        foreach ($decoded as $setDefinition) {
-            if (!is_array($setDefinition)) {
-                return false;
-            }
-
-            if (array_key_exists('variants', $setDefinition) || array_key_exists('includeEscapeWidth', $setDefinition)) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private function validateSets(array $sets): array
@@ -339,7 +352,10 @@ class TransformStore extends Component
     private function buildDefaultSets(): array
     {
         if ($this->_plugin === null) {
-            return ['sets' => []];
+            return [
+                'version' => $this->buildRevisionToken(),
+                'sets' => [],
+            ];
         }
 
         $breakpoints = $this->_plugin->getConfigService()->getBreakpoints();
@@ -356,6 +372,7 @@ class TransformStore extends Component
         }
 
         return [
+            'version' => $this->buildRevisionToken(),
             'sets' => [
                 'default' => [
                     'name' => 'default',
@@ -366,6 +383,25 @@ class TransformStore extends Component
                 ],
             ],
         ];
+    }
+
+    private function buildRevisionToken(): string
+    {
+        $microtime = microtime(true);
+        $seconds = (int)floor($microtime);
+        $microseconds = (int)(($microtime - $seconds) * 1000000);
+
+        return gmdate('Y-m-d\\TH:i:s', $seconds) . sprintf('.%06dZ', $microseconds);
+    }
+
+    private function nextRevisionToken(string $currentVersion): string
+    {
+        $candidate = $this->buildRevisionToken();
+        if ($candidate === $currentVersion) {
+            return $candidate . '.1';
+        }
+
+        return $candidate;
     }
 
     private function convertSetsToLegacyTransforms(array $sets): array

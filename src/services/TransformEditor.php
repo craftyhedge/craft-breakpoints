@@ -44,7 +44,7 @@ class TransformEditor extends Component
         return is_string($encoded) ? $encoded : '{"transforms":{}}';
     }
 
-    public function applyDraft(array $draft): array
+    public function applyDraft(array $draft, ?string $expectedVersion = null): array
     {
         $validation = $this->defaultValidation();
 
@@ -68,14 +68,28 @@ class TransformEditor extends Component
             ];
         }
 
-        $persistedTransforms = $this->_plugin->getTransformStore()->persistTransforms($normalizedTransforms);
+        $resolvedExpectedVersion = $expectedVersion ?? $this->_plugin->getTransformStore()->getCurrentVersion();
+        $persistResult = $this->_plugin->getTransformStore()->persistTransforms($normalizedTransforms, $resolvedExpectedVersion);
+
+        $persisted = ($persistResult['persisted'] ?? false) === true;
+        $conflict = ($persistResult['conflict'] ?? false) === true;
+        $currentVersion = (string)($persistResult['currentVersion'] ?? $resolvedExpectedVersion);
+        $persistedTransforms = is_array($persistResult['transforms'] ?? null)
+            ? $persistResult['transforms']
+            : [];
+
+        if ($conflict) {
+            $this->addGlobalError($validation, 'Draft version is out of date. Reload and apply again.');
+        }
 
         return [
             'draft' => [
                 'transforms' => $this->buildDraftTransforms($persistedTransforms),
             ],
             'validation' => $validation,
-            'persisted' => true,
+            'persisted' => $persisted,
+            'conflict' => $conflict,
+            'currentVersion' => $currentVersion,
         ];
     }
 
@@ -86,6 +100,7 @@ class TransformEditor extends Component
         ?int $value,
         string $dimension,
         ?bool $includeEscapeWidth = null,
+        ?string $expectedVersion = null,
     ): array {
         $validation = $this->defaultValidation();
 
@@ -219,12 +234,7 @@ class TransformEditor extends Component
                 : [],
         ]);
 
-        $this->_plugin->getTransformStore()->persistTransforms($transforms);
-
-        return [
-            'persisted' => true,
-            'validation' => $validation,
-        ];
+        return $this->persistOperationTransforms($transforms, $validation, $expectedVersion);
     }
 
     public function applySetDimensionsOperation(
@@ -237,6 +247,7 @@ class TransformEditor extends Component
         ?bool $widthAuto = null,
         ?bool $heightAuto = null,
         bool $forceAll = false,
+        ?string $expectedVersion = null,
     ): array {
         $validation = $this->defaultValidation();
 
@@ -392,12 +403,7 @@ class TransformEditor extends Component
                 : [],
         ]);
 
-        $this->_plugin->getTransformStore()->persistTransforms($transforms);
-
-        return [
-            'persisted' => true,
-            'validation' => $validation,
-        ];
+        return $this->persistOperationTransforms($transforms, $validation, $expectedVersion);
     }
 
     public function applySetRatioOperation(
@@ -408,6 +414,7 @@ class TransformEditor extends Component
         ?int $ratioHeight,
         ?string $ratioSourceDimension,
         ?bool $includeEscapeWidth = null,
+        ?string $expectedVersion = null,
     ): array {
         $validation = $this->defaultValidation();
 
@@ -598,12 +605,7 @@ class TransformEditor extends Component
                 : [],
         ]);
 
-        $this->_plugin->getTransformStore()->persistTransforms($transforms);
-
-        return [
-            'persisted' => true,
-            'validation' => $validation,
-        ];
+        return $this->persistOperationTransforms($transforms, $validation, $expectedVersion);
     }
 
     public function applySetBreakpointEnabledOperation(
@@ -611,6 +613,7 @@ class TransformEditor extends Component
         ?int $scopeBreakpoint,
         ?bool $enabled,
         ?bool $includeEscapeWidth = null,
+        ?string $expectedVersion = null,
     ): array {
         $validation = $this->defaultValidation();
 
@@ -720,12 +723,7 @@ class TransformEditor extends Component
                 : [],
         ]);
 
-        $this->_plugin->getTransformStore()->persistTransforms($transforms);
-
-        return [
-            'persisted' => true,
-            'validation' => $validation,
-        ];
+        return $this->persistOperationTransforms($transforms, $validation, $expectedVersion);
     }
 
     public function applyRenderedValuesOperation(
@@ -733,6 +731,7 @@ class TransformEditor extends Component
         array $renderedRows,
         ?bool $includeEscapeWidth = null,
         bool $clearAuto = false,
+        ?string $expectedVersion = null,
     ): array {
         $validation = $this->defaultValidation();
 
@@ -852,6 +851,8 @@ class TransformEditor extends Component
             if ($appliedCount < 1) {
                 return [
                     'persisted' => true,
+                    'conflict' => false,
+                    'currentVersion' => $this->_plugin->getTransformStore()->getCurrentVersion(),
                     'validation' => $validation,
                 ];
             }
@@ -915,6 +916,8 @@ class TransformEditor extends Component
                 if ($candidateDimensionCount > 0 && $candidateDimensionCount === $autoSkippedDimensionCount) {
                     return [
                         'persisted' => true,
+                        'conflict' => false,
+                        'currentVersion' => $this->_plugin->getTransformStore()->getCurrentVersion(),
                         'validation' => $validation,
                     ];
                 }
@@ -937,12 +940,7 @@ class TransformEditor extends Component
                 : [],
         ]);
 
-        $this->_plugin->getTransformStore()->persistTransforms($transforms);
-
-        return [
-            'persisted' => true,
-            'validation' => $validation,
-        ];
+        return $this->persistOperationTransforms($transforms, $validation, $expectedVersion);
     }
 
     public function applySetWidthOperation(
@@ -950,6 +948,7 @@ class TransformEditor extends Component
         string $scopeMode,
         ?int $scopeBreakpoint,
         ?int $value,
+        ?string $expectedVersion = null,
     ): array {
         return $this->applySetDimensionOperation(
             $transformName,
@@ -957,10 +956,12 @@ class TransformEditor extends Component
             $scopeBreakpoint,
             $value,
             'width',
+            null,
+            $expectedVersion,
         );
     }
 
-    public function deleteSetOperation(string $transformName): array
+    public function deleteSetOperation(string $transformName, ?string $expectedVersion = null): array
     {
         $validation = $this->defaultValidation();
 
@@ -986,17 +987,14 @@ class TransformEditor extends Component
         if (!isset($transforms[$transformName]) || !is_array($transforms[$transformName])) {
             return [
                 'persisted' => true,
+                'conflict' => false,
+                'currentVersion' => $this->_plugin->getTransformStore()->getCurrentVersion(),
                 'validation' => $validation,
             ];
         }
 
         unset($transforms[$transformName]);
-        $this->_plugin->getTransformStore()->persistTransforms($transforms);
-
-        return [
-            'persisted' => true,
-            'validation' => $validation,
-        ];
+        return $this->persistOperationTransforms($transforms, $validation, $expectedVersion);
     }
 
     public function buildResultSummary(array $summary = []): array
@@ -1024,6 +1022,31 @@ class TransformEditor extends Component
             'hasErrors' => false,
             'global' => [],
             'fields' => [],
+        ];
+    }
+
+    private function persistOperationTransforms(array $transforms, array $validation, ?string $expectedVersion): array
+    {
+        if ($this->_plugin === null) {
+            return [
+                'persisted' => false,
+                'validation' => $validation,
+            ];
+        }
+
+        $resolvedExpectedVersion = $expectedVersion ?? $this->_plugin->getTransformStore()->getCurrentVersion();
+        $persistResult = $this->_plugin->getTransformStore()->persistTransforms($transforms, $resolvedExpectedVersion);
+        $conflict = ($persistResult['conflict'] ?? false) === true;
+
+        if ($conflict) {
+            $this->addGlobalError($validation, 'Draft version is out of date. Reload and apply again.');
+        }
+
+        return [
+            'persisted' => ($persistResult['persisted'] ?? false) === true,
+            'conflict' => $conflict,
+            'currentVersion' => (string)($persistResult['currentVersion'] ?? $resolvedExpectedVersion),
+            'validation' => $validation,
         ];
     }
 

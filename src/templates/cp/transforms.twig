@@ -80,9 +80,10 @@
 {% endblock %}
 
 {% block content %}
+    {% set initialBaseVersion = currentBaseVersion ?? '' %}
     <div
         class="bpi-transforms-page bpi-review-hydrating"
-        data-signals="{editor: {baseVersion: 1, cards: {}}}"
+        data-signals="{editor: {baseVersion: '{{ initialBaseVersion|e('js') }}', cards: {}}}"
         data-apply-card-operation-url="{{ applyCardOperationUrl }}"
         data-preview-center="{{ (previewCenter ?? true) ? '1' : '0' }}"
         data-site-id="{{ currentSite.id ?? 0 }}"

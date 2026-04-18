@@ -40,7 +40,7 @@ final class TransformsControllerTest extends Unit
         $this->assertStringContainsString('text/event-stream', (string)$response->getHeaders()->get('Content-Type'));
         $this->assertStringContainsString('patch-signals', (string)$response->content);
         $this->assertStringContainsString('sess_test_init', (string)$response->content);
-        $this->assertStringContainsString('"baseVersion":1', (string)$response->content);
+        $this->assertMatchesRegularExpression('/"baseVersion":"[^"]+"/', (string)$response->content);
         $this->assertStringContainsString('Draft initialized from current transform set configuration.', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
@@ -55,7 +55,7 @@ final class TransformsControllerTest extends Unit
         $response = $controller->actionApply();
 
         $this->assertSame(Response::FORMAT_RAW, $response->format);
-        $this->assertStringContainsString('"baseVersion":3', (string)$response->content);
+        $this->assertStringContainsString('"baseVersion":"3"', (string)$response->content);
         $this->assertStringContainsString('Draft JSON is required.', (string)$response->content);
         $this->assertStringContainsString('Draft could not be applied.', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
@@ -79,16 +79,17 @@ final class TransformsControllerTest extends Unit
     {
         $editor = Plugin::getInstance()->getTransformEditor();
         $validDraftJson = $editor->encodeDraftJson($editor->buildDraftFromStore());
+        $baseVersion = Plugin::getInstance()->getTransformStore()->getCurrentVersion();
 
         $controller = $this->controllerWithBody([
             'sessionId' => 'sess_test_success',
-            'baseVersion' => 1,
+            'baseVersion' => $baseVersion,
             'draftJson' => $validDraftJson,
         ]);
         $response = $controller->actionApply();
 
         $this->assertSame(Response::FORMAT_RAW, $response->format);
-        $this->assertStringContainsString('"baseVersion":2', (string)$response->content);
+        $this->assertStringNotContainsString('"baseVersion":"' . $baseVersion . '"', (string)$response->content);
         $this->assertStringContainsString('"kind":"success"', (string)$response->content);
         $this->assertStringContainsString('Draft applied and persisted to transform-sets.json.', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
@@ -107,7 +108,7 @@ final class TransformsControllerTest extends Unit
         $response = $controller->actionApplyCardOperation();
 
         $this->assertSame(Response::FORMAT_RAW, $response->format);
-        $this->assertStringContainsString('"baseVersion":5', (string)$response->content);
+        $this->assertStringContainsString('"baseVersion":"5"', (string)$response->content);
         $this->assertStringContainsString('Width update failed.', (string)$response->content);
         $this->assertStringContainsString('setName is required.', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
@@ -128,6 +129,48 @@ final class TransformsControllerTest extends Unit
         $this->assertSame(Response::FORMAT_RAW, $response->format);
         $this->assertStringContainsString('Breakpoint state update failed.', (string)$response->content);
         $this->assertStringContainsString('setName is required.', (string)$response->content);
+        $this->assertTrue($controller->cpRequestChecked);
+        $this->assertTrue($controller->postRequestChecked);
+    }
+
+    public function testApplyCardOperationRejectsNonBooleanNumericEnabledValue(): void
+    {
+        $breakpoints = Plugin::getInstance()->getConfigService()->getBreakpoints();
+        unset($breakpoints['escape']);
+        $firstBreakpointValue = (int)($breakpoints[(string)array_key_first($breakpoints)] ?? 0);
+
+        $this->assertGreaterThan(0, $firstBreakpointValue);
+
+        $controller = $this->controllerWithBody([
+            'baseVersion' => 7,
+            'field' => 'breakpointEnabled',
+            'setName' => 'hero',
+            'scopeBreakpoint' => $firstBreakpointValue,
+            'enabled' => 2,
+        ]);
+        $response = $controller->actionApplyCardOperation();
+
+        $this->assertSame(Response::FORMAT_RAW, $response->format);
+        $this->assertStringContainsString('enabled must be a boolean value.', (string)$response->content);
+        $this->assertStringContainsString('Breakpoint state update failed.', (string)$response->content);
+        $this->assertTrue($controller->cpRequestChecked);
+        $this->assertTrue($controller->postRequestChecked);
+    }
+
+    public function testApplyCardOperationRejectsFractionalScopeBreakpoint(): void
+    {
+        $controller = $this->controllerWithBody([
+            'baseVersion' => 8,
+            'field' => 'breakpointEnabled',
+            'setName' => 'hero',
+            'scopeBreakpoint' => '640.5',
+            'enabled' => true,
+        ]);
+        $response = $controller->actionApplyCardOperation();
+
+        $this->assertSame(Response::FORMAT_RAW, $response->format);
+        $this->assertStringContainsString('scopeBreakpoint is required when updating breakpoint state.', (string)$response->content);
+        $this->assertStringContainsString('Breakpoint state update failed.', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
     }

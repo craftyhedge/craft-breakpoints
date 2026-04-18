@@ -19,9 +19,10 @@ class TransformsController extends Controller
         $this->requirePostRequest();
 
         $editor = Plugin::getInstance()->getTransformEditor();
+        $currentVersion = Plugin::getInstance()->getTransformStore()->getCurrentVersion();
         $state = [
             'sessionId' => $this->resolveSessionId(),
-            'baseVersion' => max(1, (int)$this->request->getBodyParam('baseVersion', 1)),
+            'baseVersion' => $currentVersion,
             'draft' => $editor->buildDraftFromStore(),
             'validation' => $editor->defaultValidation(),
             'resultSummary' => $editor->buildResultSummary($this->extractResultSummaryFromRequest()),
@@ -42,12 +43,10 @@ class TransformsController extends Controller
         $this->requireCpRequest();
         $this->requirePostRequest();
 
-        if (!Plugin::getInstance()->getTelemetry()->canEditTransforms()) {
-            throw new ForbiddenHttpException('Transform editing is disabled in this environment.');
-        }
+        $this->requireTransformEditPermission();
 
         $editor = Plugin::getInstance()->getTransformEditor();
-        $baseVersion = max(1, (int)$this->request->getBodyParam('baseVersion', 1));
+        $baseVersion = $this->resolveBaseVersion(Plugin::getInstance()->getTransformStore()->getCurrentVersion());
         $resultSummary = $editor->buildResultSummary($this->extractResultSummaryFromRequest());
         $validation = $editor->defaultValidation();
 
@@ -55,12 +54,13 @@ class TransformsController extends Controller
         if ($draftJson === '') {
             $validation['hasErrors'] = true;
             $validation['global'][] = 'Draft JSON is required.';
+            $draft = $editor->buildDraftFromStore();
 
             $state = [
                 'sessionId' => $this->resolveSessionId(),
                 'baseVersion' => $baseVersion,
-                'draft' => $editor->buildDraftFromStore(),
-                'draftJson' => $editor->encodeDraftJson($editor->buildDraftFromStore()),
+                'draft' => $draft,
+                'draftJson' => $editor->encodeDraftJson($draft),
                 'validation' => $validation,
                 'resultSummary' => $resultSummary,
                 'serverStatus' => [
@@ -97,8 +97,10 @@ class TransformsController extends Controller
             ]);
         }
 
-        $applyResult = $editor->applyDraft($decodedDraft);
+        $applyResult = $editor->applyDraft($decodedDraft, $baseVersion);
         $applied = ($applyResult['persisted'] ?? false) === true;
+        $conflict = ($applyResult['conflict'] ?? false) === true;
+        $currentVersion = (string)($applyResult['currentVersion'] ?? $baseVersion);
         $draft = is_array($applyResult['draft'] ?? null) ? $applyResult['draft'] : $editor->buildDraftFromStore();
         $applyValidation = is_array($applyResult['validation'] ?? null)
             ? $applyResult['validation']
@@ -106,7 +108,7 @@ class TransformsController extends Controller
 
         $state = [
             'sessionId' => $this->resolveSessionId(),
-            'baseVersion' => $applied ? ($baseVersion + 1) : $baseVersion,
+            'baseVersion' => $currentVersion,
             'draft' => $draft,
             'validation' => $applyValidation,
             'resultSummary' => $resultSummary,
@@ -114,7 +116,9 @@ class TransformsController extends Controller
                 'kind' => $applied ? 'success' : 'error',
                 'message' => $applied
                     ? 'Draft applied and persisted to transform-sets.json.'
-                    : 'Draft has validation errors. Resolve errors and apply again.',
+                    : ($conflict
+                        ? 'Draft is out of date. Reloaded latest server version.'
+                        : 'Draft has validation errors. Resolve errors and apply again.'),
             ],
         ];
         $state['draftJson'] = $editor->encodeDraftJson($state['draft']);
@@ -129,15 +133,13 @@ class TransformsController extends Controller
         $this->requireCpRequest();
         $this->requirePostRequest();
 
-        if (!Plugin::getInstance()->getTelemetry()->canEditTransforms()) {
-            throw new ForbiddenHttpException('Transform editing is disabled in this environment.');
-        }
+        $this->requireTransformEditPermission();
 
         $editor = Plugin::getInstance()->getTransformEditor();
 
         $setName = trim((string)$this->request->getBodyParam('setName', ''));
         $scopeMode = trim((string)$this->request->getBodyParam('scopeMode', 'all'));
-        $field = trim((string)$this->request->getBodyParam('field', 'width'));
+        $field = $this->normalizeOperationField(trim((string)$this->request->getBodyParam('field', 'width')));
         $includeEscapeWidthRaw = $this->request->getBodyParam('includeEscapeWidth');
         $scopeBreakpointRaw = $this->request->getBodyParam('scopeBreakpoint');
         $valueRaw = $this->request->getBodyParam('value');
@@ -148,109 +150,21 @@ class TransformsController extends Controller
         $ratioWidthRaw = $this->request->getBodyParam('ratioWidth');
         $ratioHeightRaw = $this->request->getBodyParam('ratioHeight');
         $ratioSourceDimensionRaw = $this->request->getBodyParam('ratioSourceDimension');
-        $baseVersion = max(1, (int)$this->request->getBodyParam('baseVersion', 1));
+        $baseVersion = $this->resolveBaseVersion(Plugin::getInstance()->getTransformStore()->getCurrentVersion());
 
-        if ($field !== 'width' && $field !== 'height' && $field !== 'dimensions' && $field !== 'ratio' && $field !== 'breakpointEnabled' && $field !== 'renderedValues' && $field !== 'deleteSet') {
-            $field = 'width';
-        }
-
-        $includeEscapeWidth = null;
-        if (is_bool($includeEscapeWidthRaw)) {
-            $includeEscapeWidth = $includeEscapeWidthRaw;
-        } elseif (is_numeric($includeEscapeWidthRaw)) {
-            $includeEscapeWidth = ((int)$includeEscapeWidthRaw) === 1;
-        } elseif (is_string($includeEscapeWidthRaw)) {
-            $normalizedIncludeEscapeWidth = strtolower(trim($includeEscapeWidthRaw));
-            if ($normalizedIncludeEscapeWidth === 'true' || $normalizedIncludeEscapeWidth === '1') {
-                $includeEscapeWidth = true;
-            } elseif ($normalizedIncludeEscapeWidth === 'false' || $normalizedIncludeEscapeWidth === '0') {
-                $includeEscapeWidth = false;
-            }
-        }
-
-        $scopeBreakpoint = null;
-        if (is_numeric($scopeBreakpointRaw)) {
-            $parsedBreakpoint = (int)$scopeBreakpointRaw;
-            if ($parsedBreakpoint > 0) {
-                $scopeBreakpoint = $parsedBreakpoint;
-            }
-        }
-
-        $value = null;
-        if (is_numeric($valueRaw)) {
-            $parsedValue = (int)$valueRaw;
-            if ($parsedValue > 0) {
-                $value = $parsedValue;
-            }
-        }
-
-        $width = null;
-        if (is_numeric($widthRaw)) {
-            $parsedWidth = (int)$widthRaw;
-            if ($parsedWidth > 0) {
-                $width = $parsedWidth;
-            }
-        }
-
-        $height = null;
-        if (is_numeric($heightRaw)) {
-            $parsedHeight = (int)$heightRaw;
-            if ($parsedHeight > 0) {
-                $height = $parsedHeight;
-            }
-        }
-
-        $parseNullableBool = static function (mixed $raw): ?bool {
-            if (is_bool($raw)) {
-                return $raw;
-            }
-
-            if (is_numeric($raw)) {
-                return ((int)$raw) === 1;
-            }
-
-            if (is_string($raw)) {
-                $normalized = strtolower(trim($raw));
-                if ($normalized === 'true' || $normalized === '1') {
-                    return true;
-                }
-
-                if ($normalized === 'false' || $normalized === '0') {
-                    return false;
-                }
-            }
-
-            return null;
-        };
-
-        $widthAuto = $parseNullableBool($widthAutoRaw);
-        $heightAuto = $parseNullableBool($heightAutoRaw);
-        $forceAll = $parseNullableBool($this->request->getBodyParam('forceAll')) === true;
-        $clearAuto = $parseNullableBool($this->request->getBodyParam('clearAuto')) === true;
-
-        $ratioWidth = null;
-        if (is_numeric($ratioWidthRaw)) {
-            $parsedRatioWidth = (int)$ratioWidthRaw;
-            if ($parsedRatioWidth > 0) {
-                $ratioWidth = $parsedRatioWidth;
-            }
-        }
-
-        $ratioHeight = null;
-        if (is_numeric($ratioHeightRaw)) {
-            $parsedRatioHeight = (int)$ratioHeightRaw;
-            if ($parsedRatioHeight > 0) {
-                $ratioHeight = $parsedRatioHeight;
-            }
-        }
-
-        $ratioSourceDimension = null;
-        if (is_string($ratioSourceDimensionRaw)) {
-            $trimmedRatioSourceDimension = trim($ratioSourceDimensionRaw);
-            if ($trimmedRatioSourceDimension !== '') {
-                $ratioSourceDimension = $trimmedRatioSourceDimension;
-            }
-        }
+        $includeEscapeWidth = $this->parseNullableBool($includeEscapeWidthRaw);
+        $scopeBreakpoint = $this->parseNullablePositiveInt($scopeBreakpointRaw);
+        $value = $this->parseNullablePositiveInt($valueRaw);
+        $width = $this->parseNullablePositiveInt($widthRaw);
+        $height = $this->parseNullablePositiveInt($heightRaw);
+        $widthAuto = $this->parseNullableBool($widthAutoRaw);
+        $heightAuto = $this->parseNullableBool($heightAutoRaw);
+        $forceAll = $this->parseNullableBool($this->request->getBodyParam('forceAll')) === true;
+        $clearAuto = $this->parseNullableBool($this->request->getBodyParam('clearAuto')) === true;
+        $ratioWidth = $this->parseNullablePositiveInt($ratioWidthRaw);
+        $ratioHeight = $this->parseNullablePositiveInt($ratioHeightRaw);
+        $ratioSourceDimension = $this->parseNullableNonEmptyString($ratioSourceDimensionRaw);
+        $enabled = $this->parseNullableBool($this->request->getBodyParam('enabled'));
 
         if ($field === 'renderedValues') {
             $renderedRowsRaw = $this->request->getBodyParam('renderedRows', []);
@@ -261,9 +175,10 @@ class TransformsController extends Controller
                 $renderedRows,
                 $includeEscapeWidth,
                 $clearAuto,
+                $baseVersion,
             );
         } elseif ($field === 'deleteSet') {
-            $operationResult = $editor->deleteSetOperation($setName);
+            $operationResult = $editor->deleteSetOperation($setName, $baseVersion);
         } elseif ($field === 'dimensions') {
             $operationResult = $editor->applySetDimensionsOperation(
                 $setName,
@@ -275,6 +190,7 @@ class TransformsController extends Controller
                 $widthAuto,
                 $heightAuto,
                 $forceAll,
+                $baseVersion,
             );
         } elseif ($field === 'ratio') {
             $operationResult = $editor->applySetRatioOperation(
@@ -285,13 +201,15 @@ class TransformsController extends Controller
                 $ratioHeight,
                 $ratioSourceDimension,
                 $includeEscapeWidth,
+                $baseVersion,
             );
         } elseif ($field === 'breakpointEnabled') {
             $operationResult = $editor->applySetBreakpointEnabledOperation(
                 $setName,
                 $scopeBreakpoint,
-                $parseNullableBool($this->request->getBodyParam('enabled')),
+                $enabled,
                 $includeEscapeWidth,
+                $baseVersion,
             );
         } else {
             $operationResult = $editor->applySetDimensionOperation(
@@ -301,6 +219,7 @@ class TransformsController extends Controller
                 $value,
                 $field,
                 $includeEscapeWidth,
+                $baseVersion,
             );
         }
 
@@ -308,31 +227,22 @@ class TransformsController extends Controller
             ? $operationResult['validation']
             : $editor->defaultValidation();
         $persisted = ($operationResult['persisted'] ?? false) === true;
-        $statusMessage = $persisted
-            ? match ($field) {
-                'renderedValues' => 'Rendered values applied.',
-                'deleteSet' => 'Transform set deleted.',
-                'dimensions' => 'Dimensions updated.',
-                'ratio' => 'Ratio applied.',
-                'breakpointEnabled' => 'Breakpoint state updated.',
-                default => ucfirst($field) . ' updated.',
-            }
-            : match ($field) {
-                'renderedValues' => 'Rendered values apply failed.',
-                'deleteSet' => 'Transform set delete failed.',
-                'dimensions' => 'Dimensions update failed.',
-                'ratio' => 'Ratio apply failed.',
-                'breakpointEnabled' => 'Breakpoint state update failed.',
-                default => ucfirst($field) . ' update failed.',
-            };
+        $conflict = ($operationResult['conflict'] ?? false) === true;
+        $currentVersion = (string)($operationResult['currentVersion'] ?? $baseVersion);
+        $statusMessage = $this->buildOperationStatusMessage($field, $persisted, $conflict);
+        $draft = $editor->buildDraftFromStore();
 
         $state = [
-            'baseVersion' => $persisted ? ($baseVersion + 1) : $baseVersion,
+            'sessionId' => $this->resolveSessionId(),
+            'baseVersion' => $currentVersion,
+            'draft' => $draft,
+            'draftJson' => $editor->encodeDraftJson($draft),
             'serverStatus' => [
                 'kind' => $persisted ? 'success' : 'error',
                 'message' => $statusMessage,
             ],
             'validation' => $validation,
+            'resultSummary' => $editor->buildResultSummary($this->extractResultSummaryFromRequest()),
         ];
 
         return $this->asDatastarSignalsPatch([
@@ -346,17 +256,11 @@ class TransformsController extends Controller
         $this->requirePostRequest();
 
         $editor = Plugin::getInstance()->getTransformEditor();
-        $rawResult = $this->request->getBodyParam('result', []);
-        $rawEditScopeBySet = $this->request->getBodyParam('editScopeBySet', []);
-        $rawEditTabBySet = $this->request->getBodyParam('editTabBySet', []);
-        $rawSelectedAssetKeyBySet = $this->request->getBodyParam('selectedAssetKeyBySet', []);
-        $rawPreferredOrderBySet = $this->request->getBodyParam('preferredOrderBySet', []);
-
-        $result = is_array($rawResult) ? $rawResult : [];
-        $editScopeBySet = is_array($rawEditScopeBySet) ? $rawEditScopeBySet : [];
-        $editTabBySet = is_array($rawEditTabBySet) ? $rawEditTabBySet : [];
-        $selectedAssetKeyBySet = is_array($rawSelectedAssetKeyBySet) ? $rawSelectedAssetKeyBySet : [];
-        $preferredOrderBySet = is_array($rawPreferredOrderBySet) ? $rawPreferredOrderBySet : [];
+        $result = $this->readBodyArrayParam('result');
+        $editScopeBySet = $this->readBodyArrayParam('editScopeBySet');
+        $editTabBySet = $this->readBodyArrayParam('editTabBySet');
+        $selectedAssetKeyBySet = $this->readBodyArrayParam('selectedAssetKeyBySet');
+        $preferredOrderBySet = $this->readBodyArrayParam('preferredOrderBySet');
 
         $rendered = $editor->renderResultReview(
             $result,
@@ -375,15 +279,10 @@ class TransformsController extends Controller
         $this->requirePostRequest();
 
         $editor = Plugin::getInstance()->getTransformEditor();
-        $rawEditScopeBySet = $this->request->getBodyParam('editScopeBySet', []);
-        $rawEditTabBySet = $this->request->getBodyParam('editTabBySet', []);
-        $rawSelectedAssetKeyBySet = $this->request->getBodyParam('selectedAssetKeyBySet', []);
-        $rawPreferredOrderBySet = $this->request->getBodyParam('preferredOrderBySet', []);
-
-        $editScopeBySet = is_array($rawEditScopeBySet) ? $rawEditScopeBySet : [];
-        $editTabBySet = is_array($rawEditTabBySet) ? $rawEditTabBySet : [];
-        $selectedAssetKeyBySet = is_array($rawSelectedAssetKeyBySet) ? $rawSelectedAssetKeyBySet : [];
-        $preferredOrderBySet = is_array($rawPreferredOrderBySet) ? $rawPreferredOrderBySet : [];
+        $editScopeBySet = $this->readBodyArrayParam('editScopeBySet');
+        $editTabBySet = $this->readBodyArrayParam('editTabBySet');
+        $selectedAssetKeyBySet = $this->readBodyArrayParam('selectedAssetKeyBySet');
+        $preferredOrderBySet = $this->readBodyArrayParam('preferredOrderBySet');
 
         $rendered = $editor->renderInitialStoredReview(
             $editScopeBySet,
@@ -401,9 +300,7 @@ class TransformsController extends Controller
         $this->requireAcceptsJson();
         $this->requirePostRequest();
 
-        if (!Plugin::getInstance()->getTelemetry()->canEditTransforms()) {
-            throw new ForbiddenHttpException('Transform editing is disabled in this environment.');
-        }
+        $this->requireTransformEditPermission();
 
         $payload = [
             'runId' => $this->request->getBodyParam('runId'),
@@ -465,5 +362,149 @@ class TransformsController extends Controller
             'breakpointCount' => $this->request->getBodyParam('resultSummaryBreakpointCount', 0),
             'warningCount' => $this->request->getBodyParam('resultSummaryWarningCount', 0),
         ];
+    }
+
+    private function resolveBaseVersion(string $fallbackVersion): string
+    {
+        $rawVersion = trim((string)$this->request->getBodyParam('baseVersion', ''));
+        if ($rawVersion !== '') {
+            return $rawVersion;
+        }
+
+        return $fallbackVersion;
+    }
+
+    private function readBodyArrayParam(string $name): array
+    {
+        $rawValue = $this->request->getBodyParam($name, []);
+
+        return is_array($rawValue) ? $rawValue : [];
+    }
+
+    private function requireTransformEditPermission(): void
+    {
+        if (!Plugin::getInstance()->getTelemetry()->canEditTransforms()) {
+            throw new ForbiddenHttpException('Transform editing is disabled in this environment.');
+        }
+    }
+
+    private function normalizeOperationField(string $field): string
+    {
+        return match ($field) {
+            'width', 'height', 'dimensions', 'ratio', 'breakpointEnabled', 'renderedValues', 'deleteSet' => $field,
+            default => 'width',
+        };
+    }
+
+    private function parseNullableBool(mixed $raw): ?bool
+    {
+        if (is_bool($raw)) {
+            return $raw;
+        }
+
+        if (is_int($raw)) {
+            if ($raw === 1) {
+                return true;
+            }
+
+            if ($raw === 0) {
+                return false;
+            }
+
+            return null;
+        }
+
+        if (is_float($raw)) {
+            if ($raw === 1.0) {
+                return true;
+            }
+
+            if ($raw === 0.0) {
+                return false;
+            }
+
+            return null;
+        }
+
+        if (is_string($raw)) {
+            $normalized = strtolower(trim($raw));
+            if ($normalized === 'true' || $normalized === '1') {
+                return true;
+            }
+
+            if ($normalized === 'false' || $normalized === '0') {
+                return false;
+            }
+        }
+
+        return null;
+    }
+
+    private function parseNullablePositiveInt(mixed $raw): ?int
+    {
+        if (is_int($raw)) {
+            return $raw > 0 ? $raw : null;
+        }
+
+        if (is_float($raw)) {
+            if (!is_finite($raw) || floor($raw) !== $raw) {
+                return null;
+            }
+
+            $value = (int)$raw;
+
+            return $value > 0 ? $value : null;
+        }
+
+        if (!is_string($raw)) {
+            return null;
+        }
+
+        $normalized = trim($raw);
+        if ($normalized === '' || !ctype_digit($normalized)) {
+            return null;
+        }
+
+        $value = (int)$normalized;
+
+        return $value > 0 ? $value : null;
+    }
+
+    private function parseNullableNonEmptyString(mixed $raw): ?string
+    {
+        if (!is_string($raw)) {
+            return null;
+        }
+
+        $trimmed = trim($raw);
+
+        return $trimmed !== '' ? $trimmed : null;
+    }
+
+    private function buildOperationStatusMessage(string $field, bool $persisted, bool $conflict): string
+    {
+        if (!$persisted && $conflict) {
+            return 'Draft is out of date. Refresh and retry.';
+        }
+
+        if ($persisted) {
+            return match ($field) {
+                'renderedValues' => 'Rendered values applied.',
+                'deleteSet' => 'Transform set deleted.',
+                'dimensions' => 'Dimensions updated.',
+                'ratio' => 'Ratio applied.',
+                'breakpointEnabled' => 'Breakpoint state updated.',
+                default => ucfirst($field) . ' updated.',
+            };
+        }
+
+        return match ($field) {
+            'renderedValues' => 'Rendered values apply failed.',
+            'deleteSet' => 'Transform set delete failed.',
+            'dimensions' => 'Dimensions update failed.',
+            'ratio' => 'Ratio apply failed.',
+            'breakpointEnabled' => 'Breakpoint state update failed.',
+            default => ucfirst($field) . ' update failed.',
+        };
     }
 }
