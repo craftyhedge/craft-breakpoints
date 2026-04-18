@@ -2108,7 +2108,21 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             },
         });
 
-        return response?.data?.ok === true;
+        const persisted = response?.data?.ok === true;
+        if (!persisted) {
+            return false;
+        }
+
+        if (state.lastResult && typeof state.lastResult === 'object') {
+            try {
+                await renderResultReview(state.lastResult);
+            } catch (error) {
+                // Keep persisted snapshot status true even if UI refresh fails.
+                console.error(error);
+            }
+        }
+
+        return true;
     }
 
     function buildWaitingStatusMessage(breakpoint, pendingCount, waitedMs = null) {
