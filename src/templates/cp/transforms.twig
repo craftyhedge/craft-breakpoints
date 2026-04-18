@@ -83,13 +83,17 @@
     {% set initialBaseVersion = currentBaseVersion ?? '' %}
     <div
         class="bpi-transforms-page bpi-review-hydrating"
-        data-signals="{showCardSettings: false, editor: {baseVersion: '{{ initialBaseVersion|e('js') }}', cards: {}}}"
+        data-signals="{showCardSettings: false, ui: {resultsHeading: 'Saved Sets', showWarningOrder: false, resultsOrderingNoteLabel: ''}, editor: {baseVersion: '{{ initialBaseVersion|e('js') }}', cards: {}}}"
         data-show-card-settings="0"
         data-attr:data-show-card-settings="(String($showCardSettings) === 'true' || String($showCardSettings) === '1') ? '1' : '0'"
         data-apply-card-operation-url="{{ applyCardOperationUrl }}"
         data-preview-center="{{ (previewCenter ?? true) ? '1' : '0' }}"
         data-site-id="{{ currentSite.id ?? 0 }}"
     >
+        <input id="bpi-show-card-settings-signal-bridge" type="checkbox" hidden aria-hidden="true" tabindex="-1" data-bind="showCardSettings">
+        <input id="bpi-ui-results-heading-signal-bridge" type="text" hidden aria-hidden="true" tabindex="-1" data-bind="ui.resultsHeading">
+        <input id="bpi-ui-show-warning-order-signal-bridge" type="checkbox" hidden aria-hidden="true" tabindex="-1" data-bind="ui.showWarningOrder">
+        <input id="bpi-ui-results-ordering-note-label-signal-bridge" type="text" hidden aria-hidden="true" tabindex="-1" data-bind="ui.resultsOrderingNoteLabel">
         <div id="bpi-frame-pane" class="bpi-frame-pane is-hidden">
             <div class="bpi-frame-toolbar">
                 <strong>Preview</strong>
@@ -100,7 +104,7 @@
         </div>
 
         <div class="bpi-results-heading-wrap">
-            <h2 id="bpi-results-heading" class="heading">{{ 'Saved Sets'|t('craft-breakpoint-images') }}</h2>
+            <h2 id="bpi-results-heading" class="heading" data-text="$ui.resultsHeading || 'Saved Sets'">{{ 'Saved Sets'|t('craft-breakpoint-images') }}</h2>
             <div class="bpi-results-settings-toggle">
                 <div id="bpi-results-settings-lightswitch" class="lightswitch small bpi-results-settings-lightswitch" role="switch" tabindex="0" aria-label="{{ 'Edit'|t('craft-breakpoint-images') }}" aria-checked="false">
                     <div class="lightswitch-container">
@@ -112,10 +116,10 @@
         </div>
 
         <div class="bpi-results-pane">
-            <div class="bpi-results-meta" hidden id="bpi-results-meta">
-                <span id="bpi-results-ordering-note" class="bpi-results-ordering-note" hidden>
+            <div class="bpi-results-meta" hidden id="bpi-results-meta" data-attr:hidden="$ui.showWarningOrder === true ? false : true">
+                <span id="bpi-results-ordering-note" class="bpi-results-ordering-note" hidden data-attr:hidden="$ui.showWarningOrder === true ? false : true">
                         <span class="bpi-results-ordering-note-icon" aria-hidden="true">{{ iconSvg('list-tree') }}</span>
-                    <span id="bpi-results-ordering-note-label"></span>
+                    <span id="bpi-results-ordering-note-label" data-text="$ui.resultsOrderingNoteLabel || ''"></span>
                 </span>
             </div>
             <div id="bpi-visual-results" class="bpi-visual-results" aria-live="polite"></div>

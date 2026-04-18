@@ -1221,7 +1221,7 @@
 
     .bpi-transform-pane-tabs [role=tablist] [role=tab] .tab-label {
         padding: 0px 16px;
-        height: 32px;
+        height: 28px;
     }
 }
 
@@ -1335,14 +1335,17 @@
 .bpi-transform-tab {
     appearance: none;
     border: 0;
-    background: transparent;
+    background: #fafafa;
     color: var(--fg-subtle);
-    border-radius: 2px 2px 0 0;
+    border-radius: 4px 4px 0 0;
+    border-left: 1px solid var(--gray-100);
+    border-right: 1px solid var(--gray-100);
     padding: 0;
     font-size: 11px;
     font-weight: 600;
     line-height: 1;
     cursor: pointer;
+    box-shadow: inset 0 2px 0 var(--gray-150);
 }
 
 .bpi-transform-tab .tab-label {
@@ -1352,7 +1355,6 @@
     height: 30px;
     padding: 0 10px;
     white-space: nowrap;
-    border-radius: 2px 2px 0 0;
 }
 
 .bpi-transform-tab:hover {
@@ -1360,15 +1362,14 @@
 }
 
 .bpi-transform-tab:not(.sel):hover .tab-label {
-    background: var(--gray-050, #f0f2f5);
+    background: #f0f2f5;
     color: var(--text-color);
-    border-radius: 2px 2px 0 0;
 }
 
 .bpi-transform-tab.sel,
 .bpi-transform-tab.active {
     background-color: #f5f8fb !important;
-    box-shadow: inset 0 2px 0 var(--gray-500);
+    box-shadow: inset 0 2px 0 var(--gray-300);
     color: var(--text-color);
     cursor: default;
     position: relative;

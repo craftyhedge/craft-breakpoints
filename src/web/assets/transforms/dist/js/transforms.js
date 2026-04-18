@@ -50,21 +50,20 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     const RENDER_INITIAL_REVIEW_ACTION = 'craft-breakpoint-images/transforms/render-initial-review';
     const PERSIST_RUN_SNAPSHOT_ACTION = 'craft-breakpoint-images/transforms/persist-run-snapshot';
     const DATASTAR_FETCH_EVENT = 'datastar-fetch';
-    const DATASTAR_PATCH_ELEMENTS_EVENT = 'datastar-patch-elements';
     const DATASTAR_PATCH_SIGNALS_EVENT = 'datastar-patch-signals';
     const DATASTAR_SIGNAL_PATCH_EVENT = 'datastar-signal-patch';
 
     const elements = {
         page: document.querySelector('.bpi-transforms-page'),
+        showCardSettingsSignalBridge: document.getElementById('bpi-show-card-settings-signal-bridge'),
+        uiResultsHeadingSignalBridge: document.getElementById('bpi-ui-results-heading-signal-bridge'),
+        uiShowWarningOrderSignalBridge: document.getElementById('bpi-ui-show-warning-order-signal-bridge'),
+        uiResultsOrderingNoteLabelSignalBridge: document.getElementById('bpi-ui-results-ordering-note-label-signal-bridge'),
         transformSetsSidebar: document.getElementById('bpi-transform-sets-sidebar'),
         transformSetsList: document.getElementById('bpi-transform-sets-list'),
         sourceEntry: document.getElementById('bpi-source-entry'),
         status: document.getElementById('bpi-status'),
         progressHost: document.getElementById('bpi-progress-host'),
-        resultsHeading: document.getElementById('bpi-results-heading'),
-        resultsMeta: document.getElementById('bpi-results-meta'),
-        resultsOrderingNote: document.getElementById('bpi-results-ordering-note'),
-        resultsOrderingNoteLabel: document.getElementById('bpi-results-ordering-note-label'),
         resultsSettingsLightswitch: document.getElementById('bpi-results-settings-lightswitch'),
         framePane: document.getElementById('bpi-frame-pane'),
         wrapper: document.getElementById('bpi-frame-wrapper'),
@@ -462,39 +461,52 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     }
 
     function updateResultsHeadingCopy() {
-        if (!elements.resultsHeading) {
-            return;
-        }
-
         const hasRun = state.lastResult !== null;
         const copy = hasRun ? RESULTS_COPY.processed : RESULTS_COPY.saved;
 
-        elements.resultsHeading.textContent = copy.heading;
-    }
-
-    function updateResultsOrderingNote() {
-        if (!elements.resultsMeta || !elements.resultsOrderingNote || !elements.resultsOrderingNoteLabel) {
+        const bridge = elements.uiResultsHeadingSignalBridge;
+        if (!(bridge instanceof HTMLInputElement)) {
             return;
         }
 
+        bridge.value = String(copy.heading || '');
+        bridge.dispatchEvent(new Event('input', { bubbles: true }));
+        bridge.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    function updateResultsOrderingNote() {
         updateResultsHeadingCopy();
+
+        const showWarningBridge = elements.uiShowWarningOrderSignalBridge;
+        const labelBridge = elements.uiResultsOrderingNoteLabelSignalBridge;
+        if (!(showWarningBridge instanceof HTMLInputElement)
+            || showWarningBridge.type !== 'checkbox'
+            || !(labelBridge instanceof HTMLInputElement)) {
+            return;
+        }
 
         const hasRun = state.lastResult !== null;
         if (!hasRun) {
-            elements.resultsMeta.hidden = true;
-            elements.resultsOrderingNote.hidden = true;
-            elements.resultsOrderingNoteLabel.textContent = '';
+            showWarningBridge.checked = false;
+            showWarningBridge.dispatchEvent(new Event('input', { bubbles: true }));
+            showWarningBridge.dispatchEvent(new Event('change', { bubbles: true }));
+
+            labelBridge.value = '';
+            labelBridge.dispatchEvent(new Event('input', { bubbles: true }));
+            labelBridge.dispatchEvent(new Event('change', { bubbles: true }));
             return;
         }
 
         const warningCount = Math.max(0, Number(state.lastResult?.summary?.warningCount) || 0);
         const showWarningOrder = warningCount > 0;
 
-        elements.resultsMeta.hidden = !showWarningOrder;
-        elements.resultsOrderingNote.hidden = !showWarningOrder;
-        elements.resultsOrderingNoteLabel.textContent = showWarningOrder
-            ? 'Warnings first'
-            : '';
+        showWarningBridge.checked = showWarningOrder;
+        showWarningBridge.dispatchEvent(new Event('input', { bubbles: true }));
+        showWarningBridge.dispatchEvent(new Event('change', { bubbles: true }));
+
+        labelBridge.value = showWarningOrder ? 'Warnings first' : '';
+        labelBridge.dispatchEvent(new Event('input', { bubbles: true }));
+        labelBridge.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
     function getVisualResultCardOrder() {
@@ -1773,52 +1785,17 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     }
 
     function getDatastarUpdateAction(sourceElement) {
-        const classList = sourceElement.classList;
-        const isWidthInput = classList?.contains('bpi-transform-width-input');
-        const isHeightInput = classList?.contains('bpi-transform-height-input');
-        const isDimensionsApply = classList?.contains('bpi-transform-dimensions-apply');
-        const isRatioApply = classList?.contains('bpi-transform-ratio-apply');
-        const isRenderedAction = classList?.contains('bpi-rendered-apply-single')
-            || classList?.contains('bpi-rendered-apply-all')
-            || classList?.contains('bpi-warning-apply-rendered');
-        const isAutoToggle = classList?.contains('bpi-transform-auto-toggle');
-        const isBreakpointEnableToggle = classList?.contains('bpi-breakpoint-enable-toggle-wrap');
-        const isPassHeightToggle = classList?.contains('bpi-transform-pass-height-toggle');
-        const isDeleteSetAction = classList?.contains('bpi-transform-delete-set');
-
-        if (isDeleteSetAction) {
-            return 'deleteSet';
+        if (!(sourceElement instanceof Element)) {
+            return null;
         }
 
-        if (isRenderedAction) {
-            return 'renderedValues';
+        const actionHost = sourceElement.closest('[data-bpi-action]');
+        if (!(actionHost instanceof Element)) {
+            return null;
         }
 
-        if (isDimensionsApply || isAutoToggle) {
-            return 'dimensions';
-        }
-
-        if (isRatioApply) {
-            return 'ratio';
-        }
-
-        if (isBreakpointEnableToggle) {
-            return 'breakpointEnabled';
-        }
-
-        if (isPassHeightToggle) {
-            return 'passHeightWhenRenderedLteSaved';
-        }
-
-        if (isWidthInput) {
-            return 'width';
-        }
-
-        if (isHeightInput) {
-            return 'height';
-        }
-
-        return null;
+        const action = String(actionHost.getAttribute('data-bpi-action') || '').trim();
+        return action !== '' ? action : null;
     }
 
     function setupDatastarCardUpdateStatus() {
@@ -1894,61 +1871,24 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         });
     }
 
-    function patchElementsWithDatastar(selector, html, mode = 'inner') {
-        if (!selector || typeof html !== 'string') {
-            return false;
+    function setShowCardSettingsSignal(isEnabled) {
+        const bridge = elements.showCardSettingsSignalBridge;
+        if (!(bridge instanceof HTMLInputElement) || bridge.type !== 'checkbox') {
+            return;
         }
 
-        try {
-            document.dispatchEvent(new CustomEvent(DATASTAR_FETCH_EVENT, {
-                detail: {
-                    type: DATASTAR_PATCH_ELEMENTS_EVENT,
-                    el: elements.page || document.documentElement,
-                    argsRaw: {
-                        selector,
-                        mode,
-                        elements: html,
-                    },
-                },
-            }));
-
-            return true;
-        } catch (_error) {
-            return false;
-        }
+        bridge.checked = Boolean(isEnabled);
+        bridge.dispatchEvent(new Event('input', { bubbles: true }));
+        bridge.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
-    function patchSignalsWithDatastar(signalsPatch) {
-        if (!signalsPatch || typeof signalsPatch !== 'object') {
+    function getShowCardSettingsSignalValue() {
+        const bridge = elements.showCardSettingsSignalBridge;
+        if (!(bridge instanceof HTMLInputElement) || bridge.type !== 'checkbox') {
             return false;
         }
 
-        let encodedSignals = '';
-        try {
-            encodedSignals = JSON.stringify(signalsPatch);
-        } catch (_error) {
-            return false;
-        }
-
-        if (!encodedSignals) {
-            return false;
-        }
-
-        try {
-            document.dispatchEvent(new CustomEvent(DATASTAR_FETCH_EVENT, {
-                detail: {
-                    type: DATASTAR_PATCH_SIGNALS_EVENT,
-                    el: elements.page || document.documentElement,
-                    argsRaw: {
-                        signals: encodedSignals,
-                    },
-                },
-            }));
-
-            return true;
-        } catch (_error) {
-            return false;
-        }
+        return bridge.checked === true;
     }
 
     function getResultsSettingsLightSwitchInstance() {
@@ -1969,6 +1909,29 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         return instance && typeof instance === 'object' ? instance : null;
     }
 
+    function syncResultsSettingsLightswitchFromSignal() {
+        const instance = getResultsSettingsLightSwitchInstance();
+        if (!instance || typeof instance.on !== 'boolean') {
+            return;
+        }
+
+        const shouldBeOn = getShowCardSettingsSignalValue();
+        if (instance.on === shouldBeOn) {
+            return;
+        }
+
+        if (shouldBeOn) {
+            if (typeof instance.turnOn === 'function') {
+                instance.turnOn(true);
+            }
+            return;
+        }
+
+        if (typeof instance.turnOff === 'function') {
+            instance.turnOff(true);
+        }
+    }
+
     function setupResultsSettingsLightswitchSync() {
         if (!(elements.resultsSettingsLightswitch instanceof HTMLElement)) {
             return;
@@ -1978,22 +1941,33 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             return;
         }
 
-        getResultsSettingsLightSwitchInstance();
+        const instance = getResultsSettingsLightSwitchInstance();
+        if (!instance || typeof instance.on !== 'boolean') {
+            return;
+        }
+
         const $lightswitch = window.jQuery(elements.resultsSettingsLightswitch);
 
         const syncFromLightswitch = () => {
-            const instance = $lightswitch.data('lightswitch');
-            const isOn = instance && typeof instance.on === 'boolean'
-                ? instance.on === true
-                : $lightswitch.hasClass('on');
+            const latest = getResultsSettingsLightSwitchInstance();
+            if (!latest || typeof latest.on !== 'boolean') {
+                return;
+            }
 
-            patchSignalsWithDatastar({
-                showCardSettings: isOn,
-            });
+            setShowCardSettingsSignal(latest.on === true);
         };
 
         $lightswitch.off('change.bpiShowCardSettings');
         $lightswitch.on('change.bpiShowCardSettings', syncFromLightswitch);
+
+        if (elements.showCardSettingsSignalBridge instanceof HTMLInputElement
+            && elements.showCardSettingsSignalBridge.dataset.bpiSignalBridgeBound !== '1') {
+            elements.showCardSettingsSignalBridge.addEventListener('change', syncResultsSettingsLightswitchFromSignal);
+            elements.showCardSettingsSignalBridge.addEventListener('input', syncResultsSettingsLightswitchFromSignal);
+            elements.showCardSettingsSignalBridge.dataset.bpiSignalBridgeBound = '1';
+        }
+
+        syncResultsSettingsLightswitchFromSignal();
     }
 
     function applyRenderedReviewPayload(payload) {
@@ -2004,17 +1978,11 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         setReviewHydrated(true);
 
         if (elements.warnings && typeof payload.warningsHtml === 'string') {
-            const warningsPatched = patchElementsWithDatastar('#bpi-warnings', payload.warningsHtml, 'inner');
-            if (!warningsPatched) {
-                elements.warnings.innerHTML = payload.warningsHtml;
-            }
+            elements.warnings.innerHTML = payload.warningsHtml;
         }
 
         if (elements.visualResults && typeof payload.visualResultsHtml === 'string') {
-            const visualResultsPatched = patchElementsWithDatastar('#bpi-visual-results', payload.visualResultsHtml, 'inner');
-            if (!visualResultsPatched) {
-                elements.visualResults.innerHTML = payload.visualResultsHtml;
-            }
+            elements.visualResults.innerHTML = payload.visualResultsHtml;
 
             syncSidebarTransformOrderToCards();
             reapplyTransformUpdateStatuses();
@@ -2122,13 +2090,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
     async function publishResult(result) {
         state.lastResult = result;
-        patchSignalsWithDatastar({
-            showCardSettings: true,
-        });
-        const resultsSwitch = getResultsSettingsLightSwitchInstance();
-        if (resultsSwitch && typeof resultsSwitch.turnOn === 'function') {
-            resultsSwitch.turnOn(true);
-        }
+        setShowCardSettingsSignal(true);
         updateCopyButtonVisibility();
         updateResultsOrderingNote();
         try {

@@ -1343,6 +1343,7 @@ class TransformEditor extends Component
 
         return '<div class="bpi-warning-actions">'
             . '<button type="button" class="btn small bpi-warning-apply-rendered"'
+            . ' data-bpi-action="renderedValues"'
             . ' aria-label="Set all breakpoints to rendered values"'
             . ' title="Set all breakpoints to rendered values"'
             . ' data-on:click="@post(el.closest(\'.bpi-transforms-page\').dataset.applyCardOperationUrl || \'/actions/craft-breakpoint-images/transforms/apply-card-operation\', {contentType: \'json\', payload: {setName: el.closest(\'.bpi-transform-card\').dataset.set || \'\', field: \'renderedValues\', includeEscapeWidth: (el.closest(\'.bpi-transform-card\').dataset.includeEscapeWidth || \'0\') === \'1\', renderedRows: JSON.parse(el.closest(\'.bpi-transform-card\').dataset.renderedRows || \'[]\'), baseVersion: Number($editor.baseVersion || 1), ...(Craft && Craft.csrfTokenName && Craft.csrfTokenValue ? {[Craft.csrfTokenName]: Craft.csrfTokenValue} : {})}})">'

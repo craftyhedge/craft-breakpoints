@@ -24,7 +24,7 @@
     "require": {
         "php": "^8.2",
         "craftcms/cms": "^5.3.0",
-        "starfederation/datastar-php": "1.0.0-RC.5"
+        "starfederation/datastar-php": "1.0.0"
     },
     "require-dev": {
         "codeception/codeception": "^5.2",

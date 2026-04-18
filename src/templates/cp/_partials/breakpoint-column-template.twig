@@ -8,7 +8,7 @@
             __HIDDEN_BADGE__
             __UNLOADED_BADGE__
             <div class="bpi-breakpoint-column-actions">
-                <div class="lightswitch small bpi-breakpoint-enable-toggle-wrap __BREAKPOINT_ENABLE_ON_CLASS__" title="__BREAKPOINT_ENABLE_TITLE__" role="switch" tabindex="0" aria-label="__BREAKPOINT_ENABLE_ARIA_LABEL__" aria-checked="__BREAKPOINT_ENABLE_ARIA_CHECKED__"
+                <div class="lightswitch small bpi-breakpoint-enable-toggle-wrap __BREAKPOINT_ENABLE_ON_CLASS__" data-bpi-action="breakpointEnabled" title="__BREAKPOINT_ENABLE_TITLE__" role="switch" tabindex="0" aria-label="__BREAKPOINT_ENABLE_ARIA_LABEL__" aria-checked="__BREAKPOINT_ENABLE_ARIA_CHECKED__"
                     data-class:on="String(el.closest('.bpi-breakpoint-column')?.dataset?.currentEnabled || '1') === '1'"
                     data-on:click__throttle.300ms="const column=el.closest('.bpi-breakpoint-column'); const page=el.closest('.bpi-transforms-page'); const url=page?.dataset?.applyCardOperationUrl || '/actions/craft-breakpoint-images/transforms/apply-card-operation'; const currentlyEnabled=String(column?.dataset?.currentEnabled || '1') === '1'; const baseVersion=String($editor.baseVersion || ''); const csrf=Craft && Craft.csrfTokenName && Craft.csrfTokenValue ? {[Craft.csrfTokenName]: Craft.csrfTokenValue} : {}; @post(url, {contentType: 'json', payload: {setName: String($editor.cards.__SIGNAL_KEY__.setName || ''), field: 'breakpointEnabled', includeEscapeWidth: String($editor.cards.__SIGNAL_KEY__.includeEscapeWidth || '0') === '1', scopeBreakpoint: Number(__BREAKPOINT__) || null, enabled: !currentlyEnabled, baseVersion, ...csrf}})"
                     data-on:keydown="if(!evt|| (evt.key!=='Enter' && evt.key!==' ')){return;} evt.preventDefault(); const column=el.closest('.bpi-breakpoint-column'); const page=el.closest('.bpi-transforms-page'); const url=page?.dataset?.applyCardOperationUrl || '/actions/craft-breakpoint-images/transforms/apply-card-operation'; const currentlyEnabled=String(column?.dataset?.currentEnabled || '1') === '1'; const baseVersion=String($editor.baseVersion || ''); const csrf=Craft && Craft.csrfTokenName && Craft.csrfTokenValue ? {[Craft.csrfTokenName]: Craft.csrfTokenValue} : {}; @post(url, {contentType: 'json', payload: {setName: String($editor.cards.__SIGNAL_KEY__.setName || ''), field: 'breakpointEnabled', includeEscapeWidth: String($editor.cards.__SIGNAL_KEY__.includeEscapeWidth || '0') === '1', scopeBreakpoint: Number(__BREAKPOINT__) || null, enabled: !currentlyEnabled, baseVersion, ...csrf}})">
@@ -41,6 +41,7 @@
                     <span class="bpi_rendered-dimension __HEIGHT_CLASS__" role="cell">__RENDERED_HEIGHT__</span>
                 </div>
                 <button type="button" class="btn bpi-rendered-apply-single __BREAKPOINT_RENDERED_APPLY_MATCH_CLASS__ __BREAKPOINT_RENDERED_APPLY_HIDDEN_CLASS__"
+                    data-bpi-action="renderedValues"
                     aria-label="__BREAKPOINT_RENDERED_APPLY_ARIA_LABEL__"
                     title="__BREAKPOINT_RENDERED_APPLY_TITLE__"
                     data-rendered-rows="__RENDERED_ROWS_PAYLOAD_JSON__"
