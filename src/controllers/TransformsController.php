@@ -211,6 +211,13 @@ class TransformsController extends Controller
                 $includeEscapeWidth,
                 $baseVersion,
             );
+        } elseif ($field === 'passHeightWhenRenderedLteSaved') {
+            $operationResult = $editor->applySetPassHeightWhenRenderedLteSavedOperation(
+                $setName,
+                $valueRaw,
+                $includeEscapeWidth,
+                $baseVersion,
+            );
         } else {
             $operationResult = $editor->applySetDimensionOperation(
                 $setName,
@@ -391,7 +398,7 @@ class TransformsController extends Controller
     private function normalizeOperationField(string $field): string
     {
         return match ($field) {
-            'width', 'height', 'dimensions', 'ratio', 'breakpointEnabled', 'renderedValues', 'deleteSet' => $field,
+            'width', 'height', 'dimensions', 'ratio', 'breakpointEnabled', 'passHeightWhenRenderedLteSaved', 'renderedValues', 'deleteSet' => $field,
             default => 'width',
         };
     }
@@ -494,6 +501,7 @@ class TransformsController extends Controller
                 'dimensions' => 'Dimensions updated.',
                 'ratio' => 'Ratio applied.',
                 'breakpointEnabled' => 'Breakpoint state updated.',
+                'passHeightWhenRenderedLteSaved' => 'Height pass setting updated.',
                 default => ucfirst($field) . ' updated.',
             };
         }
@@ -504,6 +512,7 @@ class TransformsController extends Controller
             'dimensions' => 'Dimensions update failed.',
             'ratio' => 'Ratio apply failed.',
             'breakpointEnabled' => 'Breakpoint state update failed.',
+            'passHeightWhenRenderedLteSaved' => 'Height pass setting update failed.',
             default => ucfirst($field) . ' update failed.',
         };
     }

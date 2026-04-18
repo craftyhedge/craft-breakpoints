@@ -83,7 +83,9 @@
     {% set initialBaseVersion = currentBaseVersion ?? '' %}
     <div
         class="bpi-transforms-page bpi-review-hydrating"
-        data-signals="{editor: {baseVersion: '{{ initialBaseVersion|e('js') }}', cards: {}}}"
+        data-signals="{showCardSettings: false, editor: {baseVersion: '{{ initialBaseVersion|e('js') }}', cards: {}}}"
+        data-show-card-settings="0"
+        data-attr:data-show-card-settings="(String($showCardSettings) === 'true' || String($showCardSettings) === '1') ? '1' : '0'"
         data-apply-card-operation-url="{{ applyCardOperationUrl }}"
         data-preview-center="{{ (previewCenter ?? true) ? '1' : '0' }}"
         data-site-id="{{ currentSite.id ?? 0 }}"
@@ -99,6 +101,14 @@
 
         <div class="bpi-results-heading-wrap">
             <h2 id="bpi-results-heading" class="heading">{{ 'Saved Sets'|t('craft-breakpoint-images') }}</h2>
+            <div class="bpi-results-settings-toggle">
+                <div id="bpi-results-settings-lightswitch" class="lightswitch small bpi-results-settings-lightswitch" role="switch" tabindex="0" aria-label="{{ 'Edit'|t('craft-breakpoint-images') }}" aria-checked="false">
+                    <div class="lightswitch-container">
+                        <div class="handle"></div>
+                    </div>
+                </div>
+                <span>{{ 'Edit'|t('craft-breakpoint-images') }}</span>
+            </div>
         </div>
 
         <div class="bpi-results-pane">

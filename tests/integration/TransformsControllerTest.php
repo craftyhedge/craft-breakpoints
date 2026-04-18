@@ -175,6 +175,23 @@ final class TransformsControllerTest extends Unit
         $this->assertTrue($controller->postRequestChecked);
     }
 
+    public function testApplyCardOperationRoutesPassHeightWhenRenderedLteSavedField(): void
+    {
+        $controller = $this->controllerWithBody([
+            'baseVersion' => 9,
+            'field' => 'passHeightWhenRenderedLteSaved',
+            'setName' => '',
+            'value' => true,
+        ]);
+        $response = $controller->actionApplyCardOperation();
+
+        $this->assertSame(Response::FORMAT_RAW, $response->format);
+        $this->assertStringContainsString('Height pass setting update failed.', (string)$response->content);
+        $this->assertStringContainsString('setName is required.', (string)$response->content);
+        $this->assertTrue($controller->cpRequestChecked);
+        $this->assertTrue($controller->postRequestChecked);
+    }
+
     public function testRenderResultReviewCoercesNonArrayPayloadsToArrays(): void
     {
         $controller = $this->controllerWithBody([

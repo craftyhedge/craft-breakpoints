@@ -87,3 +87,5 @@ composer phpstan
 
 - This scaffold follows Craft CMS 5 docs conventions for plugin metadata, plugin class setup, and plugin settings.
 - Add services, migrations, variables, and Twig extensions as features are implemented.
+- Transform editor sets include an optional Settings toggle: "Pass if height is less than or equal to saved".
+- The setting is stored per set at `config.passHeightWhenRenderedLteSaved` and is strict: only boolean `true` enables it.

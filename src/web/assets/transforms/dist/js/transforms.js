@@ -65,6 +65,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         resultsMeta: document.getElementById('bpi-results-meta'),
         resultsOrderingNote: document.getElementById('bpi-results-ordering-note'),
         resultsOrderingNoteLabel: document.getElementById('bpi-results-ordering-note-label'),
+        resultsSettingsLightswitch: document.getElementById('bpi-results-settings-lightswitch'),
         framePane: document.getElementById('bpi-frame-pane'),
         wrapper: document.getElementById('bpi-frame-wrapper'),
         warnings: document.getElementById('bpi-warnings'),
@@ -1414,7 +1415,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             }
 
             const activeTab = String(card.getAttribute('data-active-tab') || '').trim().toLowerCase();
-            editTabBySet[transformName] = activeTab === 'ratio'
+            editTabBySet[transformName] = (activeTab === 'ratio' || activeTab === 'settings')
                 ? activeTab
                 : 'dimensions';
 
@@ -1782,6 +1783,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             || classList?.contains('bpi-warning-apply-rendered');
         const isAutoToggle = classList?.contains('bpi-transform-auto-toggle');
         const isBreakpointEnableToggle = classList?.contains('bpi-breakpoint-enable-toggle-wrap');
+        const isPassHeightToggle = classList?.contains('bpi-transform-pass-height-toggle');
         const isDeleteSetAction = classList?.contains('bpi-transform-delete-set');
 
         if (isDeleteSetAction) {
@@ -1802,6 +1804,10 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
         if (isBreakpointEnableToggle) {
             return 'breakpointEnabled';
+        }
+
+        if (isPassHeightToggle) {
+            return 'passHeightWhenRenderedLteSaved';
         }
 
         if (isWidthInput) {
@@ -1910,6 +1916,84 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         } catch (_error) {
             return false;
         }
+    }
+
+    function patchSignalsWithDatastar(signalsPatch) {
+        if (!signalsPatch || typeof signalsPatch !== 'object') {
+            return false;
+        }
+
+        let encodedSignals = '';
+        try {
+            encodedSignals = JSON.stringify(signalsPatch);
+        } catch (_error) {
+            return false;
+        }
+
+        if (!encodedSignals) {
+            return false;
+        }
+
+        try {
+            document.dispatchEvent(new CustomEvent(DATASTAR_FETCH_EVENT, {
+                detail: {
+                    type: DATASTAR_PATCH_SIGNALS_EVENT,
+                    el: elements.page || document.documentElement,
+                    argsRaw: {
+                        signals: encodedSignals,
+                    },
+                },
+            }));
+
+            return true;
+        } catch (_error) {
+            return false;
+        }
+    }
+
+    function getResultsSettingsLightSwitchInstance() {
+        if (!(elements.resultsSettingsLightswitch instanceof HTMLElement)) {
+            return null;
+        }
+
+        if (typeof window.jQuery !== 'function') {
+            return null;
+        }
+
+        const $lightswitch = window.jQuery(elements.resultsSettingsLightswitch);
+        if (!$lightswitch.data('lightswitch') && typeof $lightswitch.lightswitch === 'function') {
+            $lightswitch.lightswitch();
+        }
+
+        const instance = $lightswitch.data('lightswitch');
+        return instance && typeof instance === 'object' ? instance : null;
+    }
+
+    function setupResultsSettingsLightswitchSync() {
+        if (!(elements.resultsSettingsLightswitch instanceof HTMLElement)) {
+            return;
+        }
+
+        if (typeof window.jQuery !== 'function') {
+            return;
+        }
+
+        getResultsSettingsLightSwitchInstance();
+        const $lightswitch = window.jQuery(elements.resultsSettingsLightswitch);
+
+        const syncFromLightswitch = () => {
+            const instance = $lightswitch.data('lightswitch');
+            const isOn = instance && typeof instance.on === 'boolean'
+                ? instance.on === true
+                : $lightswitch.hasClass('on');
+
+            patchSignalsWithDatastar({
+                showCardSettings: isOn,
+            });
+        };
+
+        $lightswitch.off('change.bpiShowCardSettings');
+        $lightswitch.on('change.bpiShowCardSettings', syncFromLightswitch);
     }
 
     function applyRenderedReviewPayload(payload) {
@@ -2038,6 +2122,13 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
     async function publishResult(result) {
         state.lastResult = result;
+        patchSignalsWithDatastar({
+            showCardSettings: true,
+        });
+        const resultsSwitch = getResultsSettingsLightSwitchInstance();
+        if (resultsSwitch && typeof resultsSwitch.turnOn === 'function') {
+            resultsSwitch.turnOn(true);
+        }
         updateCopyButtonVisibility();
         updateResultsOrderingNote();
         try {
@@ -2514,6 +2605,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     bindTransformSidebarCardNavigation();
     setButtonsDisabled(false);
     setupDragToScroll();
+    setupResultsSettingsLightswitchSync();
     setupDatastarCardUpdateStatus();
     window.addEventListener('resize', scheduleBreakpointPreviewHeightSync);
     getConfiguredBreakpoints();

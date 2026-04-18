@@ -255,6 +255,52 @@
     min-width: 0;
 }
 
+.bpi-results-heading-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.bpi-results-heading-wrap .heading {
+    display: inline-flex;
+    align-items: center;
+    margin: 0;
+}
+
+.bpi-results-settings-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    line-height: 1;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--fg-subtle);
+    white-space: nowrap;
+}
+
+.bpi-results-settings-toggle span {
+    display: inline-flex;
+    align-items: center;
+}
+
+.bpi-results-settings-lightswitch {
+    margin-right: 0;
+}
+
+.bpi-transforms-page[data-show-card-settings="0"] .bpi-transform-header-actions,
+.bpi-transforms-page[data-show-card-settings="0"] .bpi-breakpoint-grid-actions,
+.bpi-transforms-page[data-show-card-settings="0"] .bpi-transform-quick-row,
+.bpi-transforms-page[data-show-card-settings="0"] .bpi-transform-edit-panel,
+.bpi-transforms-page[data-show-card-settings="0"] .bpi-breakpoint-column-actions {
+    display: none !important;
+}
+
+.bpi-transforms-page[data-show-card-settings="0"] .bpi-transform-card {
+    padding-bottom: 24px;
+}
+
 .bpi-transforms-page.bpi-review-hydrating .bpi-visual-results .bpi-transform-card {
     display: none;
 }
@@ -666,6 +712,35 @@
 
 .bpi-transform-name {
     margin-bottom: 0px;
+}
+
+.bpi-transform-pass-height-indicator {
+    display: inline-flex;
+    align-items: flex-end;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    min-width: 18px;
+    margin-left: 6px;
+    line-height: 1;
+    align-self: flex-end;
+    color: #1f7a3f;
+}
+
+.bpi-transform-pass-height-indicator-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.bpi-transform-pass-height-indicator-ruler,
+.bpi-transform-pass-height-indicator-ticks,
+.bpi-transform-pass-height-indicator-check {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
 
 .bpi-breakpoint-grid.bpi-drag-scrollable {
@@ -1186,6 +1261,26 @@
     white-space: nowrap;
 }
 
+.bpi-transform-delete-set {
+    background: transparent !important;
+    border: 1px solid var(--border-hairline-medium) !important;
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+    color: var(--red-700, #b22424) !important;
+}
+
+.bpi-transform-delete-set:hover,
+.bpi-transform-delete-set:focus-visible {
+    background: var(--gray-050, #f7f7f8) !important;
+    border-color: var(--border-hairline-medium) !important;
+    color: var(--red-800, #8f1c1c) !important;
+}
+
+.bpi-transform-delete-set:focus-visible {
+    outline: 2px solid var(--red-200, #f5c9c3);
+    outline-offset: 1px;
+}
+
 .bpi-transform-delete-set [data-icon] {
     display: inline-flex;
     align-items: center;
@@ -1193,6 +1288,7 @@
     line-height: 1;
     margin-top: 0px;
     margin-right: 0px;
+    color: inherit;
 }
 
 .bpi-transform-delete-set [data-icon]::before {
@@ -1322,6 +1418,27 @@
 
 .bpi-transform-tab-panel.active {
     display: block;
+}
+
+.bpi-transform-settings-section {
+    display: grid;
+    gap: 8px;
+}
+
+.bpi-transform-settings-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+    font-size: 12px;
+}
+
+.bpi-transform-settings-help {
+    margin: 0;
+    color: var(--fg-subtle);
+    font-size: 11px;
+    line-height: 1.4;
+    max-width: 56ch;
 }
 
 .bpi-transform-dimensions-row,
@@ -1734,10 +1851,6 @@ button.bpi-transform-input-addon:hover:not(:disabled) {
     align-items: center;
     justify-content: center;
     color: var(--fg-subtle);
-}
-
-.bpi-breakpoint-enable-toggle-wrap {
-    margin-right: 4px;
 }
 
 .bpi-rendered-apply-single .bpi-rendered-apply-icon,

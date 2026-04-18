@@ -717,6 +717,323 @@ final class TransformEditorServiceTest extends Unit
         $this->assertSame(0, $dummyHolders->length);
     }
 
+    public function testApplySetPassHeightWhenRenderedLteSavedOperationPersistsConfigWithoutMutatingVariants(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'sm' => ['width' => 640, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => [],
+            ],
+        ], function () use ($editor): void {
+            $before = Plugin::getInstance()->getTransformStore()->getSets()['hero']['variants'] ?? [];
+
+            $result = $editor->applySetPassHeightWhenRenderedLteSavedOperation(
+                'hero',
+                true,
+                false,
+            );
+
+            $this->assertTrue(($result['persisted'] ?? false) === true);
+            $this->assertTrue(($result['validation']['hasErrors'] ?? true) === false);
+
+            $sets = Plugin::getInstance()->getTransformStore()->getSets();
+            $this->assertTrue((($sets['hero']['config']['passHeightWhenRenderedLteSaved'] ?? false) === true));
+            $this->assertSame($before, $sets['hero']['variants'] ?? []);
+        });
+    }
+
+    public function testApplySetPassHeightWhenRenderedLteSavedOperationTreatsNonBooleanValuesAsDisabled(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'sm' => ['width' => 640, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => [],
+            ],
+        ], function () use ($editor): void {
+            $result = $editor->applySetPassHeightWhenRenderedLteSavedOperation(
+                'hero',
+                'true',
+                false,
+            );
+
+            $this->assertTrue(($result['persisted'] ?? false) === true);
+            $this->assertTrue(($result['validation']['hasErrors'] ?? true) === false);
+
+            $sets = Plugin::getInstance()->getTransformStore()->getSets();
+            $this->assertFalse((($sets['hero']['config']['passHeightWhenRenderedLteSaved'] ?? true) === true));
+        });
+    }
+
+    public function testBuildLatestRunHealthByTransformSuppressesHeightMismatchWhenRenderedHeightLteSaved(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $health = $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'sm' => ['width' => 600, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => ['passHeightWhenRenderedLteSaved' => true],
+            ],
+        ], fn() => $editor->buildLatestRunHealthByTransform([
+            'rowsPayloadStatusReliable' => true,
+            'rowsPayload' => [
+                [
+                    'transformHandle' => 'hero',
+                    'breakpointWidth' => 640,
+                    'assetId' => '100',
+                    'renderedWidth' => 600,
+                    'renderedHeight' => 336,
+                    'rowStatus' => 'loaded',
+                ],
+                [
+                    'transformHandle' => 'hero',
+                    'breakpointWidth' => 640,
+                    'assetId' => '101',
+                    'renderedWidth' => 600,
+                    'renderedHeight' => 330,
+                    'rowStatus' => 'loaded',
+                ],
+            ],
+        ]));
+
+        $this->assertArrayHasKey('hero', $health);
+        $this->assertFalse(($health['hero']['hasMismatch'] ?? true) === true);
+        $rows = $health['hero']['breakpointRows'] ?? [];
+        $this->assertIsArray($rows);
+        $this->assertSame('Matching', (string)($rows[0]['statusLabel'] ?? ''));
+    }
+
+    public function testBuildLatestRunHealthByTransformKeepsHeightMismatchWhenRenderedHeightExceedsSaved(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $health = $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'sm' => ['width' => 600, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => ['passHeightWhenRenderedLteSaved' => true],
+            ],
+        ], fn() => $editor->buildLatestRunHealthByTransform([
+            'rowsPayloadStatusReliable' => true,
+            'rowsPayload' => [
+                [
+                    'transformHandle' => 'hero',
+                    'breakpointWidth' => 640,
+                    'assetId' => '100',
+                    'renderedWidth' => 600,
+                    'renderedHeight' => 330,
+                    'rowStatus' => 'loaded',
+                ],
+                [
+                    'transformHandle' => 'hero',
+                    'breakpointWidth' => 640,
+                    'assetId' => '101',
+                    'renderedWidth' => 600,
+                    'renderedHeight' => 350,
+                    'rowStatus' => 'loaded',
+                ],
+            ],
+        ]));
+
+        $this->assertArrayHasKey('hero', $health);
+        $this->assertTrue(($health['hero']['hasMismatch'] ?? false) === true);
+        $rows = $health['hero']['breakpointRows'] ?? [];
+        $this->assertIsArray($rows);
+        $this->assertSame('Mismatches', (string)($rows[0]['statusLabel'] ?? ''));
+    }
+
+    public function testBuildLatestRunHealthByTransformKeepsStatusMismatchBehaviorWhenHeightWaiverApplies(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $health = $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'sm' => ['width' => 600, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => ['passHeightWhenRenderedLteSaved' => true],
+            ],
+        ], fn() => $editor->buildLatestRunHealthByTransform([
+            'rowsPayloadStatusReliable' => true,
+            'rowsPayload' => [
+                [
+                    'transformHandle' => 'hero',
+                    'breakpointWidth' => 640,
+                    'assetId' => '100',
+                    'renderedWidth' => 600,
+                    'renderedHeight' => 336,
+                    'rowStatus' => 'broken',
+                ],
+                [
+                    'transformHandle' => 'hero',
+                    'breakpointWidth' => 640,
+                    'assetId' => '101',
+                    'renderedWidth' => 600,
+                    'renderedHeight' => 330,
+                    'rowStatus' => 'loaded',
+                ],
+            ],
+        ]));
+
+        $this->assertArrayHasKey('hero', $health);
+        $this->assertTrue(($health['hero']['hasMismatch'] ?? false) === true);
+        $rows = $health['hero']['breakpointRows'] ?? [];
+        $this->assertIsArray($rows);
+        $this->assertSame('Mismatches', (string)($rows[0]['statusLabel'] ?? ''));
+        $this->assertStringContainsString('status broken', (string)($rows[0]['mismatchInfo'] ?? ''));
+    }
+
+    public function testRenderResultReviewAppliesHeightWaiverToBreakpointAndAssetMismatchMarkers(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $result = $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'sm' => ['width' => 600, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => ['passHeightWhenRenderedLteSaved' => true],
+            ],
+        ], fn() => $editor->renderResultReview([
+            'breakpoints' => [640],
+            'rowsByBreakpoint' => [
+                640 => [
+                    [
+                        'assetId' => '100',
+                        'transform' => 'hero',
+                        'enabled' => true,
+                        'isVisible' => true,
+                        'loaded' => true,
+                        'rendered' => ['width' => 600, 'height' => 336],
+                        'transformDimensions' => ['width' => 600, 'height' => 340, 'autoDimension' => null],
+                    ],
+                    [
+                        'assetId' => '101',
+                        'transform' => 'hero',
+                        'enabled' => true,
+                        'isVisible' => true,
+                        'loaded' => true,
+                        'rendered' => ['width' => 600, 'height' => 330],
+                        'transformDimensions' => ['width' => 600, 'height' => 340, 'autoDimension' => null],
+                    ],
+                ],
+            ],
+        ]));
+
+        $html = (string)($result['visualResultsHtml'] ?? '');
+        $this->assertStringNotContainsString('bpi-breakpoint-column-mismatch', $html);
+        $this->assertStringNotContainsString('bpi-transform-asset-page-mismatch', $html);
+    }
+
+    public function testRenderResultReviewRendersPassHeightIndicatorWhenEnabledAndHidesWhenDisabled(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $enabledResult = $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'sm' => ['width' => 640, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => ['passHeightWhenRenderedLteSaved' => true],
+            ],
+        ], fn() => $editor->renderResultReview([
+            'breakpoints' => [640],
+            'rowsByBreakpoint' => [
+                640 => [[
+                    'assetId' => '100',
+                    'transform' => 'hero',
+                    'enabled' => true,
+                    'isVisible' => true,
+                    'loaded' => true,
+                    'rendered' => ['width' => 640, 'height' => 340],
+                    'transformDimensions' => ['width' => 640, 'height' => 340, 'autoDimension' => null],
+                ]],
+            ],
+        ]));
+
+        $enabledHtml = (string)($enabledResult['visualResultsHtml'] ?? '');
+        $this->assertStringContainsString('bpi-transform-pass-height-indicator', $enabledHtml);
+        $this->assertStringNotContainsString('bpi-transform-pass-height-indicator bpi-force-hidden', $enabledHtml);
+
+        $disabledResult = $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'sm' => ['width' => 640, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => ['passHeightWhenRenderedLteSaved' => false],
+            ],
+        ], fn() => $editor->renderResultReview([
+            'breakpoints' => [640],
+            'rowsByBreakpoint' => [
+                640 => [[
+                    'assetId' => '100',
+                    'transform' => 'hero',
+                    'enabled' => true,
+                    'isVisible' => true,
+                    'loaded' => true,
+                    'rendered' => ['width' => 640, 'height' => 340],
+                    'transformDimensions' => ['width' => 640, 'height' => 340, 'autoDimension' => null],
+                ]],
+            ],
+        ]));
+
+        $disabledHtml = (string)($disabledResult['visualResultsHtml'] ?? '');
+        $this->assertStringContainsString('bpi-transform-pass-height-indicator bpi-force-hidden', $disabledHtml);
+    }
+
+    public function testRenderResultReviewAcceptsSettingsTabFromEditTabState(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $result = $this->withReviewFixtureSets(fn() => $editor->renderResultReview(
+            [
+                'breakpoints' => [640],
+                'rowsByBreakpoint' => [
+                    640 => [[
+                        'assetId' => '100',
+                        'transform' => 'hero',
+                        'enabled' => true,
+                        'isVisible' => true,
+                        'loaded' => true,
+                        'rendered' => ['width' => 640, 'height' => 340],
+                        'transformDimensions' => ['width' => 640, 'height' => 340, 'autoDimension' => null],
+                    ]],
+                ],
+            ],
+            [],
+            ['hero' => 'settings'],
+        ));
+
+        $this->assertStringContainsString('data-set="hero"', (string)($result['visualResultsHtml'] ?? ''));
+        $this->assertStringContainsString('data-active-tab="settings"', (string)($result['visualResultsHtml'] ?? ''));
+    }
+
     private function setEditorPlugin(TransformEditor $editor, ?Plugin $plugin): void
     {
         $property = new \ReflectionProperty($editor, '_plugin');

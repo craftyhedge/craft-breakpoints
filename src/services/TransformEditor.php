@@ -726,6 +726,65 @@ class TransformEditor extends Component
         return $this->persistOperationTransforms($transforms, $validation, $expectedVersion);
     }
 
+    public function applySetPassHeightWhenRenderedLteSavedOperation(
+        string $transformName,
+        mixed $value,
+        ?bool $includeEscapeWidth = null,
+        ?string $expectedVersion = null,
+    ): array {
+        $validation = $this->defaultValidation();
+
+        if ($this->_plugin === null) {
+            $this->addGlobalError($validation, 'Plugin instance is not available.');
+
+            return [
+                'persisted' => false,
+                'validation' => $validation,
+            ];
+        }
+
+        if ($transformName === '') {
+            $this->addGlobalError($validation, 'setName is required.');
+
+            return [
+                'persisted' => false,
+                'validation' => $validation,
+            ];
+        }
+
+        $transforms = $this->_plugin->getTransformStore()->getTransforms();
+        $hasExistingTransform = isset($transforms[$transformName]) && is_array($transforms[$transformName]);
+
+        if ($hasExistingTransform) {
+            $transformDefinition = $transforms[$transformName];
+            $resolvedIncludeEscapeWidth = ($transformDefinition['includeEscapeWidth'] ?? false) === true;
+        } else {
+            $resolvedIncludeEscapeWidth = $includeEscapeWidth === true;
+            $transformDefinition = [
+                'name' => $transformName,
+                'includeEscapeWidth' => $resolvedIncludeEscapeWidth,
+                'transforms' => [],
+                'config' => [],
+            ];
+        }
+
+        $config = isset($transformDefinition['config']) && is_array($transformDefinition['config'])
+            ? $transformDefinition['config']
+            : [];
+        $config['passHeightWhenRenderedLteSaved'] = $value === true;
+
+        $transforms[$transformName] = array_merge($transformDefinition, [
+            'name' => (string)($transformDefinition['name'] ?? $transformName),
+            'includeEscapeWidth' => $resolvedIncludeEscapeWidth,
+            'transforms' => isset($transformDefinition['transforms']) && is_array($transformDefinition['transforms'])
+                ? array_values($transformDefinition['transforms'])
+                : [],
+            'config' => $config,
+        ]);
+
+        return $this->persistOperationTransforms($transforms, $validation, $expectedVersion);
+    }
+
     public function applyRenderedValuesOperation(
         string $transformName,
         array $renderedRows,
@@ -1317,6 +1376,7 @@ class TransformEditor extends Component
         $configuredBreakpoints = $breakpoints !== [] ? $breakpoints : $this->getReviewConfiguredBreakpoints();
         $escapeBreakpoint = $this->getReviewEscapeBreakpoint();
         $storedTransforms = $this->getReviewStoredTransforms();
+        $storedSavedHeightsByTransform = $this->buildStoredSavedHeightsByTransformAndBreakpoint();
         $latestRunSnapshot = $this->getLatestRunSnapshotForReview();
         $latestRunSummariesByTransform = $this->buildLatestRunSummaryByTransform($latestRunSnapshot);
         $cards = [];
@@ -1376,6 +1436,7 @@ class TransformEditor extends Component
                 $transformBreakpoints,
             );
             $tab = $this->normalizeReviewTab($editTabBySet[$transformName] ?? null);
+            $passHeightWhenRenderedLteSaved = $this->isPassHeightWhenRenderedLteSavedEnabled($storedTransformConfig);
 
             $selectedBreakpoint = $scope['mode'] === 'breakpoint' ? $scope['breakpoint'] : null;
             $signalKey = $this->getReviewTransformSignalKey($transformName);
@@ -1418,6 +1479,7 @@ class TransformEditor extends Component
                             'scopeBreakpoint' => $scope['mode'] === 'breakpoint' ? (string)$scope['breakpoint'] : '',
                             'scopeActive' => $this->isReviewScopeActive($scope) ? '1' : '0',
                             'selectedAssetKey' => $selectedAssetKey,
+                            'passHeightWhenRenderedLteSaved' => $passHeightWhenRenderedLteSaved,
                         ],
                     ],
                 ],
@@ -1492,6 +1554,8 @@ class TransformEditor extends Component
                     $hideRenderedApply,
                     $reviewMode,
                     $referenceRenderedByBreakpoint[$breakpoint] ?? null,
+                    $passHeightWhenRenderedLteSaved,
+                    $storedSavedHeightsByTransform[$transformName][$breakpoint] ?? null,
                 );
             }
             $assetMismatchByKey = ($isProcessedReview && !$hideAssetPagination)
@@ -1499,6 +1563,8 @@ class TransformEditor extends Component
                     $assetKeys,
                     $assetCollection['rowsByAssetByBreakpoint'],
                     $transformBreakpoints,
+                    $passHeightWhenRenderedLteSaved,
+                    $storedSavedHeightsByTransform[$transformName] ?? [],
                 )
                 : [];
             $assetPaginationHtml = $this->buildReviewAssetPaginationMarkup(
@@ -1514,6 +1580,7 @@ class TransformEditor extends Component
             $editPanelId = 'bpi-edit-panel-' . $slug;
             $activeDimensions = $tab === 'dimensions';
             $activeRatio = $tab === 'ratio';
+            $activeSettings = $tab === 'settings';
             $scopeLabel = $scope['mode'] === 'all'
                 ? 'All'
                 : ($scope['mode'] === 'breakpoint' ? ($scope['breakpoint'] . 'px') : 'Select scope');
@@ -1560,15 +1627,22 @@ class TransformEditor extends Component
                 'ratioTabActiveClass' => $activeRatio ? 'active' : '',
                 'ratioTabSelected' => $activeRatio ? 'true' : 'false',
                 'ratioTabTabindex' => $activeRatio ? '0' : '-1',
+                'settingsTabActiveClass' => $activeSettings ? 'active' : '',
+                'settingsTabSelected' => $activeSettings ? 'true' : 'false',
+                'settingsTabTabindex' => $activeSettings ? '0' : '-1',
                 'dimensionsPanelActiveClass' => $activeDimensions ? 'active' : '',
                 'dimensionsPanelHiddenAttr' => $activeDimensions ? '' : 'hidden',
                 'ratioPanelActiveClass' => $activeRatio ? 'active' : '',
                 'ratioPanelHiddenAttr' => $activeRatio ? '' : 'hidden',
+                'settingsPanelActiveClass' => $activeSettings ? 'active' : '',
+                'settingsPanelHiddenAttr' => $activeSettings ? '' : 'hidden',
                 'widthInputId' => $this->escapeReviewHtml($editPanelId . '-width'),
                 'heightInputId' => $this->escapeReviewHtml($editPanelId . '-height'),
                 'ratioWidthInputId' => $this->escapeReviewHtml($editPanelId . '-ratio-width'),
                 'ratioHeightInputId' => $this->escapeReviewHtml($editPanelId . '-ratio-height'),
                 'ratioSourceName' => $this->escapeReviewHtml($editPanelId . '-ratio-source'),
+                'passHeightToggleId' => $this->escapeReviewHtml($editPanelId . '-pass-height-toggle'),
+                'passHeightIndicatorHiddenClass' => $passHeightWhenRenderedLteSaved ? '' : 'bpi-force-hidden',
                 'ratioSourceBreakpointOptions' => $ratioSourceBreakpointOptions,
                 'lastProcessPanelHtml' => $lastProcessPanelHtml,
             ]);
@@ -1595,6 +1669,8 @@ class TransformEditor extends Component
         bool $hideRenderedApply,
         string $reviewMode,
         ?array $referenceRendered = null,
+        bool $passHeightWhenRenderedLteSaved = false,
+        ?int $savedHeight = null,
     ): string {
         $summary = $this->summarizeReviewRows($rows);
         $renderedRowsPayload = $this->buildReviewRenderedRowsPayload($rows, $breakpoint);
@@ -1695,7 +1771,12 @@ class TransformEditor extends Component
             ? '<span class="bpi_escaped-notice">ESC</span>'
             : '';
         $hasBreakpointMismatch = $reviewMode === self::REVIEW_MODE_PROCESSED
-            && $this->hasReviewMismatchForRowsReference($rows, $referenceRendered);
+            && $this->hasReviewMismatchForRowsReference(
+                $rows,
+                $referenceRendered,
+                $passHeightWhenRenderedLteSaved,
+                $savedHeight,
+            );
 
         $isSelected = $allSelected || ($selectedBreakpoint !== null && $selectedBreakpoint === $breakpoint);
         $breakpointColumnWidth = (float)($breakpointColumnWidths[(string)$breakpoint] ?? 1.0);
@@ -2086,6 +2167,8 @@ class TransformEditor extends Component
 
         $rowsPayloadStatusReliable = ($resolvedSnapshot['rowsPayloadStatusReliable'] ?? true) === true;
         $storedAutoDimensionsByTransform = $this->buildStoredAutoDimensionsByTransformAndBreakpoint();
+        $storedSavedHeightsByTransform = $this->buildStoredSavedHeightsByTransformAndBreakpoint();
+        $storedTransforms = $this->getReviewStoredTransforms();
 
         $rowsPayload = isset($resolvedSnapshot['rowsPayload']) && is_array($resolvedSnapshot['rowsPayload'])
             ? $resolvedSnapshot['rowsPayload']
@@ -2127,9 +2210,14 @@ class TransformEditor extends Component
         $healthByTransform = [];
 
         foreach ($payloadByTransform as $transformHandle => $breakpointEntriesByWidth) {
+            $transformDefinition = isset($storedTransforms[$transformHandle]) && is_array($storedTransforms[$transformHandle])
+                ? $storedTransforms[$transformHandle]
+                : null;
             $breakpointRows = $this->buildLatestRunBreakpointHealthRows(
                 $breakpointEntriesByWidth,
                 $rowsPayloadStatusReliable,
+                $this->isPassHeightWhenRenderedLteSavedEnabled($transformDefinition),
+                $storedSavedHeightsByTransform[$transformHandle] ?? [],
             );
 
             $mismatchBreakpoints = [];
@@ -2169,6 +2257,8 @@ class TransformEditor extends Component
     private function buildLatestRunBreakpointHealthRows(
         array $breakpointEntriesByWidth,
         bool $statusReliable,
+        bool $passHeightWhenRenderedLteSaved,
+        array $savedHeightsByBreakpoint,
     ): array
     {
         ksort($breakpointEntriesByWidth, SORT_NUMERIC);
@@ -2223,6 +2313,14 @@ class TransformEditor extends Component
                 $heightMismatch = $compareHeight
                     && $expectedAssetHeight > 0
                     && abs($renderedHeight - $expectedAssetHeight) > 2;
+
+                if ($heightMismatch && $this->shouldIgnoreHeightMismatch(
+                    $passHeightWhenRenderedLteSaved,
+                    $renderedHeight,
+                    $savedHeightsByBreakpoint[(int)$breakpointWidth] ?? null,
+                )) {
+                    $heightMismatch = false;
+                }
 
                 if ($widthMismatch || $heightMismatch) {
                     if ($widthMismatch && $heightMismatch) {
@@ -2737,6 +2835,8 @@ class TransformEditor extends Component
         array $assetKeys,
         array $rowsByAssetByBreakpoint,
         array $transformBreakpoints,
+        bool $passHeightWhenRenderedLteSaved,
+        array $savedHeightsByBreakpoint,
     ): array {
         $referenceByBreakpoint = [];
         foreach ($transformBreakpoints as $breakpoint) {
@@ -2769,7 +2869,12 @@ class TransformEditor extends Component
                 if (!is_array($rows) || $rows === []) {
                     continue;
                 }
-                if ($this->hasReviewMismatchForRowsReference($rows, $referenceByBreakpoint[$breakpoint] ?? null)) {
+                if ($this->hasReviewMismatchForRowsReference(
+                    $rows,
+                    $referenceByBreakpoint[$breakpoint] ?? null,
+                    $passHeightWhenRenderedLteSaved,
+                    $savedHeightsByBreakpoint[$breakpoint] ?? null,
+                )) {
                     $hasMismatch = true;
                     break;
                 }
@@ -2781,7 +2886,12 @@ class TransformEditor extends Component
         return $assetMismatchByKey;
     }
 
-    private function hasReviewMismatchForRowsReference(array $rows, ?array $referenceRendered): bool
+    private function hasReviewMismatchForRowsReference(
+        array $rows,
+        ?array $referenceRendered,
+        bool $passHeightWhenRenderedLteSaved,
+        ?int $savedHeight,
+    ): bool
     {
         $hasLoadedRow = false;
 
@@ -2821,6 +2931,14 @@ class TransformEditor extends Component
         $heightMismatch = $compareHeight
             && ($referenceRendered['height'] ?? 0) > 0
             && abs($renderedHeight - (int)$referenceRendered['height']) > 2;
+
+        if ($heightMismatch && $this->shouldIgnoreHeightMismatch(
+            $passHeightWhenRenderedLteSaved,
+            $renderedHeight,
+            $savedHeight,
+        )) {
+            $heightMismatch = false;
+        }
 
         return $widthMismatch || $heightMismatch;
     }
@@ -2922,6 +3040,79 @@ class TransformEditor extends Component
         }
 
         return $autoDimensionsByTransform;
+    }
+
+    private function isPassHeightWhenRenderedLteSavedEnabled(?array $transformDefinition): bool
+    {
+        if (!is_array($transformDefinition)) {
+            return false;
+        }
+
+        $config = $transformDefinition['config'] ?? null;
+        if (!is_array($config)) {
+            return false;
+        }
+
+        return ($config['passHeightWhenRenderedLteSaved'] ?? null) === true;
+    }
+
+    /**
+     * @return array<string, array<int, int|null>>
+     */
+    private function buildStoredSavedHeightsByTransformAndBreakpoint(): array
+    {
+        $storedTransforms = $this->getReviewStoredTransforms();
+        if ($storedTransforms === []) {
+            return [];
+        }
+
+        $savedHeightsByTransform = [];
+
+        foreach ($storedTransforms as $transformName => $transformDefinition) {
+            if (!is_string($transformName) || $transformName === '' || !is_array($transformDefinition)) {
+                continue;
+            }
+
+            $includeEscapeWidth = ($transformDefinition['includeEscapeWidth'] ?? false) === true;
+            $breakpoints = $this->getBreakpointsForTransform($includeEscapeWidth);
+            $entries = isset($transformDefinition['transforms']) && is_array($transformDefinition['transforms'])
+                ? array_values($transformDefinition['transforms'])
+                : [];
+
+            foreach ($breakpoints as $index => $breakpoint) {
+                if (!is_int($breakpoint) || $breakpoint <= 0) {
+                    continue;
+                }
+
+                $entry = isset($entries[$index]) && is_array($entries[$index])
+                    ? $entries[$index]
+                    : [];
+
+                $autoDimension = $this->normalizeAutoDimension($entry['autoDimension'] ?? null);
+                if ($autoDimension === 'height') {
+                    $savedHeightsByTransform[$transformName][$breakpoint] = null;
+                    continue;
+                }
+
+                $savedHeightsByTransform[$transformName][$breakpoint] = $this->normalizeNullablePositiveInt(
+                    $entry['height'] ?? null,
+                );
+            }
+        }
+
+        return $savedHeightsByTransform;
+    }
+
+    private function shouldIgnoreHeightMismatch(
+        bool $passHeightWhenRenderedLteSaved,
+        int $renderedHeight,
+        ?int $savedHeight,
+    ): bool {
+        return $passHeightWhenRenderedLteSaved
+            && $renderedHeight > 0
+            && $savedHeight !== null
+            && $savedHeight > 0
+            && $renderedHeight <= $savedHeight;
     }
 
     private function summarizeReviewRows(array $rows): array
@@ -3203,7 +3394,7 @@ class TransformEditor extends Component
     private function normalizeReviewTab(mixed $rawTab): string
     {
         $tab = is_string($rawTab) ? $rawTab : '';
-        return in_array($tab, ['dimensions', 'ratio'], true) ? $tab : 'dimensions';
+        return in_array($tab, ['dimensions', 'ratio', 'settings'], true) ? $tab : 'dimensions';
     }
 
     private function normalizeReviewMode(mixed $rawReviewMode): string
