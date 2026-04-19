@@ -1497,8 +1497,15 @@
 .bpi-transform-dimensions-row,
 .bpi-transform-ratio-controls-row {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, max-content)) max-content;
     gap: 8px 10px;
+}
+
+.bpi-transform-dimensions-row {
+    grid-template-columns: repeat(2, minmax(0, max-content)) max-content;
+}
+
+.bpi-transform-ratio-controls-row {
+    grid-template-columns: repeat(3, minmax(0, max-content)) max-content;
 }
 
 @media (max-width: 460px) {
@@ -1510,7 +1517,7 @@
 
 .bpi-transform-edit-dimension-group {
     display: grid;
-    gap: 12px;
+    gap: 0px;
     align-content: start;
 }
 
@@ -1641,7 +1648,9 @@ button.bpi-transform-input-addon:hover:not(:disabled) {
 .bpi-transform-dimensions-actions {
     display: flex;
     align-items: center;
+    align-self: end;
     padding-bottom: 0;
+    margin-bottom: 5px;
 }
 
 .bpi-transform-dimensions-actions .bpi-transform-dimensions-apply {
