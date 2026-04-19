@@ -2,6 +2,8 @@
 
 namespace craftyhedge\craftbreakpointimages\services;
 
+use Craft;
+use craft\elements\Entry;
 use craftyhedge\craftbreakpointimages\Plugin;
 use yii\base\Component;
 
@@ -1380,6 +1382,8 @@ class TransformEditor extends Component
         $storedSavedHeightsByTransform = $this->buildStoredSavedHeightsByTransformAndBreakpoint();
         $latestRunSnapshot = $this->getLatestRunSnapshotForReview();
         $latestRunSummariesByTransform = $this->buildLatestRunSummaryByTransform($latestRunSnapshot);
+        $runEntryData = $this->resolveRunEntryData($latestRunSnapshot);
+        $observedDataByTransform = $this->resolveObservedDataByTransform();
         $cards = [];
 
         foreach ($transformNames as $transformName) {
@@ -1596,6 +1600,8 @@ class TransformEditor extends Component
                 $latestRunSnapshot,
                 $latestRunSummaryForTransform,
                 $transformName,
+                $runEntryData,
+                $observedDataByTransform[$transformName] ?? null,
             );
 
             $renderedRowsForTransformJson = json_encode($renderedRowsForTransform, JSON_UNESCAPED_SLASHES);
@@ -2502,20 +2508,25 @@ class TransformEditor extends Component
      * @param array<string, mixed>|null $snapshot
      * @param array<string, mixed>|null $transformSummary
      * @param string $transformHandle
+     * @param array<string, mixed>|null $runEntryData
+     * @param array<string, mixed>|null $observedData
      */
-    private function buildLastProcessPanelMarkup(?array $snapshot, ?array $transformSummary, string $transformHandle): string
-    {
+    private function buildLastProcessPanelMarkup(
+        ?array $snapshot,
+        ?array $transformSummary,
+        string $transformHandle,
+        ?array $runEntryData,
+        ?array $observedData,
+    ): string {
         if (!is_array($snapshot)) {
             return '<aside class="bpi-transform-last-process-pane"><div class="bpi-transform-last-process-header"><span class="bpi-transform-last-process-status-icon bpi-transform-last-process-status-icon-unknown" aria-label="Unknown" title="Unknown"><span data-icon="alert" aria-hidden="true"></span></span></div><p class="light bpi-transform-last-process-empty">No saved run data yet.</p></aside>';
         }
 
         $ranAtLabel = $this->formatLatestRunTimestamp($snapshot['ranAt'] ?? null);
-        $entryId = is_numeric($snapshot['entryId'] ?? null) ? (int)$snapshot['entryId'] : 0;
-        $mismatchBreakpointCount = is_array($transformSummary) && is_numeric($transformSummary['mismatchBreakpointCount'] ?? null)
-            ? max(0, (int)$transformSummary['mismatchBreakpointCount'])
-            : 0;
         $hasHealthData = is_array($transformSummary);
-        $hasMismatch = $hasHealthData && $mismatchBreakpointCount > 0;
+        $hasMismatch = $hasHealthData
+            && is_numeric($transformSummary['mismatchBreakpointCount'] ?? null)
+            && (int)$transformSummary['mismatchBreakpointCount'] > 0;
 
         if (!$hasHealthData) {
             $statusIconClass = 'bpi-transform-last-process-status-icon-unknown';
@@ -2531,45 +2542,249 @@ class TransformEditor extends Component
             $statusIconName = 'check';
         }
 
-        $actionLabel = $hasMismatch ? 'Review' : 'Details';
-        $detailsButtonMarkup = sprintf(
-            '<button type="button" class="btn small bpi-process-details-link" data-bpi-open-process-details="true" data-transform-handle="%s" data-entry-id="%s" title="%s" aria-label="%s">%s</button>',
-            $this->escapeReviewHtml($transformHandle),
-            $this->escapeReviewHtml((string)max(0, $entryId)),
-            $this->escapeReviewHtml($actionLabel),
-            $this->escapeReviewHtml($actionLabel),
-            $this->escapeReviewHtml($actionLabel),
-        );
+        $runEntryIconMarkup = '';
+        if (is_array($runEntryData) && ($runEntryData['id'] ?? 0) > 0) {
+            $runEntryTitle = trim((string)($runEntryData['title'] ?? ''));
+            $runEntryIconTooltip = $runEntryTitle !== ''
+                ? 'Processed entry: ' . $runEntryTitle
+                : 'Open processed entry';
+            $runEntryIconMarkup = $this->buildEntryIconLinkMarkup($runEntryData, 'newspaper', $runEntryIconTooltip);
+        }
 
-        $mismatchMarkup = '';
-        if ($hasMismatch) {
-            $breakpointLabel = $mismatchBreakpointCount === 1 ? 'breakpoint' : 'breakpoints';
-            $mismatchMarkup = sprintf(
-                '<div class="bpi-transform-last-process-mismatch">'
-                . '<span class="bpi-transform-last-process-mismatch-text">%s</span>'
-                . '</div>',
-                $this->escapeReviewHtml(sprintf('Mismatches in %d %s', $mismatchBreakpointCount, $breakpointLabel)),
+        $observedEntryIconMarkup = '';
+        $observedUrlIconMarkup = '';
+        if (is_array($observedData)) {
+            $observedEntry = $observedData['entry'] ?? null;
+            if (is_array($observedEntry) && ($observedEntry['id'] ?? 0) > 0) {
+                $observedTitle = trim((string)($observedEntry['title'] ?? ''));
+                $observedIconTooltip = $observedTitle !== ''
+                    ? 'Last observed entry: ' . $observedTitle
+                    : 'Open last observed entry';
+                $observedEntryIconMarkup = $this->buildEntryIconLinkMarkup($observedEntry, 'view', $observedIconTooltip);
+            }
+
+            $sourceUrl = trim((string)($observedData['sourceUrl'] ?? ''));
+            if ($sourceUrl !== '') {
+                $observedUrlIconMarkup = sprintf(
+                    '<a href="%s" target="_blank" rel="noopener" class="bpi-transform-last-process-icon-btn" title="%s" aria-label="%s"><span data-icon="world" aria-hidden="true"></span></a>',
+                    $this->escapeReviewHtml($sourceUrl),
+                    $this->escapeReviewHtml('Open observed page: ' . $sourceUrl),
+                    $this->escapeReviewHtml('Open observed page'),
+                );
+            }
+        }
+
+        $canProcessAgain = is_array($runEntryData) && ($runEntryData['canProcessAgain'] ?? false) === true;
+        $processAgainEntryId = is_array($runEntryData) ? (int)($runEntryData['id'] ?? 0) : 0;
+        $processAgainMarkup = '';
+        if ($processAgainEntryId > 0) {
+            $disabledAttrs = $canProcessAgain ? '' : ' disabled aria-disabled="true"';
+            $processAgainMarkup = sprintf(
+                '<button type="button" class="bpi-transform-last-process-icon-btn bpi-process-again-button" data-bpi-process-again="true" data-entry-id="%s" title="Process this entry again" aria-label="Process this entry again"%s><span data-icon="refresh" aria-hidden="true"></span></button>',
+                $this->escapeReviewHtml((string)$processAgainEntryId),
+                $disabledAttrs,
             );
         }
 
         return sprintf(
-            '<aside class="bpi-transform-last-process-pane%s">'
-            . '<div class="bpi-transform-last-process-header">'
+            '<aside class="bpi-transform-last-process-pane">'
             . '<span class="bpi-transform-last-process-status-icon %s" aria-label="%s" title="%s"><span data-icon="%s" aria-hidden="true"></span></span>'
-            . '<p class="bpi-transform-last-process-compact-meta">%s</p>'
             . '%s'
-            . '</div>'
+            . '%s'
+            . '%s'
             . '%s'
             . '</aside>',
-            $hasMismatch ? ' bpi-transform-last-process-pane-has-mismatch' : '',
             $this->escapeReviewHtml($statusIconClass),
             $this->escapeReviewHtml($statusLabel),
             $this->escapeReviewHtml($statusLabel),
             $this->escapeReviewHtml($statusIconName),
-            $this->escapeReviewHtml($ranAtLabel),
-            $detailsButtonMarkup,
-            $mismatchMarkup,
+            $runEntryIconMarkup,
+            $processAgainMarkup,
+            $observedEntryIconMarkup,
+            $observedUrlIconMarkup,
         );
+    }
+
+    /**
+     * @param array<string, mixed> $entryData
+     */
+    private function buildEntryLinkMarkup(array $entryData): string
+    {
+        $id = (int)($entryData['id'] ?? 0);
+        if ($id <= 0) {
+            return '<span class="light">Entry unavailable</span>';
+        }
+
+        $title = trim((string)($entryData['title'] ?? ''));
+        if ($title === '') {
+            $title = 'Entry #' . $id;
+        }
+
+        $href = trim((string)($entryData['cpEditUrl'] ?? '#'));
+        $siteId = (int)($entryData['siteId'] ?? 0);
+
+        return sprintf(
+            '<a class="bpi-entry-link" href="%s" data-bpi-open-entry="true" data-entry-id="%s" data-site-id="%s" title="%s">%s</a>',
+            $this->escapeReviewHtml($href),
+            $this->escapeReviewHtml((string)$id),
+            $this->escapeReviewHtml((string)max(0, $siteId)),
+            $this->escapeReviewHtml('Open entry in side panel'),
+            $this->escapeReviewHtml($title),
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $entryData
+     */
+    private function buildEntryIconLinkMarkup(array $entryData, string $iconName, string $tooltip = ''): string
+    {
+        $id = (int)($entryData['id'] ?? 0);
+        if ($id <= 0) {
+            return '';
+        }
+
+        if ($tooltip === '') {
+            $title = trim((string)($entryData['title'] ?? ''));
+            $tooltip = $title !== '' ? $title : 'Entry #' . $id;
+        }
+
+        $href = trim((string)($entryData['cpEditUrl'] ?? '#'));
+        $siteId = (int)($entryData['siteId'] ?? 0);
+
+        return sprintf(
+            '<a class="bpi-transform-last-process-icon-btn bpi-entry-link" href="%s" data-bpi-open-entry="true" data-entry-id="%s" data-site-id="%s" title="%s" aria-label="%s"><span data-icon="%s" aria-hidden="true"></span></a>',
+            $this->escapeReviewHtml($href),
+            $this->escapeReviewHtml((string)$id),
+            $this->escapeReviewHtml((string)max(0, $siteId)),
+            $this->escapeReviewHtml($tooltip),
+            $this->escapeReviewHtml($tooltip),
+            $this->escapeReviewHtml($iconName),
+        );
+    }
+
+    /**
+     * @param array<string, mixed>|null $snapshot
+     * @return array<string, mixed>|null
+     */
+    private function resolveRunEntryData(?array $snapshot): ?array
+    {
+        if (!is_array($snapshot) || $this->_plugin === null) {
+            return null;
+        }
+
+        $entryId = is_numeric($snapshot['entryId'] ?? null) ? (int)$snapshot['entryId'] : 0;
+        if ($entryId <= 0) {
+            return null;
+        }
+
+        $siteId = Craft::$app->getSites()->getCurrentSite()->id;
+        $entry = Entry::find()
+            ->id($entryId)
+            ->status(null)
+            ->siteId($siteId)
+            ->one();
+
+        if ($entry === null) {
+            return [
+                'id' => $entryId,
+                'title' => '',
+                'cpEditUrl' => '#',
+                'siteId' => $siteId,
+                'canProcessAgain' => false,
+            ];
+        }
+
+        return [
+            'id' => $entry->id,
+            'title' => (string)$entry->title,
+            'cpEditUrl' => $entry->cpEditUrl ?? '#',
+            'siteId' => $entry->siteId,
+            'canProcessAgain' => $entry->getStatus() === Entry::STATUS_LIVE,
+        ];
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private function resolveObservedDataByTransform(): array
+    {
+        if ($this->_plugin === null) {
+            return [];
+        }
+
+        $telemetry = $this->_plugin->getTelemetry();
+        if (!$telemetry->isTelemetryEnabled()) {
+            return [];
+        }
+
+        $recentlySeen = $telemetry->getRecentlySeen();
+        if ($recentlySeen === []) {
+            return [];
+        }
+
+        $byTransform = [];
+        $entryIds = [];
+        foreach ($recentlySeen as $seenRow) {
+            if (!is_array($seenRow)) {
+                continue;
+            }
+
+            $handle = trim((string)($seenRow['transformHandle'] ?? ''));
+            if ($handle === '' || isset($byTransform[$handle])) {
+                continue;
+            }
+
+            $sourceElementId = isset($seenRow['sourceElementId']) ? (int)$seenRow['sourceElementId'] : 0;
+            $byTransform[$handle] = [
+                'lastSeenAt' => $seenRow['lastSeenAt'] ?? null,
+                'sourceElementId' => $sourceElementId,
+                'sourceUrl' => $seenRow['sourceUrl'] ?? null,
+                'entry' => null,
+            ];
+
+            if ($sourceElementId > 0) {
+                $entryIds[$sourceElementId] = true;
+            }
+        }
+
+        $entryIds = array_keys($entryIds);
+        $entriesById = [];
+        if ($entryIds !== []) {
+            $entries = Entry::find()
+                ->id($entryIds)
+                ->status(null)
+                ->site('*')
+                ->indexBy('id')
+                ->all();
+            foreach ($entries as $id => $entry) {
+                $entriesById[(int)$id] = [
+                    'id' => $entry->id,
+                    'title' => (string)$entry->title,
+                    'cpEditUrl' => $entry->cpEditUrl ?? '#',
+                    'siteId' => $entry->siteId,
+                ];
+            }
+        }
+
+        foreach ($byTransform as $handle => &$data) {
+            $elementId = (int)($data['sourceElementId'] ?? 0);
+            if ($elementId > 0 && isset($entriesById[$elementId])) {
+                $data['entry'] = $entriesById[$elementId];
+            }
+        }
+        unset($data);
+
+        return $byTransform;
+    }
+
+    private function truncateUrl(string $url, int $maxLength): string
+    {
+        $display = preg_replace('#^https?://#', '', $url) ?? $url;
+        if (mb_strlen($display) <= $maxLength) {
+            return $display;
+        }
+
+        return mb_substr($display, 0, $maxLength - 1) . '…';
     }
 
     private function normalizeLatestRunRowStatus(string $status): string

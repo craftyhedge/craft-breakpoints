@@ -684,9 +684,7 @@ final class TransformEditorServiceTest extends Unit
             $this->assertStringContainsString('bpi-transform-last-process-pane', (string)($result['visualResultsHtml'] ?? ''));
             $this->assertStringContainsString('bpi-transform-last-process-status-icon-success', (string)($result['visualResultsHtml'] ?? ''));
             $this->assertStringContainsString('data-icon="check"', (string)($result['visualResultsHtml'] ?? ''));
-            $this->assertStringContainsString('Details', (string)($result['visualResultsHtml'] ?? ''));
-            $this->assertStringContainsString('data-bpi-open-process-details="true"', (string)($result['visualResultsHtml'] ?? ''));
-            $this->assertStringContainsString('data-transform-handle="hero"', (string)($result['visualResultsHtml'] ?? ''));
+            $this->assertStringContainsString('data-bpi-process-again="true"', (string)($result['visualResultsHtml'] ?? ''));
             $this->assertStringContainsString('data-entry-id="123"', (string)($result['visualResultsHtml'] ?? ''));
             $this->assertStringContainsString('2026-04-16 10:20:30', (string)($result['visualResultsHtml'] ?? ''));
             $this->assertStringNotContainsString('4321 ms', (string)($result['visualResultsHtml'] ?? ''));

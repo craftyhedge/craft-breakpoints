@@ -44,8 +44,6 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
     const bpiProcessingConfig = window.bpiProcessingConfig || {};
     const ENTRY_URL_ACTION = 'craft-breakpoint-images/default/entry-url';
-    const PROCESS_DETAILS_SLIDEOUT_ACTION = 'craft-breakpoint-images/default/processing-run-details';
-    const PROCESS_DETAILS_CP_URL = 'craft-breakpoint-images/processing-run-details';
     const RENDER_RESULT_REVIEW_ACTION = 'craft-breakpoint-images/transforms/render-result-review';
     const RENDER_INITIAL_REVIEW_ACTION = 'craft-breakpoint-images/transforms/render-initial-review';
     const PERSIST_RUN_SNAPSHOT_ACTION = 'craft-breakpoint-images/transforms/persist-run-snapshot';
@@ -255,59 +253,6 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         });
     }
 
-    function openProcessDetailsSlideout(link) {
-        const transformHandle = String(link?.dataset?.transformHandle || '').trim();
-        if (!transformHandle) {
-            return;
-        }
-
-        const entryId = parsePositiveInt(link?.dataset?.entryId);
-        const params = {
-            transformHandle,
-        };
-
-        if (entryId) {
-            params.entryId = entryId;
-        }
-
-        if (typeof Craft?.CpScreenSlideout === 'function') {
-            new Craft.CpScreenSlideout(PROCESS_DETAILS_SLIDEOUT_ACTION, {
-                params,
-                containerElement: 'div',
-            });
-            return;
-        }
-
-        if (typeof Craft?.getCpUrl === 'function') {
-            window.location.href = Craft.getCpUrl(PROCESS_DETAILS_CP_URL, params);
-        }
-    }
-
-    function bindProcessDetailsSlideoutLinks() {
-        if (document.documentElement.dataset.bpiProcessDetailsSlideoutBound === '1') {
-            return;
-        }
-
-        document.documentElement.dataset.bpiProcessDetailsSlideoutBound = '1';
-
-        document.addEventListener('click', (event) => {
-            const target = event.target instanceof Element
-                ? event.target.closest('.bpi-process-details-link[data-bpi-open-process-details="true"]')
-                : null;
-
-            if (!(target instanceof Element)) {
-                return;
-            }
-
-            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
-                return;
-            }
-
-            event.preventDefault();
-            openProcessDetailsSlideout(target);
-        });
-    }
-
 
     function getSourceEntrySelectInput() {
         if (!elements.sourceEntry || typeof window.jQuery !== 'function') {
@@ -391,22 +336,6 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         return getSelectedEntryId() === entryId;
     }
 
-    function closeProcessDetailsPanel(triggerElement) {
-        if (!(triggerElement instanceof Element) || typeof window.jQuery !== 'function') {
-            return;
-        }
-
-        const screenContainer = triggerElement.closest('.cp-screen');
-        if (!(screenContainer instanceof Element)) {
-            return;
-        }
-
-        const cpScreen = window.jQuery(screenContainer).data('cpScreen');
-        if (cpScreen && typeof cpScreen.close === 'function') {
-            cpScreen.close();
-        }
-    }
-
     function bindProcessAgainButtons() {
         if (document.documentElement.dataset.bpiProcessAgainBound === '1') {
             return;
@@ -441,8 +370,6 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                     setStatus('Could not select the run entry.');
                     return;
                 }
-
-                closeProcessDetailsPanel(target);
 
                 if (elements.btnRun) {
                     elements.btnRun.click();
@@ -2643,7 +2570,6 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     setupDatastarModalIgnoreGuard();
     bindSourceSelectionSync();
     bindEntrySlideoutLinks();
-    bindProcessDetailsSlideoutLinks();
     bindProcessAgainButtons();
     bindAssetPaginationReviewRerender();
     bindTransformSidebarCardNavigation();

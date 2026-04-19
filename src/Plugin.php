@@ -84,7 +84,6 @@ class Plugin extends BasePlugin
                 $event->rules['craft-breakpoint-images'] = 'craft-breakpoint-images/default/index';
                 $event->rules['craft-breakpoint-images/settings'] = 'craft-breakpoint-images/default/settings';
                 $event->rules['craft-breakpoint-images/processing'] = 'craft-breakpoint-images/default/transforms';
-                $event->rules['craft-breakpoint-images/processing-run-details'] = 'craft-breakpoint-images/default/processing-run-details';
             }
         );
 
