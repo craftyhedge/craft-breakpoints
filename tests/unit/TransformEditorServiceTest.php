@@ -1092,6 +1092,108 @@ final class TransformEditorServiceTest extends Unit
         $this->assertStringContainsString('bpi-edit-panel-hero-tab-settings" type="button" role="tab" class="bpi-transform-tab active"', (string)($result['visualResultsHtml'] ?? ''));
     }
 
+    public function testRenderInitialStoredReviewRendersRatioOverlayAndMarksDerivedCurrentDimension(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $result = $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'sm' => [
+                        'width' => 640,
+                        'height' => 360,
+                        'enabled' => true,
+                        'autoDimension' => null,
+                        'ratioWidth' => 16,
+                        'ratioHeight' => 9,
+                        'ratioSourceDimension' => 'width',
+                        'ratioLocked' => true,
+                    ],
+                ],
+                'config' => [],
+            ],
+        ], fn() => $editor->renderInitialStoredReview());
+
+        $html = (string)($result['visualResultsHtml'] ?? '');
+        $this->assertStringContainsString('bpi_current-ratio-overlay', $html);
+
+        $xpath = $this->createReviewMarkupXPath($html);
+        $derivedHeight = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi-breakpoint-column ') and @data-breakpoint='640']//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi_current-dimension ') and contains(concat(' ', normalize-space(@class), ' '), ' bpi_current-dimension-derived ') and @data-dimension='height']");
+        $this->assertNotFalse($derivedHeight);
+        $this->assertSame(1, $derivedHeight->length);
+
+        $ratioLockedAttr = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi-breakpoint-column ') and @data-breakpoint='640']/@data-current-ratio-locked");
+        $this->assertNotFalse($ratioLockedAttr);
+        $this->assertSame('1', (string)($ratioLockedAttr->item(0)?->nodeValue ?? ''));
+    }
+
+    public function testRenderInitialStoredReviewDoesNotMarkDerivedDimensionWhenAutoIsActive(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $result = $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'sm' => [
+                        'width' => null,
+                        'height' => 360,
+                        'enabled' => true,
+                        'autoDimension' => 'width',
+                        'ratioWidth' => 16,
+                        'ratioHeight' => 9,
+                        'ratioSourceDimension' => 'width',
+                        'ratioLocked' => true,
+                    ],
+                ],
+                'config' => [],
+            ],
+        ], fn() => $editor->renderInitialStoredReview());
+
+        $xpath = $this->createReviewMarkupXPath((string)($result['visualResultsHtml'] ?? ''));
+
+        $derivedDims = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi-breakpoint-column ') and @data-breakpoint='640']//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi_current-dimension-derived ')]");
+        $this->assertNotFalse($derivedDims);
+        $this->assertSame(0, $derivedDims->length);
+
+        $ratioLockedAttr = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi-breakpoint-column ') and @data-breakpoint='640']/@data-current-ratio-locked");
+        $this->assertNotFalse($ratioLockedAttr);
+        $this->assertSame('0', (string)($ratioLockedAttr->item(0)?->nodeValue ?? ''));
+    }
+
+    public function testRenderInitialStoredReviewIncludesDimensionsActionOnAutoToggles(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $result = $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'sm' => ['width' => 640, 'height' => 360, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => [],
+            ],
+        ], fn() => $editor->renderInitialStoredReview());
+
+        $xpath = $this->createReviewMarkupXPath((string)($result['visualResultsHtml'] ?? ''));
+
+        $autoToggles = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpi-transform-auto-toggle ') and @data-bpi-action='dimensions']");
+        $this->assertNotFalse($autoToggles);
+        $this->assertSame(2, $autoToggles->length);
+
+        $widthToggle = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpi-transform-auto-toggle ') and @data-bpi-action='dimensions' and @aria-label='Toggle auto width']");
+        $this->assertNotFalse($widthToggle);
+        $this->assertSame(1, $widthToggle->length);
+
+        $heightToggle = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpi-transform-auto-toggle ') and @data-bpi-action='dimensions' and @aria-label='Toggle auto height']");
+        $this->assertNotFalse($heightToggle);
+        $this->assertSame(1, $heightToggle->length);
+    }
+
     private function setEditorPlugin(TransformEditor $editor, ?Plugin $plugin): void
     {
         $property = new \ReflectionProperty($editor, '_plugin');

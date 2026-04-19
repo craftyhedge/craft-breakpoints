@@ -236,7 +236,7 @@ class TransformsController extends Controller
         $persisted = ($operationResult['persisted'] ?? false) === true;
         $conflict = ($operationResult['conflict'] ?? false) === true;
         $currentVersion = (string)($operationResult['currentVersion'] ?? $baseVersion);
-        $statusMessage = $this->buildOperationStatusMessage($field, $persisted, $conflict);
+        $statusMessage = $this->buildOperationStatusMessage($field, $persisted, $conflict, $operationResult);
         $draft = $editor->buildDraftFromStore();
 
         $state = [
@@ -488,10 +488,37 @@ class TransformsController extends Controller
         return $trimmed !== '' ? $trimmed : null;
     }
 
-    private function buildOperationStatusMessage(string $field, bool $persisted, bool $conflict): string
+    private function buildOperationStatusMessage(string $field, bool $persisted, bool $conflict, array $operationResult = []): string
     {
         if (!$persisted && $conflict) {
             return 'Draft is out of date. Refresh and retry.';
+        }
+
+        if ($field === 'ratio') {
+            $details = is_array($operationResult['operationDetails'] ?? null)
+                ? $operationResult['operationDetails']
+                : [];
+            $appliedBreakpoints = isset($details['appliedBreakpoints']) && is_array($details['appliedBreakpoints'])
+                ? $details['appliedBreakpoints']
+                : [];
+            $skippedBreakpoints = isset($details['skippedBreakpoints']) && is_array($details['skippedBreakpoints'])
+                ? $details['skippedBreakpoints']
+                : [];
+
+            if ($persisted && ($appliedBreakpoints !== [] || $skippedBreakpoints !== [])) {
+                $appliedCount = count($appliedBreakpoints);
+                if ($appliedCount > 0) {
+                    $message = sprintf('Ratio applied to %d breakpoint%s.', $appliedCount, $appliedCount === 1 ? '' : 's');
+                } else {
+                    $message = 'Ratio not applied to any breakpoints.';
+                }
+
+                if ($skippedBreakpoints !== []) {
+                    $message .= ' Skipped: ' . $this->formatSkippedRatioBreakpoints($skippedBreakpoints) . '.';
+                }
+
+                return $message;
+            }
         }
 
         if ($persisted) {
@@ -515,5 +542,35 @@ class TransformsController extends Controller
             'passHeightWhenRenderedLteSaved' => 'Height pass setting update failed.',
             default => ucfirst($field) . ' update failed.',
         };
+    }
+
+    private function formatSkippedRatioBreakpoints(array $skippedBreakpoints): string
+    {
+        $parts = [];
+
+        foreach ($skippedBreakpoints as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $breakpoint = isset($item['breakpoint']) && is_numeric($item['breakpoint'])
+                ? max(0, (int)$item['breakpoint'])
+                : 0;
+            $reason = is_string($item['reason'] ?? null)
+                ? trim($item['reason'])
+                : '';
+
+            if ($breakpoint <= 0 || $reason === '') {
+                continue;
+            }
+
+            $parts[] = sprintf('%dpx (%s)', $breakpoint, $reason);
+        }
+
+        if ($parts === []) {
+            return 'none';
+        }
+
+        return implode(', ', $parts);
     }
 }

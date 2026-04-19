@@ -1253,7 +1253,7 @@
 .bpi-transform-edit-scope {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 16px;
     min-width: 60px;
     color: var(--text-color);
     font-weight: 600;
@@ -1297,6 +1297,23 @@
 
 .bpi-transform-edit-scope strong {
     color: var(--text-color);
+}
+
+.bpi-transform-ratio-scope-indicator {
+    display: none;
+    align-items: center;
+    padding: 1px 6px;
+    border: 1px solid var(--border-hairline-medium);
+    border-radius: 3px;
+    background: transparent;
+    color: var(--fg-subtle);
+    font-weight: 600;
+    font-size: 11px;
+    line-height: 1.2;
+}
+
+.bpi-transform-ratio-scope-indicator.active {
+    display: inline-flex;
 }
 
 .bpi-transform-tab-list {
@@ -1468,6 +1485,12 @@
     align-content: start;
 }
 
+.bpi-transform-ratio-main {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
 .bpi-transform-dimension-inline-row {
     display: flex;
     align-items: center;
@@ -1477,6 +1500,7 @@
 
 .bpi-transform-input-with-addon {
     display: inline-flex;
+    position: relative;
     align-items: stretch;
     min-height: 32px;
     box-sizing: border-box;
@@ -1760,6 +1784,16 @@ button.bpi-transform-input-addon:hover:not(:disabled) {
     color: var(--text-color);
 }
 
+.bpi-transform-input-with-addon.bpi-transform-input-derived {
+    background: #f3f5f8;
+    border-color: rgba(79, 131, 183, 0.28);
+}
+
+.bpi-transform-input-with-addon.bpi-transform-input-derived .bpi-transform-edit-input {
+    color: #5a6777;
+}
+
+
 .bpi-breakpoint-column {
     flex: 0 0 var(--bpi-breakpoint-column-width, 190px);
     max-width: var(--bpi-breakpoint-column-width, 190px);
@@ -1956,6 +1990,7 @@ button.bpi-transform-input-addon:hover:not(:disabled) {
 
 .bpi_image-display-section {
     flex: 0 0 auto;
+    position: relative;
     padding: 10px;
     height: calc(var(--bpi-preview-lock-height, 48px) + 20px);
     min-height: calc(var(--bpi-preview-lock-height, 48px) + 20px);
@@ -2093,6 +2128,35 @@ button.bpi-transform-input-addon:hover:not(:disabled) {
 
 .bpi_current-dimension {
     color: var(--fg-subtle);
+}
+
+.bpi_current-dimension.bpi_current-dimension-derived {
+    color: var(--gray-500, #8a95a3);
+    opacity: 0.78;
+}
+
+.bpi_current-ratio {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    border: 1px solid var(--border-hairline-medium);
+    border-radius: 3px;
+    background: transparent;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--fg-subtle);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.bpi_current-ratio-overlay {
+    position: absolute;
+    left: 6px;
+    bottom: 6px;
+    z-index: 3;
+    background: rgba(246, 247, 250, 0.9);
+    backdrop-filter: blur(1px);
 }
 
 .bpi-transform-asset-pagination {

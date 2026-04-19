@@ -152,31 +152,40 @@ class TransformEditor extends Component
             ? array_values($transformDefinition['transforms'])
             : [];
 
-        $entries = [];
-        foreach ($breakpoints as $index => $_breakpoint) {
-            $entry = isset($rawEntries[$index]) && is_array($rawEntries[$index])
-                ? $rawEntries[$index]
-                : [];
-
-            $normalizedEntry = [
-                'width' => $this->normalizeNullablePositiveInt($entry['width'] ?? null),
-                'height' => $this->normalizeNullablePositiveInt($entry['height'] ?? null),
-                'enabled' => ($entry['enabled'] ?? true) !== false,
-                'autoDimension' => $this->normalizeAutoDimension($entry['autoDimension'] ?? null),
-            ];
-
-            if ($normalizedEntry['autoDimension'] === 'width') {
-                $normalizedEntry['width'] = null;
-            }
-
-            if ($normalizedEntry['autoDimension'] === 'height') {
-                $normalizedEntry['height'] = null;
-            }
-
-            $entries[$index] = $normalizedEntry;
-        }
+        $entries = $this->normalizeTransformEntriesForBreakpoints($breakpoints, $rawEntries);
 
         $preserveAutos = $scopeMode !== 'breakpoint';
+
+        $applyDimensionValue = function (array $entry) use ($dimension, $value): array {
+            $hasLockedRatio = ($entry['ratioLocked'] ?? false) === true
+                && $this->normalizeNullablePositiveInt($entry['ratioWidth'] ?? null) !== null
+                && $this->normalizeNullablePositiveInt($entry['ratioHeight'] ?? null) !== null;
+
+            if ($hasLockedRatio) {
+                $ratioSourceDimension = $entry['ratioSourceDimension'] ?? 'width';
+                if ($ratioSourceDimension === $dimension) {
+                    $ratioWidth = (int)$entry['ratioWidth'];
+                    $ratioHeight = (int)$entry['ratioHeight'];
+
+                    if ($dimension === 'width' && $value !== null) {
+                        $entry['height'] = max(1, (int)round(($value * $ratioHeight) / $ratioWidth));
+                    }
+
+                    if ($dimension === 'height' && $value !== null) {
+                        $entry['width'] = max(1, (int)round(($value * $ratioWidth) / $ratioHeight));
+                    }
+                } else {
+                    $entry['ratioLocked'] = false;
+                }
+            }
+
+            $entry[$dimension] = $value;
+            if (($entry['autoDimension'] ?? null) === $dimension) {
+                $entry['autoDimension'] = null;
+            }
+
+            return $entry;
+        };
 
         if ($scopeMode === 'breakpoint') {
             if ($scopeBreakpoint === null) {
@@ -201,11 +210,8 @@ class TransformEditor extends Component
             $entry = isset($entries[$breakpointIndex]) && is_array($entries[$breakpointIndex])
                 ? $entries[$breakpointIndex]
                 : $this->buildDefaultTransformEntry();
-            $entry[$dimension] = $value;
-            if (($entry['autoDimension'] ?? null) === $dimension) {
-                $entry['autoDimension'] = null;
-            }
-            $entries[$breakpointIndex] = $entry;
+
+            $entries[$breakpointIndex] = $applyDimensionValue($entry);
         } else {
             foreach ($breakpoints as $index => $_breakpoint) {
                 $entry = isset($entries[$index]) && is_array($entries[$index])
@@ -217,11 +223,7 @@ class TransformEditor extends Component
                     continue;
                 }
 
-                $entry[$dimension] = $value;
-                if (($entry['autoDimension'] ?? null) === $dimension) {
-                    $entry['autoDimension'] = null;
-                }
-                $entries[$index] = $entry;
+                $entries[$index] = $applyDimensionValue($entry);
             }
         }
 
@@ -290,29 +292,7 @@ class TransformEditor extends Component
             ? array_values($transformDefinition['transforms'])
             : [];
 
-        $entries = [];
-        foreach ($breakpoints as $index => $_breakpoint) {
-            $entry = isset($rawEntries[$index]) && is_array($rawEntries[$index])
-                ? $rawEntries[$index]
-                : [];
-
-            $normalizedEntry = [
-                'width' => $this->normalizeNullablePositiveInt($entry['width'] ?? null),
-                'height' => $this->normalizeNullablePositiveInt($entry['height'] ?? null),
-                'enabled' => ($entry['enabled'] ?? true) !== false,
-                'autoDimension' => $this->normalizeAutoDimension($entry['autoDimension'] ?? null),
-            ];
-
-            if ($normalizedEntry['autoDimension'] === 'width') {
-                $normalizedEntry['width'] = null;
-            }
-
-            if ($normalizedEntry['autoDimension'] === 'height') {
-                $normalizedEntry['height'] = null;
-            }
-
-            $entries[$index] = $normalizedEntry;
-        }
+        $entries = $this->normalizeTransformEntriesForBreakpoints($breakpoints, $rawEntries);
 
         $resolvedWidthAuto = $widthAuto === true;
         $resolvedHeightAuto = $heightAuto === true && !$resolvedWidthAuto;
@@ -332,6 +312,7 @@ class TransformEditor extends Component
                 if (!$preserveWidth) {
                     $entry['width'] = null;
                     $entry['autoDimension'] = 'width';
+                    $entry['ratioLocked'] = false;
                 }
             } else {
                 if (!$preserveWidth) {
@@ -350,6 +331,7 @@ class TransformEditor extends Component
                 if (!$preserveHeight) {
                     $entry['height'] = null;
                     $entry['autoDimension'] = 'height';
+                    $entry['ratioLocked'] = false;
                 }
             } else {
                 if (!$preserveHeight) {
@@ -360,6 +342,30 @@ class TransformEditor extends Component
                 if (($entry['autoDimension'] ?? null) === 'height') {
                     if (!$preserveHeight) {
                         $entry['autoDimension'] = null;
+                    }
+                }
+            }
+
+            $hasLockedRatio = ($entry['ratioLocked'] ?? false) === true
+                && $this->normalizeNullablePositiveInt($entry['ratioWidth'] ?? null) !== null
+                && $this->normalizeNullablePositiveInt($entry['ratioHeight'] ?? null) !== null;
+
+            if ($hasLockedRatio && !$resolvedWidthAuto && !$resolvedHeightAuto) {
+                $ratioSourceDimension = $entry['ratioSourceDimension'] ?? 'width';
+                $ratioWidth = (int)$entry['ratioWidth'];
+                $ratioHeight = (int)$entry['ratioHeight'];
+
+                if ($ratioSourceDimension === 'width') {
+                    if ($widthValue !== null) {
+                        $entry['height'] = max(1, (int)round(($widthValue * $ratioHeight) / $ratioWidth));
+                    } elseif ($heightValue !== null) {
+                        $entry['ratioLocked'] = false;
+                    }
+                } else {
+                    if ($heightValue !== null) {
+                        $entry['width'] = max(1, (int)round(($heightValue * $ratioWidth) / $ratioHeight));
+                    } elseif ($widthValue !== null) {
+                        $entry['ratioLocked'] = false;
                     }
                 }
             }
@@ -445,15 +451,23 @@ class TransformEditor extends Component
             ];
         }
 
-        $sourceDimension = strtolower(trim((string)($ratioSourceDimension ?? 'w')));
-        if ($sourceDimension === 'width') {
-            $sourceDimension = 'w';
+        if ($ratioWidth > 100000 || $ratioHeight > 100000) {
+            $this->addGlobalError($validation, 'ratioWidth and ratioHeight must be between 1 and 100000.');
+
+            return [
+                'persisted' => false,
+                'validation' => $validation,
+            ];
         }
-        if ($sourceDimension === 'height') {
-            $sourceDimension = 'h';
-        }
-        if ($sourceDimension !== 'w' && $sourceDimension !== 'h') {
-            $sourceDimension = 'w';
+
+        $sourceDimension = $this->normalizeRatioSourceDimension($ratioSourceDimension);
+        if ($sourceDimension === null) {
+            $this->addGlobalError($validation, 'ratioSourceDimension must be "width" or "height".');
+
+            return [
+                'persisted' => false,
+                'validation' => $validation,
+            ];
         }
 
         $transforms = $this->_plugin->getTransformStore()->getTransforms();
@@ -477,45 +491,46 @@ class TransformEditor extends Component
             ? array_values($transformDefinition['transforms'])
             : [];
 
-        $entries = [];
-        foreach ($breakpoints as $index => $_breakpoint) {
-            $entry = isset($rawEntries[$index]) && is_array($rawEntries[$index])
-                ? $rawEntries[$index]
-                : [];
-
-            $normalizedEntry = [
-                'width' => $this->normalizeNullablePositiveInt($entry['width'] ?? null),
-                'height' => $this->normalizeNullablePositiveInt($entry['height'] ?? null),
-                'enabled' => ($entry['enabled'] ?? true) !== false,
-                'autoDimension' => $this->normalizeAutoDimension($entry['autoDimension'] ?? null),
-            ];
-
-            if ($normalizedEntry['autoDimension'] === 'width') {
-                $normalizedEntry['width'] = null;
-            }
-
-            if ($normalizedEntry['autoDimension'] === 'height') {
-                $normalizedEntry['height'] = null;
-            }
-
-            $entries[$index] = $normalizedEntry;
-        }
+        $entries = $this->normalizeTransformEntriesForBreakpoints($breakpoints, $rawEntries);
 
         $preserveAutos = $scopeMode !== 'breakpoint';
+        $appliedBreakpoints = [];
+        $skippedBreakpoints = [];
 
-        $applyIndex = function (int $index) use (&$entries, $sourceDimension, $ratioWidth, $ratioHeight, $preserveAutos): bool {
+        $applyIndex = function (int $index) use (&$entries, $breakpoints, $sourceDimension, $ratioWidth, $ratioHeight, $preserveAutos, &$appliedBreakpoints, &$skippedBreakpoints): bool {
             $entry = isset($entries[$index]) && is_array($entries[$index])
                 ? $entries[$index]
                 : $this->buildDefaultTransformEntry();
 
-            $autoDimension = $this->normalizeAutoDimension($entry['autoDimension'] ?? null);
-            if ($preserveAutos && ($autoDimension === 'width' || $autoDimension === 'height')) {
+            $breakpoint = $breakpoints[$index] ?? null;
+            if (!is_int($breakpoint) || $breakpoint <= 0) {
                 return false;
             }
 
-            if ($sourceDimension === 'w') {
+            if (($entry['enabled'] ?? true) !== true) {
+                $skippedBreakpoints[] = [
+                    'breakpoint' => $breakpoint,
+                    'reason' => 'breakpoint_disabled',
+                ];
+                return false;
+            }
+
+            $autoDimension = $this->normalizeAutoDimension($entry['autoDimension'] ?? null);
+            if ($preserveAutos && ($autoDimension === 'width' || $autoDimension === 'height')) {
+                $skippedBreakpoints[] = [
+                    'breakpoint' => $breakpoint,
+                    'reason' => 'auto_dimension_active',
+                ];
+                return false;
+            }
+
+            if ($sourceDimension === 'width') {
                 $sourceValue = $this->normalizeNullablePositiveInt($entry['width'] ?? null);
                 if ($sourceValue === null) {
+                    $skippedBreakpoints[] = [
+                        'breakpoint' => $breakpoint,
+                        'reason' => 'source_dimension_missing',
+                    ];
                     return false;
                 }
 
@@ -526,6 +541,10 @@ class TransformEditor extends Component
             } else {
                 $sourceValue = $this->normalizeNullablePositiveInt($entry['height'] ?? null);
                 if ($sourceValue === null) {
+                    $skippedBreakpoints[] = [
+                        'breakpoint' => $breakpoint,
+                        'reason' => 'source_dimension_missing',
+                    ];
                     return false;
                 }
 
@@ -535,7 +554,13 @@ class TransformEditor extends Component
                 }
             }
 
+            $entry['ratioWidth'] = $ratioWidth;
+            $entry['ratioHeight'] = $ratioHeight;
+            $entry['ratioSourceDimension'] = $sourceDimension;
+            $entry['ratioLocked'] = true;
+
             $entries[$index] = $entry;
+            $appliedBreakpoints[] = $breakpoint;
             return true;
         };
 
@@ -562,36 +587,43 @@ class TransformEditor extends Component
             }
 
             if (!$applyIndex($breakpointIndex)) {
+                $skipReason = $skippedBreakpoints[0]['reason'] ?? 'source_dimension_missing';
+                if ($skipReason === 'breakpoint_disabled') {
+                    $this->addGlobalError($validation, 'Selected breakpoint is disabled.');
+                } elseif ($skipReason === 'auto_dimension_active') {
+                    $this->addGlobalError($validation, 'Ratio cannot be applied while auto dimension is active.');
+                } else {
                 $this->addGlobalError($validation, 'Source dimension value is missing for the selected breakpoint.');
+                }
 
                 return [
                     'persisted' => false,
                     'validation' => $validation,
+                    'operationDetails' => [
+                        'appliedBreakpoints' => $appliedBreakpoints,
+                        'skippedBreakpoints' => $skippedBreakpoints,
+                    ],
                 ];
             }
 
             $appliedCount = 1;
         } else {
-            $eligibleCount = 0;
             foreach ($breakpoints as $index => $_breakpoint) {
-                $entry = isset($entries[$index]) && is_array($entries[$index]) ? $entries[$index] : [];
-                $autoDimension = $this->normalizeAutoDimension($entry['autoDimension'] ?? null);
-                if ($preserveAutos && ($autoDimension === 'width' || $autoDimension === 'height')) {
-                    continue;
-                }
-
-                $eligibleCount += 1;
                 if ($applyIndex($index)) {
                     $appliedCount += 1;
                 }
             }
 
-            if ($eligibleCount > 0 && $appliedCount < 1) {
-                $this->addGlobalError($validation, 'Source dimension values are missing for the selected ratio operation.');
-
+            if ($appliedCount < 1) {
                 return [
-                    'persisted' => false,
+                    'persisted' => true,
+                    'conflict' => false,
+                    'currentVersion' => $this->_plugin->getTransformStore()->getCurrentVersion(),
                     'validation' => $validation,
+                    'operationDetails' => [
+                        'appliedBreakpoints' => $appliedBreakpoints,
+                        'skippedBreakpoints' => $skippedBreakpoints,
+                    ],
                 ];
             }
         }
@@ -605,7 +637,13 @@ class TransformEditor extends Component
                 : [],
         ]);
 
-        return $this->persistOperationTransforms($transforms, $validation, $expectedVersion);
+        $persistResult = $this->persistOperationTransforms($transforms, $validation, $expectedVersion);
+        $persistResult['operationDetails'] = [
+            'appliedBreakpoints' => $appliedBreakpoints,
+            'skippedBreakpoints' => $skippedBreakpoints,
+        ];
+
+        return $persistResult;
     }
 
     public function applySetBreakpointEnabledOperation(
@@ -684,29 +722,7 @@ class TransformEditor extends Component
             ? array_values($transformDefinition['transforms'])
             : [];
 
-        $entries = [];
-        foreach ($breakpoints as $index => $_breakpoint) {
-            $entry = isset($rawEntries[$index]) && is_array($rawEntries[$index])
-                ? $rawEntries[$index]
-                : [];
-
-            $normalizedEntry = [
-                'width' => $this->normalizeNullablePositiveInt($entry['width'] ?? null),
-                'height' => $this->normalizeNullablePositiveInt($entry['height'] ?? null),
-                'enabled' => ($entry['enabled'] ?? true) !== false,
-                'autoDimension' => $this->normalizeAutoDimension($entry['autoDimension'] ?? null),
-            ];
-
-            if ($normalizedEntry['autoDimension'] === 'width') {
-                $normalizedEntry['width'] = null;
-            }
-
-            if ($normalizedEntry['autoDimension'] === 'height') {
-                $normalizedEntry['height'] = null;
-            }
-
-            $entries[$index] = $normalizedEntry;
-        }
+        $entries = $this->normalizeTransformEntriesForBreakpoints($breakpoints, $rawEntries);
 
         $entry = isset($entries[$breakpointIndex]) && is_array($entries[$breakpointIndex])
             ? $entries[$breakpointIndex]
@@ -833,29 +849,7 @@ class TransformEditor extends Component
             ? array_values($transformDefinition['transforms'])
             : [];
 
-        $entries = [];
-        foreach ($breakpoints as $index => $_breakpoint) {
-            $entry = isset($rawEntries[$index]) && is_array($rawEntries[$index])
-                ? $rawEntries[$index]
-                : [];
-
-            $normalizedEntry = [
-                'width' => $this->normalizeNullablePositiveInt($entry['width'] ?? null),
-                'height' => $this->normalizeNullablePositiveInt($entry['height'] ?? null),
-                'enabled' => ($entry['enabled'] ?? true) !== false,
-                'autoDimension' => $this->normalizeAutoDimension($entry['autoDimension'] ?? null),
-            ];
-
-            if ($normalizedEntry['autoDimension'] === 'width') {
-                $normalizedEntry['width'] = null;
-            }
-
-            if ($normalizedEntry['autoDimension'] === 'height') {
-                $normalizedEntry['height'] = null;
-            }
-
-            $entries[$index] = $normalizedEntry;
-        }
+        $entries = $this->normalizeTransformEntriesForBreakpoints($breakpoints, $rawEntries);
 
         $breakpointIndexes = [];
         foreach ($breakpoints as $index => $breakpoint) {
@@ -1473,7 +1467,8 @@ class TransformEditor extends Component
                 'editor' => [
                     'cards' => [
                         $signalKey => [
-                            'ratioSourceDimension' => 'w',
+                            'ratioLocked' => $scopeValues['ratioLocked'],
+                            'ratioSourceDimension' => $scopeValues['ratioSourceDimension'],
                             'ratioSourceBreakpoint' => $ratioSourceBreakpointDefault,
                             'activeTab' => $tab,
                             'scopeMode' => $scope['mode'],
@@ -1494,8 +1489,9 @@ class TransformEditor extends Component
                             'heightInput' => $scopeValues['heightInput'],
                             'widthAuto' => $scopeValues['widthAuto'],
                             'heightAuto' => $scopeValues['heightAuto'],
-                            'ratioWidthInput' => $scopeValues['widthInput'],
-                            'ratioHeightInput' => $scopeValues['heightInput'],
+                            'ratioWidthInput' => $scopeValues['ratioWidthInput'],
+                            'ratioHeightInput' => $scopeValues['ratioHeightInput'],
+                            'ratioFloatInput' => $scopeValues['ratioFloatInput'],
                         ],
                     ],
                 ],
@@ -1687,6 +1683,22 @@ class TransformEditor extends Component
         $currentWidth = $this->normalizeNullablePositiveInt($currentRow['width'] ?? null);
         $currentHeight = $this->normalizeNullablePositiveInt($currentRow['height'] ?? null);
         $autoDimension = $this->normalizeAutoDimension($currentRow['autoDimension'] ?? null);
+        $currentRatioWidth = $this->normalizeNullablePositiveInt($currentRow['ratioWidth'] ?? null);
+        $currentRatioHeight = $this->normalizeNullablePositiveInt($currentRow['ratioHeight'] ?? null);
+        $currentRatioSourceDimension = $this->normalizeRatioSourceDimension($currentRow['ratioSourceDimension'] ?? null) ?? 'width';
+        $currentRatioLocked = ($currentRow['ratioLocked'] ?? false) === true
+            && $currentRatioWidth !== null
+            && $currentRatioHeight !== null;
+        $currentRatioFloatValue = $currentRatioLocked
+            ? $this->formatRatioFloatInput($currentRatioWidth, $currentRatioHeight)
+            : '';
+        $ratioIsDrivingDimensions = $currentRatioLocked && $autoDimension === null;
+        $currentWidthDerivedClass = $ratioIsDrivingDimensions && $currentRatioSourceDimension === 'height'
+            ? 'bpi_current-dimension-derived'
+            : '';
+        $currentHeightDerivedClass = $ratioIsDrivingDimensions && $currentRatioSourceDimension === 'width'
+            ? 'bpi_current-dimension-derived'
+            : '';
 
         $displayWidth = $renderedWidth;
         $displayHeight = $renderedHeight;
@@ -1796,6 +1808,11 @@ class TransformEditor extends Component
             'signalKey' => $this->escapeReviewHtml($signalKey),
             'currentWidthValue' => $currentWidth !== null ? (string)$currentWidth : '',
             'currentHeightValue' => $currentHeight !== null ? (string)$currentHeight : '',
+            'currentRatioWidthValue' => $currentRatioWidth !== null ? (string)$currentRatioWidth : '',
+            'currentRatioHeightValue' => $currentRatioHeight !== null ? (string)$currentRatioHeight : '',
+            'currentRatioFloatValue' => $currentRatioFloatValue,
+            'currentRatioSourceDimension' => $currentRatioSourceDimension,
+            'currentRatioLockedValue' => $currentRatioLocked ? '1' : '0',
             'currentEnabledValue' => $currentEnabled ? '1' : '0',
             'currentAutoDimension' => $autoDimension ?? '',
             'escapeBadge' => $escapeBadge,
@@ -1829,6 +1846,8 @@ class TransformEditor extends Component
             'renderedHeight' => $renderedHeight > 0 ? (string)$renderedHeight : '-',
             'currentWidth' => $this->escapeReviewHtml($this->getReviewCurrentDimensionDisplay($currentWidth, $autoDimension, 'width')),
             'currentHeight' => $this->escapeReviewHtml($this->getReviewCurrentDimensionDisplay($currentHeight, $autoDimension, 'height')),
+            'currentWidthDerivedClass' => $currentWidthDerivedClass,
+            'currentHeightDerivedClass' => $currentHeightDerivedClass,
         ]);
     }
 
@@ -3440,6 +3459,11 @@ class TransformEditor extends Component
                 'heightInput' => '',
                 'widthAuto' => '0',
                 'heightAuto' => '0',
+                'ratioLocked' => '0',
+                'ratioWidthInput' => '',
+                'ratioHeightInput' => '',
+                'ratioFloatInput' => '',
+                'ratioSourceDimension' => 'width',
             ];
         }
 
@@ -3450,6 +3474,11 @@ class TransformEditor extends Component
                 'heightInput' => '',
                 'widthAuto' => '0',
                 'heightAuto' => '0',
+                'ratioLocked' => '0',
+                'ratioWidthInput' => '',
+                'ratioHeightInput' => '',
+                'ratioFloatInput' => '',
+                'ratioSourceDimension' => 'width',
             ];
         }
 
@@ -3457,15 +3486,47 @@ class TransformEditor extends Component
         $autoDimension = $this->normalizeAutoDimension($entry['autoDimension'] ?? null);
         $widthValue = $this->normalizeNullablePositiveInt($entry['width'] ?? null);
         $heightValue = $this->normalizeNullablePositiveInt($entry['height'] ?? null);
+        $ratioWidthValue = $this->normalizeNullablePositiveInt($entry['ratioWidth'] ?? null);
+        $ratioHeightValue = $this->normalizeNullablePositiveInt($entry['ratioHeight'] ?? null);
+        $ratioSourceDimension = $this->normalizeRatioSourceDimension($entry['ratioSourceDimension'] ?? null) ?? 'width';
+        $ratioLocked = ($entry['ratioLocked'] ?? false) === true
+            && $ratioWidthValue !== null
+            && $ratioHeightValue !== null;
         $widthAuto = $autoDimension === 'width';
         $heightAuto = $autoDimension === 'height';
+
+        $fallbackRatioWidth = $widthAuto || $widthValue === null ? '' : (string)$widthValue;
+        $fallbackRatioHeight = $heightAuto || $heightValue === null ? '' : (string)$heightValue;
+        $resolvedRatioWidth = $ratioLocked ? (string)$ratioWidthValue : $fallbackRatioWidth;
+        $resolvedRatioHeight = $ratioLocked ? (string)$ratioHeightValue : $fallbackRatioHeight;
 
         return [
             'widthInput' => $widthAuto || $widthValue === null ? '' : (string)$widthValue,
             'heightInput' => $heightAuto || $heightValue === null ? '' : (string)$heightValue,
             'widthAuto' => $widthAuto ? '1' : '0',
             'heightAuto' => $heightAuto ? '1' : '0',
+            'ratioLocked' => $ratioLocked ? '1' : '0',
+            'ratioWidthInput' => $resolvedRatioWidth,
+            'ratioHeightInput' => $resolvedRatioHeight,
+            'ratioFloatInput' => $this->formatRatioFloatInput(
+                $this->normalizeNullablePositiveInt($resolvedRatioWidth),
+                $this->normalizeNullablePositiveInt($resolvedRatioHeight),
+            ),
+            'ratioSourceDimension' => $ratioLocked ? $ratioSourceDimension : 'width',
         ];
+    }
+
+    private function formatRatioFloatInput(?int $ratioWidth, ?int $ratioHeight): string
+    {
+        if ($ratioWidth === null || $ratioHeight === null || $ratioWidth <= 0 || $ratioHeight <= 0) {
+            return '';
+        }
+
+        $value = $ratioWidth / $ratioHeight;
+        $formatted = number_format($value, 4, '.', '');
+        $trimmed = rtrim(rtrim($formatted, '0'), '.');
+
+        return $trimmed !== '' ? $trimmed : '0';
     }
 
     private function buildReviewWarningsByTransform(array $rowsByBreakpoint): array
@@ -3565,20 +3626,7 @@ class TransformEditor extends Component
                 ? $entries[$index]
                 : [];
 
-            $rows[$breakpoint] = [
-                'width' => $this->normalizeNullablePositiveInt($entry['width'] ?? null),
-                'height' => $this->normalizeNullablePositiveInt($entry['height'] ?? null),
-                'enabled' => ($entry['enabled'] ?? true) !== false,
-                'autoDimension' => $this->normalizeAutoDimension($entry['autoDimension'] ?? null),
-            ];
-
-            if ($rows[$breakpoint]['autoDimension'] === 'width') {
-                $rows[$breakpoint]['width'] = null;
-            }
-
-            if ($rows[$breakpoint]['autoDimension'] === 'height') {
-                $rows[$breakpoint]['height'] = null;
-            }
+            $rows[$breakpoint] = $this->normalizeTransformEntry($entry);
         }
 
         return $rows;
@@ -3611,13 +3659,16 @@ class TransformEditor extends Component
 
             foreach ($breakpoints as $index => $breakpoint) {
                 $entry = isset($entries[$index]) && is_array($entries[$index]) ? $entries[$index] : [];
+                $normalizedEntry = $this->normalizeTransformEntry($entry);
                 $rows[(string)$breakpoint] = [
-                    'width' => $this->normalizeNullablePositiveInt($entry['width'] ?? null),
-                    'height' => $this->normalizeNullablePositiveInt($entry['height'] ?? null),
-                    'enabled' => ($entry['enabled'] ?? true) !== false,
-                    'autoDimension' => $this->normalizeAutoDimension($entry['autoDimension'] ?? null),
-                    'ratioMode' => 'none',
-                    'ratioSourceDimension' => 'width',
+                    'width' => $normalizedEntry['width'],
+                    'height' => $normalizedEntry['height'],
+                    'enabled' => $normalizedEntry['enabled'],
+                    'autoDimension' => $normalizedEntry['autoDimension'],
+                    'ratioWidth' => $normalizedEntry['ratioWidth'],
+                    'ratioHeight' => $normalizedEntry['ratioHeight'],
+                    'ratioSourceDimension' => $normalizedEntry['ratioSourceDimension'],
+                    'ratioLocked' => $normalizedEntry['ratioLocked'],
                 ];
             }
 
@@ -3711,12 +3762,65 @@ class TransformEditor extends Component
                     $height = null;
                 }
 
+                $ratioWidthInput = $row['ratioWidth'] ?? null;
+                $ratioHeightInput = $row['ratioHeight'] ?? null;
+                $ratioWidth = $this->normalizeNullablePositiveInt($ratioWidthInput);
+                $ratioHeight = $this->normalizeNullablePositiveInt($ratioHeightInput);
+
+                if ($ratioWidthInput !== null && $ratioWidth === null) {
+                    $this->addFieldError(
+                        $validation,
+                        sprintf('draft.transforms.%s.rows.%s.ratioWidth', $transformName, $breakpointKey),
+                        'ratioWidth must be a positive integer or null.'
+                    );
+                }
+
+                if ($ratioHeightInput !== null && $ratioHeight === null) {
+                    $this->addFieldError(
+                        $validation,
+                        sprintf('draft.transforms.%s.rows.%s.ratioHeight', $transformName, $breakpointKey),
+                        'ratioHeight must be a positive integer or null.'
+                    );
+                }
+
+                if ($ratioWidth !== null && $ratioWidth > 100000) {
+                    $this->addFieldError(
+                        $validation,
+                        sprintf('draft.transforms.%s.rows.%s.ratioWidth', $transformName, $breakpointKey),
+                        'ratioWidth must be between 1 and 100000.'
+                    );
+                }
+
+                if ($ratioHeight !== null && $ratioHeight > 100000) {
+                    $this->addFieldError(
+                        $validation,
+                        sprintf('draft.transforms.%s.rows.%s.ratioHeight', $transformName, $breakpointKey),
+                        'ratioHeight must be between 1 and 100000.'
+                    );
+                }
+
+                $ratioSourceDimensionInput = $row['ratioSourceDimension'] ?? null;
+                $ratioSourceDimension = $this->normalizeRatioSourceDimension($ratioSourceDimensionInput);
+                if ($ratioSourceDimensionInput !== null && $ratioSourceDimension === null) {
+                    $this->addFieldError(
+                        $validation,
+                        sprintf('draft.transforms.%s.rows.%s.ratioSourceDimension', $transformName, $breakpointKey),
+                        'ratioSourceDimension must be "width" or "height".'
+                    );
+                }
+
                 $entries[] = [
                     'width' => $width,
                     'height' => $height,
                     'enabled' => ($row['enabled'] ?? true) !== false,
                     'autoDimension' => $autoDimension,
+                    'ratioWidth' => $ratioWidth,
+                    'ratioHeight' => $ratioHeight,
+                    'ratioSourceDimension' => $ratioSourceDimension ?? 'width',
+                    'ratioLocked' => ($row['ratioLocked'] ?? false) === true,
                 ];
+
+                $entries[count($entries) - 1] = $this->normalizeTransformEntry($entries[count($entries) - 1]);
             }
 
             $existingConfig = [];
@@ -3783,6 +3887,67 @@ class TransformEditor extends Component
         return null;
     }
 
+    private function normalizeRatioSourceDimension(mixed $value): ?string
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $candidate = strtolower(trim($value));
+        if ($candidate === 'width' || $candidate === 'height') {
+            return $candidate;
+        }
+
+        return null;
+    }
+
+    private function normalizeTransformEntry(mixed $entry): array
+    {
+        $entry = is_array($entry) ? $entry : [];
+
+        $normalizedEntry = [
+            'width' => $this->normalizeNullablePositiveInt($entry['width'] ?? null),
+            'height' => $this->normalizeNullablePositiveInt($entry['height'] ?? null),
+            'enabled' => ($entry['enabled'] ?? true) !== false,
+            'autoDimension' => $this->normalizeAutoDimension($entry['autoDimension'] ?? null),
+            'ratioWidth' => $this->normalizeNullablePositiveInt($entry['ratioWidth'] ?? null),
+            'ratioHeight' => $this->normalizeNullablePositiveInt($entry['ratioHeight'] ?? null),
+            'ratioSourceDimension' => $this->normalizeRatioSourceDimension($entry['ratioSourceDimension'] ?? null) ?? 'width',
+            'ratioLocked' => ($entry['ratioLocked'] ?? false) === true,
+        ];
+
+        if ($normalizedEntry['autoDimension'] === 'width') {
+            $normalizedEntry['width'] = null;
+            $normalizedEntry['ratioLocked'] = false;
+        }
+
+        if ($normalizedEntry['autoDimension'] === 'height') {
+            $normalizedEntry['height'] = null;
+            $normalizedEntry['ratioLocked'] = false;
+        }
+
+        if ($normalizedEntry['ratioWidth'] === null || $normalizedEntry['ratioHeight'] === null) {
+            $normalizedEntry['ratioLocked'] = false;
+        }
+
+        return $normalizedEntry;
+    }
+
+    private function normalizeTransformEntriesForBreakpoints(array $breakpoints, array $rawEntries): array
+    {
+        $entries = [];
+
+        foreach ($breakpoints as $index => $_breakpoint) {
+            $entry = isset($rawEntries[$index]) && is_array($rawEntries[$index])
+                ? $rawEntries[$index]
+                : [];
+
+            $entries[$index] = $this->normalizeTransformEntry($entry);
+        }
+
+        return $entries;
+    }
+
     private function buildDefaultTransformEntry(): array
     {
         return [
@@ -3790,6 +3955,10 @@ class TransformEditor extends Component
             'height' => null,
             'enabled' => true,
             'autoDimension' => null,
+            'ratioWidth' => null,
+            'ratioHeight' => null,
+            'ratioSourceDimension' => 'width',
+            'ratioLocked' => false,
         ];
     }
 
