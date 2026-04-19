@@ -166,6 +166,17 @@
     cursor: not-allowed;
 }
 
+#bpi-transform-sets-list .bpi-transform-sidebar-link-disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+    text-decoration: none;
+}
+
+#bpi-transform-sets-list .bpi-transform-sidebar-item-disabled {
+    opacity: 0.9;
+}
+
 .bpi-frame-pane,
 .bpi-output-pane {
     padding-top: 14px;

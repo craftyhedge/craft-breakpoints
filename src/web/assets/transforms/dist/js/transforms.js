@@ -521,6 +521,36 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             .filter((setName) => setName !== '');
     }
 
+    function syncSidebarTransformAvailability(cardOrder = []) {
+        const list = elements.transformSetsList;
+        if (!(list instanceof HTMLElement)) {
+            return;
+        }
+
+        const availableSetNames = new Set(
+            Array.isArray(cardOrder)
+                ? cardOrder.filter((setName) => typeof setName === 'string' && setName !== '')
+                : []
+        );
+
+        const setItems = Array.from(list.querySelectorAll('li[data-set]'));
+        setItems.forEach((item) => {
+            const setName = String(item.getAttribute('data-set') || '').trim();
+            const isAvailable = setName !== '' && availableSetNames.has(setName);
+            const link = item.querySelector('a.bpi-transform-sidebar-link[data-set]');
+
+            item.classList.toggle('bpi-transform-sidebar-item-disabled', !isAvailable);
+
+            if (!(link instanceof HTMLAnchorElement)) {
+                return;
+            }
+
+            link.classList.toggle('bpi-transform-sidebar-link-disabled', !isAvailable);
+            link.setAttribute('aria-disabled', isAvailable ? 'false' : 'true');
+            link.tabIndex = isAvailable ? 0 : -1;
+        });
+    }
+
     function syncSidebarTransformOrderToCards() {
         const list = elements.transformSetsList;
         if (!(list instanceof HTMLElement)) {
@@ -529,6 +559,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
         const cardOrder = getVisualResultCardOrder();
         if (cardOrder.length < 1) {
+            syncSidebarTransformAvailability([]);
             return;
         }
 
@@ -562,6 +593,8 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         if (allItem) {
             list.insertBefore(allItem, list.firstChild);
         }
+
+        syncSidebarTransformAvailability(cardOrder);
     }
 
     function bindTransformSidebarCardNavigation() {
@@ -576,6 +609,11 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                 : null;
 
             if (!(target instanceof HTMLAnchorElement)) {
+                return;
+            }
+
+            if (target.getAttribute('aria-disabled') === 'true') {
+                event.preventDefault();
                 return;
             }
 
