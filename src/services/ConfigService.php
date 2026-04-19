@@ -121,13 +121,6 @@ class ConfigService extends Component
         ) ?? true;
     }
 
-    public function isInsightsCpEnabled(array $overrides = []): bool
-    {
-        return App::parseBooleanEnv(
-            $this->get('enableInsightsCp', true, $overrides)
-        ) ?? true;
-    }
-
     public function allowTransformEditing(array $overrides = []): bool
     {
         return App::parseBooleanEnv(

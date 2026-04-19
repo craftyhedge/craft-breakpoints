@@ -1,6 +1,6 @@
 .bpi-transforms-page {
     display: grid;
-    gap: 16px;
+    gap: 8px;
     min-width: 0;
 }
 
@@ -67,6 +67,10 @@
 
 #header-container {
     margin-bottom: 0px;
+
+    #header {
+        margin-bottom: 10px !important;
+    }
 }
 
 .bpi-header-status {
@@ -264,6 +268,26 @@
 
 .bpi-results-pane {
     min-width: 0;
+}
+
+#bpi-results-heading {
+    margin-bottom: 10px;
+    padding-left: 8px;
+}
+
+#bpi-transform-sets-sidebar {
+    padding-left: 0;
+    margin-inline: 0px !important;
+}
+
+#sidebar-container {
+    #sidebar {
+        padding-inline: 16px !important;
+    }
+}
+
+.bpi-transform-sidebar-link {
+    padding: 8px 8px !important;
 }
 
 .bpi-results-heading-wrap {

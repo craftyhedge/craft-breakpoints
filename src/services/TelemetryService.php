@@ -55,16 +55,6 @@ class TelemetryService extends Component
         return $configService->isTelemetryEnabled();
     }
 
-    public function isInsightsCpEnabled(): bool
-    {
-        $configService = $this->getConfigService();
-        if ($configService === null) {
-            return false;
-        }
-
-        return $configService->isInsightsCpEnabled();
-    }
-
     public function canWriteTelemetry(): bool
     {
         return $this->isTelemetryEnabled();

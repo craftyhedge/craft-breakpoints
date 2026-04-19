@@ -57,6 +57,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         page: document.querySelector('.bpi-transforms-page'),
         showCardSettingsSignalBridge: document.getElementById('bpi-show-card-settings-signal-bridge'),
         uiResultsHeadingSignalBridge: document.getElementById('bpi-ui-results-heading-signal-bridge'),
+        resultsHeading: document.getElementById('bpi-results-heading'),
         uiShowWarningOrderSignalBridge: document.getElementById('bpi-ui-show-warning-order-signal-bridge'),
         uiResultsOrderingNoteLabelSignalBridge: document.getElementById('bpi-ui-results-ordering-note-label-signal-bridge'),
         transformSetsSidebar: document.getElementById('bpi-transform-sets-sidebar'),
@@ -464,6 +465,10 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     function updateResultsHeadingCopy() {
         const hasRun = state.lastResult !== null;
         const copy = hasRun ? RESULTS_COPY.processed : RESULTS_COPY.saved;
+
+        if (elements.resultsHeading) {
+            elements.resultsHeading.textContent = String(copy.heading || '');
+        }
 
         const bridge = elements.uiResultsHeadingSignalBridge;
         if (!(bridge instanceof HTMLInputElement)) {

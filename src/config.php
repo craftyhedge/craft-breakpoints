@@ -24,7 +24,6 @@ return [
     'nativeLazyLoadingEnabled' => true,
     'previewCenter' => true,
     'enableTelemetry' => true,
-    'enableInsightsCp' => true,
     'transformsDeveloperActionsEnabled' => false,
     'processingDiagnosticsEnabled' => false,
     'dpr' => [1, 2],
