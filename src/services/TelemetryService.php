@@ -17,6 +17,7 @@ class TelemetryService extends Component
     private const RUN_STATUS_CANCELLED = 'cancelled';
     private const RUN_SNAPSHOT_TABLE = '{{%bpi_processing_run_snapshot}}';
     private const RUN_SNAPSHOT_ROWS_TABLE = '{{%bpi_processing_run_snapshot_breakpoints}}';
+    private const PREVIEW_CACHE_TABLE = '{{%bpi_preview_cache}}';
     private const SNAPSHOT_FAILURE_COUNTS_KEY = 'counts';
     private const SNAPSHOT_OVERLAY_ROWS_KEY = 'overlayRows';
     private const SNAPSHOT_OVERLAY_STATUS_RELIABLE_KEY = 'overlayStatusReliable';
@@ -285,12 +286,27 @@ class TelemetryService extends Component
             }
 
             $transaction->commit();
-            return true;
         } catch (\Throwable $e) {
             $transaction->rollBack();
             Plugin::warning('Run snapshot persistence failed: ' . $e->getMessage());
             return false;
         }
+
+        if ($status === self::RUN_STATUS_COMPLETED) {
+            try {
+                $this->updatePreviewCacheFromRun(
+                    $payload['rowsByBreakpoint'] ?? [],
+                    $ranAt,
+                    $runId,
+                    $entryId,
+                    $sourceUrl,
+                );
+            } catch (\Throwable $e) {
+                Plugin::warning('Preview cache update failed after snapshot commit: ' . $e->getMessage());
+            }
+        }
+
+        return true;
     }
 
     public function getLatestRunSnapshot(): ?array
@@ -776,6 +792,268 @@ class TelemetryService extends Component
         }
 
         return 'unprocessed';
+    }
+
+    /**
+     * Update preview cache from a completed processing run.
+     *
+     * For each transform+breakpoint, selects the first asset row. If that row
+     * is loaded and has a non-empty URL, upserts the preview cache. Otherwise
+     * retains the existing cached row (no fallthrough to later rows).
+     *
+     * Stale writes are rejected: a cache row is only updated when the incoming
+     * lastProcessedAt is newer than (or equal with a newer runId) the existing row.
+     */
+    private function updatePreviewCacheFromRun(
+        mixed $rawRowsByBreakpoint,
+        string $ranAt,
+        string $runId,
+        ?int $entryId,
+        ?string $sourceUrl,
+    ): void {
+        $db = Craft::$app->getDb();
+        if (!$db->tableExists(self::PREVIEW_CACHE_TABLE)) {
+            return;
+        }
+
+        if (!is_array($rawRowsByBreakpoint)) {
+            return;
+        }
+
+        $now = Db::prepareDateForDb(new \DateTimeImmutable());
+        /** @var array<string, array<int, true>> transform handle → set of active breakpoint widths */
+        $activeBreakpointsByTransform = [];
+
+        foreach ($rawRowsByBreakpoint as $breakpointKey => $rows) {
+            if (!is_array($rows)) {
+                continue;
+            }
+
+            $breakpointWidth = is_numeric($breakpointKey) ? (int)$breakpointKey : 0;
+            if ($breakpointWidth <= 0) {
+                continue;
+            }
+
+            $firstByTransform = [];
+            foreach ($rows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $transformHandle = trim((string)($row['transform'] ?? ''));
+                if ($transformHandle === '') {
+                    continue;
+                }
+
+                if (!isset($firstByTransform[$transformHandle])) {
+                    $firstByTransform[$transformHandle] = $row;
+                    $activeBreakpointsByTransform[$transformHandle] ??= [];
+                    $activeBreakpointsByTransform[$transformHandle][$breakpointWidth] = true;
+                }
+            }
+
+            foreach ($firstByTransform as $transformHandle => $row) {
+                $enabled = ($row['enabled'] ?? true) === true;
+                $loaded = ($row['loaded'] ?? false) === true;
+                $broken = ($row['broken'] ?? false) === true;
+                $unresolved = ($row['unresolved'] ?? false) === true;
+                $rowStatus = $this->resolveSnapshotRowStatus($enabled, $loaded, $broken, $unresolved);
+
+                $displayAssetUrl = trim((string)($row['src'] ?? ''));
+                if ($displayAssetUrl !== '' && mb_strlen($displayAssetUrl) > self::DISPLAY_ASSET_URL_MAX_LENGTH) {
+                    $displayAssetUrl = mb_substr($displayAssetUrl, 0, self::DISPLAY_ASSET_URL_MAX_LENGTH);
+                }
+
+                $renderedWidth = max(0, (int)($row['rendered']['width'] ?? 0));
+                $renderedHeight = max(0, (int)($row['rendered']['height'] ?? 0));
+
+                if (!$loaded || $displayAssetUrl === '') {
+                    continue;
+                }
+
+                $this->upsertPreviewCacheRow(
+                    $transformHandle,
+                    $breakpointWidth,
+                    $displayAssetUrl,
+                    $rowStatus,
+                    $renderedWidth,
+                    $renderedHeight,
+                    $ranAt,
+                    $runId,
+                    $entryId,
+                    $sourceUrl,
+                    $now,
+                );
+            }
+        }
+
+        if ($activeBreakpointsByTransform !== []) {
+            $this->pruneObsoletePreviewCacheRows($activeBreakpointsByTransform);
+        }
+    }
+
+    /**
+     * Upsert a single preview cache row with stale-write protection.
+     */
+    private function upsertPreviewCacheRow(
+        string $transformHandle,
+        int $breakpointWidth,
+        string $displayAssetUrl,
+        string $rowStatus,
+        int $renderedWidth,
+        int $renderedHeight,
+        string $lastProcessedAt,
+        string $runId,
+        ?int $entryId,
+        ?string $sourceUrl,
+        string $now,
+    ): void {
+        $db = Craft::$app->getDb();
+
+        $existing = (new Query())
+            ->select(['lastProcessedAt', 'runId'])
+            ->from(self::PREVIEW_CACHE_TABLE)
+            ->where([
+                'transformHandle' => $transformHandle,
+                'breakpointWidth' => $breakpointWidth,
+            ])
+            ->one();
+
+        if (is_array($existing)) {
+            $existingTime = $existing['lastProcessedAt'] ?? '';
+            if ($existingTime > $lastProcessedAt) {
+                return;
+            }
+
+            if ($existingTime === $lastProcessedAt) {
+                $existingRunId = (string)($existing['runId'] ?? '');
+                if ($existingRunId >= $runId) {
+                    return;
+                }
+            }
+        }
+
+        try {
+            Db::upsert(self::PREVIEW_CACHE_TABLE, [
+                'transformHandle' => $transformHandle,
+                'breakpointWidth' => $breakpointWidth,
+                'displayAssetUrl' => $displayAssetUrl,
+                'rowStatus' => $rowStatus,
+                'renderedWidth' => $renderedWidth > 0 ? $renderedWidth : null,
+                'renderedHeight' => $renderedHeight > 0 ? $renderedHeight : null,
+                'lastProcessedAt' => $lastProcessedAt,
+                'runId' => $runId,
+                'sourceEntryId' => $entryId,
+                'sourceUrl' => $sourceUrl,
+            ]);
+        } catch (\Throwable $e) {
+            Plugin::warning('Preview cache upsert failed for "' . $transformHandle . '" at ' . $breakpointWidth . 'px: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Prune obsolete preview cache rows for touched transforms whose
+     * breakpoint definitions have shrunk (breakpoints no longer in the run).
+     */
+    /**
+     * @param array<string, array<int, true>> $activeBreakpointsByTransform
+     */
+    private function pruneObsoletePreviewCacheRows(array $activeBreakpointsByTransform): void
+    {
+        $db = Craft::$app->getDb();
+
+        foreach ($activeBreakpointsByTransform as $transformHandle => $activeBreakpoints) {
+            $cachedBreakpoints = (new Query())
+                ->select(['breakpointWidth'])
+                ->from(self::PREVIEW_CACHE_TABLE)
+                ->where(['transformHandle' => $transformHandle])
+                ->column();
+
+            foreach ($cachedBreakpoints as $cached) {
+                $cachedWidth = (int)$cached;
+                if (!isset($activeBreakpoints[$cachedWidth])) {
+                    try {
+                        $db->createCommand()
+                            ->delete(self::PREVIEW_CACHE_TABLE, [
+                                'transformHandle' => $transformHandle,
+                                'breakpointWidth' => $cachedWidth,
+                            ])
+                            ->execute();
+                    } catch (\Throwable $e) {
+                        Plugin::warning('Preview cache prune failed for "' . $transformHandle . '" at ' . $cachedWidth . 'px: ' . $e->getMessage());
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Delete all preview cache rows for a given transform handle.
+     */
+    public function deletePreviewCacheByTransformHandle(string $transformHandle): void
+    {
+        $handle = trim($transformHandle);
+        if ($handle === '') {
+            return;
+        }
+
+        $db = Craft::$app->getDb();
+        if (!$db->tableExists(self::PREVIEW_CACHE_TABLE)) {
+            return;
+        }
+
+        try {
+            $db->createCommand()
+                ->delete(self::PREVIEW_CACHE_TABLE, ['transformHandle' => $handle])
+                ->execute();
+        } catch (\Throwable $e) {
+            Plugin::warning('Preview cache delete failed for "' . $handle . '": ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Read all preview cache rows, indexed by transformHandle|breakpointWidth.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public function getPreviewCacheRows(): array
+    {
+        $db = Craft::$app->getDb();
+        if (!$db->tableExists(self::PREVIEW_CACHE_TABLE)) {
+            return [];
+        }
+
+        $rows = (new Query())
+            ->select([
+                'transformHandle',
+                'breakpointWidth',
+                'displayAssetUrl',
+                'rowStatus',
+                'renderedWidth',
+                'renderedHeight',
+            ])
+            ->from(self::PREVIEW_CACHE_TABLE)
+            ->orderBy(['transformHandle' => SORT_ASC, 'breakpointWidth' => SORT_ASC])
+            ->all();
+
+        $indexed = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $transformHandle = trim((string)($row['transformHandle'] ?? ''));
+            $breakpointWidth = isset($row['breakpointWidth']) && is_numeric($row['breakpointWidth'])
+                ? (int)$row['breakpointWidth']
+                : 0;
+            if ($transformHandle === '' || $breakpointWidth <= 0) {
+                continue;
+            }
+
+            $indexed[$transformHandle . '|' . $breakpointWidth] = $row;
+        }
+
+        return $indexed;
     }
 
 }

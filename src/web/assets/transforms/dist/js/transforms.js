@@ -107,10 +107,10 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
     const RESULTS_COPY = {
         saved: {
-            heading: 'Saved Sets',
+            heading: 'Saved',
         },
         processed: {
-            heading: 'Processed Sets',
+            heading: 'Processed',
         },
     };
 

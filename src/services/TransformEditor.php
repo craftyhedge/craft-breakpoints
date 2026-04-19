@@ -1047,7 +1047,13 @@ class TransformEditor extends Component
         }
 
         unset($transforms[$transformName]);
-        return $this->persistOperationTransforms($transforms, $validation, $expectedVersion);
+        $result = $this->persistOperationTransforms($transforms, $validation, $expectedVersion);
+
+        if (($result['persisted'] ?? false) === true) {
+            $this->_plugin->getTelemetry()->deletePreviewCacheByTransformHandle($transformName);
+        }
+
+        return $result;
     }
 
     public function buildResultSummary(array $summary = []): array
@@ -1156,7 +1162,7 @@ class TransformEditor extends Component
         array $preferredOrderBySet = [],
     ): array {
         $storedTransforms = $this->getReviewStoredTransforms();
-        $snapshotRowsByTransformAndBreakpoint = $this->getLatestRunSnapshotRowsByTransformAndBreakpoint();
+        $previewCacheByTransformAndBreakpoint = $this->getPreviewCacheRowsByTransformAndBreakpoint();
         $syntheticRowsByBreakpoint = [];
 
         foreach ($storedTransforms as $setName => $transformDefinition) {
@@ -1197,7 +1203,7 @@ class TransformEditor extends Component
                     $autoDimension,
                 );
 
-                $snapshotRow = $snapshotRowsByTransformAndBreakpoint[$setName . '|' . $breakpoint] ?? null;
+                $snapshotRow = $previewCacheByTransformAndBreakpoint[$setName . '|' . $breakpoint] ?? null;
                 $savedDisplayAssetUrl = is_array($snapshotRow)
                     ? trim((string)($snapshotRow['displayAssetUrl'] ?? ''))
                     : '';
@@ -2162,6 +2168,18 @@ class TransformEditor extends Component
         }
 
         return $indexed;
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private function getPreviewCacheRowsByTransformAndBreakpoint(): array
+    {
+        if ($this->_plugin === null) {
+            return [];
+        }
+
+        return $this->_plugin->getTelemetry()->getPreviewCacheRows();
     }
 
     private function getLatestRunSnapshotForReview(): ?array

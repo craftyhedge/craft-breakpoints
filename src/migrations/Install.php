@@ -73,11 +73,33 @@ class Install extends Migration
             );
         }
 
+        if (!$this->db->tableExists('{{%bpi_preview_cache}}')) {
+            $this->createTable('{{%bpi_preview_cache}}', [
+                'id' => $this->primaryKey(),
+                'transformHandle' => $this->string()->notNull(),
+                'breakpointWidth' => $this->integer()->notNull(),
+                'displayAssetUrl' => $this->string(1024)->null()->defaultValue(null),
+                'rowStatus' => $this->string(24)->notNull()->defaultValue('unprocessed'),
+                'renderedWidth' => $this->integer()->null()->defaultValue(null),
+                'renderedHeight' => $this->integer()->null()->defaultValue(null),
+                'lastProcessedAt' => $this->dateTime()->notNull(),
+                'runId' => $this->string(64)->null()->defaultValue(null),
+                'sourceEntryId' => $this->integer()->null()->defaultValue(null),
+                'sourceUrl' => $this->string(255)->null()->defaultValue(null),
+                'dateCreated' => $this->dateTime()->notNull(),
+                'dateUpdated' => $this->dateTime()->notNull(),
+            ]);
+
+            $this->createIndex(null, '{{%bpi_preview_cache}}', ['transformHandle', 'breakpointWidth'], true);
+            $this->createIndex(null, '{{%bpi_preview_cache}}', ['transformHandle'], false);
+        }
+
         return true;
     }
 
     public function safeDown(): bool
     {
+        $this->dropTableIfExists('{{%bpi_preview_cache}}');
         $this->dropTableIfExists('{{%bpi_processing_run_snapshot_breakpoints}}');
         $this->dropTableIfExists('{{%bpi_processing_run_snapshot}}');
         $this->dropTableIfExists('{{%bpi_transform_last_processed}}');

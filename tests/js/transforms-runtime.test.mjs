@@ -1103,6 +1103,115 @@ describe('transforms runtime helper logic', () => {
         );
     });
 
+    it('sends failed run status in snapshot persistence payload', async () => {
+        const report = hooks.createRunReport('https://example.test/source', [480], false);
+        const finalized = hooks.finalizeRunReport(report, {
+            status: 'failed',
+            resultPublished: false,
+            failureStage: 'prepare',
+            failureMessage: 'prepare failed',
+            rowsByBreakpoint: {},
+        });
+
+        hooks.setLastResultForTests(null);
+
+        const sendActionRequest = vi.fn().mockResolvedValue({ data: { ok: true } });
+        window.Craft = { sendActionRequest };
+
+        const ok = await hooks.persistRunSnapshot(finalized, {});
+
+        expect(ok).toBe(true);
+        expect(sendActionRequest).toHaveBeenCalledWith(
+            'POST',
+            'craft-breakpoint-images/transforms/persist-run-snapshot',
+            expect.objectContaining({
+                data: expect.objectContaining({
+                    runStatus: 'failed',
+                }),
+            }),
+        );
+    });
+
+    it('sends cancelled run status in snapshot persistence payload', async () => {
+        const report = hooks.createRunReport('https://example.test/source', [480], false);
+        const finalized = hooks.finalizeRunReport(report, {
+            status: 'cancelled',
+            resultPublished: false,
+            failureStage: 'wait',
+            failureMessage: 'user cancelled',
+            rowsByBreakpoint: { 480: [{ transform: 'hero', loaded: false, broken: false, unresolved: true }] },
+        });
+
+        hooks.setLastResultForTests(null);
+
+        const sendActionRequest = vi.fn().mockResolvedValue({ data: { ok: true } });
+        window.Craft = { sendActionRequest };
+
+        const ok = await hooks.persistRunSnapshot(finalized, {
+            480: [{ transform: 'hero', loaded: false, broken: false, unresolved: true }],
+        });
+
+        expect(ok).toBe(true);
+        expect(sendActionRequest).toHaveBeenCalledWith(
+            'POST',
+            'craft-breakpoint-images/transforms/persist-run-snapshot',
+            expect.objectContaining({
+                data: expect.objectContaining({
+                    runStatus: 'cancelled',
+                    rowsByBreakpoint: expect.objectContaining({
+                        480: expect.arrayContaining([
+                            expect.objectContaining({ transform: 'hero' }),
+                        ]),
+                    }),
+                }),
+            }),
+        );
+    });
+
+    it('includes rowsByBreakpoint with first asset data in persistence payload', async () => {
+        const report = hooks.createRunReport('https://example.test/source', [480, 768], false);
+        const rowsByBreakpoint = {
+            480: [
+                { transform: 'hero', src: 'https://example.test/hero-480.jpg', loaded: true, broken: false, unresolved: false, rendered: { width: 480, height: 320 } },
+                { transform: 'thumb', src: 'https://example.test/thumb-480.jpg', loaded: true, broken: false, unresolved: false, rendered: { width: 100, height: 100 } },
+            ],
+            768: [
+                { transform: 'hero', src: 'https://example.test/hero-768.jpg', loaded: true, broken: false, unresolved: false, rendered: { width: 768, height: 512 } },
+            ],
+        };
+
+        const finalized = hooks.finalizeRunReport(report, {
+            status: 'completed',
+            resultPublished: true,
+            rowsByBreakpoint,
+        });
+
+        hooks.setLastResultForTests({ summary: { warningCount: 0 }, rowsByBreakpoint });
+
+        const sendActionRequest = vi.fn().mockImplementation((_method, action) => {
+            if (action === 'craft-breakpoint-images/transforms/persist-run-snapshot') {
+                return Promise.resolve({ data: { ok: true } });
+            }
+            return Promise.resolve({
+                data: { warningsHtml: '', visualResultsHtml: '', warningCount: 0 },
+            });
+        });
+        window.Craft = { sendActionRequest };
+
+        const ok = await hooks.persistRunSnapshot(finalized, rowsByBreakpoint);
+
+        expect(ok).toBe(true);
+        const persistCall = sendActionRequest.mock.calls.find(
+            (c) => c[1] === 'craft-breakpoint-images/transforms/persist-run-snapshot',
+        );
+        expect(persistCall).toBeTruthy();
+        const payload = persistCall[2].data;
+        expect(payload.rowsByBreakpoint[480]).toHaveLength(2);
+        expect(payload.rowsByBreakpoint[768]).toHaveLength(1);
+        expect(payload.rowsByBreakpoint[480][0].transform).toBe('hero');
+        expect(payload.rowsByBreakpoint[480][0].src).toBe('https://example.test/hero-480.jpg');
+    });
+
     it('short-circuits processing with status when no configured breakpoints exist', async () => {
         window.bpiProcessingConfig.breakpointValues = [];
 

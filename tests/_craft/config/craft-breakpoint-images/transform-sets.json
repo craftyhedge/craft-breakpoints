@@ -1,5 +1,5 @@
 {
-    "version": "2026-04-19T03:55:55.697031Z",
+    "version": "2026-04-19T07:11:42.514169Z",
     "sets": {
         "hero": {
             "name": "hero",
@@ -20,7 +20,7 @@
             "config": {
                 "passHeightWhenRenderedLteSaved": false
             },
-            "lastUpdatedAt": "2026-04-19T03:55:55+00:00"
+            "lastUpdatedAt": "2026-04-19T07:11:42+00:00"
         }
     }
 }
