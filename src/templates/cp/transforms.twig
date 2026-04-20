@@ -31,6 +31,14 @@
     <div class="bpi-page-title-wrap">
         <h1 id="page-heading" class="screen-title" title="{{ title }}">{{ title }}</h1>
         {{ reviewToolbarActions }}
+        <div class="bpi-results-settings-toggle">
+            <div id="bpi-results-settings-lightswitch" class="lightswitch small bpi-results-settings-lightswitch" role="switch" tabindex="0" aria-label="{{ 'Edit'|t('craft-breakpoint-images') }}" aria-checked="false">
+                <div class="lightswitch-container">
+                    <div class="handle"></div>
+                </div>
+            </div>
+            <span>{{ 'Edit'|t('craft-breakpoint-images') }}</span>
+        </div>
     </div>
     <div id="revision-indicators"></div>
 {% endblock %}
@@ -105,14 +113,6 @@
         </div>
 
         <div class="bpi-results-heading-wrap">
-            <div class="bpi-results-settings-toggle">
-                <div id="bpi-results-settings-lightswitch" class="lightswitch small bpi-results-settings-lightswitch" role="switch" tabindex="0" aria-label="{{ 'Edit'|t('craft-breakpoint-images') }}" aria-checked="false">
-                    <div class="lightswitch-container">
-                        <div class="handle"></div>
-                    </div>
-                </div>
-                <span>{{ 'Edit'|t('craft-breakpoint-images') }}</span>
-            </div>
         </div>
 
         <div class="bpi-results-pane">

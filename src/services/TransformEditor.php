@@ -1596,6 +1596,23 @@ class TransformEditor extends Component
                 && is_array($latestRunSummaryForTransform)
                 && (($latestRunSummaryForTransform['hasMismatch'] ?? false) === true);
 
+            $hasMissingSetWarning = false;
+            foreach ($cardWarnings as $w) {
+                if (is_array($w) && ($w['code'] ?? '') === 'missing-set-definitions') {
+                    $hasMissingSetWarning = true;
+                    break;
+                }
+            }
+
+            $mismatchWarningMarkup = ($hasMismatchWarning && !$hasMissingSetWarning)
+                ? '<div class="bpi-warning-item bpi-warning-item-neutral">'
+                    . '<div class="bpi-warning-copy"><h3 class="bpi-warning-heading">Asset Mismatch</h3></div>'
+                    . '<div class="bpi-warning-detail"><p>One or more assets have mismatched values that need reviewed.</p></div>'
+                    . '</div>'
+                : '';
+
+            $cardWarningsWithMismatch = $cardWarningsMarkup . $mismatchWarningMarkup;
+
             $lastProcessPanelHtml = $this->buildLastProcessPanelMarkup(
                 $latestRunSnapshot,
                 $latestRunSummaryForTransform,
@@ -1614,11 +1631,11 @@ class TransformEditor extends Component
                 'signalKey' => $this->escapeReviewHtml($signalKey),
                 'cardSignalsStructural' => $this->escapeReviewHtml($cardSignalsStructuralJson),
                 'cardSignalsVolatile' => $this->escapeReviewHtml($cardSignalsVolatileJson),
-                'cardWarningStateClass' => ($cardWarningsMarkup !== '' || $hasMismatchWarning)
+                'cardWarningStateClass' => $cardWarningsWithMismatch !== ''
                     ? 'bpi-transform-card-warning'
                     : '',
-                'cardWarningsHtml' => $cardWarningsMarkup !== ''
-                    ? '<div class="bpi-transform-card-warnings">' . $cardWarningsMarkup . '</div>'
+                'cardWarningsHtml' => $cardWarningsWithMismatch !== ''
+                    ? '<div class="bpi-transform-card-warnings">' . $cardWarningsWithMismatch . '</div>'
                     : '',
                 'includeEscapeWidth' => $includeEscapeWidth ? '1' : '0',
                 'renderedRowsForTransformJson' => $this->escapeReviewHtml($renderedRowsForTransformJson),

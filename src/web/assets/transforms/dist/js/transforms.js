@@ -126,6 +126,14 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         elements.page.classList.toggle('is-processing', Boolean(isProcessing));
     }
 
+    function setResultsReprocessing(isReprocessing) {
+        if (!elements.page) {
+            return;
+        }
+
+        elements.page.classList.toggle('bpi-results-reprocessing', Boolean(isReprocessing));
+    }
+
     function setReviewHydrated(isHydrated) {
         if (!elements.page) {
             return;
@@ -1665,6 +1673,15 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         await renderInitialStoredReview();
     }
 
+    async function reprocessAfterRenderedValuesApplied() {
+        setResultsReprocessing(true);
+        try {
+            await runProcessing();
+        } finally {
+            setResultsReprocessing(false);
+        }
+    }
+
     function finalizePendingTransformUpdatesFromServerStatus(serverStatus) {
         const status = serverStatus && typeof serverStatus === 'object' ? serverStatus : null;
         const kind = String(status?.kind || '').trim().toLowerCase();
@@ -1688,8 +1705,11 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         });
 
         if (kind === 'success') {
+            const shouldReprocess = state.lastResult
+                && pendingTransformEntries.some(({ action }) => action === 'renderedValues' || action === 'deleteSet');
+
             pendingTransformEntries.forEach(({ transformName, action }) => {
-                if (action === 'deleteSet') {
+                if (action === 'deleteSet' && !state.lastResult) {
                     removeTransformFromLastResult(transformName);
                 }
 
@@ -1697,9 +1717,15 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                 scheduleTransformTerminalStatus(transformName, 'Updated', 'success', CARD_UPDATE_STATUS_CLEAR_DELAY_MS, runId);
             });
 
-            void refreshReviewCardsAfterSuccessfulUpdate().catch((error) => {
-                console.error(error);
-            });
+            void refreshReviewCardsAfterSuccessfulUpdate()
+                .then(() => {
+                    if (shouldReprocess) {
+                        return reprocessAfterRenderedValuesApplied();
+                    }
+                })
+                .catch((error) => {
+                    console.error(error);
+                });
 
             return;
         }
@@ -1726,14 +1752,20 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         const runId = getUpdateStatusRunId(transformName);
 
         if (kind === 'success') {
-            if (action === 'deleteSet') {
+            if (action === 'deleteSet' && !state.lastResult) {
                 removeTransformFromLastResult(transformName);
             }
 
             scheduleTransformTerminalStatus(transformName, 'Updated', 'success', CARD_UPDATE_STATUS_CLEAR_DELAY_MS, runId);
-            void refreshReviewCardsAfterSuccessfulUpdate().catch((error) => {
-                console.error(error);
-            });
+            void refreshReviewCardsAfterSuccessfulUpdate()
+                .then(() => {
+                    if (state.lastResult && (action === 'renderedValues' || action === 'deleteSet')) {
+                        return reprocessAfterRenderedValuesApplied();
+                    }
+                })
+                .catch((error) => {
+                    console.error(error);
+                });
             return;
         }
 
@@ -1842,6 +1874,19 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         });
     }
 
+    function findScrollAnchorCard() {
+        if (!(elements.visualResults instanceof HTMLElement)) {
+            return null;
+        }
+        const cards = elements.visualResults.querySelectorAll('.bpi-transform-card[data-set]');
+        for (const card of cards) {
+            if (card.getBoundingClientRect().top >= 0) {
+                return card;
+            }
+        }
+        return null;
+    }
+
     function setShowCardSettingsSignal(isEnabled) {
         const bridge = elements.showCardSettingsSignalBridge;
         if (!(bridge instanceof HTMLInputElement) || bridge.type !== 'checkbox') {
@@ -1925,7 +1970,25 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                 return;
             }
 
+            const anchor = findScrollAnchorCard();
+            const anchorTop = anchor ? anchor.getBoundingClientRect().top : null;
+
             setShowCardSettingsSignal(latest.on === true);
+
+            if (anchor && anchorTop !== null) {
+                const observer = new ResizeObserver(() => {
+                    observer.disconnect();
+                    const newTop = anchor.getBoundingClientRect().top;
+                    const drift = newTop - anchorTop;
+                    if (Math.abs(drift) > 1) {
+                        window.scrollBy(0, drift);
+                    }
+                });
+                observer.observe(anchor);
+
+                // Safety: disconnect if no resize fires (e.g. card already at target size)
+                requestAnimationFrame(() => requestAnimationFrame(() => observer.disconnect()));
+            }
         };
 
         $lightswitch.off('change.bpiShowCardSettings');

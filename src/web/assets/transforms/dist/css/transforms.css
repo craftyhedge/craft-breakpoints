@@ -37,7 +37,7 @@
 .bpi-page-title-wrap {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 16px;
     flex-wrap: wrap;
 }
 
@@ -338,6 +338,12 @@
 
 .bpi-transforms-page.bpi-review-hydrating .bpi-visual-results .bpi-transform-card {
     display: none;
+}
+
+.bpi-transforms-page.bpi-results-reprocessing .bpi-visual-results {
+    opacity: 0.45;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
 }
 
 .bpi-results-meta {
