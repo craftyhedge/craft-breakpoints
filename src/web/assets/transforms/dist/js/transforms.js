@@ -1717,6 +1717,10 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                 scheduleTransformTerminalStatus(transformName, 'Updated', 'success', CARD_UPDATE_STATUS_CLEAR_DELAY_MS, runId);
             });
 
+            if (status?.message) {
+                Craft.cp.displayNotice(status.message);
+            }
+
             void refreshReviewCardsAfterSuccessfulUpdate()
                 .then(() => {
                     if (shouldReprocess) {
@@ -1728,6 +1732,10 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                 });
 
             return;
+        }
+
+        if (status?.message) {
+            Craft.cp.displayError(status.message);
         }
 
         pendingTransformEntries.forEach(({ transformName }) => {
@@ -1757,6 +1765,11 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             }
 
             scheduleTransformTerminalStatus(transformName, 'Updated', 'success', CARD_UPDATE_STATUS_CLEAR_DELAY_MS, runId);
+
+            if (status?.message) {
+                Craft.cp.displayNotice(status.message);
+            }
+
             void refreshReviewCardsAfterSuccessfulUpdate()
                 .then(() => {
                     if (state.lastResult && (action === 'renderedValues' || action === 'deleteSet')) {
@@ -1767,6 +1780,10 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                     console.error(error);
                 });
             return;
+        }
+
+        if (status?.message) {
+            Craft.cp.displayError(status.message);
         }
 
         scheduleTransformTerminalStatus(transformName, 'Update failed', 'error', CARD_UPDATE_STATUS_ERROR_CLEAR_DELAY_MS, runId);
