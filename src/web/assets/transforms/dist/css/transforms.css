@@ -831,6 +831,7 @@
     border-top: 1px solid var(--border-hairline-medium);
     padding: 24px;
     background-color: #f5f8fb;
+    position: relative;
 }
 
 .bpi-transform-edit-layout {
@@ -848,8 +849,11 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    margin-left: auto;
     white-space: nowrap;
+    position: absolute;
+    top: 16px;
+    right: 24px;
+    z-index: 1;
 }
 
 .bpi-transform-last-process-status-icon {
@@ -1648,6 +1652,9 @@ button.bpi-transform-input-addon:hover:not(:disabled) {
 
 .bpi-rendered-apply-single.bpi-rendered-apply-single-noop {
     color: var(--fg-success, #1e7c45);
+    border-color: #008779;
+    border-width: 1px;
+    border-style: solid;
 }
 
 .bpi-rendered-apply-single:hover:not([disabled]),
