@@ -2747,6 +2747,10 @@ class TransformEditor extends Component
             );
         }
 
+        $statusTitle = $ranAtLabel !== '' && $ranAtLabel !== '-'
+            ? sprintf('%s (last run: %s)', $statusLabel, $ranAtLabel)
+            : $statusLabel;
+
         return sprintf(
             '<aside class="bpi-transform-last-process-pane">'
             . '<span class="bpi-transform-last-process-status-icon %s" aria-label="%s" title="%s"><span data-icon="%s" aria-hidden="true"></span></span>'
@@ -2756,8 +2760,8 @@ class TransformEditor extends Component
             . '%s'
             . '</aside>',
             $this->escapeReviewHtml($statusIconClass),
-            $this->escapeReviewHtml($statusLabel),
-            $this->escapeReviewHtml($statusLabel),
+            $this->escapeReviewHtml($statusTitle),
+            $this->escapeReviewHtml($statusTitle),
             $this->escapeReviewHtml($statusIconName),
             $runEntryIconMarkup,
             $processAgainMarkup,
