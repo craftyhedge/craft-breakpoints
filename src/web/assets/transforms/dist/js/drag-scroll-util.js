@@ -27,6 +27,10 @@ export function bindHorizontalDragScroll(options = {}) {
         suppressClick: false,
     };
 
+    function isSamePointer(pointerId = null) {
+        return pointerId !== null && state.pointerId !== null && Number(pointerId) === Number(state.pointerId);
+    }
+
     const findGridFromTarget = typeof options.findGridFromTarget === 'function'
         ? options.findGridFromTarget
         : (target) => (target instanceof Element ? target.closest('.bpi-breakpoint-grid') : null);
@@ -113,6 +117,10 @@ export function bindHorizontalDragScroll(options = {}) {
             return;
         }
 
+        if (state.active) {
+            endDrag();
+        }
+
         state.active = true;
         state.moved = false;
         state.pointerId = event.pointerId;
@@ -120,6 +128,14 @@ export function bindHorizontalDragScroll(options = {}) {
         state.startX = event.clientX;
         state.startY = event.clientY;
         state.startScrollLeft = grid.scrollLeft;
+
+        if (state.grid.setPointerCapture) {
+            try {
+                state.grid.setPointerCapture(event.pointerId);
+            } catch (_error) {
+                // Ignore pointer capture errors.
+            }
+        }
     }
 
     function onPointerMove(event) {
@@ -145,14 +161,6 @@ export function bindHorizontalDragScroll(options = {}) {
             state.moved = true;
             state.suppressClick = true;
             state.grid.classList.add('bpi-drag-scrolling');
-
-            if (state.grid.setPointerCapture) {
-                try {
-                    state.grid.setPointerCapture(event.pointerId);
-                } catch (_error) {
-                    // Ignore pointer capture errors.
-                }
-            }
         }
 
         event.preventDefault();
@@ -168,6 +176,14 @@ export function bindHorizontalDragScroll(options = {}) {
     }
 
     function onPointerCancel(event) {
+        endDrag(event.pointerId);
+    }
+
+    function onLostPointerCapture(event) {
+        if (!isSamePointer(event.pointerId)) {
+            return;
+        }
+
         endDrag(event.pointerId);
     }
 
@@ -219,22 +235,38 @@ export function bindHorizontalDragScroll(options = {}) {
         state.suppressClick = false;
     }
 
+    function onWindowBlur() {
+        endDrag();
+    }
+
+    function onVisibilityChange() {
+        if (document.visibilityState !== 'visible') {
+            endDrag();
+        }
+    }
+
     document.addEventListener('pointerdown', onPointerDown);
     window.addEventListener('pointermove', onPointerMove, { passive: false });
     window.addEventListener('pointerup', onPointerUp);
     window.addEventListener('pointercancel', onPointerCancel);
+    document.addEventListener('lostpointercapture', onLostPointerCapture);
     document.addEventListener('dragstart', onDragStart);
     document.addEventListener('scroll', onScroll, true);
     document.addEventListener('click', onClick, true);
+    window.addEventListener('blur', onWindowBlur);
+    document.addEventListener('visibilitychange', onVisibilityChange);
 
     return () => {
         document.removeEventListener('pointerdown', onPointerDown);
         window.removeEventListener('pointermove', onPointerMove);
         window.removeEventListener('pointerup', onPointerUp);
         window.removeEventListener('pointercancel', onPointerCancel);
+        document.removeEventListener('lostpointercapture', onLostPointerCapture);
         document.removeEventListener('dragstart', onDragStart);
         document.removeEventListener('scroll', onScroll, true);
         document.removeEventListener('click', onClick, true);
+        window.removeEventListener('blur', onWindowBlur);
+        document.removeEventListener('visibilitychange', onVisibilityChange);
 
         if (bindingKey) {
             window[bindingKey] = false;

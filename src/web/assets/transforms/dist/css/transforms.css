@@ -201,11 +201,23 @@
     z-index: -1;
 }
 
+.bpi-frame-pane.is-hidden .bpi-frame-wrapper,
+.bpi-frame-pane.is-hidden .bpi-frame,
+.bpi-frame-pane.is-hidden #bpi-close-preview {
+    pointer-events: none;
+}
+
 .bpi-frame-pane.is-visible {
     pointer-events: auto;
     opacity: 1;
     z-index: 1000;
     background: #f3f7fc;
+}
+
+.bpi-frame-pane.is-visible .bpi-frame-wrapper,
+.bpi-frame-pane.is-visible .bpi-frame,
+.bpi-frame-pane.is-visible #bpi-close-preview {
+    pointer-events: auto;
 }
 
 .bpi-frame-toolbar {
@@ -729,6 +741,7 @@
     max-width: 100%;
     min-width: 0;
     overflow-x: auto;
+    touch-action: pan-y;
     padding: 0px 24px;
 }
 
@@ -892,8 +905,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 20px;
-    height: 20px;
+    width: 24px;
+    height: 24px;
     padding: 0;
     border: none;
     border-radius: 4px;
