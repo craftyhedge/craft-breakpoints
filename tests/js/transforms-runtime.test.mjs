@@ -8,6 +8,9 @@ function buildRuntimeDom() {
     <div id="bpi-frame-wrapper"></div>
     <div id="bpi-warnings"></div>
     <div id="bpi-visual-results"></div>
+    <nav id="bpi-transform-sets-sidebar">
+      <ul id="bpi-transform-sets-list"></ul>
+    </nav>
     <button id="bpi-open-preview"></button>
     <button id="bpi-run-processing"></button>
     <button id="bpi-stop-processing"></button>
@@ -1409,5 +1412,71 @@ describe('transforms runtime helper logic', () => {
         expect(statusElement.getAttribute('data-state')).toBe('idle');
 
         vi.useRealTimers();
+    });
+
+    describe('syncSidebarObservedUnsavedFromSavedNames', () => {
+        const seedSidebar = () => {
+            const list = document.getElementById('bpi-transform-sets-list');
+            list.innerHTML = `
+                <li data-set="heroImage" class="bpi-transform-sidebar-item-warning" data-observed-unsaved="1">
+                    <a href="#" class="bpi-transform-sidebar-link bpi-transform-sidebar-link-warning" data-set="heroImage">
+                        <span class="bpi-transform-sidebar-warning-icon" aria-hidden="true"><svg></svg></span>
+                        <span class="visually-hidden">Not saved: </span>
+                        heroImage
+                    </a>
+                </li>
+                <li data-set="cardImage" class="bpi-transform-sidebar-item-warning" data-observed-unsaved="1">
+                    <a href="#" class="bpi-transform-sidebar-link bpi-transform-sidebar-link-warning" data-set="cardImage">
+                        <span class="bpi-transform-sidebar-warning-icon" aria-hidden="true"><svg></svg></span>
+                        <span class="visually-hidden">Not saved: </span>
+                        cardImage
+                    </a>
+                </li>
+                <li data-set="staticImage">
+                    <a href="#" class="bpi-transform-sidebar-link" data-set="staticImage">staticImage</a>
+                </li>
+            `;
+        };
+
+        it('clears warning state for handles now present in saved names', () => {
+            seedSidebar();
+
+            hooks.syncSidebarObservedUnsavedFromSavedNames(['heroImage', 'staticImage']);
+
+            const hero = document.querySelector('li[data-set="heroImage"]');
+            expect(hero.classList.contains('bpi-transform-sidebar-item-warning')).toBe(false);
+            expect(hero.hasAttribute('data-observed-unsaved')).toBe(false);
+            const heroLink = hero.querySelector('a.bpi-transform-sidebar-link');
+            expect(heroLink.classList.contains('bpi-transform-sidebar-link-warning')).toBe(false);
+            expect(heroLink.querySelector('.bpi-transform-sidebar-warning-icon')).toBeNull();
+            expect(heroLink.querySelector('.visually-hidden')).toBeNull();
+
+            const card = document.querySelector('li[data-set="cardImage"]');
+            expect(card.classList.contains('bpi-transform-sidebar-item-warning')).toBe(true);
+            expect(card.getAttribute('data-observed-unsaved')).toBe('1');
+            expect(card.querySelector('.bpi-transform-sidebar-warning-icon')).not.toBeNull();
+        });
+
+        it('is a no-op when savedSetNames is not an array', () => {
+            seedSidebar();
+
+            hooks.syncSidebarObservedUnsavedFromSavedNames(null);
+            hooks.syncSidebarObservedUnsavedFromSavedNames(undefined);
+            hooks.syncSidebarObservedUnsavedFromSavedNames('heroImage');
+
+            const hero = document.querySelector('li[data-set="heroImage"]');
+            expect(hero.classList.contains('bpi-transform-sidebar-item-warning')).toBe(true);
+            expect(hero.getAttribute('data-observed-unsaved')).toBe('1');
+        });
+
+        it('ignores non-observed rows even if their handles match saved names', () => {
+            seedSidebar();
+
+            hooks.syncSidebarObservedUnsavedFromSavedNames(['staticImage']);
+
+            const staticItem = document.querySelector('li[data-set="staticImage"]');
+            expect(staticItem.classList.contains('bpi-transform-sidebar-item-warning')).toBe(false);
+            expect(staticItem.hasAttribute('data-observed-unsaved')).toBe(false);
+        });
     });
 });

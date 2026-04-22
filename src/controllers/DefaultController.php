@@ -53,11 +53,13 @@ class DefaultController extends Controller
         return $this->renderTemplate('craft-breakpoint-images/cp/transforms', [
             'selectedSubnavItem' => 'processing',
             'processingConfig' => $config,
+            'sidebarTransformRows' => $plugin->getTransformEditor()->buildSidebarTransformRows(),
             'currentBaseVersion' => $plugin->getTransformStore()->getCurrentVersion(),
             'applyCardOperationUrl' => UrlHelper::cpUrl('actions/craft-breakpoint-images/transforms/apply-card-operation'),
             'selectedSourceEntries' => $selectedSourceEntry ? [$selectedSourceEntry] : [],
             'previewCenter' => (bool)$plugin->getConfigService()->get('previewCenter', true),
             'transformsDeveloperActionsEnabled' => $plugin->getConfigService()->areTransformsDeveloperActionsEnabled(),
+            'canEditTransforms' => $plugin->getTelemetry()->canEditTransforms(),
         ]);
     }
 

@@ -179,6 +179,73 @@ class TelemetryService extends Component
             ->all();
     }
 
+    /**
+     * Returns one row per observed transform handle, carrying the most-recently
+     * observed entry reference for that handle.
+     *
+     * @return array<string, array{handle: string, entryId: ?int, sourceUrl: ?string, lastSeenAt: string}>
+     */
+    public function getMostRecentByHandle(): array
+    {
+        try {
+            $rows = (new Query())
+                ->select(['transformHandle', 'sourceElementId', 'sourceUrl', 'lastSeenAt'])
+                ->from('{{%bpi_transform_last_processed}}')
+                ->orderBy(['lastSeenAt' => SORT_DESC])
+                ->all();
+        } catch (\Throwable $e) {
+            Plugin::warning('Failed to read observed transform handles: ' . $e->getMessage());
+            return [];
+        }
+
+        $byHandle = [];
+        foreach ($rows as $row) {
+            $handle = trim((string)($row['transformHandle'] ?? ''));
+            if ($handle === '' || isset($byHandle[$handle])) {
+                continue;
+            }
+
+            $entryId = $row['sourceElementId'] ?? null;
+            $byHandle[$handle] = [
+                'handle' => $handle,
+                'entryId' => $entryId !== null ? (int)$entryId : null,
+                'sourceUrl' => isset($row['sourceUrl']) ? (string)$row['sourceUrl'] : null,
+                'lastSeenAt' => (string)($row['lastSeenAt'] ?? ''),
+            ];
+        }
+
+        return $byHandle;
+    }
+
+    /**
+     * Returns one row per observed transform handle whose handle is not present
+     * in $configuredHandles. The row carries the most-recently observed entry
+     * reference for that handle.
+     *
+     * @param array<int, string> $configuredHandles
+     * @return array<int, array{handle: string, entryId: ?int, sourceUrl: ?string, lastSeenAt: string}>
+     */
+    public function getObservedUnsavedHandles(array $configuredHandles): array
+    {
+        $configuredSet = [];
+        foreach ($configuredHandles as $handle) {
+            if (is_string($handle) && $handle !== '') {
+                $configuredSet[$handle] = true;
+            }
+        }
+
+        $byHandle = $this->getMostRecentByHandle();
+        foreach (array_keys($byHandle) as $handle) {
+            if (isset($configuredSet[$handle])) {
+                unset($byHandle[$handle]);
+            }
+        }
+
+        ksort($byHandle, SORT_STRING);
+
+        return array_values($byHandle);
+    }
+
     public function persistRunSnapshot(array $payload): bool
     {
         $db = Craft::$app->getDb();

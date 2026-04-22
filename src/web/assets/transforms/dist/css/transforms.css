@@ -181,6 +181,30 @@
     opacity: 0.9;
 }
 
+#bpi-transform-sets-list .bpi-transform-sidebar-item-warning > a.bpi-transform-sidebar-link {
+    color: var(--error-color);
+}
+
+#bpi-transform-sets-list .bpi-transform-sidebar-item-warning > a.bpi-transform-sidebar-link:hover {
+    color: var(--error-color);
+}
+
+.bpi-transform-sidebar-warning-icon {
+    display: inline-flex;
+    align-items: center;
+    width: 12px;
+    height: 12px;
+    margin-right: 6px;
+    color: var(--error-color);
+    vertical-align: -1px;
+}
+
+.bpi-transform-sidebar-warning-icon svg {
+    width: 12px;
+    height: 12px;
+    display: block;
+}
+
 .bpi-frame-pane,
 .bpi-output-pane {
     padding-top: 14px;

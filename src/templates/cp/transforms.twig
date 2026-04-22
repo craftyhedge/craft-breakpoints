@@ -2,14 +2,16 @@
 {% import '_includes/forms' as forms %}
 {% set title = 'Transform Sets'|t('craft-breakpoint-images') %}
 {% set selectedSubnavItem = selectedSubnavItem ?? 'processing' %}
-{% set toolbar %}
-    <div class="bpi-header-status-wrap">
-        <span id="bpi-status" class="light bpi-header-status" data-role="status">Idle</span>
-        <div id="bpi-progress-host" class="bpi-progress-host" aria-hidden="true" hidden></div>
-    </div>
-{% endset %}
+{% if canEditTransforms ?? false %}
+    {% set toolbar %}
+        <div class="bpi-header-status-wrap">
+            <span id="bpi-status" class="light bpi-header-status" data-role="status">Idle</span>
+            <div id="bpi-progress-host" class="bpi-progress-host" aria-hidden="true" hidden></div>
+        </div>
+    {% endset %}
+{% endif %}
 {% set reviewToolbarActions %}
-    {% if transformsDeveloperActionsEnabled ?? false %}
+    {% if (canEditTransforms ?? false) and (transformsDeveloperActionsEnabled ?? false) %}
         <div class="bpi-frame-toolbar-actions bpi-page-title-actions">
             <button id="bpi-open-preview" class="btn small bpi-toolbar-icon-btn" type="button" title="Open Preview" aria-label="Open Preview" disabled>
                 <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
@@ -31,26 +33,38 @@
     <div class="bpi-page-title-wrap">
         <h1 id="page-heading" class="screen-title" title="{{ title }}">{{ title }}</h1>
         {{ reviewToolbarActions }}
-        <div class="bpi-results-settings-toggle">
-            <div id="bpi-results-settings-lightswitch" class="lightswitch small bpi-results-settings-lightswitch" role="switch" tabindex="0" aria-label="{{ 'Edit'|t('craft-breakpoint-images') }}" aria-checked="false">
-                <div class="lightswitch-container">
-                    <div class="handle"></div>
+        {% if canEditTransforms ?? false %}
+            <div class="bpi-results-settings-toggle">
+                <div id="bpi-results-settings-lightswitch" class="lightswitch small bpi-results-settings-lightswitch" role="switch" tabindex="0" aria-label="{{ 'Edit'|t('craft-breakpoint-images') }}" aria-checked="false">
+                    <div class="lightswitch-container">
+                        <div class="handle"></div>
+                    </div>
                 </div>
+                <span>{{ 'Edit'|t('craft-breakpoint-images') }}</span>
             </div>
-            <span>{{ 'Edit'|t('craft-breakpoint-images') }}</span>
-        </div>
+        {% endif %}
     </div>
     <div id="revision-indicators"></div>
 {% endblock %}
 
 {% block sidebar %}
-    {% set transformSets = processingConfig.sets ?? {} %}
+    {% set sidebarRows = sidebarTransformRows ?? [] %}
     <h2 id="bpi-results-heading" class="heading">{{ 'Saved Sets'|t('craft-breakpoint-images') }}</h2>
     <nav id="bpi-transform-sets-sidebar" aria-label="{{ 'Transform Sets'|t('craft-breakpoint-images') }}">
         <ul id="bpi-transform-sets-list">
-            {% for setName in transformSets|keys %}
-                <li data-set="{{ setName|e('html_attr') }}">
-                    <a href="#" class="bpi-transform-sidebar-link" data-set="{{ setName|e('html_attr') }}">{{ setName }}</a>
+            {% for row in sidebarRows %}
+                {% set isObservedUnsaved = row.isObservedUnsaved ?? false %}
+                <li data-set="{{ row.name|e('html_attr') }}"
+                    {% if isObservedUnsaved %}class="bpi-transform-sidebar-item-warning" data-observed-unsaved="1"{% endif %}>
+                    <a href="#" class="bpi-transform-sidebar-link{% if isObservedUnsaved %} bpi-transform-sidebar-link-warning{% endif %}" data-set="{{ row.name|e('html_attr') }}">
+                        {% if isObservedUnsaved %}
+                            <span class="bpi-transform-sidebar-warning-icon" aria-hidden="true" title="{{ 'Observed but not saved'|t('craft-breakpoint-images') }}">
+                                <svg viewBox="0 0 16 16" focusable="false"><path d="M8 1.5 15 14H1L8 1.5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 6v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="12" r="0.9" fill="currentColor"/></svg>
+                            </span>
+                            <span class="visually-hidden">{{ 'Not saved:'|t('craft-breakpoint-images') }} </span>
+                        {% endif %}
+                        {{ row.name }}
+                    </a>
                 </li>
             {% else %}
                 <li><a>{{ 'No transform sets found.'|t('craft-breakpoint-images') }}</a></li>
@@ -60,8 +74,8 @@
 {% endblock %}
 
 {% block actionButton %}
-    <div class="buttons bpi-header-controls">
-        <div class="bpi-source-entry-control">
+    <div class="buttons bpi-header-controls"{% if not (canEditTransforms ?? false) %} hidden aria-hidden="true" style="display: none !important;"{% endif %}>
+        <div class="bpi-source-entry-control"{% if not (canEditTransforms ?? false) %} hidden aria-hidden="true"{% endif %}>
             {{ forms.elementSelect({
                 id: 'bpi-source-entry',
                 name: 'bpi-source-entry-id',
@@ -74,15 +88,24 @@
         {{ forms.button({
             id: 'bpi-run-processing',
             label: 'Process'|t('craft-breakpoint-images'),
-            disabled: true
+            disabled: true,
+            attributes: not (canEditTransforms ?? false) ? {
+                hidden: true,
+                'aria-hidden': 'true'
+            } : {}
         }) }}
         {{ forms.button({
             id: 'bpi-stop-processing',
             class: 'bpi-stop-processing',
             label: 'Quit Waiting'|t('craft-breakpoint-images'),
-            attributes: {
-                hidden: true
-            }
+            attributes: not (canEditTransforms ?? false)
+                ? {
+                    hidden: true,
+                    'aria-hidden': 'true'
+                }
+                : {
+                    hidden: true
+                }
         }) }}
     </div>
 

@@ -386,6 +386,48 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         });
     }
 
+    function bindProcessObservedEntryButtons() {
+        if (document.documentElement.dataset.bpiProcessObservedBound === '1') {
+            return;
+        }
+
+        document.documentElement.dataset.bpiProcessObservedBound = '1';
+
+        document.addEventListener('click', (event) => {
+            const target = event.target instanceof Element
+                ? event.target.closest('button.bpi-warning-process-observed[data-bpi-action="processObservedEntry"]')
+                : null;
+
+            if (!(target instanceof HTMLButtonElement) || target.disabled) {
+                return;
+            }
+
+            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+                return;
+            }
+
+            event.preventDefault();
+
+            void (async () => {
+                const entryId = parsePositiveInt(target.dataset.entryId);
+                if (!entryId) {
+                    setStatus('No observed entry is available to process.');
+                    return;
+                }
+
+                const selected = await setSourceEntryFromRun(entryId);
+                if (!selected) {
+                    setStatus('Could not select the observed entry.');
+                    return;
+                }
+
+                if (elements.btnRun) {
+                    elements.btnRun.click();
+                }
+            })();
+        });
+    }
+
     function updateCopyButtonVisibility() {
         if (!elements.btnCopy) {
             return;
@@ -488,6 +530,43 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             link.classList.toggle('bpi-transform-sidebar-link-disabled', !isAvailable);
             link.setAttribute('aria-disabled', isAvailable ? 'false' : 'true');
             link.tabIndex = isAvailable ? 0 : -1;
+        });
+    }
+
+    function syncSidebarObservedUnsavedFromSavedNames(savedSetNames) {
+        const list = elements.transformSetsList;
+        if (!(list instanceof HTMLElement) || !Array.isArray(savedSetNames)) {
+            return;
+        }
+
+        const savedSet = new Set(
+            savedSetNames
+                .filter((name) => typeof name === 'string' && name !== '')
+                .map((name) => String(name))
+        );
+
+        const items = Array.from(list.querySelectorAll('li[data-observed-unsaved="1"][data-set]'));
+        items.forEach((item) => {
+            const setName = String(item.getAttribute('data-set') || '').trim();
+            if (setName === '' || !savedSet.has(setName)) {
+                return;
+            }
+
+            item.classList.remove('bpi-transform-sidebar-item-warning');
+            item.removeAttribute('data-observed-unsaved');
+
+            const link = item.querySelector('a.bpi-transform-sidebar-link');
+            if (link instanceof HTMLElement) {
+                link.classList.remove('bpi-transform-sidebar-link-warning');
+                const icon = link.querySelector('.bpi-transform-sidebar-warning-icon');
+                if (icon) {
+                    icon.remove();
+                }
+                const srOnly = link.querySelector('.visually-hidden');
+                if (srOnly) {
+                    srOnly.remove();
+                }
+            }
         });
     }
 
@@ -1714,7 +1793,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
         if (kind === 'success') {
             const shouldReprocess = state.lastResult
-                && pendingTransformEntries.some(({ action }) => action === 'renderedValues' || action === 'deleteSet');
+                && pendingTransformEntries.some(({ action }) => action === 'renderedValues');
 
             pendingTransformEntries.forEach(({ transformName, action }) => {
                 if (action === 'deleteSet' && !state.lastResult) {
@@ -1780,7 +1859,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
             void refreshReviewCardsAfterSuccessfulUpdate()
                 .then(() => {
-                    if (state.lastResult && (action === 'renderedValues' || action === 'deleteSet')) {
+                    if (state.lastResult && action === 'renderedValues') {
                         return reprocessAfterRenderedValuesApplied();
                     }
                 })
@@ -2043,6 +2122,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         if (elements.visualResults && typeof payload.visualResultsHtml === 'string') {
             elements.visualResults.innerHTML = payload.visualResultsHtml;
 
+            syncSidebarObservedUnsavedFromSavedNames(payload.savedSetNames);
             syncSidebarTransformOrderToCards();
             reapplyTransformUpdateStatuses();
             scheduleBreakpointPreviewHeightSync();
@@ -2630,6 +2710,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             renderInitialStoredReview,
             renderResultReview,
             applyRenderedReviewPayload,
+            syncSidebarObservedUnsavedFromSavedNames,
             setLastResultForTests: (result) => {
                 state.lastResult = result;
             },
@@ -2667,6 +2748,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     bindSourceSelectionSync();
     bindEntrySlideoutLinks();
     bindProcessAgainButtons();
+    bindProcessObservedEntryButtons();
     bindAssetPaginationReviewRerender();
     bindTransformSidebarCardNavigation();
     setButtonsDisabled(false);

@@ -46,6 +46,46 @@ class TransformEditor extends Component
         return is_string($encoded) ? $encoded : '{"transforms":{}}';
     }
 
+    /**
+     * Builds sidebar rows combining observed-unsaved transform handles (first)
+     * with configured transform sets. Used by the transforms page sidebar.
+     *
+     * @return array<int, array{name: string, isObservedUnsaved: bool, entryId: ?int, sourceUrl: ?string}>
+     */
+    public function buildSidebarTransformRows(): array
+    {
+        $configured = $this->getReviewStoredTransforms();
+        $configuredNames = array_values(array_filter(
+            array_keys($configured),
+            static fn($name): bool => is_string($name) && $name !== '',
+        ));
+
+        $rows = [];
+
+        if ($this->_plugin !== null) {
+            $observed = $this->_plugin->getTelemetry()->getObservedUnsavedHandles($configuredNames);
+            foreach ($observed as $entry) {
+                $rows[] = [
+                    'name' => (string)$entry['handle'],
+                    'isObservedUnsaved' => true,
+                    'entryId' => $entry['entryId'] ?? null,
+                    'sourceUrl' => $entry['sourceUrl'] ?? null,
+                ];
+            }
+        }
+
+        foreach ($configuredNames as $name) {
+            $rows[] = [
+                'name' => $name,
+                'isObservedUnsaved' => false,
+                'entryId' => null,
+                'sourceUrl' => null,
+            ];
+        }
+
+        return $rows;
+    }
+
     public function applyDraft(array $draft, ?string $expectedVersion = null): array
     {
         $validation = $this->defaultValidation();
@@ -1154,6 +1194,10 @@ class TransformEditor extends Component
             'editScopeBySet' => $normalizedScopeState,
             'editTabBySet' => $normalizedTabState,
             'selectedAssetKeyBySet' => $normalizedSelectedAssetKeyBySet,
+            'savedSetNames' => array_values(array_filter(
+                array_keys($this->getReviewStoredTransforms()),
+                static fn($name): bool => is_string($name) && $name !== '',
+            )),
         ];
     }
 
@@ -1252,6 +1296,48 @@ class TransformEditor extends Component
             }
         }
 
+        if ($this->_plugin !== null) {
+            $configuredNames = array_values(array_filter(
+                array_keys($storedTransforms),
+                static fn($name): bool => is_string($name) && $name !== '',
+            ));
+            $observedUnsaved = $this->_plugin->getTelemetry()->getObservedUnsavedHandles($configuredNames);
+            $observedBreakpoints = $this->getBreakpointsForTransform(false);
+            foreach ($observedUnsaved as $observedEntry) {
+                $handle = (string)$observedEntry['handle'];
+                if ($handle === '') {
+                    continue;
+                }
+
+                $placeholderSrc = $this->buildInitialReviewPlaceholderDataUri(null, null, null);
+                foreach ($observedBreakpoints as $breakpoint) {
+                    if (!is_int($breakpoint) || $breakpoint <= 0) {
+                        continue;
+                    }
+
+                    $syntheticRowsByBreakpoint[$breakpoint][] = [
+                        'transform' => $handle,
+                        'assetId' => '',
+                        'title' => $handle . ' ' . $breakpoint . 'px placeholder',
+                        'enabled' => true,
+                        'isVisible' => true,
+                        'loaded' => false,
+                        'broken' => false,
+                        'unresolved' => false,
+                        'sourceUsed' => $placeholderSrc,
+                        'src' => $placeholderSrc,
+                        'rendered' => ['width' => 0, 'height' => 0],
+                        'intrinsic' => ['width' => 0, 'height' => 0],
+                        'transformDimensions' => [
+                            'width' => null,
+                            'height' => null,
+                            'autoDimension' => null,
+                        ],
+                    ];
+                }
+            }
+        }
+
         return $this->renderResultReview(
             ['rowsByBreakpoint' => $syntheticRowsByBreakpoint],
             $editScopeBySet,
@@ -1264,7 +1350,7 @@ class TransformEditor extends Component
         );
     }
 
-    private function renderReviewWarningsMarkup(array $warnings, bool $showEmptyState = true): string
+    private function renderReviewWarningsMarkup(array $warnings, bool $showEmptyState = true, string $reviewMode = self::REVIEW_MODE_PROCESSED): string
     {
         if ($warnings === []) {
             return $showEmptyState
@@ -1297,7 +1383,7 @@ class TransformEditor extends Component
             $rowCount = isset($warning['rowCount']) && is_numeric($warning['rowCount'])
                 ? '<div class="bpi-warning-detail">rows: ' . (int)$warning['rowCount'] . '</div>'
                 : '';
-            $warningActions = $this->buildReviewWarningActionsMarkup((string)($warning['code'] ?? 'warning'));
+            $warningActions = $this->buildReviewWarningActionsMarkup(is_array($warning) ? $warning : [], $reviewMode);
             $messageMarkup = '<div class="bpi-warning-detail"><p>' . $message . '</p></div>';
 
             $chunks[] = sprintf(
@@ -1337,19 +1423,60 @@ class TransformEditor extends Component
         };
     }
 
-    private function buildReviewWarningActionsMarkup(string $code): string
+    private function buildReviewWarningActionsMarkup(array $warning, string $reviewMode = self::REVIEW_MODE_PROCESSED): string
     {
+        $code = (string)($warning['code'] ?? '');
         if ($code !== 'missing-set-definitions') {
             return '';
         }
 
+        if ($this->_plugin === null || !$this->_plugin->getTelemetry()->canEditTransforms()) {
+            return '';
+        }
+
+        if ($reviewMode === self::REVIEW_MODE_PROCESSED) {
+            return '<div class="bpi-warning-actions">'
+                . '<button type="button" class="btn small bpi-warning-apply-rendered"'
+                . ' data-bpi-action="renderedValues"'
+                . ' aria-label="Set all breakpoints to rendered values"'
+                . ' title="Set all breakpoints to rendered values"'
+                . ' data-on:click="@post(el.closest(\'.bpi-transforms-page\').dataset.applyCardOperationUrl || \'/actions/craft-breakpoint-images/transforms/apply-card-operation\', {contentType: \'json\', payload: {setName: el.closest(\'.bpi-transform-card\').dataset.set || \'\', field: \'renderedValues\', includeEscapeWidth: (el.closest(\'.bpi-transform-card\').dataset.includeEscapeWidth || \'0\') === \'1\', renderedRows: JSON.parse(el.closest(\'.bpi-transform-card\').dataset.renderedRows || \'[]\'), baseVersion: Number($editor.baseVersion || 1), ...(Craft && Craft.csrfTokenName && Craft.csrfTokenValue ? {[Craft.csrfTokenName]: Craft.csrfTokenValue} : {})}})">'
+                . 'Set to rendered'
+                . '</button>'
+                . '</div>';
+        }
+
+        $entryId = (int)($warning['entryId'] ?? 0);
+        $entryAvailable = ($warning['entryAvailable'] ?? false) === true;
+        $entryMissing = ($warning['entryMissing'] ?? false) === true;
+
+        if ($entryId <= 0 || !$entryAvailable) {
+            if ($entryId <= 0) {
+                $tooltip = 'No observed entry is available to process.';
+            } elseif ($entryMissing) {
+                $tooltip = 'Observed entry could not be found.';
+            } else {
+                $tooltip = 'Observed entry is not available in the current site.';
+            }
+
+            return '<div class="bpi-warning-actions">'
+                . '<button type="button" class="btn small bpi-warning-process-observed"'
+                . ' data-bpi-action="processObservedEntry"'
+                . ' disabled'
+                . ' aria-label="' . $this->escapeReviewHtml($tooltip) . '"'
+                . ' title="' . $this->escapeReviewHtml($tooltip) . '">'
+                . 'Process observed entry'
+                . '</button>'
+                . '</div>';
+        }
+
         return '<div class="bpi-warning-actions">'
-            . '<button type="button" class="btn small bpi-warning-apply-rendered"'
-            . ' data-bpi-action="renderedValues"'
-            . ' aria-label="Set all breakpoints to rendered values"'
-            . ' title="Set all breakpoints to rendered values"'
-            . ' data-on:click="@post(el.closest(\'.bpi-transforms-page\').dataset.applyCardOperationUrl || \'/actions/craft-breakpoint-images/transforms/apply-card-operation\', {contentType: \'json\', payload: {setName: el.closest(\'.bpi-transform-card\').dataset.set || \'\', field: \'renderedValues\', includeEscapeWidth: (el.closest(\'.bpi-transform-card\').dataset.includeEscapeWidth || \'0\') === \'1\', renderedRows: JSON.parse(el.closest(\'.bpi-transform-card\').dataset.renderedRows || \'[]\'), baseVersion: Number($editor.baseVersion || 1), ...(Craft && Craft.csrfTokenName && Craft.csrfTokenValue ? {[Craft.csrfTokenName]: Craft.csrfTokenValue} : {})}})">'
-            . 'Set to rendered'
+            . '<button type="button" class="btn small bpi-warning-process-observed"'
+            . ' data-bpi-action="processObservedEntry"'
+            . ' data-entry-id="' . $entryId . '"'
+            . ' aria-label="Process observed entry"'
+            . ' title="Process observed entry">'
+            . 'Process observed entry'
             . '</button>'
             . '</div>';
     }
@@ -1400,7 +1527,7 @@ class TransformEditor extends Component
 
             $storedTransformConfig = $this->getReviewTransformConfig($storedTransforms, $transformName);
             $cardWarnings = $warningsByTransform[$transformName] ?? [];
-            $cardWarningsMarkup = $this->renderReviewWarningsMarkup($cardWarnings, false);
+            $cardWarningsMarkup = $this->renderReviewWarningsMarkup($cardWarnings, false, $reviewMode);
             $includeEscapeWidth = ($storedTransformConfig['includeEscapeWidth'] ?? false) === true;
             if ($storedTransformConfig === null) {
                 $includeEscapeWidth = $escapeBreakpoint !== null && in_array($escapeBreakpoint, $observedBreakpoints, true);
@@ -2734,28 +2861,19 @@ class TransformEditor extends Component
             return [];
         }
 
-        $recentlySeen = $telemetry->getRecentlySeen();
-        if ($recentlySeen === []) {
+        $mostRecent = $telemetry->getMostRecentByHandle();
+        if ($mostRecent === []) {
             return [];
         }
 
         $byTransform = [];
         $entryIds = [];
-        foreach ($recentlySeen as $seenRow) {
-            if (!is_array($seenRow)) {
-                continue;
-            }
-
-            $handle = trim((string)($seenRow['transformHandle'] ?? ''));
-            if ($handle === '' || isset($byTransform[$handle])) {
-                continue;
-            }
-
-            $sourceElementId = isset($seenRow['sourceElementId']) ? (int)$seenRow['sourceElementId'] : 0;
+        foreach ($mostRecent as $handle => $row) {
+            $sourceElementId = (int)($row['entryId'] ?? 0);
             $byTransform[$handle] = [
-                'lastSeenAt' => $seenRow['lastSeenAt'] ?? null,
+                'lastSeenAt' => $row['lastSeenAt'] ?? null,
                 'sourceElementId' => $sourceElementId,
-                'sourceUrl' => $seenRow['sourceUrl'] ?? null,
+                'sourceUrl' => $row['sourceUrl'] ?? null,
                 'entry' => null,
             ];
 
@@ -2767,19 +2885,41 @@ class TransformEditor extends Component
         $entryIds = array_keys($entryIds);
         $entriesById = [];
         if ($entryIds !== []) {
-            $entries = Entry::find()
+            $currentSiteId = Craft::$app->getSites()->getCurrentSite()->id;
+            $currentSiteEntries = Entry::find()
                 ->id($entryIds)
                 ->status(null)
-                ->site('*')
+                ->siteId($currentSiteId)
                 ->indexBy('id')
                 ->all();
-            foreach ($entries as $id => $entry) {
+
+            foreach ($currentSiteEntries as $id => $entry) {
                 $entriesById[(int)$id] = [
                     'id' => $entry->id,
                     'title' => (string)$entry->title,
                     'cpEditUrl' => $entry->cpEditUrl ?? '#',
                     'siteId' => $entry->siteId,
+                    'availableInCurrentSite' => true,
                 ];
+            }
+
+            $remainingIds = array_values(array_diff($entryIds, array_keys($entriesById)));
+            if ($remainingIds !== []) {
+                $otherSiteEntries = Entry::find()
+                    ->id($remainingIds)
+                    ->status(null)
+                    ->site('*')
+                    ->indexBy('id')
+                    ->all();
+                foreach ($otherSiteEntries as $id => $entry) {
+                    $entriesById[(int)$id] = [
+                        'id' => $entry->id,
+                        'title' => (string)$entry->title,
+                        'cpEditUrl' => $entry->cpEditUrl ?? '#',
+                        'siteId' => $entry->siteId,
+                        'availableInCurrentSite' => false,
+                    ];
+                }
             }
         }
 
@@ -3788,19 +3928,51 @@ class TransformEditor extends Component
 
         $observedTransformNames = $this->collectReviewTransformNames($rowsByBreakpoint);
         $missingDefinitions = array_values(array_diff($observedTransformNames, $configTransformNames));
+        if ($missingDefinitions === []) {
+            return $warningsByTransform;
+        }
+
+        $observedDataByTransform = $this->resolveObservedDataByTransform();
 
         foreach ($missingDefinitions as $transformName) {
-            $warningsByTransform[$transformName][] = $this->buildMissingSetDefinitionWarning();
+            $observed = $observedDataByTransform[$transformName] ?? null;
+            $entryId = 0;
+            $entryAvailable = false;
+            $entryMissing = false;
+            if (is_array($observed)) {
+                $entryCandidate = $observed['entry'] ?? null;
+                if (is_array($entryCandidate) && (int)($entryCandidate['id'] ?? 0) > 0) {
+                    $entryId = (int)$entryCandidate['id'];
+                    $entryAvailable = ($entryCandidate['availableInCurrentSite'] ?? false) === true;
+                } elseif (($observed['sourceElementId'] ?? 0) > 0) {
+                    $entryId = (int)$observed['sourceElementId'];
+                    $entryMissing = true;
+                }
+            }
+
+            $warningsByTransform[$transformName][] = $this->buildMissingSetDefinitionWarning(
+                $entryId,
+                $entryAvailable,
+                $entryMissing,
+            );
         }
 
         return $warningsByTransform;
     }
 
-    private function buildMissingSetDefinitionWarning(): array
+    private function buildMissingSetDefinitionWarning(int $entryId = 0, bool $entryAvailable = false, bool $entryMissing = false): array
     {
+        $canEdit = $this->_plugin !== null && $this->_plugin->getTelemetry()->canEditTransforms();
+        $message = $canEdit
+            ? 'No transforms are saved for this set. Process the observed entry to capture rendered dimensions, or edit the transforms.'
+            : 'No transforms are saved for this set. Process in a development environment.';
+
         return [
             'code' => 'missing-set-definitions',
-            'message' => 'No transforms are saved for this set. Apply the rendered dimensions and/or edit the transforms.',
+            'message' => $message,
+            'entryId' => $entryId,
+            'entryAvailable' => $entryAvailable,
+            'entryMissing' => $entryMissing,
         ];
     }
 

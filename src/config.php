@@ -24,8 +24,6 @@ return [
     'nativeLazyLoadingEnabled' => true,
     'previewCenter' => true,
     'enableTelemetry' => true,
-    'transformsDeveloperActionsEnabled' => false,
-    'processingDiagnosticsEnabled' => false,
     'dpr' => [1, 2],
     'allowTransformEditing' => true,
 ];
