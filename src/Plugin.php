@@ -18,6 +18,7 @@ use craft\web\twig\variables\CraftVariable;
 use craftyhedge\craftbreakpointimages\models\Settings;
 use craftyhedge\craftbreakpointimages\services\BreakpointPolicy;
 use craftyhedge\craftbreakpointimages\services\ConfigService;
+use craftyhedge\craftbreakpointimages\services\DatabaseService;
 use craftyhedge\craftbreakpointimages\services\ImageRenderer;
 use craftyhedge\craftbreakpointimages\services\Images;
 use craftyhedge\craftbreakpointimages\services\ImageTransforms;
@@ -59,6 +60,7 @@ class Plugin extends BasePlugin
                 'processingConfig' => ProcessingConfig::class,
                 'transformEditor' => TransformEditor::class,
                 'telemetry' => TelemetryService::class,
+                'database' => DatabaseService::class,
             ],
         ];
     }
@@ -84,6 +86,8 @@ class Plugin extends BasePlugin
                 $event->rules['craft-breakpoint-images'] = 'craft-breakpoint-images/default/index';
                 $event->rules['craft-breakpoint-images/settings'] = 'craft-breakpoint-images/default/settings';
                 $event->rules['craft-breakpoint-images/processing'] = 'craft-breakpoint-images/default/transforms';
+                $event->rules['POST craft-breakpoint-images/database/cleanup-orphaned'] = 'craft-breakpoint-images/database/cleanup-orphaned';
+                $event->rules['POST craft-breakpoint-images/database/clear-all'] = 'craft-breakpoint-images/database/clear-all';
             }
         );
 
@@ -150,6 +154,11 @@ class Plugin extends BasePlugin
     public function getTelemetry(): TelemetryService
     {
         return $this->get('telemetry');
+    }
+
+    public function getDatabase(): DatabaseService
+    {
+        return $this->get('database');
     }
 
     public static function info(string $message): void

@@ -25,6 +25,8 @@ class DefaultController extends Controller
         return $this->renderTemplate('craft-breakpoint-images/cp/settings', [
             'settings' => Plugin::getInstance()->getSettings(),
             'selectedSubnavItem' => 'settings',
+            'databaseStats' => Plugin::getInstance()->getDatabase()->getTableStats(),
+            'databaseLatestRunAt' => Plugin::getInstance()->getDatabase()->getLatestRunTimestamp(),
         ]);
     }
 

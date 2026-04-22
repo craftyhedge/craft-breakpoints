@@ -1498,10 +1498,6 @@ class TransformEditor extends Component
     ): string {
         $isProcessedReview = $reviewMode === self::REVIEW_MODE_PROCESSED;
         $transformNames = $this->collectReviewTransformNames($rowsByBreakpoint);
-        $transformNames = $this->orderReviewTransformNames($transformNames, $warningsByTransform, $preferredOrderBySet);
-        if ($transformNames === []) {
-            return '<div class="bpi-empty-state light">No transform sets found in results.</div>';
-        }
 
         $configuredBreakpoints = $breakpoints !== [] ? $breakpoints : $this->getReviewConfiguredBreakpoints();
         $escapeBreakpoint = $this->getReviewEscapeBreakpoint();
@@ -1509,6 +1505,26 @@ class TransformEditor extends Component
         $storedSavedHeightsByTransform = $this->buildStoredSavedHeightsByTransformAndBreakpoint();
         $latestRunSnapshot = $this->getLatestRunSnapshotForReview();
         $latestRunSummariesByTransform = $this->buildLatestRunSummaryByTransform($latestRunSnapshot);
+
+        $mismatchTransformNames = [];
+        if ($isProcessedReview) {
+            foreach ($latestRunSummariesByTransform as $handle => $summary) {
+                if (is_string($handle) && ($summary['hasMismatch'] ?? false) === true) {
+                    $mismatchTransformNames[$handle] = true;
+                }
+            }
+        }
+
+        $transformNames = $this->orderReviewTransformNames(
+            $transformNames,
+            $warningsByTransform,
+            $preferredOrderBySet,
+            $mismatchTransformNames,
+        );
+        if ($transformNames === []) {
+            return '<div class="bpi-empty-state light">No transform sets found in results.</div>';
+        }
+
         $runEntryData = $this->resolveRunEntryData($latestRunSnapshot);
         $observedDataByTransform = $this->resolveObservedDataByTransform();
         $cards = [];
@@ -2172,6 +2188,7 @@ class TransformEditor extends Component
         array $transformNames,
         array $warningsByTransform,
         array $preferredOrderBySet = [],
+        array $mismatchTransformNames = [],
     ): array
     {
         $preferredPositions = [];
@@ -2188,9 +2205,9 @@ class TransformEditor extends Component
             $preferredPositions[$normalizedName] = $index;
         }
 
-        usort($transformNames, static function (string $left, string $right) use ($warningsByTransform, $preferredPositions): int {
-            $leftHasWarnings = !empty($warningsByTransform[$left]);
-            $rightHasWarnings = !empty($warningsByTransform[$right]);
+        usort($transformNames, static function (string $left, string $right) use ($warningsByTransform, $preferredPositions, $mismatchTransformNames): int {
+            $leftHasWarnings = !empty($warningsByTransform[$left]) || !empty($mismatchTransformNames[$left]);
+            $rightHasWarnings = !empty($warningsByTransform[$right]) || !empty($mismatchTransformNames[$right]);
 
             if ($leftHasWarnings !== $rightHasWarnings) {
                 return $leftHasWarnings ? -1 : 1;

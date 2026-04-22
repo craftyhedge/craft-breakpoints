@@ -225,3 +225,138 @@
         warning: _self.warning('svgTemplatePath', configFileName)
     }) }}
 </div>
+
+<div id="database" {% if useTabs and selectedTab != 'database' %}class="hidden"{% endif %}>
+    <h2>{{ 'Database Utilities'|t('craft-breakpoint-images') }}</h2>
+    <p class="instructions">{{ 'Inspect and clean up plugin-owned tables.'|t('craft-breakpoint-images') }}</p>
+
+    <table id="bpi-db-stats" class="bpi-db-stats">
+        <tbody>
+        {% for row in databaseStats ?? [] %}
+            <tr data-stat-key="{{ row.key }}">
+                <th scope="row">
+                    {{ row.label|t('craft-breakpoint-images') }}
+                    {% if not row.exists %}
+                        <span class="error">{{ 'missing'|t('craft-breakpoint-images') }}</span>
+                    {% endif %}
+                </th>
+                <td data-stat-rows>{{ row.rows }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    {% if databaseLatestRunAt %}
+        <p class="light">
+            {{ 'Last run snapshot recorded at'|t('craft-breakpoint-images') }}
+            <strong>{{ databaseLatestRunAt|datetime('short') }}</strong>.
+        </p>
+    {% endif %}
+
+    <style>
+        .bpi-db-stats { width: auto; border-collapse: collapse; margin: 10px 0; }
+        .bpi-db-stats th,
+        .bpi-db-stats td { padding: 4px 16px 4px 0; border: 0; font-size: 13px; line-height: 1.4; font-weight: 400; }
+        .bpi-db-stats th { text-align: left; }
+        .bpi-db-stats td { text-align: right; font-variant-numeric: tabular-nums; }
+    </style>
+
+    <hr>
+
+    <h3>{{ 'Clean up orphaned data'|t('craft-breakpoint-images') }}</h3>
+    <p class="instructions">{{ 'Deletes rows whose transform handle is no longer in the saved config, and rows that reference deleted entries. Safe to run anytime.'|t('craft-breakpoint-images') }}</p>
+    <div class="buttons">
+        {{ forms.button({
+            label: 'Clean up'|t('craft-breakpoint-images'),
+            icon: 'broom',
+            spinner: true,
+            busyMessage: 'Cleaning up…'|t('craft-breakpoint-images'),
+            attributes: {
+                data: {
+                    'bpi-db-action': 'cleanup-orphaned',
+                    'bpi-db-confirm': 'Run orphan cleanup now?'|t('craft-breakpoint-images'),
+                },
+            },
+        }) }}
+    </div>
+
+    <hr>
+
+    <h3>{{ 'Clear all plugin data'|t('craft-breakpoint-images') }}</h3>
+    <p class="instructions warning">{{ 'Empties every plugin-owned table. Transform configuration is preserved, but telemetry, snapshots, and preview cache are removed.'|t('craft-breakpoint-images') }}</p>
+    <div class="buttons">
+        {{ forms.button({
+            label: 'Clear all'|t('craft-breakpoint-images'),
+            icon: 'trash',
+            spinner: true,
+            busyMessage: 'Clearing…'|t('craft-breakpoint-images'),
+            class: ['secondary'],
+            attributes: {
+                data: {
+                    'bpi-db-action': 'clear-all',
+                    'bpi-db-confirm': 'Permanently clear ALL plugin data? This cannot be undone.'|t('craft-breakpoint-images'),
+                },
+            },
+        }) }}
+    </div>
+</div>
+
+{% js %}
+(function() {
+    if (typeof Craft === 'undefined' || !Craft.sendActionRequest) {
+        return;
+    }
+
+    var actionMap = {
+        'cleanup-orphaned': 'craft-breakpoint-images/database/cleanup-orphaned',
+        'clear-all': 'craft-breakpoint-images/database/clear-all'
+    };
+
+    function updateStats(stats) {
+        if (!Array.isArray(stats)) return;
+        stats.forEach(function(row) {
+            var tr = document.querySelector('#bpi-db-stats tr[data-stat-key="' + row.key + '"]');
+            if (!tr) return;
+            var cell = tr.querySelector('[data-stat-rows]');
+            if (cell) cell.textContent = row.rows;
+        });
+    }
+
+    document.querySelectorAll('[data-bpi-db-action]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var key = btn.getAttribute('data-bpi-db-action');
+            var action = actionMap[key];
+            if (!action) return;
+
+            var confirmMessage = btn.getAttribute('data-bpi-db-confirm');
+            if (confirmMessage && !window.confirm(confirmMessage)) {
+                return;
+            }
+
+            btn.disabled = true;
+            btn.setAttribute('aria-busy', 'true');
+            Craft.sendActionRequest('POST', action)
+                .then(function(response) {
+                    var data = response && response.data ? response.data : {};
+                    if (data.message) {
+                        Craft.cp.displayNotice(data.message);
+                    }
+                    updateStats(data.stats);
+                })
+                .catch(function(error) {
+                    var msg = (error && error.response && error.response.data && error.response.data.message)
+                        ? error.response.data.message
+                        : Craft.t('craft-breakpoint-images', 'Database action failed.');
+                    Craft.cp.displayError(msg);
+                })
+                .finally(function() {
+                    btn.disabled = false;
+                    btn.removeAttribute('aria-busy');
+                });
+        });
+    });
+})();
+{% endjs %}
+
+
+

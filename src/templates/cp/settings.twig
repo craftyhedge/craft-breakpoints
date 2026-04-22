@@ -21,7 +21,8 @@
     formats: { label: 'Output & Quality'|t('craft-breakpoint-images'), url: '#formats', class: formatsTabClass },
     behavior: { label: 'Transform Settings'|t('craft-breakpoint-images'), url: '#behavior', class: behaviorTabClass },
     templates: { label: 'Templates'|t('craft-breakpoint-images'), url: '#templates', class: templatesTabClass },
-    editor: { label: 'Editor UI'|t('craft-breakpoint-images'), url: '#editor', class: editorTabClass }
+    editor: { label: 'Editor UI'|t('craft-breakpoint-images'), url: '#editor', class: editorTabClass },
+    database: { label: 'Database'|t('craft-breakpoint-images'), url: '#database' }
 } %}
 
 {% set selectedTab = craft.app.request.getParam('tab') ?? 'formats' %}
@@ -39,5 +40,7 @@
         settings: settings,
         selectedTab: selectedTab,
         useTabs: true,
+        databaseStats: databaseStats ?? [],
+        databaseLatestRunAt: databaseLatestRunAt ?? null,
     } only %}
 {% endblock %}
