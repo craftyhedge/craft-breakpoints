@@ -1,91 +1,47 @@
 # Craft Breakpoint Images
 
-Craft CMS 5 plugin scaffold for responsive breakpoint image helpers.
+Craft CMS 5 plugin for responsive breakpoint image helpers.
 
 ## Requirements
 
-- Craft CMS `^5.3.0`
 - PHP `^8.2`
+- Craft CMS `^5.3.0`
 
-## Install in a Craft Project (Local Development)
+## Install
 
-1. Add this plugin as a Composer path repository in your Craft project `composer.json`:
+### Option 1: Plugin Store (Control Panel)
 
-```json
-{
-  "repositories": [
-    {
-      "type": "path",
-      "url": "../craft-breakpoint-images"
-    }
-  ]
-}
+1. Open the Craft Control Panel.
+2. Go to Plugin Store.
+3. Find Breakpoint Images.
+4. Click Install.
+
+### Option 2: Composer
+
+Install with Composer in your Craft project:
+
+```sh
+composer require craftyhedge/craft-breakpoint-images
 ```
 
-2. Require the plugin package in the Craft project:
+Then install the plugin:
 
-```bash
-composer require craftyhedge/craft-breakpoint-images:@dev
+```sh
+php craft plugin/install craft-breakpoint-images
 ```
 
-3. Install the plugin in Craft:
+## Documentation
 
-- Control Panel -> Settings -> Plugins
-- or `php craft plugin/install craft-breakpoint-images`
+- Media and DPR notes: [docs/picture-template-media-and-dpr.md](docs/picture-template-media-and-dpr.md)
+- Release history: [CHANGELOG.md](CHANGELOG.md)
 
-## Plugin Handle
+## Support
 
-- `craft-breakpoint-images`
+- Source: <https://github.com/craftyhedge/craft-breakpoint-images>
+- Issues: <https://github.com/craftyhedge/craft-breakpoint-images/issues>
 
-## Testing
+## License
 
-This plugin uses Craft's standard Codeception-based test harness.
+Commercial plugin licensing follows the Craft License model.
 
-See [TESTING.md](TESTING.md) for full local Docker database setup and troubleshooting.
-
-1. Install development dependencies:
-
-```bash
-composer install
-```
-
-2. Copy the test environment file:
-
-```bash
-cp tests/.env.example tests/.env
-```
-
-3. Run unit tests:
-
-```bash
-composer test
-```
-
-4. Run integration tests:
-
-```bash
-composer test:integration
-```
-
-5. Run JavaScript unit tests:
-
-```bash
-npm run test:js
-```
-
-## Static Analysis
-
-PHPStan is configured with Craft's plugin extension config.
-
-Run:
-
-```bash
-composer phpstan
-```
-
-## Notes
-
-- This scaffold follows Craft CMS 5 docs conventions for plugin metadata, plugin class setup, and plugin settings.
-- Add services, migrations, variables, and Twig extensions as features are implemented.
-- Transform editor sets include an optional Settings toggle: "Pass if height is less than or equal to saved".
-- The setting is stored per set at `config.passHeightWhenRenderedLteSaved` and is strict: only boolean `true` enables it.
+See [LICENSE.md](LICENSE.md).
