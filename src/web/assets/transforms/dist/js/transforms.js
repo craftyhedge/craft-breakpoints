@@ -630,6 +630,14 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         setButtonsDisabled(state.busy);
     }
 
+    function setProcessingFrameMounted(isMounted) {
+        if (!(elements.wrapper instanceof HTMLElement)) {
+            return;
+        }
+
+        elements.wrapper.style.display = isMounted ? '' : 'none';
+    }
+
     function scheduleSourceControlSync() {
         if (state.sourceSyncRaf !== null) {
             window.cancelAnimationFrame(state.sourceSyncRaf);
@@ -2289,6 +2297,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         state.busy = true;
         state.stopRequested = false;
         state.waitSoftLimitReached = false;
+        setProcessingFrameMounted(true);
         setProcessingState(true);
         setStopButtonVisibility(false);
         setButtonsDisabled(true);
@@ -2508,6 +2517,9 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             state.stopRequested = false;
             state.waitSoftLimitReached = false;
             setProcessingState(false);
+            if (!state.previewVisible) {
+                setProcessingFrameMounted(false);
+            }
             setStopButtonVisibility(false);
             setButtonsDisabled(false);
             hideProcessingProgress();
@@ -2551,6 +2563,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
     if (elements.btnOpenPreview) {
         elements.btnOpenPreview.addEventListener('click', async () => {
+            setProcessingFrameMounted(true);
             setPreviewVisibility(true);
             try {
                 await loadPreviewForSelectedEntry('Preview opened.');
@@ -2563,6 +2576,9 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     if (elements.btnClosePreview) {
         elements.btnClosePreview.addEventListener('click', () => {
             setPreviewVisibility(false);
+            if (!state.busy) {
+                setProcessingFrameMounted(false);
+            }
             setStatus('Preview hidden.');
         });
     }
