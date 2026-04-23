@@ -17,13 +17,12 @@ class TelemetryService extends Component
     private const RUN_STATUS_CANCELLED = 'cancelled';
     private const RUN_SNAPSHOT_TABLE = '{{%bpi_processing_run_snapshot}}';
     private const RUN_SNAPSHOT_ROWS_TABLE = '{{%bpi_processing_run_snapshot_breakpoints}}';
+    private const RUN_SNAPSHOT_DIMENSIONS_TABLE = '{{%bpi_processing_run_snapshot_dimensions}}';
     private const PREVIEW_CACHE_TABLE = '{{%bpi_preview_cache}}';
-    private const SNAPSHOT_FAILURE_COUNTS_KEY = 'counts';
-    private const SNAPSHOT_OVERLAY_ROWS_KEY = 'overlayRows';
-    private const SNAPSHOT_OVERLAY_STATUS_RELIABLE_KEY = 'overlayStatusReliable';
-    private const SNAPSHOT_META_MAX_BYTES = 64000;
     private const SOURCE_URL_MAX_LENGTH = 255;
     private const DISPLAY_ASSET_URL_MAX_LENGTH = 1024;
+    private const ASSET_ID_MAX_LENGTH = 255;
+    private const AUTO_DIMENSION_MAX_LENGTH = 16;
     private const RUN_ID_MAX_LENGTH = 64;
 
     /** @var array<string, bool> */
@@ -286,29 +285,12 @@ class TelemetryService extends Component
 
         $sourceUrl = $this->normalizeSourceUrl($payload['sourceUrl'] ?? null);
         $failureReasonCounts = $this->normalizeFailureReasonCounts($payload['failureReasonCounts'] ?? []);
+        $failureReasonCountsJson = json_encode($failureReasonCounts, JSON_UNESCAPED_SLASHES);
+        if (!is_string($failureReasonCountsJson)) {
+            $failureReasonCountsJson = '{}';
+        }
         $snapshotRows = $this->normalizeSnapshotRowsByBreakpoint($payload['rowsByBreakpoint'] ?? []);
-        $snapshotOverlayRows = $this->normalizeSnapshotOverlayRowsByBreakpoint($payload['rowsByBreakpoint'] ?? []);
-        $snapshotOverlayPayload = $this->encodeSnapshotOverlayRows($snapshotOverlayRows, true);
-
-        $snapshotMetaJson = json_encode([
-            self::SNAPSHOT_FAILURE_COUNTS_KEY => $failureReasonCounts,
-            self::SNAPSHOT_OVERLAY_ROWS_KEY => $snapshotOverlayPayload,
-        ], JSON_UNESCAPED_SLASHES);
-        if (!is_string($snapshotMetaJson)) {
-            return false;
-        }
-
-        if (strlen($snapshotMetaJson) > self::SNAPSHOT_META_MAX_BYTES) {
-            $snapshotOverlayPayload = $this->encodeSnapshotOverlayRows($snapshotOverlayRows, false);
-            $snapshotMetaJson = json_encode([
-                self::SNAPSHOT_FAILURE_COUNTS_KEY => $failureReasonCounts,
-                self::SNAPSHOT_OVERLAY_ROWS_KEY => $snapshotOverlayPayload,
-            ], JSON_UNESCAPED_SLASHES);
-        }
-
-        if (!is_string($snapshotMetaJson) || strlen($snapshotMetaJson) > self::SNAPSHOT_META_MAX_BYTES) {
-            return false;
-        }
+        $savedDimensionsByTransform = $this->collectSavedDimensionsAtPersistTime();
 
         $transaction = $db->beginTransaction();
 
@@ -321,7 +303,7 @@ class TelemetryService extends Component
                 'entryId' => $entryId,
                 'sourceUrl' => $sourceUrl,
                 'runId' => $runId,
-                'failureReasonCounts' => $snapshotMetaJson,
+                'failureReasonCounts' => $failureReasonCountsJson,
             ]);
 
             $db->createCommand()
@@ -336,8 +318,12 @@ class TelemetryService extends Component
                         1,
                         $row['transformHandle'],
                         $row['breakpointWidth'],
+                        $row['assetId'],
                         $row['displayAssetUrl'],
                         $row['rowStatus'],
+                        $row['renderedWidth'],
+                        $row['renderedHeight'],
+                        $row['autoDimension'],
                         $now,
                         $now,
                     ];
@@ -346,10 +332,54 @@ class TelemetryService extends Component
                 $db->createCommand()
                     ->batchInsert(
                         self::RUN_SNAPSHOT_ROWS_TABLE,
-                        ['snapshotId', 'transformHandle', 'breakpointWidth', 'displayAssetUrl', 'rowStatus', 'dateCreated', 'dateUpdated'],
+                        ['snapshotId', 'transformHandle', 'breakpointWidth', 'assetId', 'displayAssetUrl', 'rowStatus', 'renderedWidth', 'renderedHeight', 'autoDimension', 'dateCreated', 'dateUpdated'],
                         $batchRows
                     )
                     ->execute();
+            }
+
+            if ($db->tableExists(self::RUN_SNAPSHOT_DIMENSIONS_TABLE)) {
+                $db->createCommand()
+                    ->delete(self::RUN_SNAPSHOT_DIMENSIONS_TABLE, ['snapshotId' => 1])
+                    ->execute();
+
+                $dimensionRows = [];
+                $now = $now ?? Db::prepareDateForDb(new \DateTimeImmutable());
+                foreach ($savedDimensionsByTransform as $transformHandle => $byBreakpoint) {
+                    if (!is_string($transformHandle) || $transformHandle === '' || !is_array($byBreakpoint)) {
+                        continue;
+                    }
+                    foreach ($byBreakpoint as $breakpointKey => $entry) {
+                        if (!is_numeric($breakpointKey)) {
+                            continue;
+                        }
+                        $breakpointWidth = (int)$breakpointKey;
+                        if ($breakpointWidth <= 0 || !is_array($entry)) {
+                            continue;
+                        }
+                        $savedWidth = isset($entry['w']) && is_numeric($entry['w']) && (int)$entry['w'] > 0 ? (int)$entry['w'] : null;
+                        $savedHeight = isset($entry['h']) && is_numeric($entry['h']) && (int)$entry['h'] > 0 ? (int)$entry['h'] : null;
+                        $dimensionRows[] = [
+                            1,
+                            $transformHandle,
+                            $breakpointWidth,
+                            $savedWidth,
+                            $savedHeight,
+                            $now,
+                            $now,
+                        ];
+                    }
+                }
+
+                if ($dimensionRows !== []) {
+                    $db->createCommand()
+                        ->batchInsert(
+                            self::RUN_SNAPSHOT_DIMENSIONS_TABLE,
+                            ['snapshotId', 'transformHandle', 'breakpointWidth', 'savedWidth', 'savedHeight', 'dateCreated', 'dateUpdated'],
+                            $dimensionRows
+                        )
+                        ->execute();
+                }
             }
 
             $transaction->commit();
@@ -393,23 +423,93 @@ class TelemetryService extends Component
         }
 
         $snapshotId = isset($snapshot['id']) ? (int)$snapshot['id'] : 0;
-        $rows = [];
+        $perAssetRows = [];
         if ($snapshotId > 0) {
-            $rows = (new Query())
-                ->select(['transformHandle', 'breakpointWidth', 'displayAssetUrl', 'rowStatus'])
+            $perAssetRows = (new Query())
+                ->select(['transformHandle', 'breakpointWidth', 'assetId', 'displayAssetUrl', 'rowStatus', 'renderedWidth', 'renderedHeight', 'autoDimension'])
                 ->from(self::RUN_SNAPSHOT_ROWS_TABLE)
                 ->where(['snapshotId' => $snapshotId])
-                ->orderBy(['transformHandle' => SORT_ASC, 'breakpointWidth' => SORT_ASC])
+                ->orderBy(['transformHandle' => SORT_ASC, 'breakpointWidth' => SORT_ASC, 'id' => SORT_ASC])
                 ->all();
         }
 
-        $snapshotMeta = $this->decodeSnapshotMeta($snapshot['failureReasonCounts'] ?? null);
-        $snapshot['failureReasonCounts'] = $snapshotMeta[self::SNAPSHOT_FAILURE_COUNTS_KEY];
-        $snapshot['rowsPayload'] = $snapshotMeta[self::SNAPSHOT_OVERLAY_ROWS_KEY];
-        $snapshot['rowsPayloadStatusReliable'] = $snapshotMeta[self::SNAPSHOT_OVERLAY_STATUS_RELIABLE_KEY];
-        $snapshot['rows'] = $rows;
+        $rowsPayload = [];
+        $rowsByKey = [];
+        foreach ($perAssetRows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $transformHandle = (string)($row['transformHandle'] ?? '');
+            $breakpointWidth = (int)($row['breakpointWidth'] ?? 0);
+            if ($transformHandle === '' || $breakpointWidth <= 0) {
+                continue;
+            }
+
+            $rowsPayload[] = [
+                'transformHandle' => $transformHandle,
+                'breakpointWidth' => $breakpointWidth,
+                'assetId' => (string)($row['assetId'] ?? ''),
+                'displayAssetUrl' => $row['displayAssetUrl'] !== null ? (string)$row['displayAssetUrl'] : null,
+                'rowStatus' => (string)($row['rowStatus'] ?? 'unprocessed'),
+                'renderedWidth' => max(0, (int)($row['renderedWidth'] ?? 0)),
+                'renderedHeight' => max(0, (int)($row['renderedHeight'] ?? 0)),
+                'autoDimension' => $row['autoDimension'] !== null && $row['autoDimension'] !== '' ? (string)$row['autoDimension'] : null,
+            ];
+
+            $dedupeKey = $transformHandle . '|' . $breakpointWidth;
+            if (!isset($rowsByKey[$dedupeKey])) {
+                $rowsByKey[$dedupeKey] = [
+                    'transformHandle' => $transformHandle,
+                    'breakpointWidth' => $breakpointWidth,
+                    'displayAssetUrl' => $row['displayAssetUrl'] !== null ? (string)$row['displayAssetUrl'] : null,
+                    'rowStatus' => (string)($row['rowStatus'] ?? 'unprocessed'),
+                ];
+            }
+        }
+
+        $savedDimensionsByTransform = [];
+        if ($snapshotId > 0 && $db->tableExists(self::RUN_SNAPSHOT_DIMENSIONS_TABLE)) {
+            $dimensionRows = (new Query())
+                ->select(['transformHandle', 'breakpointWidth', 'savedWidth', 'savedHeight'])
+                ->from(self::RUN_SNAPSHOT_DIMENSIONS_TABLE)
+                ->where(['snapshotId' => $snapshotId])
+                ->all();
+
+            foreach ($dimensionRows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                $transformHandle = (string)($row['transformHandle'] ?? '');
+                $breakpointWidth = (int)($row['breakpointWidth'] ?? 0);
+                if ($transformHandle === '' || $breakpointWidth <= 0) {
+                    continue;
+                }
+                $savedDimensionsByTransform[$transformHandle][$breakpointWidth] = [
+                    'w' => $row['savedWidth'] !== null ? (int)$row['savedWidth'] : null,
+                    'h' => $row['savedHeight'] !== null ? (int)$row['savedHeight'] : null,
+                ];
+            }
+        }
+
+        $snapshot['failureReasonCounts'] = $this->decodeFailureReasonCountsColumn($snapshot['failureReasonCounts'] ?? null);
+        $snapshot['rowsPayload'] = $rowsPayload;
+        $snapshot['savedDimensionsByTransform'] = $savedDimensionsByTransform;
+        $snapshot['rows'] = array_values($rowsByKey);
 
         return $snapshot;
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function decodeFailureReasonCountsColumn(mixed $raw): array
+    {
+        if (!is_string($raw) || trim($raw) === '') {
+            return [];
+        }
+
+        $decoded = json_decode($raw, true);
+        return $this->normalizeFailureReasonCounts(is_array($decoded) ? $decoded : []);
     }
 
     private function normalizeSourceUrl(mixed $sourceUrl): ?string
@@ -504,9 +604,9 @@ class TelemetryService extends Component
                     continue;
                 }
 
-                $dedupeKey = $transformHandle . '|' . $breakpointWidth;
-                if (isset($normalizedRows[$dedupeKey])) {
-                    continue;
+                $assetId = trim((string)($row['assetId'] ?? ''));
+                if ($assetId !== '' && mb_strlen($assetId) > self::ASSET_ID_MAX_LENGTH) {
+                    $assetId = mb_substr($assetId, 0, self::ASSET_ID_MAX_LENGTH);
                 }
 
                 $displayAssetUrl = trim((string)($row['src'] ?? ''));
@@ -520,324 +620,60 @@ class TelemetryService extends Component
                 $loaded = ($row['loaded'] ?? false) === true;
                 $broken = ($row['broken'] ?? false) === true;
                 $unresolved = ($row['unresolved'] ?? false) === true;
-
-                $rowStatus = $this->resolveSnapshotRowStatus($enabled, $loaded, $broken, $unresolved);
-
-                $normalizedRows[$dedupeKey] = [
-                    'transformHandle' => $transformHandle,
-                    'breakpointWidth' => $breakpointWidth,
-                    'displayAssetUrl' => $displayAssetUrl,
-                    'rowStatus' => $rowStatus,
-                ];
-            }
-        }
-
-        return array_values($normalizedRows);
-    }
-
-    /**
-     * @return array<int, array<string, mixed>>
-     */
-    private function normalizeSnapshotOverlayRowsByBreakpoint(mixed $rawRowsByBreakpoint): array
-    {
-        if (!is_array($rawRowsByBreakpoint)) {
-            return [];
-        }
-
-        $normalizedRows = [];
-        foreach ($rawRowsByBreakpoint as $breakpointKey => $rows) {
-            if (!is_array($rows)) {
-                continue;
-            }
-
-            $breakpointWidth = is_numeric($breakpointKey) ? (int)$breakpointKey : 0;
-            if ($breakpointWidth <= 0) {
-                continue;
-            }
-
-            foreach ($rows as $index => $row) {
-                if (!is_array($row)) {
-                    continue;
-                }
-
-                $transformHandle = trim((string)($row['transform'] ?? ''));
-                if ($transformHandle === '') {
-                    continue;
-                }
-
-                $assetId = trim((string)($row['assetId'] ?? ''));
-                if ($assetId !== '') {
-                    $assetId = mb_substr($assetId, 0, 255);
-                }
-
-                $displayAssetUrl = trim((string)($row['src'] ?? ''));
-                if ($displayAssetUrl === '') {
-                    $displayAssetUrl = null;
-                } elseif (mb_strlen($displayAssetUrl) > self::DISPLAY_ASSET_URL_MAX_LENGTH) {
-                    $displayAssetUrl = mb_substr($displayAssetUrl, 0, self::DISPLAY_ASSET_URL_MAX_LENGTH);
-                }
 
                 $renderedWidth = max(0, (int)($row['rendered']['width'] ?? 0));
                 $renderedHeight = max(0, (int)($row['rendered']['height'] ?? 0));
 
-                $enabled = ($row['enabled'] ?? true) === true;
-                $loaded = ($row['loaded'] ?? false) === true;
-                $broken = ($row['broken'] ?? false) === true;
-                $unresolved = ($row['unresolved'] ?? false) === true;
+                $autoDimension = $this->normalizeSnapshotAutoDimension(
+                    $row['transformDimensions']['autoDimension'] ?? ($row['autoDimension'] ?? null),
+                );
+
                 $rowStatus = $this->resolveSnapshotRowStatus($enabled, $loaded, $broken, $unresolved);
 
-                $dedupeKey = implode('|', [
-                    $transformHandle,
-                    (string)$breakpointWidth,
-                    $assetId !== '' ? $assetId : ('row-' . (string)$index),
-                    (string)($displayAssetUrl ?? ''),
-                ]);
-
-                if (isset($normalizedRows[$dedupeKey])) {
-                    continue;
-                }
-
-                $normalizedRows[$dedupeKey] = [
+                $normalizedRows[] = [
                     'transformHandle' => $transformHandle,
                     'breakpointWidth' => $breakpointWidth,
+                    'assetId' => $assetId !== '' ? $assetId : null,
+                    'displayAssetUrl' => $displayAssetUrl,
+                    'rowStatus' => $rowStatus,
                     'renderedWidth' => $renderedWidth,
                     'renderedHeight' => $renderedHeight,
-                    'rowStatus' => $rowStatus,
+                    'autoDimension' => $autoDimension,
                 ];
             }
         }
 
-        return array_values($normalizedRows);
+        return $normalizedRows;
+    }
+
+    private function normalizeSnapshotAutoDimension(mixed $raw): ?string
+    {
+        if (!is_string($raw)) {
+            return null;
+        }
+        $value = strtolower(trim($raw));
+        if ($value !== 'width' && $value !== 'height') {
+            return null;
+        }
+        return mb_substr($value, 0, self::AUTO_DIMENSION_MAX_LENGTH);
     }
 
     /**
-     * @return array{counts: array<string, int>, overlayRows: array<int, array<string, mixed>>, overlayStatusReliable: bool}
+     * @return array<string, array<int, array{w: int|null, h: int|null}>>
      */
-    private function decodeSnapshotMeta(mixed $rawMeta): array
+    private function collectSavedDimensionsAtPersistTime(): array
     {
-        if (!is_string($rawMeta) || trim($rawMeta) === '') {
-            return [
-                self::SNAPSHOT_FAILURE_COUNTS_KEY => [],
-                self::SNAPSHOT_OVERLAY_ROWS_KEY => [],
-                self::SNAPSHOT_OVERLAY_STATUS_RELIABLE_KEY => false,
-            ];
+        $plugin = Plugin::getInstance();
+        if ($plugin === null) {
+            return [];
         }
 
-        $decoded = json_decode($rawMeta, true);
-        if (!is_array($decoded)) {
-            return [
-                self::SNAPSHOT_FAILURE_COUNTS_KEY => [],
-                self::SNAPSHOT_OVERLAY_ROWS_KEY => [],
-                self::SNAPSHOT_OVERLAY_STATUS_RELIABLE_KEY => false,
-            ];
+        try {
+            return $plugin->getTransformEditor()->buildSavedDimensionsByTransformAndBreakpoint();
+        } catch (\Throwable $e) {
+            Plugin::warning('Failed to collect saved transform dimensions for snapshot: ' . $e->getMessage());
+            return [];
         }
-
-        $decodedOverlay = $this->decodeSnapshotOverlayRows(
-            $decoded[self::SNAPSHOT_OVERLAY_ROWS_KEY] ?? [],
-        );
-
-        return [
-            self::SNAPSHOT_FAILURE_COUNTS_KEY => $this->normalizeFailureReasonCounts(
-                $decoded[self::SNAPSHOT_FAILURE_COUNTS_KEY] ?? [],
-            ),
-            self::SNAPSHOT_OVERLAY_ROWS_KEY => $decodedOverlay['rows'],
-            self::SNAPSHOT_OVERLAY_STATUS_RELIABLE_KEY => $decodedOverlay['statusReliable'],
-        ];
-    }
-
-    /**
-     * @return array{rows: array<int, array<string, mixed>>, statusReliable: bool}
-     */
-    private function decodeSnapshotOverlayRows(mixed $rawRows): array
-    {
-        if (is_array($rawRows)) {
-            $decoded = $rawRows;
-        } elseif (is_string($rawRows) && trim($rawRows) !== '') {
-            $decoded = json_decode($rawRows, true);
-        } else {
-            return [
-                'rows' => [],
-                'statusReliable' => false,
-            ];
-        }
-
-        if (!is_array($decoded)) {
-            return [
-                'rows' => [],
-                'statusReliable' => false,
-            ];
-        }
-
-        if (($decoded['v'] ?? null) !== 1 || !isset($decoded['rows']) || !is_array($decoded['rows'])) {
-            return [
-                'rows' => [],
-                'statusReliable' => false,
-            ];
-        }
-
-        $statusReliable = isset($decoded['s'])
-            ? ((int)$decoded['s'] === 1)
-            : $this->hasSnapshotOverlayStatusEntries($decoded['rows']);
-
-        return [
-            'rows' => $this->decodeCompactSnapshotOverlayRows($decoded['rows']),
-            'statusReliable' => $statusReliable,
-        ];
-    }
-
-    /**
-     * @param array<int, array<string, mixed>> $rows
-     * @return array<string, mixed>
-     */
-    private function encodeSnapshotOverlayRows(array $rows, bool $includeStatus): array
-    {
-        $grouped = [];
-
-        foreach ($rows as $row) {
-            if (!is_array($row)) {
-                continue;
-            }
-
-            $transformHandle = trim((string)($row['transformHandle'] ?? ''));
-            $breakpointWidth = is_numeric($row['breakpointWidth'] ?? null) ? (int)$row['breakpointWidth'] : 0;
-            if ($transformHandle === '' || $breakpointWidth <= 0) {
-                continue;
-            }
-
-            $groupKey = $transformHandle . '|' . $breakpointWidth;
-            $grouped[$groupKey] ??= [
-                't' => $transformHandle,
-                'b' => $breakpointWidth,
-                'd' => [],
-            ];
-
-            $w = max(0, (int)($row['renderedWidth'] ?? 0));
-            $h = max(0, (int)($row['renderedHeight'] ?? 0));
-
-            if ($includeStatus) {
-                $status = strtolower(trim((string)($row['rowStatus'] ?? 'unprocessed')));
-                $statusCode = $this->encodeSnapshotRowStatus($status);
-                $grouped[$groupKey]['d'][] = [$w, $h, $statusCode];
-            } else {
-                $grouped[$groupKey]['d'][] = [$w, $h];
-            }
-        }
-
-        $rowsPayload = array_values($grouped);
-        usort($rowsPayload, static function(array $left, array $right): int {
-            $leftT = (string)($left['t'] ?? '');
-            $rightT = (string)($right['t'] ?? '');
-            if ($leftT !== $rightT) {
-                return strcmp($leftT, $rightT);
-            }
-
-            $leftB = (int)($left['b'] ?? 0);
-            $rightB = (int)($right['b'] ?? 0);
-            return $leftB <=> $rightB;
-        });
-
-        return [
-            'v' => 1,
-            's' => $includeStatus ? 1 : 0,
-            'rows' => $rowsPayload,
-        ];
-    }
-
-    /**
-     * @param array<int, mixed> $rowsPayload
-     */
-    private function hasSnapshotOverlayStatusEntries(array $rowsPayload): bool
-    {
-        foreach ($rowsPayload as $group) {
-            if (!is_array($group)) {
-                continue;
-            }
-
-            $dimensions = $group['d'] ?? null;
-            if (!is_array($dimensions)) {
-                continue;
-            }
-
-            foreach ($dimensions as $entry) {
-                if (!is_array($entry)) {
-                    continue;
-                }
-
-                if (count($entry) >= 3) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * @param array<int, mixed> $rowsPayload
-     * @return array<int, array<string, mixed>>
-     */
-    private function decodeCompactSnapshotOverlayRows(array $rowsPayload): array
-    {
-        $decoded = [];
-
-        foreach ($rowsPayload as $group) {
-            if (!is_array($group)) {
-                continue;
-            }
-
-            $transformHandle = trim((string)($group['t'] ?? ''));
-            $breakpointWidth = is_numeric($group['b'] ?? null) ? (int)$group['b'] : 0;
-            $dimensions = $group['d'] ?? null;
-
-            if ($transformHandle === '' || $breakpointWidth <= 0 || !is_array($dimensions)) {
-                continue;
-            }
-
-            foreach ($dimensions as $entry) {
-                if (!is_array($entry) || count($entry) < 2) {
-                    continue;
-                }
-
-                $renderedWidth = max(0, (int)($entry[0] ?? 0));
-                $renderedHeight = max(0, (int)($entry[1] ?? 0));
-                $statusCode = is_numeric($entry[2] ?? null) ? (int)$entry[2] : 0;
-
-                $rowStatus = $this->decodeSnapshotRowStatus($statusCode);
-
-                $decoded[] = [
-                    'transformHandle' => $transformHandle,
-                    'breakpointWidth' => $breakpointWidth,
-                    'assetId' => '',
-                    'renderedWidth' => $renderedWidth,
-                    'renderedHeight' => $renderedHeight,
-                    'rowStatus' => $rowStatus,
-                ];
-            }
-        }
-
-        return $decoded;
-    }
-
-    private function encodeSnapshotRowStatus(string $status): int
-    {
-        return match ($status) {
-            'loaded' => 1,
-            'broken' => 2,
-            'unresolved' => 3,
-            'disabled' => 4,
-            default => 0,
-        };
-    }
-
-    private function decodeSnapshotRowStatus(int $statusCode): string
-    {
-        return match ($statusCode) {
-            1 => 'loaded',
-            2 => 'broken',
-            3 => 'unresolved',
-            4 => 'disabled',
-            default => 'unprocessed',
-        };
     }
 
     private function resolveSnapshotRowStatus(bool $enabled, bool $loaded, bool $broken, bool $unresolved): string

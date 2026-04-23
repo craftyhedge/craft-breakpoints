@@ -26,6 +26,4 @@ return [
     'enableTelemetry' => true,
     'dpr' => [1, 2],
     'allowTransformEditing' => true,
-    'processingDiagnosticsEnabled' => false,
-    'transformsDeveloperActionsEnabled' => false,
 ];

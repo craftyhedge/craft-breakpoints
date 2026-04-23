@@ -47,8 +47,12 @@ class Install extends Migration
                 'snapshotId' => $this->integer()->notNull(),
                 'transformHandle' => $this->string()->notNull(),
                 'breakpointWidth' => $this->integer()->notNull(),
+                'assetId' => $this->string(255)->null()->defaultValue(null),
                 'displayAssetUrl' => $this->string(1024)->null()->defaultValue(null),
                 'rowStatus' => $this->string(24)->notNull()->defaultValue('unprocessed'),
+                'renderedWidth' => $this->integer()->notNull()->defaultValue(0),
+                'renderedHeight' => $this->integer()->notNull()->defaultValue(0),
+                'autoDimension' => $this->string(16)->null()->defaultValue(null),
                 'dateCreated' => $this->dateTime()->notNull(),
                 'dateUpdated' => $this->dateTime()->notNull(),
             ]);
@@ -57,7 +61,7 @@ class Install extends Migration
                 null,
                 '{{%bpi_processing_run_snapshot_breakpoints}}',
                 ['snapshotId', 'transformHandle', 'breakpointWidth'],
-                true
+                false
             );
             $this->createIndex(null, '{{%bpi_processing_run_snapshot_breakpoints}}', ['transformHandle'], false);
             $this->createIndex(null, '{{%bpi_processing_run_snapshot_breakpoints}}', ['breakpointWidth'], false);
@@ -65,6 +69,36 @@ class Install extends Migration
             $this->addForeignKey(
                 null,
                 '{{%bpi_processing_run_snapshot_breakpoints}}',
+                ['snapshotId'],
+                '{{%bpi_processing_run_snapshot}}',
+                ['id'],
+                'CASCADE',
+                'CASCADE'
+            );
+        }
+
+        if (!$this->db->tableExists('{{%bpi_processing_run_snapshot_dimensions}}')) {
+            $this->createTable('{{%bpi_processing_run_snapshot_dimensions}}', [
+                'id' => $this->primaryKey(),
+                'snapshotId' => $this->integer()->notNull(),
+                'transformHandle' => $this->string()->notNull(),
+                'breakpointWidth' => $this->integer()->notNull(),
+                'savedWidth' => $this->integer()->null()->defaultValue(null),
+                'savedHeight' => $this->integer()->null()->defaultValue(null),
+                'dateCreated' => $this->dateTime()->notNull(),
+                'dateUpdated' => $this->dateTime()->notNull(),
+            ]);
+
+            $this->createIndex(
+                null,
+                '{{%bpi_processing_run_snapshot_dimensions}}',
+                ['snapshotId', 'transformHandle', 'breakpointWidth'],
+                true
+            );
+
+            $this->addForeignKey(
+                null,
+                '{{%bpi_processing_run_snapshot_dimensions}}',
                 ['snapshotId'],
                 '{{%bpi_processing_run_snapshot}}',
                 ['id'],
@@ -100,6 +134,7 @@ class Install extends Migration
     public function safeDown(): bool
     {
         $this->dropTableIfExists('{{%bpi_preview_cache}}');
+        $this->dropTableIfExists('{{%bpi_processing_run_snapshot_dimensions}}');
         $this->dropTableIfExists('{{%bpi_processing_run_snapshot_breakpoints}}');
         $this->dropTableIfExists('{{%bpi_processing_run_snapshot}}');
         $this->dropTableIfExists('{{%bpi_transform_last_processed}}');

@@ -1918,6 +1918,14 @@ button.bpi-transform-input-addon:hover:not(:disabled) {
     color: var(--fg-subtle);
 }
 
+.bpi_rendered-dimension.bpi_dimension-match {
+    color: var(--fg-success, var(--green-700));
+}
+
+.bpi_rendered-dimension.bpi_dimension-mismatch {
+    color: var(--fg-error, var(--red-600));
+}
+
 .bpi_current-dimension {
     color: var(--fg-subtle);
 }

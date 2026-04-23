@@ -12,6 +12,8 @@ class TransformEditor extends Component
     private const REVIEW_MODE_PROCESSED = 'processed';
     private const REVIEW_MODE_SAVED = 'saved';
 
+    private const MISMATCH_TOLERANCE_PX = 1;
+
     private const INITIAL_PLACEHOLDER_FALLBACK_WIDTH = 1200;
     private const INITIAL_PLACEHOLDER_FALLBACK_HEIGHT = 800;
     private const INITIAL_PLACEHOLDER_DEFAULT_RATIO_WIDTH = 3;
@@ -1503,14 +1505,23 @@ class TransformEditor extends Component
         $escapeBreakpoint = $this->getReviewEscapeBreakpoint();
         $storedTransforms = $this->getReviewStoredTransforms();
         $storedSavedHeightsByTransform = $this->buildStoredSavedHeightsByTransformAndBreakpoint();
+        $storedSavedWidthsByTransform = $this->buildStoredSavedWidthsByTransformAndBreakpoint();
         $latestRunSnapshot = $this->getLatestRunSnapshotForReview();
         $latestRunSummariesByTransform = $this->buildLatestRunSummaryByTransform($latestRunSnapshot);
+        $editedTransforms = $this->buildEditedTransformsMap($latestRunSnapshot, $isProcessedReview);
 
-        $mismatchTransformNames = [];
+        $breakpointMismatchTransformNames = [];
+        $assetMismatchTransformNames = [];
         if ($isProcessedReview) {
             foreach ($latestRunSummariesByTransform as $handle => $summary) {
-                if (is_string($handle) && ($summary['hasMismatch'] ?? false) === true) {
-                    $mismatchTransformNames[$handle] = true;
+                if (!is_string($handle)) {
+                    continue;
+                }
+                if (($summary['hasBreakpointMismatch'] ?? false) === true) {
+                    $breakpointMismatchTransformNames[$handle] = true;
+                }
+                if (($summary['hasAssetMismatch'] ?? false) === true) {
+                    $assetMismatchTransformNames[$handle] = true;
                 }
             }
         }
@@ -1519,7 +1530,8 @@ class TransformEditor extends Component
             $transformNames,
             $warningsByTransform,
             $preferredOrderBySet,
-            $mismatchTransformNames,
+            $breakpointMismatchTransformNames,
+            $assetMismatchTransformNames,
         );
         if ($transformNames === []) {
             return '<div class="bpi-empty-state light">No transform sets found in results.</div>';
@@ -1666,22 +1678,6 @@ class TransformEditor extends Component
                 $transformBreakpoints,
                 $columnWidths,
             );
-            $referenceRenderedByBreakpoint = [];
-            foreach ($transformBreakpoints as $breakpoint) {
-                foreach ($assetKeys as $firstAssetKey) {
-                    $firstRows = $assetCollection['rowsByAssetByBreakpoint'][$firstAssetKey][$breakpoint] ?? [];
-                    if (!is_array($firstRows) || $firstRows === []) {
-                        break;
-                    }
-                    $refSummary = $this->summarizeReviewRows($firstRows);
-                    $refW = max(0, (int)($refSummary['renderedWidth'] ?? 0));
-                    $refH = max(0, (int)($refSummary['renderedHeight'] ?? 0));
-                    if ($refW > 0 && $refH > 0) {
-                        $referenceRenderedByBreakpoint[$breakpoint] = ['width' => $refW, 'height' => $refH];
-                    }
-                    break;
-                }
-            }
             $breakpointColumns = '';
             $renderedRowsForTransform = [];
             foreach ($transformBreakpoints as $breakpoint) {
@@ -1703,8 +1699,8 @@ class TransformEditor extends Component
                     $escapeBreakpoint,
                     $hideRenderedApply,
                     $reviewMode,
-                    $referenceRenderedByBreakpoint[$breakpoint] ?? null,
                     $passHeightWhenRenderedLteSaved,
+                    $storedSavedWidthsByTransform[$transformName][$breakpoint] ?? null,
                     $storedSavedHeightsByTransform[$transformName][$breakpoint] ?? null,
                 );
             }
@@ -1735,9 +1731,12 @@ class TransformEditor extends Component
                 ? 'All'
                 : ($scope['mode'] === 'breakpoint' ? ($scope['breakpoint'] . 'px') : 'Select scope');
             $latestRunSummaryForTransform = $latestRunSummariesByTransform[$transformName] ?? null;
-            $hasMismatchWarning = $isProcessedReview
+            $hasAssetMismatchWarning = $isProcessedReview
                 && is_array($latestRunSummaryForTransform)
-                && (($latestRunSummaryForTransform['hasMismatch'] ?? false) === true);
+                && (($latestRunSummaryForTransform['hasAssetMismatch'] ?? false) === true);
+            $hasBreakpointMismatchWarning = $isProcessedReview
+                && is_array($latestRunSummaryForTransform)
+                && (($latestRunSummaryForTransform['hasBreakpointMismatch'] ?? false) === true);
 
             $hasMissingSetWarning = false;
             foreach ($cardWarnings as $w) {
@@ -1747,14 +1746,28 @@ class TransformEditor extends Component
                 }
             }
 
-            $mismatchWarningMarkup = ($hasMismatchWarning && !$hasMissingSetWarning)
+            $editedSinceProcess = ($editedTransforms[$transformName] ?? false) === true;
+            $breakpointMismatchWarningMarkup = ($hasBreakpointMismatchWarning && !$hasMissingSetWarning)
+                ? '<div class="bpi-warning-item bpi-warning-item-neutral">'
+                    . '<div class="bpi-warning-copy"><h3 class="bpi-warning-heading">' . ($editedSinceProcess ? 'Saved Values Changed' : 'Breakpoint Mismatch') . '</h3></div>'
+                    . '<div class="bpi-warning-detail">'
+                        . ($editedSinceProcess
+                            ? '<p>Saved values have been edited since the last process. Process to review these changes.</p>'
+                            : '<p>Rendered values do not match the saved transform for one or more breakpoints.</p><p>If you made a change, it is best to process again and review the frontend is behaving correctly.</p>')
+                    . '</div>'
+                    . '</div>'
+                : '';
+
+            $assetMismatchWarningMarkup = ($hasAssetMismatchWarning && !$hasMissingSetWarning)
                 ? '<div class="bpi-warning-item bpi-warning-item-neutral">'
                     . '<div class="bpi-warning-copy"><h3 class="bpi-warning-heading">Asset Mismatch</h3></div>'
                     . '<div class="bpi-warning-detail"><p>One or more assets have mismatched values that need reviewed.</p></div>'
                     . '</div>'
                 : '';
 
-            $cardWarningsWithMismatch = $cardWarningsMarkup . $mismatchWarningMarkup;
+            $cardWarningsWithMismatch = $cardWarningsMarkup
+                . $breakpointMismatchWarningMarkup
+                . $assetMismatchWarningMarkup;
 
             $lastProcessPanelHtml = $this->buildLastProcessPanelMarkup(
                 $latestRunSnapshot,
@@ -1837,8 +1850,8 @@ class TransformEditor extends Component
         ?int $escapeBreakpoint,
         bool $hideRenderedApply,
         string $reviewMode,
-        ?array $referenceRendered = null,
         bool $passHeightWhenRenderedLteSaved = false,
+        ?int $savedWidth = null,
         ?int $savedHeight = null,
     ): string {
         $summary = $this->summarizeReviewRows($rows);
@@ -1955,13 +1968,18 @@ class TransformEditor extends Component
         $escapeBadge = $escapeBreakpoint !== null && $escapeBreakpoint === $breakpoint
             ? '<span class="bpi_escaped-notice">ESC</span>'
             : '';
-        $hasBreakpointMismatch = $reviewMode === self::REVIEW_MODE_PROCESSED
-            && $this->hasReviewMismatchForRowsReference(
-                $rows,
-                $referenceRendered,
-                $passHeightWhenRenderedLteSaved,
+        $hasBreakpointMismatch = false;
+        if ($reviewMode === self::REVIEW_MODE_PROCESSED && $currentEnabled) {
+            $columnEvaluation = $this->evaluateBreakpointMatch(
+                $renderedWidth,
+                $renderedHeight,
+                $savedWidth,
                 $savedHeight,
+                $autoDimension,
+                $passHeightWhenRenderedLteSaved,
             );
+            $hasBreakpointMismatch = $columnEvaluation['isBreakpointMismatch'];
+        }
 
         $isSelected = $allSelected || ($selectedBreakpoint !== null && $selectedBreakpoint === $breakpoint);
         $breakpointColumnWidth = (float)($breakpointColumnWidths[(string)$breakpoint] ?? 1.0);
@@ -2188,7 +2206,8 @@ class TransformEditor extends Component
         array $transformNames,
         array $warningsByTransform,
         array $preferredOrderBySet = [],
-        array $mismatchTransformNames = [],
+        array $breakpointMismatchTransformNames = [],
+        array $assetMismatchTransformNames = [],
     ): array
     {
         $preferredPositions = [];
@@ -2205,12 +2224,30 @@ class TransformEditor extends Component
             $preferredPositions[$normalizedName] = $index;
         }
 
-        usort($transformNames, static function (string $left, string $right) use ($warningsByTransform, $preferredPositions, $mismatchTransformNames): int {
-            $leftHasWarnings = !empty($warningsByTransform[$left]) || !empty($mismatchTransformNames[$left]);
-            $rightHasWarnings = !empty($warningsByTransform[$right]) || !empty($mismatchTransformNames[$right]);
+        $priorityFor = static function (string $name) use (
+            $breakpointMismatchTransformNames,
+            $assetMismatchTransformNames,
+            $warningsByTransform,
+        ): int {
+            if (!empty($breakpointMismatchTransformNames[$name])) {
+                return 0;
+            }
+            if (!empty($assetMismatchTransformNames[$name])) {
+                return 1;
+            }
+            if (!empty($warningsByTransform[$name])) {
+                return 2;
+            }
 
-            if ($leftHasWarnings !== $rightHasWarnings) {
-                return $leftHasWarnings ? -1 : 1;
+            return 3;
+        };
+
+        usort($transformNames, static function (string $left, string $right) use ($priorityFor, $preferredPositions): int {
+            $leftPriority = $priorityFor($left);
+            $rightPriority = $priorityFor($right);
+
+            if ($leftPriority !== $rightPriority) {
+                return $leftPriority <=> $rightPriority;
             }
 
             $leftPosition = $preferredPositions[$left] ?? null;
@@ -2360,6 +2397,63 @@ class TransformEditor extends Component
     }
 
     /**
+     * Returns a map of `[transformName => true]` for transforms whose saved width/height
+     * for any breakpoint differs between the snapshot (process time) and the current store.
+     * Empty when no snapshot exists or `$isProcessedReview` is false.
+     *
+     * @param array<string, mixed>|null $latestRunSnapshot
+     * @return array<string, bool>
+     */
+    private function buildEditedTransformsMap(?array $latestRunSnapshot, bool $isProcessedReview): array
+    {
+        if (!$isProcessedReview || !is_array($latestRunSnapshot)) {
+            return [];
+        }
+
+        $snapshotDimensions = $latestRunSnapshot['savedDimensionsByTransform'] ?? null;
+        if (!is_array($snapshotDimensions) || $snapshotDimensions === []) {
+            return [];
+        }
+
+        $currentDimensions = $this->buildSavedDimensionsByTransformAndBreakpoint();
+
+        $edited = [];
+        foreach ($snapshotDimensions as $transformName => $snapshotByBreakpoint) {
+            if (!is_string($transformName) || $transformName === '' || !is_array($snapshotByBreakpoint)) {
+                continue;
+            }
+
+            $currentByBreakpoint = $currentDimensions[$transformName] ?? [];
+            if ($this->savedDimensionsDiffer($snapshotByBreakpoint, $currentByBreakpoint)) {
+                $edited[$transformName] = true;
+            }
+        }
+
+        return $edited;
+    }
+
+    /**
+     * @param array<int|string, array{w: int|null, h: int|null}> $a
+     * @param array<int|string, array{w: int|null, h: int|null}> $b
+     */
+    private function savedDimensionsDiffer(array $a, array $b): bool
+    {
+        $breakpoints = array_unique(array_merge(array_keys($a), array_keys($b)));
+        foreach ($breakpoints as $breakpointKey) {
+            $aEntry = $a[$breakpointKey] ?? null;
+            $bEntry = $b[(int)$breakpointKey] ?? $b[$breakpointKey] ?? null;
+            $aW = is_array($aEntry) ? ($aEntry['w'] ?? null) : null;
+            $aH = is_array($aEntry) ? ($aEntry['h'] ?? null) : null;
+            $bW = is_array($bEntry) ? ($bEntry['w'] ?? null) : null;
+            $bH = is_array($bEntry) ? ($bEntry['h'] ?? null) : null;
+            if ($aW !== $bW || $aH !== $bH) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * @param array<string, mixed>|null $snapshot
      * @return array<string, array<string, mixed>>
      */
@@ -2370,8 +2464,8 @@ class TransformEditor extends Component
             return [];
         }
 
-        $rowsPayloadStatusReliable = ($resolvedSnapshot['rowsPayloadStatusReliable'] ?? true) === true;
         $storedAutoDimensionsByTransform = $this->buildStoredAutoDimensionsByTransformAndBreakpoint();
+        $storedSavedWidthsByTransform = $this->buildStoredSavedWidthsByTransformAndBreakpoint();
         $storedSavedHeightsByTransform = $this->buildStoredSavedHeightsByTransformAndBreakpoint();
         $storedTransforms = $this->getReviewStoredTransforms();
 
@@ -2418,34 +2512,45 @@ class TransformEditor extends Component
             $transformDefinition = isset($storedTransforms[$transformHandle]) && is_array($storedTransforms[$transformHandle])
                 ? $storedTransforms[$transformHandle]
                 : null;
+            $passHeightWhenRenderedLteSaved = $this->isPassHeightWhenRenderedLteSavedEnabled($transformDefinition);
             $breakpointRows = $this->buildLatestRunBreakpointHealthRows(
                 $breakpointEntriesByWidth,
-                $rowsPayloadStatusReliable,
-                $this->isPassHeightWhenRenderedLteSavedEnabled($transformDefinition),
+                $passHeightWhenRenderedLteSaved,
+                $storedSavedWidthsByTransform[$transformHandle] ?? [],
                 $storedSavedHeightsByTransform[$transformHandle] ?? [],
             );
 
-            $mismatchBreakpoints = [];
+            $assetMismatchBreakpoints = [];
+            $breakpointMismatchBreakpoints = [];
             foreach ($breakpointRows as $breakpointRow) {
                 if (!is_array($breakpointRow)) {
                     continue;
                 }
 
-                $statusLabel = strtolower(trim((string)($breakpointRow['statusLabel'] ?? 'matching')));
                 $breakpointWidth = isset($breakpointRow['breakpointWidth']) && is_numeric($breakpointRow['breakpointWidth'])
                     ? (int)$breakpointRow['breakpointWidth']
                     : 0;
+                if ($breakpointWidth <= 0) {
+                    continue;
+                }
 
-                if ($statusLabel === 'mismatches' && $breakpointWidth > 0) {
-                    $mismatchBreakpoints[] = $breakpointWidth;
+                if (($breakpointRow['hasAssetMismatch'] ?? false) === true) {
+                    $assetMismatchBreakpoints[] = $breakpointWidth;
+                }
+                if (($breakpointRow['hasBreakpointMismatch'] ?? false) === true) {
+                    $breakpointMismatchBreakpoints[] = $breakpointWidth;
                 }
             }
 
-            sort($mismatchBreakpoints, SORT_NUMERIC);
+            sort($assetMismatchBreakpoints, SORT_NUMERIC);
+            sort($breakpointMismatchBreakpoints, SORT_NUMERIC);
             $healthByTransform[$transformHandle] = [
-                'hasMismatch' => $mismatchBreakpoints !== [],
-                'mismatchBreakpointCount' => count($mismatchBreakpoints),
-                'mismatchBreakpoints' => $mismatchBreakpoints,
+                'hasAssetMismatch' => $assetMismatchBreakpoints !== [],
+                'assetMismatchBreakpointCount' => count($assetMismatchBreakpoints),
+                'assetMismatchBreakpoints' => $assetMismatchBreakpoints,
+                'hasBreakpointMismatch' => $breakpointMismatchBreakpoints !== [],
+                'breakpointMismatchBreakpointCount' => count($breakpointMismatchBreakpoints),
+                'breakpointMismatchBreakpoints' => $breakpointMismatchBreakpoints,
                 'breakpointRows' => $breakpointRows,
             ];
         }
@@ -2455,14 +2560,12 @@ class TransformEditor extends Component
 
     /**
      * @param array<int, array<int, array<string, mixed>>> $breakpointEntriesByWidth
-     * @param array<int, array<string, mixed>> $currentRowsByBreakpoint
-     * @param bool $statusReliable
      * @return array<int, array<string, mixed>>
      */
     private function buildLatestRunBreakpointHealthRows(
         array $breakpointEntriesByWidth,
-        bool $statusReliable,
         bool $passHeightWhenRenderedLteSaved,
+        array $savedWidthsByBreakpoint,
         array $savedHeightsByBreakpoint,
     ): array
     {
@@ -2472,6 +2575,21 @@ class TransformEditor extends Component
         foreach ($breakpointEntriesByWidth as $breakpointWidth => $breakpointEntries) {
             if (!is_array($breakpointEntries) || $breakpointEntries === []) {
                 continue;
+            }
+
+            $breakpointWidthInt = (int)$breakpointWidth;
+            $savedWidth = $savedWidthsByBreakpoint[$breakpointWidthInt] ?? null;
+            $savedHeight = $savedHeightsByBreakpoint[$breakpointWidthInt] ?? null;
+            $autoDimension = null;
+            foreach ($breakpointEntries as $candidateEntry) {
+                if (!is_array($candidateEntry)) {
+                    continue;
+                }
+                $entryAuto = $this->normalizeAutoDimension($candidateEntry['autoDimension'] ?? null);
+                if ($entryAuto !== null) {
+                    $autoDimension = $entryAuto;
+                    break;
+                }
             }
 
             $referenceEntry = $breakpointEntries[0];
@@ -2487,7 +2605,16 @@ class TransformEditor extends Component
             $comparison = $this->resolveLatestRunDimensionComparison($breakpointEntries);
             $compareWidth = $comparison['compareWidth'];
             $compareHeight = $comparison['compareHeight'];
-            $mismatchDetails = [];
+            $assetMismatchDetails = [];
+
+            $representativeEvaluation = $this->evaluateBreakpointMatch(
+                $expectedAssetWidth,
+                $expectedAssetHeight,
+                $savedWidth,
+                $savedHeight,
+                $autoDimension,
+                $passHeightWhenRenderedLteSaved,
+            );
 
             foreach ($breakpointEntries as $entryIndex => $entry) {
                 $assetLabel = trim((string)($entry['assetId'] ?? ''));
@@ -2499,65 +2626,132 @@ class TransformEditor extends Component
                 $renderedWidth = max(0, (int)($entry['renderedWidth'] ?? 0));
                 $renderedHeight = max(0, (int)($entry['renderedHeight'] ?? 0));
 
-                if ($statusReliable && $status !== 'loaded') {
-                    $mismatchDetails[] = $assetLabel . ': status ' . $status;
+                if ($status !== 'loaded') {
+                    $assetMismatchDetails[] = $assetLabel . ': status ' . $status;
                 }
 
                 if ($renderedWidth < 1 || $renderedHeight < 1) {
                     $missingComparedWidth = $compareWidth && $renderedWidth < 1;
                     $missingComparedHeight = $compareHeight && $renderedHeight < 1;
-                    if ($statusReliable && ($missingComparedWidth || $missingComparedHeight)) {
-                        $mismatchDetails[] = $assetLabel . ': size unavailable';
+                    if ($missingComparedWidth || $missingComparedHeight) {
+                        $assetMismatchDetails[] = $assetLabel . ': size unavailable';
                     }
                     continue;
                 }
 
                 $widthMismatch = $compareWidth
                     && $expectedAssetWidth > 0
-                    && abs($renderedWidth - $expectedAssetWidth) > 2;
+                    && abs($renderedWidth - $expectedAssetWidth) > self::MISMATCH_TOLERANCE_PX;
                 $heightMismatch = $compareHeight
                     && $expectedAssetHeight > 0
-                    && abs($renderedHeight - $expectedAssetHeight) > 2;
+                    && abs($renderedHeight - $expectedAssetHeight) > self::MISMATCH_TOLERANCE_PX;
 
                 if ($heightMismatch && $this->shouldIgnoreHeightMismatch(
                     $passHeightWhenRenderedLteSaved,
                     $renderedHeight,
-                    $savedHeightsByBreakpoint[(int)$breakpointWidth] ?? null,
+                    $savedHeight,
                 )) {
                     $heightMismatch = false;
                 }
 
                 if ($widthMismatch || $heightMismatch) {
                     if ($widthMismatch && $heightMismatch) {
-                        $mismatchDetails[] = $assetLabel . ': '
+                        $assetMismatchDetails[] = $assetLabel . ': '
                             . $renderedWidth . 'x' . $renderedHeight
                             . ' expected asset ' . $expectedAssetWidth . 'x' . $expectedAssetHeight;
                     } elseif ($widthMismatch) {
-                        $mismatchDetails[] = $assetLabel . ': '
+                        $assetMismatchDetails[] = $assetLabel . ': '
                             . 'width ' . $renderedWidth
                             . ' expected asset width ' . $expectedAssetWidth;
                     } else {
-                        $mismatchDetails[] = $assetLabel . ': '
+                        $assetMismatchDetails[] = $assetLabel . ': '
                             . 'height ' . $renderedHeight
                             . ' expected asset height ' . $expectedAssetHeight;
                     }
                 }
             }
 
-            $isMismatch = $mismatchDetails !== [];
-            $visibleDetails = array_slice($mismatchDetails, 0, 6);
-            if (count($mismatchDetails) > 6) {
-                $visibleDetails[] = '+' . (string)(count($mismatchDetails) - 6) . ' more';
+            $hasAssetMismatch = $assetMismatchDetails !== [];
+            $visibleDetails = array_slice($assetMismatchDetails, 0, 6);
+            if (count($assetMismatchDetails) > 6) {
+                $visibleDetails[] = '+' . (string)(count($assetMismatchDetails) - 6) . ' more';
             }
 
+            $hasBreakpointMismatch = $representativeEvaluation['isBreakpointMismatch'];
+            $breakpointMismatchInfo = $this->formatBreakpointMismatchInfo(
+                $representativeEvaluation['widthStatus'],
+                $representativeEvaluation['heightStatus'],
+                $expectedAssetWidth,
+                $expectedAssetHeight,
+                $savedWidth,
+                $savedHeight,
+            );
+
             $rows[] = [
-                'breakpointWidth' => (int)$breakpointWidth,
-                'statusLabel' => $isMismatch ? 'Mismatches' : 'Matching',
-                'mismatchInfo' => $isMismatch ? implode('; ', $visibleDetails) : '-',
+                'breakpointWidth' => $breakpointWidthInt,
+                'hasAssetMismatch' => $hasAssetMismatch,
+                'assetMismatchLabel' => $hasAssetMismatch ? 'Mismatch' : 'Matching',
+                'assetMismatchInfo' => $hasAssetMismatch ? implode('; ', $visibleDetails) : '-',
+                'hasBreakpointMismatch' => $hasBreakpointMismatch,
+                'breakpointMismatchLabel' => $this->formatBreakpointMismatchLabel(
+                    $representativeEvaluation['widthStatus'],
+                    $representativeEvaluation['heightStatus'],
+                ),
+                'breakpointMismatchInfo' => $breakpointMismatchInfo,
+                'widthStatus' => $representativeEvaluation['widthStatus'],
+                'heightStatus' => $representativeEvaluation['heightStatus'],
             ];
         }
 
         return $rows;
+    }
+
+    private function formatBreakpointMismatchLabel(string $widthStatus, string $heightStatus): string
+    {
+        $sides = [$widthStatus, $heightStatus];
+
+        if (in_array('mismatch', $sides, true) || in_array('missing', $sides, true)) {
+            return 'Mismatch';
+        }
+
+        if (in_array('match', $sides, true)) {
+            return 'Matching';
+        }
+
+        if ($widthStatus === 'auto' && $heightStatus === 'auto') {
+            return 'Auto';
+        }
+
+        if ($widthStatus === 'no-transform' && $heightStatus === 'no-transform') {
+            return 'No transform';
+        }
+
+        return 'Matching';
+    }
+
+    private function formatBreakpointMismatchInfo(
+        string $widthStatus,
+        string $heightStatus,
+        int $renderedWidth,
+        int $renderedHeight,
+        ?int $savedWidth,
+        ?int $savedHeight,
+    ): string {
+        $parts = [];
+
+        if ($widthStatus === 'mismatch' && $savedWidth !== null) {
+            $parts[] = 'width ' . $renderedWidth . ' expected ' . $savedWidth;
+        } elseif ($widthStatus === 'missing') {
+            $parts[] = 'width unavailable';
+        }
+
+        if ($heightStatus === 'mismatch' && $savedHeight !== null) {
+            $parts[] = 'height ' . $renderedHeight . ' expected ' . $savedHeight;
+        } elseif ($heightStatus === 'missing') {
+            $parts[] = 'height unavailable';
+        }
+
+        return $parts === [] ? '-' : implode('; ', $parts);
     }
 
     /**
@@ -2603,9 +2797,12 @@ class TransformEditor extends Component
                         'unprocessed' => 0,
                     ],
                     'statusByBreakpoint' => [],
-                    'hasMismatch' => false,
-                    'mismatchBreakpointCount' => 0,
-                    'mismatchBreakpoints' => [],
+                    'hasAssetMismatch' => false,
+                    'assetMismatchBreakpointCount' => 0,
+                    'assetMismatchBreakpoints' => [],
+                    'hasBreakpointMismatch' => false,
+                    'breakpointMismatchBreakpointCount' => 0,
+                    'breakpointMismatchBreakpoints' => [],
                 ];
             }
 
@@ -2639,18 +2836,28 @@ class TransformEditor extends Component
                         'unprocessed' => 0,
                     ],
                     'statusByBreakpoint' => [],
-                    'hasMismatch' => false,
-                    'mismatchBreakpointCount' => 0,
-                    'mismatchBreakpoints' => [],
+                    'hasAssetMismatch' => false,
+                    'assetMismatchBreakpointCount' => 0,
+                    'assetMismatchBreakpoints' => [],
+                    'hasBreakpointMismatch' => false,
+                    'breakpointMismatchBreakpointCount' => 0,
+                    'breakpointMismatchBreakpoints' => [],
                 ];
             }
 
-            $summaries[$transformHandle]['hasMismatch'] = ($health['hasMismatch'] ?? false) === true;
-            $summaries[$transformHandle]['mismatchBreakpointCount'] = isset($health['mismatchBreakpointCount'])
-                ? max(0, (int)$health['mismatchBreakpointCount'])
+            $summaries[$transformHandle]['hasAssetMismatch'] = ($health['hasAssetMismatch'] ?? false) === true;
+            $summaries[$transformHandle]['assetMismatchBreakpointCount'] = isset($health['assetMismatchBreakpointCount'])
+                ? max(0, (int)$health['assetMismatchBreakpointCount'])
                 : 0;
-            $summaries[$transformHandle]['mismatchBreakpoints'] = isset($health['mismatchBreakpoints']) && is_array($health['mismatchBreakpoints'])
-                ? array_values($health['mismatchBreakpoints'])
+            $summaries[$transformHandle]['assetMismatchBreakpoints'] = isset($health['assetMismatchBreakpoints']) && is_array($health['assetMismatchBreakpoints'])
+                ? array_values($health['assetMismatchBreakpoints'])
+                : [];
+            $summaries[$transformHandle]['hasBreakpointMismatch'] = ($health['hasBreakpointMismatch'] ?? false) === true;
+            $summaries[$transformHandle]['breakpointMismatchBreakpointCount'] = isset($health['breakpointMismatchBreakpointCount'])
+                ? max(0, (int)$health['breakpointMismatchBreakpointCount'])
+                : 0;
+            $summaries[$transformHandle]['breakpointMismatchBreakpoints'] = isset($health['breakpointMismatchBreakpoints']) && is_array($health['breakpointMismatchBreakpoints'])
+                ? array_values($health['breakpointMismatchBreakpoints'])
                 : [];
         }
 
@@ -2685,9 +2892,13 @@ class TransformEditor extends Component
 
         $ranAtLabel = $this->formatLatestRunTimestamp($snapshot['ranAt'] ?? null);
         $hasHealthData = is_array($transformSummary);
-        $hasMismatch = $hasHealthData
-            && is_numeric($transformSummary['mismatchBreakpointCount'] ?? null)
-            && (int)$transformSummary['mismatchBreakpointCount'] > 0;
+        $hasBreakpointMismatchCount = $hasHealthData
+            && is_numeric($transformSummary['breakpointMismatchBreakpointCount'] ?? null)
+            && (int)$transformSummary['breakpointMismatchBreakpointCount'] > 0;
+        $hasAssetMismatchCount = $hasHealthData
+            && is_numeric($transformSummary['assetMismatchBreakpointCount'] ?? null)
+            && (int)$transformSummary['assetMismatchBreakpointCount'] > 0;
+        $hasMismatch = $hasBreakpointMismatchCount || $hasAssetMismatchCount;
 
         if (!$hasHealthData) {
             $statusIconClass = 'bpi-transform-last-process-status-icon-unknown';
@@ -3300,7 +3511,7 @@ class TransformEditor extends Component
                 if (!is_array($rows) || $rows === []) {
                     continue;
                 }
-                if ($this->hasReviewMismatchForRowsReference(
+                if ($this->hasAssetMismatchForBreakpoint(
                     $rows,
                     $referenceByBreakpoint[$breakpoint] ?? null,
                     $passHeightWhenRenderedLteSaved,
@@ -3317,7 +3528,7 @@ class TransformEditor extends Component
         return $assetMismatchByKey;
     }
 
-    private function hasReviewMismatchForRowsReference(
+    private function hasAssetMismatchForBreakpoint(
         array $rows,
         ?array $referenceRendered,
         bool $passHeightWhenRenderedLteSaved,
@@ -3358,10 +3569,10 @@ class TransformEditor extends Component
 
         $widthMismatch = $compareWidth
             && ($referenceRendered['width'] ?? 0) > 0
-            && abs($renderedWidth - (int)$referenceRendered['width']) > 2;
+            && abs($renderedWidth - (int)$referenceRendered['width']) > self::MISMATCH_TOLERANCE_PX;
         $heightMismatch = $compareHeight
             && ($referenceRendered['height'] ?? 0) > 0
-            && abs($renderedHeight - (int)$referenceRendered['height']) > 2;
+            && abs($renderedHeight - (int)$referenceRendered['height']) > self::MISMATCH_TOLERANCE_PX;
 
         if ($heightMismatch && $this->shouldIgnoreHeightMismatch(
             $passHeightWhenRenderedLteSaved,
@@ -3544,6 +3755,168 @@ class TransformEditor extends Component
             && $savedHeight !== null
             && $savedHeight > 0
             && $renderedHeight <= $savedHeight;
+    }
+
+    /**
+     * @return array<string, array<int, int|null>>
+     */
+    private function buildStoredSavedWidthsByTransformAndBreakpoint(): array
+    {
+        $storedTransforms = $this->getReviewStoredTransforms();
+        if ($storedTransforms === []) {
+            return [];
+        }
+
+        $savedWidthsByTransform = [];
+
+        foreach ($storedTransforms as $transformName => $transformDefinition) {
+            if (!is_string($transformName) || $transformName === '' || !is_array($transformDefinition)) {
+                continue;
+            }
+
+            $includeEscapeWidth = ($transformDefinition['includeEscapeWidth'] ?? false) === true;
+            $breakpoints = $this->getBreakpointsForTransform($includeEscapeWidth);
+            $entries = isset($transformDefinition['transforms']) && is_array($transformDefinition['transforms'])
+                ? array_values($transformDefinition['transforms'])
+                : [];
+
+            foreach ($breakpoints as $index => $breakpoint) {
+                if (!is_int($breakpoint) || $breakpoint <= 0) {
+                    continue;
+                }
+
+                $entry = isset($entries[$index]) && is_array($entries[$index])
+                    ? $entries[$index]
+                    : [];
+
+                $autoDimension = $this->normalizeAutoDimension($entry['autoDimension'] ?? null);
+                if ($autoDimension === 'width') {
+                    $savedWidthsByTransform[$transformName][$breakpoint] = null;
+                    continue;
+                }
+
+                $savedWidthsByTransform[$transformName][$breakpoint] = $this->normalizeNullablePositiveInt(
+                    $entry['width'] ?? null,
+                );
+            }
+        }
+
+        return $savedWidthsByTransform;
+    }
+
+    /**
+     * Returns the saved width/height for every (transform, breakpoint) currently in the store.
+     *
+     * Shape: `[transformName => [breakpoint => ['w' => int|null, 'h' => int|null]]]`.
+     * `null` values mean "auto" or "not set" on that side.
+     *
+     * Used by snapshot persistence to capture the saved dimensions at process time,
+     * and by the review renderer to detect per-transform edits since processing.
+     *
+     * @return array<string, array<int, array{w: int|null, h: int|null}>>
+     */
+    public function buildSavedDimensionsByTransformAndBreakpoint(): array
+    {
+        $widths = $this->buildStoredSavedWidthsByTransformAndBreakpoint();
+        $heights = $this->buildStoredSavedHeightsByTransformAndBreakpoint();
+
+        $merged = [];
+        $transformNames = array_unique(array_merge(array_keys($widths), array_keys($heights)));
+        foreach ($transformNames as $transformName) {
+            $widthsForTransform = $widths[$transformName] ?? [];
+            $heightsForTransform = $heights[$transformName] ?? [];
+            $breakpoints = array_unique(array_merge(
+                array_keys($widthsForTransform),
+                array_keys($heightsForTransform),
+            ));
+            sort($breakpoints, SORT_NUMERIC);
+
+            foreach ($breakpoints as $breakpoint) {
+                $merged[$transformName][(int)$breakpoint] = [
+                    'w' => $widthsForTransform[$breakpoint] ?? null,
+                    'h' => $heightsForTransform[$breakpoint] ?? null,
+                ];
+            }
+        }
+
+        return $merged;
+    }
+
+    /**
+     * Evaluate rendered dimensions against saved transform dimensions for a single breakpoint.
+     *
+     * Per-side status values:
+     * - `match`        rendered and saved agree within MISMATCH_TOLERANCE_PX (±1).
+     * - `mismatch`     rendered and saved disagree beyond tolerance.
+     * - `auto`         this side is an auto dimension on the saved transform.
+     * - `no-transform` saved value is null on a non-auto side.
+     * - `missing`      rendered value is 0 / not measured.
+     *
+     * `isBreakpointMismatch` is true only if at least one side is `mismatch` or `missing`.
+     * Auto and no-transform sides never flag breakpoint mismatch.
+     *
+     * @return array{widthStatus: string, heightStatus: string, isBreakpointMismatch: bool}
+     */
+    private function evaluateBreakpointMatch(
+        int $renderedWidth,
+        int $renderedHeight,
+        ?int $savedWidth,
+        ?int $savedHeight,
+        ?string $autoDimension,
+        bool $passHeightWhenRenderedLteSaved,
+    ): array {
+        $widthStatus = $this->evaluateDimensionMatch(
+            $renderedWidth,
+            $savedWidth,
+            $autoDimension === 'width',
+        );
+
+        $heightStatus = $this->evaluateDimensionMatch(
+            $renderedHeight,
+            $savedHeight,
+            $autoDimension === 'height',
+        );
+
+        if ($heightStatus === 'mismatch' && $this->shouldIgnoreHeightMismatch(
+            $passHeightWhenRenderedLteSaved,
+            $renderedHeight,
+            $savedHeight,
+        )) {
+            $heightStatus = 'match';
+        }
+
+        $isMismatch = $widthStatus === 'mismatch'
+            || $heightStatus === 'mismatch'
+            || $widthStatus === 'missing'
+            || $heightStatus === 'missing';
+
+        return [
+            'widthStatus' => $widthStatus,
+            'heightStatus' => $heightStatus,
+            'isBreakpointMismatch' => $isMismatch,
+        ];
+    }
+
+    private function evaluateDimensionMatch(
+        int $renderedValue,
+        ?int $savedValue,
+        bool $isAuto,
+    ): string {
+        if ($isAuto) {
+            return 'auto';
+        }
+
+        if ($savedValue === null || $savedValue <= 0) {
+            return 'no-transform';
+        }
+
+        if ($renderedValue <= 0) {
+            return 'missing';
+        }
+
+        return abs($renderedValue - $savedValue) <= self::MISMATCH_TOLERANCE_PX
+            ? 'match'
+            : 'mismatch';
     }
 
     private function summarizeReviewRows(array $rows): array
@@ -3734,19 +4107,20 @@ class TransformEditor extends Component
         ?string $autoDimension,
         string $dimension,
     ): string {
-        if ($autoDimension === $dimension) {
-            return 'bpi_dimension-auto';
-        }
+        $status = $this->evaluateDimensionMatch(
+            max(0, $renderedValue),
+            $transformValue,
+            $autoDimension === $dimension,
+            true,
+        );
 
-        if ($transformValue === null) {
-            return 'bpi_dimension-no-transform';
-        }
-
-        if ($renderedValue <= 0) {
-            return 'bpi_dimension-no-transform';
-        }
-
-        return '';
+        return match ($status) {
+            'auto' => 'bpi_dimension-auto',
+            'no-transform', 'missing' => 'bpi_dimension-no-transform',
+            'match' => 'bpi_dimension-match',
+            'mismatch' => 'bpi_dimension-mismatch',
+            default => '',
+        };
     }
 
     private function getReviewCurrentDimensionDisplay(?int $value, ?string $autoDimension, string $dimension): string

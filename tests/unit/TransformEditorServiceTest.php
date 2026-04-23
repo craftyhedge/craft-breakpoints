@@ -384,7 +384,6 @@ final class TransformEditorServiceTest extends Unit
                 'config' => [],
             ],
         ], fn() => $editor->buildLatestRunHealthByTransform([
-            'rowsPayloadStatusReliable' => true,
             'rowsPayload' => [
                 [
                     'transformHandle' => 'hero',
@@ -406,11 +405,12 @@ final class TransformEditorServiceTest extends Unit
         ]));
 
         $this->assertArrayHasKey('hero', $health);
-        $this->assertFalse(($health['hero']['hasMismatch'] ?? true) === true);
-        $this->assertSame(0, (int)($health['hero']['mismatchBreakpointCount'] ?? -1));
+        $this->assertFalse(($health['hero']['hasAssetMismatch'] ?? true) === true);
+        $this->assertFalse(($health['hero']['hasBreakpointMismatch'] ?? true) === true);
+        $this->assertSame(0, (int)($health['hero']['assetMismatchBreakpointCount'] ?? -1));
         $rows = $health['hero']['breakpointRows'] ?? [];
         $this->assertIsArray($rows);
-        $this->assertSame('Matching', (string)($rows[0]['statusLabel'] ?? ''));
+        $this->assertSame('Matching', (string)($rows[0]['assetMismatchLabel'] ?? ''));
     }
 
     public function testRenderResultReviewRendersMissingDefinitionWarningWithinTransformCard(): void
@@ -844,7 +844,6 @@ final class TransformEditorServiceTest extends Unit
                 'config' => ['passHeightWhenRenderedLteSaved' => true],
             ],
         ], fn() => $editor->buildLatestRunHealthByTransform([
-            'rowsPayloadStatusReliable' => true,
             'rowsPayload' => [
                 [
                     'transformHandle' => 'hero',
@@ -866,10 +865,11 @@ final class TransformEditorServiceTest extends Unit
         ]));
 
         $this->assertArrayHasKey('hero', $health);
-        $this->assertFalse(($health['hero']['hasMismatch'] ?? true) === true);
+        $this->assertFalse(($health['hero']['hasAssetMismatch'] ?? true) === true);
+        $this->assertFalse(($health['hero']['hasBreakpointMismatch'] ?? true) === true);
         $rows = $health['hero']['breakpointRows'] ?? [];
         $this->assertIsArray($rows);
-        $this->assertSame('Matching', (string)($rows[0]['statusLabel'] ?? ''));
+        $this->assertSame('Matching', (string)($rows[0]['assetMismatchLabel'] ?? ''));
     }
 
     public function testBuildLatestRunHealthByTransformKeepsHeightMismatchWhenRenderedHeightExceedsSaved(): void
@@ -886,7 +886,6 @@ final class TransformEditorServiceTest extends Unit
                 'config' => ['passHeightWhenRenderedLteSaved' => true],
             ],
         ], fn() => $editor->buildLatestRunHealthByTransform([
-            'rowsPayloadStatusReliable' => true,
             'rowsPayload' => [
                 [
                     'transformHandle' => 'hero',
@@ -908,10 +907,10 @@ final class TransformEditorServiceTest extends Unit
         ]));
 
         $this->assertArrayHasKey('hero', $health);
-        $this->assertTrue(($health['hero']['hasMismatch'] ?? false) === true);
+        $this->assertTrue(($health['hero']['hasAssetMismatch'] ?? false) === true);
         $rows = $health['hero']['breakpointRows'] ?? [];
         $this->assertIsArray($rows);
-        $this->assertSame('Mismatches', (string)($rows[0]['statusLabel'] ?? ''));
+        $this->assertSame('Mismatch', (string)($rows[0]['assetMismatchLabel'] ?? ''));
     }
 
     public function testBuildLatestRunHealthByTransformKeepsStatusMismatchBehaviorWhenHeightWaiverApplies(): void
@@ -928,7 +927,6 @@ final class TransformEditorServiceTest extends Unit
                 'config' => ['passHeightWhenRenderedLteSaved' => true],
             ],
         ], fn() => $editor->buildLatestRunHealthByTransform([
-            'rowsPayloadStatusReliable' => true,
             'rowsPayload' => [
                 [
                     'transformHandle' => 'hero',
@@ -950,11 +948,11 @@ final class TransformEditorServiceTest extends Unit
         ]));
 
         $this->assertArrayHasKey('hero', $health);
-        $this->assertTrue(($health['hero']['hasMismatch'] ?? false) === true);
+        $this->assertTrue(($health['hero']['hasAssetMismatch'] ?? false) === true);
         $rows = $health['hero']['breakpointRows'] ?? [];
         $this->assertIsArray($rows);
-        $this->assertSame('Mismatches', (string)($rows[0]['statusLabel'] ?? ''));
-        $this->assertStringContainsString('status broken', (string)($rows[0]['mismatchInfo'] ?? ''));
+        $this->assertSame('Mismatch', (string)($rows[0]['assetMismatchLabel'] ?? ''));
+        $this->assertStringContainsString('status broken', (string)($rows[0]['assetMismatchInfo'] ?? ''));
     }
 
     public function testRenderResultReviewAppliesHeightWaiverToBreakpointAndAssetMismatchMarkers(): void
