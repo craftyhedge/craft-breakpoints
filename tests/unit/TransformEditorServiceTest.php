@@ -830,6 +830,149 @@ final class TransformEditorServiceTest extends Unit
         });
     }
 
+    public function testApplySetAllowAnyHeightOperationPersistsConfigWithoutMutatingVariants(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'sm' => ['width' => 640, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => [],
+            ],
+        ], function () use ($editor): void {
+            $beforeSm = Plugin::getInstance()->getTransformStore()->getSets()['hero']['variants']['sm'] ?? [];
+
+            $result = $editor->applySetAllowAnyHeightOperation(
+                'hero',
+                true,
+                false,
+            );
+
+            $this->assertTrue(($result['persisted'] ?? false) === true);
+            $this->assertTrue(($result['validation']['hasErrors'] ?? true) === false);
+
+            $sets = Plugin::getInstance()->getTransformStore()->getSets();
+            $this->assertTrue((($sets['hero']['config']['allowAnyHeight'] ?? false) === true));
+            $this->assertSame($beforeSm, $sets['hero']['variants']['sm'] ?? []);
+        });
+    }
+
+    public function testApplySetAllowAnyHeightOperationTreatsNonBooleanValuesAsDisabled(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'sm' => ['width' => 640, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => [],
+            ],
+        ], function () use ($editor): void {
+            $result = $editor->applySetAllowAnyHeightOperation(
+                'hero',
+                'true',
+                false,
+            );
+
+            $this->assertTrue(($result['persisted'] ?? false) === true);
+            $this->assertTrue(($result['validation']['hasErrors'] ?? true) === false);
+
+            $sets = Plugin::getInstance()->getTransformStore()->getSets();
+            $this->assertFalse((($sets['hero']['config']['allowAnyHeight'] ?? true) === true));
+        });
+    }
+
+    public function testEnablingAllowAnyHeightClearsPassHeightWhenRenderedLteSaved(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'sm' => ['width' => 640, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => ['passHeightWhenRenderedLteSaved' => true],
+            ],
+        ], function () use ($editor): void {
+            $result = $editor->applySetAllowAnyHeightOperation(
+                'hero',
+                true,
+                false,
+            );
+
+            $this->assertTrue(($result['persisted'] ?? false) === true);
+
+            $sets = Plugin::getInstance()->getTransformStore()->getSets();
+            $this->assertTrue((($sets['hero']['config']['allowAnyHeight'] ?? false) === true));
+            $this->assertFalse((($sets['hero']['config']['passHeightWhenRenderedLteSaved'] ?? true) === true));
+        });
+    }
+
+    public function testEnablingPassHeightWhenRenderedLteSavedClearsAllowAnyHeight(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'sm' => ['width' => 640, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => ['allowAnyHeight' => true],
+            ],
+        ], function () use ($editor): void {
+            $result = $editor->applySetPassHeightWhenRenderedLteSavedOperation(
+                'hero',
+                true,
+                false,
+            );
+
+            $this->assertTrue(($result['persisted'] ?? false) === true);
+
+            $sets = Plugin::getInstance()->getTransformStore()->getSets();
+            $this->assertTrue((($sets['hero']['config']['passHeightWhenRenderedLteSaved'] ?? false) === true));
+            $this->assertFalse((($sets['hero']['config']['allowAnyHeight'] ?? true) === true));
+        });
+    }
+
+    public function testDisablingAllowAnyHeightDoesNotTouchPassHeightWhenRenderedLteSaved(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'sm' => ['width' => 640, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => ['passHeightWhenRenderedLteSaved' => true, 'allowAnyHeight' => false],
+            ],
+        ], function () use ($editor): void {
+            $result = $editor->applySetAllowAnyHeightOperation(
+                'hero',
+                false,
+                false,
+            );
+
+            $this->assertTrue(($result['persisted'] ?? false) === true);
+
+            $sets = Plugin::getInstance()->getTransformStore()->getSets();
+            $this->assertTrue((($sets['hero']['config']['passHeightWhenRenderedLteSaved'] ?? false) === true));
+            $this->assertFalse((($sets['hero']['config']['allowAnyHeight'] ?? true) === true));
+        });
+    }
+
     public function testBuildLatestRunHealthByTransformSuppressesHeightMismatchWhenRenderedHeightLteSaved(): void
     {
         $editor = Plugin::getInstance()->getTransformEditor();

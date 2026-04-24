@@ -186,7 +186,24 @@ final class TransformsControllerTest extends Unit
         $response = $controller->actionApplyCardOperation();
 
         $this->assertSame(Response::FORMAT_RAW, $response->format);
-        $this->assertStringContainsString('Height pass setting update failed.', (string)$response->content);
+        $this->assertStringContainsString('Allow shorter heights setting update failed.', (string)$response->content);
+        $this->assertStringContainsString('setName is required.', (string)$response->content);
+        $this->assertTrue($controller->cpRequestChecked);
+        $this->assertTrue($controller->postRequestChecked);
+    }
+
+    public function testApplyCardOperationRoutesAllowAnyHeightField(): void
+    {
+        $controller = $this->controllerWithBody([
+            'baseVersion' => 9,
+            'field' => 'allowAnyHeight',
+            'setName' => '',
+            'value' => true,
+        ]);
+        $response = $controller->actionApplyCardOperation();
+
+        $this->assertSame(Response::FORMAT_RAW, $response->format);
+        $this->assertStringContainsString('Allow any height setting update failed.', (string)$response->content);
         $this->assertStringContainsString('setName is required.', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);

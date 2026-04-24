@@ -218,6 +218,13 @@ class TransformsController extends Controller
                 $includeEscapeWidth,
                 $baseVersion,
             );
+        } elseif ($field === 'allowAnyHeight') {
+            $operationResult = $editor->applySetAllowAnyHeightOperation(
+                $setName,
+                $valueRaw,
+                $includeEscapeWidth,
+                $baseVersion,
+            );
         } else {
             $operationResult = $editor->applySetDimensionOperation(
                 $setName,
@@ -398,7 +405,7 @@ class TransformsController extends Controller
     private function normalizeOperationField(string $field): string
     {
         return match ($field) {
-            'width', 'height', 'dimensions', 'ratio', 'breakpointEnabled', 'passHeightWhenRenderedLteSaved', 'renderedValues', 'deleteSet' => $field,
+            'width', 'height', 'dimensions', 'ratio', 'breakpointEnabled', 'passHeightWhenRenderedLteSaved', 'allowAnyHeight', 'renderedValues', 'deleteSet' => $field,
             default => 'width',
         };
     }
@@ -528,7 +535,8 @@ class TransformsController extends Controller
                 'dimensions' => 'Dimensions updated.',
                 'ratio' => 'Ratio applied.',
                 'breakpointEnabled' => 'Breakpoint state updated.',
-                'passHeightWhenRenderedLteSaved' => 'Height pass setting updated.',
+                'passHeightWhenRenderedLteSaved' => 'Allow shorter heights setting updated.',
+                'allowAnyHeight' => 'Allow any height setting updated.',
                 default => ucfirst($field) . ' updated.',
             };
         }
@@ -539,7 +547,8 @@ class TransformsController extends Controller
             'dimensions' => 'Dimensions update failed.',
             'ratio' => 'Ratio apply failed.',
             'breakpointEnabled' => 'Breakpoint state update failed.',
-            'passHeightWhenRenderedLteSaved' => 'Height pass setting update failed.',
+            'passHeightWhenRenderedLteSaved' => 'Allow shorter heights setting update failed.',
+            'allowAnyHeight' => 'Allow any height setting update failed.',
             default => ucfirst($field) . ' update failed.',
         };
     }
