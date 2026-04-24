@@ -42,7 +42,7 @@ class RenderContextBuilder extends Component
 
     public function getPictureAttributes(array $config): array
     {
-        $setName = (string)($config['setName'] ?? $config['transformName'] ?? 'default');
+        $setName = $this->resolveSetName($config);
         $assetId = isset($config['imageId']) ? (string)$config['imageId'] : 'unknown';
         $pictureId = $this->buildPictureId($setName, $assetId, $config);
         $set = $this->_plugin?->getTransformSets()->getSet($setName);
@@ -64,7 +64,7 @@ class RenderContextBuilder extends Component
             return null;
         }
 
-        $setName = (string)($config['setName'] ?? $config['transformName'] ?? 'default');
+        $setName = $this->resolveSetName($config);
         $transformedImages = $this->_plugin->getImageTransforms()->getTransformedImages($image, $setName, 'primary', $config);
 
         $firstEnabledIndex = $this->_plugin->getImageTransforms()->getFirstEnabledBreakpointIndex($config);
@@ -106,6 +106,16 @@ class RenderContextBuilder extends Component
         }
 
         return $attributes;
+    }
+
+    private function resolveSetName(array $config): string
+    {
+        $setName = (string)($config['setName'] ?? $config['transformName'] ?? '');
+        if (trim($setName) === '') {
+            throw new \InvalidArgumentException('A non-empty set name is required in config.');
+        }
+
+        return $setName;
     }
 
     private function buildPictureId(string $setName, string $assetId, array $config): string

@@ -351,37 +351,9 @@ class TransformStore extends Component
 
     private function buildDefaultSets(): array
     {
-        if ($this->_plugin === null) {
-            return [
-                'version' => $this->buildRevisionToken(),
-                'sets' => [],
-            ];
-        }
-
-        $breakpoints = $this->_plugin->getConfigService()->getBreakpoints();
-        unset($breakpoints['escape']);
-
-        $variants = [];
-        foreach ($breakpoints as $breakpointName => $breakpointValue) {
-            $variants[(string)$breakpointName] = [
-                'width' => (int)$breakpointValue,
-                'height' => null,
-                'enabled' => true,
-                'autoDimension' => null,
-            ];
-        }
-
         return [
             'version' => $this->buildRevisionToken(),
-            'sets' => [
-                'default' => [
-                    'name' => 'default',
-                    'variants' => $variants,
-                    'includeEscapeWidth' => false,
-                    'config' => [],
-                    'lastUpdatedAt' => null,
-                ],
-            ],
+            'sets' => [],
         ];
     }
 

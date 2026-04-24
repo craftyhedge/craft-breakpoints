@@ -102,7 +102,10 @@ class BreakpointPolicy extends Component
             return null;
         }
 
-        $setName = (string)($config['setName'] ?? $config['transformName'] ?? 'default');
+        $setName = (string)($config['setName'] ?? $config['transformName'] ?? '');
+        if (trim($setName) === '') {
+            throw new \InvalidArgumentException('A non-empty set name is required in config.');
+        }
 
         return $this->_plugin->getTransformSets()->getSet($setName);
     }

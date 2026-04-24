@@ -108,7 +108,7 @@ class ImageTransforms extends Component
             return $result;
         }
 
-        $setName = (string)($config['setName'] ?? $config['transformName'] ?? 'default');
+        $setName = $this->resolveSetName($config);
 
         $transformedPrimary = $this->getTransformedImages($image, $setName, 'primary', $config);
         $transformedSecondary = $this->getTransformedImages($image, $setName, 'secondary', $config);
@@ -254,20 +254,19 @@ class ImageTransforms extends Component
         return $this->_plugin->getBreakpointPolicy()->getBreakpointStates($config);
     }
 
-    public function getTransformedImages(Asset $image, string $setName = 'default', string $formatIndex = 'primary', array $config = []): array
+    public function getTransformedImages(Asset $image, string $setName, string $formatIndex = 'primary', array $config = []): array
     {
         if ($this->_plugin === null) {
             return [];
         }
 
-        $telemetryHandle = trim((string)($config['setName'] ?? $setName));
-        if ($telemetryHandle !== '') {
-            $this->_plugin->getTelemetry()->recordUsage($telemetryHandle);
+        if (trim($setName) === '') {
+            throw new \InvalidArgumentException('A non-empty set name is required.');
         }
 
-        if (!isset($config['setName']) || $config['setName'] === '') {
-            $config['setName'] = $setName;
-        }
+        $this->_plugin->getTelemetry()->recordUsage($setName);
+
+        $config['setName'] = $setName;
 
         $cacheKey = $this->getTransformCacheKey($image, $formatIndex, $config);
         if (isset($this->_transformedImagesCache[$cacheKey])) {
@@ -702,9 +701,17 @@ class ImageTransforms extends Component
             return null;
         }
 
-        $setName = (string)($config['setName'] ?? $config['transformName'] ?? 'default');
+        return $this->_plugin->getTransformSets()->getSet($this->resolveSetName($config));
+    }
 
-        return $this->_plugin->getTransformSets()->getSet($setName);
+    private function resolveSetName(array $config): string
+    {
+        $setName = (string)($config['setName'] ?? $config['transformName'] ?? '');
+        if (trim($setName) === '') {
+            throw new \InvalidArgumentException('A non-empty set name is required in config.');
+        }
+
+        return $setName;
     }
 
     private function getVariantByBreakpointName(?array $set, string $breakpointName): ?array
