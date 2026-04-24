@@ -1,0 +1,26 @@
+{#
+    Review warning item actions.
+
+    Variables:
+      - code              (string) Warning code; only 'missing-set-definitions' renders actions.
+      - reviewMode        (string) 'processed' | 'saved'.
+      - canEditTransforms (bool)   Telemetry guard.
+      - entryId           (int)    For saved-mode button.
+      - entryAvailable    (bool)
+      - entryMissing      (bool)
+#}
+{%- if code == 'missing-set-definitions' and canEditTransforms -%}
+    {%- if reviewMode == 'processed' -%}
+<div class="bpts-warning-actions"><button type="button" class="btn small bpts-warning-apply-rendered" data-bpts-action="renderedValues" aria-label="Set all breakpoints to rendered values" title="Set all breakpoints to rendered values" data-on:click="@post(el.closest('.bpts-transforms-page').dataset.applyCardOperationUrl || '/actions/craft-breakpoints/transforms/apply-card-operation', {contentType: 'json', payload: {setName: el.closest('.bpts-transform-card').dataset.set || '', field: 'renderedValues', includeEscapeWidth: (el.closest('.bpts-transform-card').dataset.includeEscapeWidth || '0') === '1', renderedRows: JSON.parse(el.closest('.bpts-transform-card').dataset.renderedRows || '[]'), baseVersion: Number($editor.baseVersion || 1), ...(Craft && Craft.csrfTokenName && Craft.csrfTokenValue ? {[Craft.csrfTokenName]: Craft.csrfTokenValue} : {})}})">Set to rendered</button></div>
+    {%- else -%}
+        {%- if entryId <= 0 or not entryAvailable -%}
+            {%- set tooltip = entryId <= 0
+                ? 'No observed entry is available to process.'
+                : (entryMissing ? 'Observed entry could not be found.' : 'Observed entry is not available in the current site.')
+            -%}
+<div class="bpts-warning-actions"><button type="button" class="btn small bpts-warning-process-observed" data-bpts-action="processObservedEntry" disabled aria-label="{{ tooltip }}" title="{{ tooltip }}">Process observed entry</button></div>
+        {%- else -%}
+<div class="bpts-warning-actions"><button type="button" class="btn small bpts-warning-process-observed" data-bpts-action="processObservedEntry" data-entry-id="{{ entryId }}" aria-label="Process observed entry" title="Process observed entry">Process observed entry</button></div>
+        {%- endif -%}
+    {%- endif -%}
+{%- endif -%}

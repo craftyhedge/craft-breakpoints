@@ -1,0 +1,120 @@
+{#
+    Breakpoint column partial.
+
+    All variables are pre-processed and pre-escaped by TransformEditor::renderReviewBreakpointColumn(),
+    so we disable auto-escape to preserve byte-for-byte output parity with the legacy
+    token-substitution template (breakpoint-column-template.twig).
+
+    Variables (all strings unless noted):
+      - breakpointColumnSelectedClass
+      - breakpointColumnMismatchClass
+      - breakpointColumnDisabledClass
+      - breakpoint
+      - breakpointColumnWidth
+      - previewLockHeight
+      - signalKey
+      - currentWidthValue
+      - currentHeightValue
+      - currentRatioWidthValue
+      - currentRatioHeightValue
+      - currentRatioFloatValue
+      - currentRatioSourceDimension
+      - currentRatioLockedValue
+      - currentEnabledValue
+      - currentAutoDimension
+      - escapeBadge
+      - hiddenBadge
+      - unloadedBadge
+      - breakpointEnableOnClass
+      - breakpointEnableTitle
+      - breakpointEnableAriaLabel
+      - breakpointEnableAriaChecked
+      - renderedRowsPayloadJson
+      - breakpointDisabledAttr
+      - breakpointRenderedApplyMatchClass
+      - breakpointRenderedApplyAriaLabel
+      - breakpointRenderedApplyTitle
+      - breakpointRenderedApplyIconName
+      - breakpointRenderedApplyHiddenClass
+      - breakpointRenderedRowHiddenClass
+      - relativeWidth
+      - previewMedia
+      - widthClass
+      - heightClass
+      - renderedWidth
+      - renderedHeight
+      - currentWidth
+      - currentHeight
+      - currentWidthDerivedClass
+      - currentHeightDerivedClass
+#}
+{% autoescape false %}<div class="bpts-breakpoint-column {{ breakpointColumnSelectedClass }} {{ breakpointColumnMismatchClass }} {{ breakpointColumnDisabledClass }}" data-breakpoint="{{ breakpoint }}" data-current-width="{{ currentWidthValue }}" data-current-height="{{ currentHeightValue }}" data-current-auto-dimension="{{ currentAutoDimension }}" data-current-ratio-width="{{ currentRatioWidthValue }}" data-current-ratio-height="{{ currentRatioHeightValue }}" data-current-ratio-float="{{ currentRatioFloatValue }}" data-current-ratio-source-dimension="{{ currentRatioSourceDimension }}" data-current-ratio-locked="{{ currentRatioLockedValue }}" data-current-enabled="{{ currentEnabledValue }}" style="--bpts-breakpoint-column-width:{{ breakpointColumnWidth }}px; --bpts-preview-lock-height:{{ previewLockHeight }}px;"
+        data-class:bpts-breakpoint-column-selected="$editor.cards.{{ signalKey }}.scopeMode === 'all' || ($editor.cards.{{ signalKey }}.scopeMode === 'breakpoint' && Number($editor.cards.{{ signalKey }}.scopeBreakpoint || 0) === {{ breakpoint }})"
+        data-on:click="if(evt&&evt.target&&evt.target.closest('.bpts-rendered-apply-single, .bpts-breakpoint-enable-toggle-wrap')){return;} const autoDim=String(el.dataset.currentAutoDimension||''); const widthValue=String(el.dataset.currentWidth||''); const heightValue=String(el.dataset.currentHeight||''); const ratioLocked=String(el.dataset.currentRatioLocked||'0')==='1'; const ratioWidthValue=String(el.dataset.currentRatioWidth||''); const ratioHeightValue=String(el.dataset.currentRatioHeight||''); const ratioFloatValue=String(el.dataset.currentRatioFloat||''); const ratioSourceDimension=String(el.dataset.currentRatioSourceDimension||'').trim().toLowerCase()==='height'?'height':'width'; const currentTab=String($editor.cards.{{ signalKey }}.activeTab||'').trim().toLowerCase(); $editor.cards.{{ signalKey }}.scopeMode='breakpoint'; $editor.cards.{{ signalKey }}.scopeBreakpoint=String(Number({{ breakpoint }})||''); $editor.cards.{{ signalKey }}.scopeActive='1'; const allToggle=el.closest('.bpts-transform-card')?.querySelector('.bpts-transform-edit-all-checkbox'); if(allToggle){allToggle.checked=false;} $editor.cards.{{ signalKey }}.widthAuto=(autoDim==='width')?'1':'0'; $editor.cards.{{ signalKey }}.heightAuto=(autoDim==='height')?'1':'0'; $editor.cards.{{ signalKey }}.widthInput=autoDim==='width'?'':widthValue; $editor.cards.{{ signalKey }}.heightInput=autoDim==='height'?'':heightValue; if(ratioLocked&&ratioWidthValue!==''&&ratioHeightValue!==''){ $editor.cards.{{ signalKey }}.ratioLocked='1'; $editor.cards.{{ signalKey }}.ratioWidthInput=ratioWidthValue; $editor.cards.{{ signalKey }}.ratioHeightInput=ratioHeightValue; $editor.cards.{{ signalKey }}.ratioFloatInput=ratioFloatValue; $editor.cards.{{ signalKey }}.ratioSourceDimension=ratioSourceDimension; } else { $editor.cards.{{ signalKey }}.ratioLocked='0'; $editor.cards.{{ signalKey }}.ratioWidthInput=autoDim==='width'?'':widthValue; $editor.cards.{{ signalKey }}.ratioHeightInput=autoDim==='height'?'':heightValue; if(Number(widthValue)>0&&Number(heightValue)>0){ const raw=Number(widthValue)/Number(heightValue); const formatted=raw.toFixed(4).replace(/\.0+$/,'').replace(/(\.\d*?)0+$/,'$1'); $editor.cards.{{ signalKey }}.ratioFloatInput=formatted; } else { $editor.cards.{{ signalKey }}.ratioFloatInput=''; } $editor.cards.{{ signalKey }}.ratioSourceDimension='width'; } $editor.cards.{{ signalKey }}.ratioSourceBreakpoint=String(Number({{ breakpoint }})||''); if((currentTab==='ratio'&&(autoDim==='width'||autoDim==='height'))||(currentTab!=='dimensions'&&currentTab!=='ratio'&&currentTab!=='settings')){ $editor.cards.{{ signalKey }}.activeTab='dimensions'; }">
+        <div class="bpi_breakpoint-size-heading">
+            <span>{{ breakpoint }}px</span>
+            {{ escapeBadge }}
+            {{ hiddenBadge }}
+            {{ unloadedBadge }}
+            <div class="bpts-breakpoint-column-actions">
+                <div class="lightswitch small bpts-breakpoint-enable-toggle-wrap {{ breakpointEnableOnClass }}" data-bpts-action="breakpointEnabled" title="{{ breakpointEnableTitle }}" role="switch" tabindex="0" aria-label="{{ breakpointEnableAriaLabel }}" aria-checked="{{ breakpointEnableAriaChecked }}"
+                    data-class:on="String(el.closest('.bpts-breakpoint-column')?.dataset?.currentEnabled || '1') === '1'"
+                    data-on:click__throttle.300ms="const column=el.closest('.bpts-breakpoint-column'); const page=el.closest('.bpts-transforms-page'); const url=page?.dataset?.applyCardOperationUrl || '/actions/craft-breakpoints/transforms/apply-card-operation'; const currentlyEnabled=String(column?.dataset?.currentEnabled || '1') === '1'; const baseVersion=String($editor.baseVersion || ''); const csrf=Craft && Craft.csrfTokenName && Craft.csrfTokenValue ? {[Craft.csrfTokenName]: Craft.csrfTokenValue} : {}; @post(url, {contentType: 'json', payload: {setName: String($editor.cards.{{ signalKey }}.setName || ''), field: 'breakpointEnabled', includeEscapeWidth: String($editor.cards.{{ signalKey }}.includeEscapeWidth || '0') === '1', scopeBreakpoint: Number({{ breakpoint }}) || null, enabled: !currentlyEnabled, baseVersion, ...csrf}})"
+                    data-on:keydown="if(!evt|| (evt.key!=='Enter' && evt.key!==' ')){return;} evt.preventDefault(); const column=el.closest('.bpts-breakpoint-column'); const page=el.closest('.bpts-transforms-page'); const url=page?.dataset?.applyCardOperationUrl || '/actions/craft-breakpoints/transforms/apply-card-operation'; const currentlyEnabled=String(column?.dataset?.currentEnabled || '1') === '1'; const baseVersion=String($editor.baseVersion || ''); const csrf=Craft && Craft.csrfTokenName && Craft.csrfTokenValue ? {[Craft.csrfTokenName]: Craft.csrfTokenValue} : {}; @post(url, {contentType: 'json', payload: {setName: String($editor.cards.{{ signalKey }}.setName || ''), field: 'breakpointEnabled', includeEscapeWidth: String($editor.cards.{{ signalKey }}.includeEscapeWidth || '0') === '1', scopeBreakpoint: Number({{ breakpoint }}) || null, enabled: !currentlyEnabled, baseVersion, ...csrf}})">
+                    <div class="lightswitch-container">
+                        <div class="handle"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="bpi_image-display-section">
+            <div class="bpi_breakpoint-result-wrapper">
+                <div class="bpi_breakpoint-result">
+                    <div class="bpi_image-outer" style="--bpts-relative-width:{{ relativeWidth }}%;">
+                        {{ previewMedia }}
+                    </div>
+                </div>
+            </div>
+            <span class="bpi_current-ratio bpi_current-ratio-overlay"
+                data-class:bpts-force-hidden="String(el.closest('.bpts-breakpoint-column')?.dataset?.currentRatioLocked || '0') !== '1' || String(el.closest('.bpts-breakpoint-column')?.dataset?.currentRatioWidth || '') === '' || String(el.closest('.bpts-breakpoint-column')?.dataset?.currentRatioHeight || '') === ''"
+                data-text="String(el.closest('.bpts-breakpoint-column')?.dataset?.currentRatioWidth || '') + ':' + String(el.closest('.bpts-breakpoint-column')?.dataset?.currentRatioHeight || '')"></span>
+        </div>
+        <div class="bpts-dimension-table-wrap">
+            <div class="bpts-dimension-matrix" role="table" aria-label="Rendered and current dimensions">
+                <div class="bpts-dimension-row {{ breakpointRenderedRowHiddenClass }}" role="row">
+                    <span class="bpts-dimension-icon bpts-dimension-icon-rendered" role="rowheader" title="Rendered" aria-label="Rendered">
+                        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                            <rect x="2.5" y="3" width="11" height="8.5" rx="1.5"></rect>
+                            <path d="M4.4 5.2h2"></path>
+                            <path d="M3.5 10.8l3.1-2.8 2.2 2 2-1.6 2.2 2.4"></path>
+                        </svg>
+                    </span>
+                    <span class="bpi_rendered-dimension {{ widthClass }}" role="cell">{{ renderedWidth }}</span>
+                    <span class="bpi_rendered-dimension {{ heightClass }}" role="cell">{{ renderedHeight }}</span>
+                </div>
+                <button type="button" class="btn bpts-rendered-apply-single {{ breakpointRenderedApplyMatchClass }} {{ breakpointRenderedApplyHiddenClass }}"
+                    data-bpts-action="renderedValues"
+                    aria-label="{{ breakpointRenderedApplyAriaLabel }}"
+                    title="{{ breakpointRenderedApplyTitle }}"
+                    data-rendered-rows="{{ renderedRowsPayloadJson }}"
+                    {{ breakpointDisabledAttr }}
+                    data-on:click__throttle.300ms="@post(el.closest('.bpts-transforms-page').dataset.applyCardOperationUrl || '/actions/craft-breakpoints/transforms/apply-card-operation', {contentType: 'json', payload: {setName: String($editor.cards.{{ signalKey }}.setName || ''), field: 'renderedValues', includeEscapeWidth: String($editor.cards.{{ signalKey }}.includeEscapeWidth || '0') === '1', renderedRows: JSON.parse(el.dataset.renderedRows || '[]'), baseVersion: String($editor.baseVersion || ''), ...(Craft && Craft.csrfTokenName && Craft.csrfTokenValue ? {[Craft.csrfTokenName]: Craft.csrfTokenValue} : {})}})">
+                    <span class="icon bpts-rendered-apply-icon" data-icon="{{ breakpointRenderedApplyIconName }}" aria-hidden="true"></span>
+                </button>
+                <div class="bpts-dimension-row" role="row">
+                    <span class="bpts-dimension-icon bpts-dimension-icon-current" role="rowheader" title="Current" aria-label="Current">
+                        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                            <path d="M2.5 4h11"></path>
+                            <path d="M2.5 8h11"></path>
+                            <path d="M2.5 12h11"></path>
+                            <circle cx="6" cy="4" r="1.2"></circle>
+                            <circle cx="10.5" cy="8" r="1.2"></circle>
+                            <circle cx="7.5" cy="12" r="1.2"></circle>
+                        </svg>
+                    </span>
+                    <span class="bpi_current-dimension {{ currentWidthDerivedClass }}" data-dimension="width" role="cell">{{ currentWidth }}</span>
+                    <span class="bpi_current-dimension {{ currentHeightDerivedClass }}" data-dimension="height" role="cell">{{ currentHeight }}</span>
+                </div>
+            </div>
+        </div>
+    </div>{% endautoescape %}

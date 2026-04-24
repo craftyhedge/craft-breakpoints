@@ -238,6 +238,14 @@ class Plugin extends BasePlugin
                 $event->roots['craft-breakpoints'] = __DIR__ . '/templates';
             }
         );
+
+        Event::on(
+            View::class,
+            View::EVENT_REGISTER_CP_TEMPLATE_ROOTS,
+            static function(RegisterTemplateRootsEvent $event): void {
+                $event->roots['craft-breakpoints'] = __DIR__ . '/templates';
+            }
+        );
     }
 
     private function registerTwigVariable(): void

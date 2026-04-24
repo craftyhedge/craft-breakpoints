@@ -1,0 +1,23 @@
+{#
+    Asset pagination toolbar.
+
+    Variables:
+      - assetKeys            (list<string>)
+      - assetLabelsByKey     (map<string,string>)
+      - assetMismatchByKey   (map<string,bool>)
+      - selectedAssetKey     (string)
+      - signalKey            (string) Card signal key (already sanitized).
+      - hideAssetPagination  (bool)
+#}
+{%- if not hideAssetPagination and assetKeys|length >= 2 -%}
+<div class="bpts-transform-asset-pagination" role="toolbar" aria-label="Asset pagination">
+    {%- for assetKey in assetKeys -%}
+        {%- set rawLabel = (assetLabelsByKey[assetKey] ?? '')|trim -%}
+        {%- set label = rawLabel != '' ? rawLabel : 'Asset ' ~ (loop.index) -%}
+        {%- set assetKeyJs = assetKey|json_encode(constant('JSON_UNESCAPED_SLASHES')) -%}
+        {%- set isActive = assetKey == selectedAssetKey -%}
+        {%- set hasMismatch = (assetMismatchByKey[assetKey] ?? false) == true -%}
+<button type="button" class="btn small bpts-transform-asset-page{{ isActive ? ' active' : '' }}{{ hasMismatch ? ' bpts-transform-asset-page-mismatch' : '' }}" data-asset-key="{{ assetKey }}" data-on:click="$editor.cards.{{ signalKey }}.selectedAssetKey={{ assetKeyJs }}" data-class:active="$editor.cards.{{ signalKey }}.selectedAssetKey === {{ assetKeyJs }}" data-attr:aria-pressed="$editor.cards.{{ signalKey }}.selectedAssetKey === {{ assetKeyJs }} ? 'true' : 'false'" aria-label="Show {{ label }}" title="Show {{ label }}"{{ isActive ? ' aria-pressed="true"' : '' }}>{{ loop.index }}</button>
+    {%- endfor -%}
+</div>
+{%- endif -%}

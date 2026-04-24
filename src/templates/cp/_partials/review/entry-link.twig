@@ -1,0 +1,13 @@
+{#
+    Review entry icon link partial.
+
+    Variables:
+      - id       (int)    Entry ID. Required; renders empty when <= 0.
+      - href     (string) Entry CP edit URL.
+      - siteId   (int)    Target site ID; coerced to >= 0 by caller.
+      - tooltip  (string) Shown in title and aria-label.
+      - iconName (string) Craft icon name for the span.
+#}
+{%- if id > 0 -%}
+<a class="bpts-transform-last-process-icon-btn bpts-entry-link" href="{{ href }}" data-bpts-open-entry="true" data-entry-id="{{ id }}" data-site-id="{{ siteId }}" title="{{ tooltip }}" aria-label="{{ tooltip }}"><span data-icon="{{ iconName }}" aria-hidden="true"></span></a>
+{%- endif -%}

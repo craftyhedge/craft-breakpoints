@@ -1,0 +1,234 @@
+{#
+    Transform card partial.
+
+    All variables are pre-processed and pre-escaped by TransformEditor::renderResultReview(),
+    so auto-escape is disabled to preserve byte-for-byte output parity with the legacy
+    token-substitution template (transform-card-template.twig).
+
+    Expected variables (all strings unless noted; see renderResultReview() for producers):
+      - cardWarningStateClass, transformNameEscaped, signalKey
+      - renderedRowsForTransformJson, selectedAssetKey
+      - cardSignalsStructural, cardSignalsVolatile
+      - includeEscapeWidth, cardWarningsHtml, signalPathBase
+      - passHeightIndicatorHiddenClass, breakpointColumns
+      - renderedApplyHiddenClass, editScopeAllCheckedAttr
+      - assetPaginationHtml, editPanelId
+      - dimensions/ratio/settings tab class/selected/tabindex attrs
+      - dimensionsPanelActiveClass, dimensionsPanelHiddenAttr
+      - ratioPanelActiveClass, ratioPanelHiddenAttr
+      - settingsPanelActiveClass, settingsPanelHiddenAttr
+      - widthInputId, heightInputId, ratioWidthInputId, ratioHeightInputId
+      - ratioSourceName, passHeightToggleId, allowAnyHeightToggleId
+      - ratioSourceBreakpointOptions, lastProcessPanelHtml
+#}
+{% autoescape false %}<section class="bpts-transform-card {{ cardWarningStateClass }}"
+        data-set="{{ transformNameEscaped }}"
+        data-signal-key="{{ signalKey }}"
+        data-rendered-rows="{{ renderedRowsForTransformJson }}"
+        data-selected-asset-key="{{ selectedAssetKey }}"
+        data-signals="{{ cardSignalsStructural }}"
+        data-signals__ifmissing="{{ cardSignalsVolatile }}"
+        data-attr:data-scope-mode="$editor.cards.{{ signalKey }}.scopeMode || ''"
+        data-attr:data-scope-breakpoint="$editor.cards.{{ signalKey }}.scopeMode === 'breakpoint' ? String(Number($editor.cards.{{ signalKey }}.scopeBreakpoint || 0) || '') : ''"
+        data-attr:data-active-tab="$editor.cards.{{ signalKey }}.activeTab || 'dimensions'"
+        data-attr:data-selected-asset-key="$editor.cards.{{ signalKey }}.selectedAssetKey || ''"
+        data-include-escape-width="{{ includeEscapeWidth }}">
+        {{ cardWarningsHtml }}
+        <input type="hidden" data-bind="{{ signalPathBase }}.setName" value="{{ transformNameEscaped }}">
+        <input type="hidden" data-bind="{{ signalPathBase }}.includeEscapeWidth" value="{{ includeEscapeWidth }}">
+        <header class="bpts-transform-card-header">
+            <div class="bpts-transform-title-wrap">
+                <h2 class="bpts-transform-name">{{ transformNameEscaped }}</h2>
+                <span class="bpts-transform-pass-height-indicator {{ passHeightIndicatorHiddenClass }}"
+                    role="img"
+                    title="Height tolerance is enabled"
+                    aria-label="Height tolerance is enabled"
+                    data-class:bpts-force-hidden="$editor.cards.{{ signalKey }}.passHeightWhenRenderedLteSaved === true || $editor.cards.{{ signalKey }}.allowAnyHeight === true ? false : true"
+                    data-attr:title="$editor.cards.{{ signalKey }}.allowAnyHeight === true ? 'Allow Any Height is enabled' : ($editor.cards.{{ signalKey }}.passHeightWhenRenderedLteSaved === true ? 'Allow Shorter heights is enabled' : '')"
+                    data-attr:aria-label="$editor.cards.{{ signalKey }}.allowAnyHeight === true ? 'Allow Any Height is enabled' : ($editor.cards.{{ signalKey }}.passHeightWhenRenderedLteSaved === true ? 'Allow Shorter heights is enabled' : '')">
+                    <svg class="bpts-transform-pass-height-indicator-svg" viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+                        <rect x="2.5" y="3.5" width="8" height="13" rx="1.2" class="bpts-transform-pass-height-indicator-ruler"></rect>
+                        <path d="M5 6.5h2.5M5 8.8h1.8M5 11.1h2.5M5 13.4h1.8" class="bpts-transform-pass-height-indicator-ticks"></path>
+                        <path d="M11.4 12.3l2.2 2.2 3.9-4.1" class="bpts-transform-pass-height-indicator-check"></path>
+                    </svg>
+                </span>
+                <span class="bpts-transform-update-status" data-role="transform-update-status" data-state="idle" aria-live="polite" aria-label="">
+                    <span class="bpts-transform-update-status-icon bpts-transform-update-status-icon-saving" aria-hidden="true"><span class="icon" data-icon="refresh"></span></span>
+                    <span class="bpts-transform-update-status-icon bpts-transform-update-status-icon-success" aria-hidden="true"><span class="icon" data-icon="check"></span></span>
+                    <span class="bpts-transform-update-status-label" data-role="transform-update-status-label"></span>
+                </span>
+            </div>
+            <div class="bpts-transform-header-actions">
+                <button type="button" class="btn small bpts-transform-delete-set"
+                    data-bpts-action="deleteSet"
+                    aria-label="Delete transform set"
+                    title="Delete transform set"
+                    data-on:click__throttle.300ms="if(!window.confirm('Delete this transform set?')){ return; } const page=el.closest('.bpts-transforms-page'); const url=page?.dataset?.applyCardOperationUrl || '/actions/craft-breakpoints/transforms/apply-card-operation'; const card=el.closest('.bpts-transform-card'); const setName=String($editor.cards.{{ signalKey }}.setName || card?.dataset?.set || ''); const baseVersion=String($editor.baseVersion || ''); const csrf=Craft && Craft.csrfTokenName && Craft.csrfTokenValue ? {[Craft.csrfTokenName]: Craft.csrfTokenValue} : {}; @post(url, {contentType: 'json', payload: {setName, field: 'deleteSet', baseVersion, ...csrf}})"><span class="icon" data-icon="trash" aria-hidden="true"></span></button>
+            </div>
+        </header>
+        <div class="bpts-breakpoint-grid">{{ breakpointColumns }}</div>
+        <div class="bpts-breakpoint-grid-actions">
+            <button type="button" class="bpts-rendered-apply-all {{ renderedApplyHiddenClass }}"
+                data-bpts-action="renderedValues"
+                aria-label="Apply rendered values to all breakpoints"
+                title="Apply rendered values to all breakpoints"
+                data-on:click__throttle.300ms="const card=el.closest('.bpts-transform-card'); const page=el.closest('.bpts-transforms-page'); const url=page?.dataset?.applyCardOperationUrl || '/actions/craft-breakpoints/transforms/apply-card-operation'; const baseVersion=String($editor.baseVersion || ''); const csrf=Craft && Craft.csrfTokenName && Craft.csrfTokenValue ? {[Craft.csrfTokenName]: Craft.csrfTokenValue} : {}; @post(url, {contentType: 'json', payload: {setName: String($editor.cards.{{ signalKey }}.setName || ''), field: 'renderedValues', includeEscapeWidth: String($editor.cards.{{ signalKey }}.includeEscapeWidth || '0') === '1', renderedRows: JSON.parse(card?.dataset?.renderedRows || '[]'), baseVersion, ...csrf}})">
+                <span class="icon bpts-rendered-apply-icon" data-icon="arrow-down" aria-hidden="true"></span>
+                <span class="bpts-rendered-apply-all-label">Apply all rendered values</span>
+            </button>
+            <label class="bpts-transform-edit-inline-checkbox">
+                <input type="checkbox" class="bpts-transform-edit-all-checkbox" value="all" {{ editScopeAllCheckedAttr }} data-attr:checked="$editor.cards.{{ signalKey }}.scopeMode === 'all' ? true : null" data-on:change="const currentTab=String($editor.cards.{{ signalKey }}.activeTab||'').trim().toLowerCase(); if(el.checked){ $editor.cards.{{ signalKey }}.scopeMode='all'; $editor.cards.{{ signalKey }}.scopeBreakpoint=''; $editor.cards.{{ signalKey }}.scopeActive='1'; $editor.cards.{{ signalKey }}.widthAuto='0'; $editor.cards.{{ signalKey }}.heightAuto='0'; $editor.cards.{{ signalKey }}.ratioLocked='0'; $editor.cards.{{ signalKey }}.widthInput=''; $editor.cards.{{ signalKey }}.heightInput=''; $editor.cards.{{ signalKey }}.ratioWidthInput=''; $editor.cards.{{ signalKey }}.ratioHeightInput=''; $editor.cards.{{ signalKey }}.ratioFloatInput=''; $editor.cards.{{ signalKey }}.ratioSourceDimension='width'; if(currentTab!=='dimensions'&&currentTab!=='ratio'&&currentTab!=='settings'){ $editor.cards.{{ signalKey }}.activeTab='dimensions'; } } else { $editor.cards.{{ signalKey }}.scopeMode='unset'; $editor.cards.{{ signalKey }}.scopeBreakpoint=''; $editor.cards.{{ signalKey }}.scopeActive='0'; if(currentTab==='settings'){ $editor.cards.{{ signalKey }}.activeTab='dimensions'; } }">
+                <span>Select All</span>
+            </label>
+        </div>
+        {{ assetPaginationHtml }}
+        <section class="bpts-transform-quick-row" aria-label="Edit scope controls">
+            <div class="bpts-transform-edit-tab-names-row">
+                <div class="bpts-transform-pane-tabs">
+                    <div class="bpts-transform-tab-list" role="tablist" aria-label="Edit options">
+                        <button id="{{ editPanelId }}-tab-dimensions" type="button" role="tab" class="bpts-transform-tab {{ dimensionsTabActiveClass }}" data-tab="dimensions" aria-controls="{{ editPanelId }}-panel-dimensions" aria-selected="{{ dimensionsTabSelected }}" tabindex="{{ dimensionsTabTabindex }}" data-on:click="$editor.cards.{{ signalKey }}.activeTab = 'dimensions'" data-class:sel="$editor.cards.{{ signalKey }}.activeTab === 'dimensions'" data-class:active="$editor.cards.{{ signalKey }}.activeTab === 'dimensions'" data-attr:aria-selected="$editor.cards.{{ signalKey }}.activeTab === 'dimensions' ? 'true' : 'false'" data-attr:tabindex="$editor.cards.{{ signalKey }}.activeTab === 'dimensions' ? '0' : '-1'"><span class="tab-label">Dimensions</span></button>
+                        <button id="{{ editPanelId }}-tab-ratio" type="button" role="tab" class="bpts-transform-tab {{ ratioTabActiveClass }}" data-tab="ratio" aria-controls="{{ editPanelId }}-panel-ratio" aria-selected="{{ ratioTabSelected }}" tabindex="{{ ratioTabTabindex }}" data-on:click="$editor.cards.{{ signalKey }}.activeTab = 'ratio'" data-class:sel="$editor.cards.{{ signalKey }}.activeTab === 'ratio'" data-class:active="$editor.cards.{{ signalKey }}.activeTab === 'ratio'" data-attr:aria-selected="$editor.cards.{{ signalKey }}.activeTab === 'ratio' ? 'true' : 'false'" data-attr:tabindex="$editor.cards.{{ signalKey }}.activeTab === 'ratio' ? '0' : '-1'" data-attr:disabled="Number($editor.cards.{{ signalKey }}.widthAuto || 0) === 1 || Number($editor.cards.{{ signalKey }}.heightAuto || 0) === 1 ? true : null"><span class="tab-label">Ratio</span></button>
+                        <button id="{{ editPanelId }}-tab-settings" type="button" role="tab" class="bpts-transform-tab {{ settingsTabActiveClass }}" data-tab="settings" aria-controls="{{ editPanelId }}-panel-settings" aria-selected="{{ settingsTabSelected }}" tabindex="{{ settingsTabTabindex }}" data-on:click="$editor.cards.{{ signalKey }}.activeTab = 'settings'" data-class:sel="$editor.cards.{{ signalKey }}.activeTab === 'settings'" data-class:active="$editor.cards.{{ signalKey }}.activeTab === 'settings'" data-attr:aria-selected="$editor.cards.{{ signalKey }}.activeTab === 'settings' ? 'true' : 'false'" data-attr:tabindex="$editor.cards.{{ signalKey }}.activeTab === 'settings' ? '0' : '-1'" data-attr:hidden="$editor.cards.{{ signalKey }}.scopeMode === 'all' ? null : true"><span class="tab-label">Set options</span></button>
+                    </div>
+                </div>
+                <span class="bpts-transform-edit-scope"><strong data-role="edit-scope-value" data-text="$editor.cards.{{ signalKey }}.scopeMode === 'all' ? 'All' : ($editor.cards.{{ signalKey }}.scopeMode === 'breakpoint' ? (String(Number($editor.cards.{{ signalKey }}.scopeBreakpoint || 0)) + 'px') : 'Select a breakpoint to edit')">Select a breakpoint to edit</strong><span class="bpts-transform-ratio-scope-indicator" data-class:active="String($editor.cards.{{ signalKey }}.scopeMode||'')==='breakpoint' && Number($editor.cards.{{ signalKey }}.widthAuto||0)!==1 && Number($editor.cards.{{ signalKey }}.heightAuto||0)!==1 && Number($editor.cards.{{ signalKey }}.ratioLocked||0)===1 && Number($editor.cards.{{ signalKey }}.ratioWidthInput||0)>0 && Number($editor.cards.{{ signalKey }}.ratioHeightInput||0)>0">Ratio</span></span>
+            </div>
+        </section>
+        <section class="bpts-transform-edit-panel" id="{{ editPanelId }}">
+            {{ lastProcessPanelHtml }}
+            <div class="bpts-transform-edit-layout">
+                <div class="bpts-transform-edit-main">
+                    <div class="bpts-transform-edit-grid">
+                        <section class="bpts-transform-tabs" aria-label="Edit sections">
+                            <div class="bpts-transform-tab-panels">
+                                <section id="{{ editPanelId }}-panel-dimensions" role="tabpanel" aria-labelledby="{{ editPanelId }}-tab-dimensions" class="bpts-transform-tab-panel {{ dimensionsPanelActiveClass }}" data-tab-panel="dimensions" {{ dimensionsPanelHiddenAttr }} data-class:active="$editor.cards.{{ signalKey }}.activeTab === 'dimensions'" data-attr:hidden="$editor.cards.{{ signalKey }}.activeTab === 'dimensions' ? false : true">
+                            <div class="bpts-transform-dimensions-row">
+                                <div class="bpts-transform-edit-dimension-group">
+                                    <label class="bpts-transform-edit-label" for="{{ widthInputId }}">Width</label>
+                                    <div class="bpts-transform-dimension-inline-row">
+                                        <div class="bpts-transform-input-with-addon" data-class:bpts-transform-input-derived="Number($editor.cards.{{ signalKey }}.widthAuto||0)!==1 && Number($editor.cards.{{ signalKey }}.heightAuto||0)!==1 && Number($editor.cards.{{ signalKey }}.ratioLocked||0)===1 && Number($editor.cards.{{ signalKey }}.ratioWidthInput||0)>0 && Number($editor.cards.{{ signalKey }}.ratioHeightInput||0)>0 && String($editor.cards.{{ signalKey }}.ratioSourceDimension || 'width') === 'height'">
+                                            <input id="{{ widthInputId }}" class="text bpts-transform-edit-input bpts-transform-width-input" type="number" min="1" step="1" inputmode="numeric"
+                                                aria-label="Width"
+                                                data-attr:disabled="Number($editor.cards.{{ signalKey }}.scopeActive || 0) !== 1 || Number($editor.cards.{{ signalKey }}.widthAuto || 0) === 1"
+                                                placeholder="w"
+                                                data-attr:placeholder="Number($editor.cards.{{ signalKey }}.widthAuto || 0) === 1 ? 'auto' : 'w'"
+                                                data-bind="{{ signalPathBase }}.widthInput">
+                                            <button type="button" class="bpts-transform-auto-toggle bpts-transform-input-addon" data-bpts-action="dimensions" title="Toggle auto width" aria-label="Toggle auto width" data-attr:disabled="Number($editor.cards.{{ signalKey }}.scopeActive || 0) !== 1" data-class:active="Number($editor.cards.{{ signalKey }}.widthAuto || 0) === 1" data-attr:aria-pressed="Number($editor.cards.{{ signalKey }}.widthAuto || 0) === 1 ? 'true' : 'false'" data-on:click="if(Number($editor.cards.{{ signalKey }}.scopeActive||0)!==1)return; const isAuto=Number($editor.cards.{{ signalKey }}.widthAuto||0)===1; const card=el.closest('.bpts-transform-card'); const page=el.closest('.bpts-transforms-page'); const url=page?.dataset?.applyCardOperationUrl||'/actions/craft-breakpoints/transforms/apply-card-operation'; const sn=String($editor.cards.{{ signalKey }}.setName||''); const iew=String($editor.cards.{{ signalKey }}.includeEscapeWidth||'0')==='1'; const rows=JSON.parse(card?.dataset?.renderedRows||'[]'); const sm=String($editor.cards.{{ signalKey }}.scopeMode||''); const sbp=Number($editor.cards.{{ signalKey }}.scopeBreakpoint||0)||null; const bv=String($editor.baseVersion||''); const csrf=Craft&&Craft.csrfTokenName&&Craft.csrfTokenValue?{[Craft.csrfTokenName]:Craft.csrfTokenValue}:{}; if(isAuto){ $editor.cards.{{ signalKey }}.widthAuto='0'; if(sm==='all'){ @post(url,{contentType:'json',payload:{setName:sn,field:'renderedValues',includeEscapeWidth:iew,renderedRows:rows,clearAuto:true,baseVersion:bv,...csrf}}) }else{ const row=sbp!==null?rows.find(r=>Number(r.breakpoint)===sbp):null; const rw=row?Number(row.width)||null:null; if(rw!==null){$editor.cards.{{ signalKey }}.widthInput=String(rw);} const hv=Number($editor.cards.{{ signalKey }}.heightInput||0)||null; @post(url,{contentType:'json',payload:{setName:sn,field:'dimensions',includeEscapeWidth:iew,scopeMode:sm,scopeBreakpoint:sbp,widthAuto:false,heightAuto:false,width:rw,height:hv,baseVersion:bv,...csrf}}) } }else{ $editor.cards.{{ signalKey }}.widthAuto='1'; $editor.cards.{{ signalKey }}.heightAuto='0'; $editor.cards.{{ signalKey }}.widthInput=''; const hv=Number($editor.cards.{{ signalKey }}.heightInput||0)||null; @post(url,{contentType:'json',payload:{setName:sn,field:'dimensions',includeEscapeWidth:iew,scopeMode:sm,scopeBreakpoint:sbp,forceAll:sm==='all',widthAuto:true,heightAuto:false,width:null,height:hv,baseVersion:bv,...csrf}}) }">A</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="bpts-transform-edit-dimension-group">
+                                    <label class="bpts-transform-edit-label" for="{{ heightInputId }}">Height</label>
+                                    <div class="bpts-transform-dimension-inline-row">
+                                        <div class="bpts-transform-input-with-addon" data-class:bpts-transform-input-derived="Number($editor.cards.{{ signalKey }}.widthAuto||0)!==1 && Number($editor.cards.{{ signalKey }}.heightAuto||0)!==1 && Number($editor.cards.{{ signalKey }}.ratioLocked||0)===1 && Number($editor.cards.{{ signalKey }}.ratioWidthInput||0)>0 && Number($editor.cards.{{ signalKey }}.ratioHeightInput||0)>0 && String($editor.cards.{{ signalKey }}.ratioSourceDimension || 'width') === 'width'">
+                                            <input id="{{ heightInputId }}" class="text bpts-transform-edit-input bpts-transform-height-input" type="number" min="1" step="1" inputmode="numeric"
+                                                aria-label="Height"
+                                                data-attr:disabled="Number($editor.cards.{{ signalKey }}.scopeActive || 0) !== 1 || Number($editor.cards.{{ signalKey }}.heightAuto || 0) === 1"
+                                                placeholder="h"
+                                                data-attr:placeholder="Number($editor.cards.{{ signalKey }}.heightAuto || 0) === 1 ? 'auto' : 'h'"
+                                                data-bind="{{ signalPathBase }}.heightInput">
+                                            <button type="button" class="bpts-transform-auto-toggle bpts-transform-input-addon" data-bpts-action="dimensions" title="Toggle auto height" aria-label="Toggle auto height" data-attr:disabled="Number($editor.cards.{{ signalKey }}.scopeActive || 0) !== 1" data-class:active="Number($editor.cards.{{ signalKey }}.heightAuto || 0) === 1" data-attr:aria-pressed="Number($editor.cards.{{ signalKey }}.heightAuto || 0) === 1 ? 'true' : 'false'" data-on:click="if(Number($editor.cards.{{ signalKey }}.scopeActive||0)!==1)return; const isAuto=Number($editor.cards.{{ signalKey }}.heightAuto||0)===1; const card=el.closest('.bpts-transform-card'); const page=el.closest('.bpts-transforms-page'); const url=page?.dataset?.applyCardOperationUrl||'/actions/craft-breakpoints/transforms/apply-card-operation'; const sn=String($editor.cards.{{ signalKey }}.setName||''); const iew=String($editor.cards.{{ signalKey }}.includeEscapeWidth||'0')==='1'; const rows=JSON.parse(card?.dataset?.renderedRows||'[]'); const sm=String($editor.cards.{{ signalKey }}.scopeMode||''); const sbp=Number($editor.cards.{{ signalKey }}.scopeBreakpoint||0)||null; const bv=String($editor.baseVersion||''); const csrf=Craft&&Craft.csrfTokenName&&Craft.csrfTokenValue?{[Craft.csrfTokenName]:Craft.csrfTokenValue}:{}; if(isAuto){ $editor.cards.{{ signalKey }}.heightAuto='0'; if(sm==='all'){ @post(url,{contentType:'json',payload:{setName:sn,field:'renderedValues',includeEscapeWidth:iew,renderedRows:rows,clearAuto:true,baseVersion:bv,...csrf}}) }else{ const row=sbp!==null?rows.find(r=>Number(r.breakpoint)===sbp):null; const rh=row?Number(row.height)||null:null; if(rh!==null){$editor.cards.{{ signalKey }}.heightInput=String(rh);} const wv=Number($editor.cards.{{ signalKey }}.widthInput||0)||null; @post(url,{contentType:'json',payload:{setName:sn,field:'dimensions',includeEscapeWidth:iew,scopeMode:sm,scopeBreakpoint:sbp,widthAuto:false,heightAuto:false,width:wv,height:rh,baseVersion:bv,...csrf}}) } }else{ $editor.cards.{{ signalKey }}.heightAuto='1'; $editor.cards.{{ signalKey }}.widthAuto='0'; $editor.cards.{{ signalKey }}.heightInput=''; const wv=Number($editor.cards.{{ signalKey }}.widthInput||0)||null; @post(url,{contentType:'json',payload:{setName:sn,field:'dimensions',includeEscapeWidth:iew,scopeMode:sm,scopeBreakpoint:sbp,forceAll:sm==='all',widthAuto:false,heightAuto:true,width:wv,height:null,baseVersion:bv,...csrf}}) }">A</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="bpts-transform-dimensions-actions">
+                                    <button type="button" class="btn small bpts-transform-dimensions-apply"
+                                        data-bpts-action="dimensions"
+                                        data-attr:disabled="Number($editor.cards.{{ signalKey }}.scopeActive || 0) !== 1"
+                                        data-on:click__throttle.300ms="const page=el.closest('.bpts-transforms-page'); const url=page?.dataset?.applyCardOperationUrl || '/actions/craft-breakpoints/transforms/apply-card-operation'; const baseVersion=String($editor.baseVersion || ''); const csrf=Craft && Craft.csrfTokenName && Craft.csrfTokenValue ? {[Craft.csrfTokenName]: Craft.csrfTokenValue} : {}; @post(url, {contentType: 'json', payload: {setName: String($editor.cards.{{ signalKey }}.setName || ''), field: 'dimensions', includeEscapeWidth: String($editor.cards.{{ signalKey }}.includeEscapeWidth || '0') === '1', scopeMode: $editor.cards.{{ signalKey }}.scopeMode || '', scopeBreakpoint: Number($editor.cards.{{ signalKey }}.scopeBreakpoint || 0) || null, widthAuto: Number($editor.cards.{{ signalKey }}.widthAuto || 0) === 1, heightAuto: Number($editor.cards.{{ signalKey }}.heightAuto || 0) === 1, width: Number($editor.cards.{{ signalKey }}.widthAuto || 0) === 1 ? null : (Number($editor.cards.{{ signalKey }}.widthInput || 0) || null), height: Number($editor.cards.{{ signalKey }}.heightAuto || 0) === 1 ? null : (Number($editor.cards.{{ signalKey }}.heightInput || 0) || null), baseVersion, ...csrf}})">Apply</button>
+                                </div>
+                            </div>
+                            </section>
+
+                            <section id="{{ editPanelId }}-panel-ratio" role="tabpanel" aria-labelledby="{{ editPanelId }}-tab-ratio" class="bpts-transform-tab-panel {{ ratioPanelActiveClass }}" data-tab-panel="ratio" {{ ratioPanelHiddenAttr }} data-class:active="$editor.cards.{{ signalKey }}.activeTab === 'ratio'" data-attr:hidden="$editor.cards.{{ signalKey }}.activeTab === 'ratio' ? false : true">
+                            <section class="bpts-transform-ratio-section" aria-label="Ratio controls">
+                                <div class="bpts-transform-ratio-main">
+                                <div class="bpts-transform-ratio-controls-row">
+                                    <div class="bpts-transform-edit-dimension-group">
+                                        <label class="bpts-transform-edit-label" for="{{ ratioWidthInputId }}">Ratio W</label>
+                                        <div class="bpts-transform-dimension-inline-row">
+                                            <div class="bpts-transform-input-with-addon">
+                                                <input id="{{ ratioWidthInputId }}" class="text bpts-transform-ratio-input bpts-transform-ratio-width-input" type="number" min="1" step="1" inputmode="numeric" aria-label="Ratio width" data-bind="{{ signalPathBase }}.ratioWidthInput" data-on:input="const rw=Number($editor.cards.{{ signalKey }}.ratioWidthInput||0); const rh=Number($editor.cards.{{ signalKey }}.ratioHeightInput||0); if(rw>0&&rh>0){ const raw=rw/rh; $editor.cards.{{ signalKey }}.ratioFloatInput=raw.toFixed(4).replace(/\.0+$/,'').replace(/(\.\d*?)0+$/,'$1'); } else { $editor.cards.{{ signalKey }}.ratioFloatInput=''; } $editor.cards.{{ signalKey }}.ratioLocked='0';" data-attr:disabled="Number($editor.cards.{{ signalKey }}.scopeActive || 0) !== 1 || Number($editor.cards.{{ signalKey }}.widthAuto || 0) === 1 || Number($editor.cards.{{ signalKey }}.heightAuto || 0) === 1">
+                                                <label class="bpts-transform-ratio-source-toggle bpts-transform-input-addon" title="Lock width as fixed dimension">
+                                                    <input type="radio" name="{{ ratioSourceName }}" value="width" checked data-bind="{{ signalPathBase }}.ratioSourceDimension" data-attr:disabled="Number($editor.cards.{{ signalKey }}.scopeActive || 0) !== 1 || Number($editor.cards.{{ signalKey }}.widthAuto || 0) === 1 || Number($editor.cards.{{ signalKey }}.heightAuto || 0) === 1" aria-label="Lock width as fixed dimension">
+                                                    <span class="bpts-transform-input-addon-icon" aria-hidden="true">
+                                                        <svg class="bpts-transform-input-addon-lock bpts-transform-input-addon-lock-open" viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+                                                            <path d="M10 2a4 4 0 00-4 4v2h2V6a2 2 0 114 0v1h2V6a4 4 0 00-4-4zm-5 6a1 1 0 00-1 1v8a1 1 0 001 1h9.5a1 1 0 001-1V9a1 1 0 00-1-1H5zm4 3a1 1 0 112 0v2a1 1 0 11-2 0v-2z"></path>
+                                                        </svg>
+                                                        <svg class="bpts-transform-input-addon-lock bpts-transform-input-addon-lock-closed" viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+                                                            <path d="M6 8V6a4 4 0 118 0v2h1a1 1 0 011 1v7a1 1 0 01-1 1H5a1 1 0 01-1-1V9a1 1 0 011-1h1zm2 0h4V6a2 2 0 10-4 0v2zm2 3a1 1 0 00-1 1v2a1 1 0 102 0v-2a1 1 0 00-1-1z"></path>
+                                                        </svg>
+                                                    </span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="bpts-transform-edit-dimension-group">
+                                        <label class="bpts-transform-edit-label" for="{{ ratioHeightInputId }}">Ratio H</label>
+                                        <div class="bpts-transform-dimension-inline-row">
+                                            <div class="bpts-transform-input-with-addon">
+                                                <input id="{{ ratioHeightInputId }}" class="text bpts-transform-ratio-input bpts-transform-ratio-height-input" type="number" min="1" step="1" inputmode="numeric" aria-label="Ratio height" data-bind="{{ signalPathBase }}.ratioHeightInput" data-on:input="const rw=Number($editor.cards.{{ signalKey }}.ratioWidthInput||0); const rh=Number($editor.cards.{{ signalKey }}.ratioHeightInput||0); if(rw>0&&rh>0){ const raw=rw/rh; $editor.cards.{{ signalKey }}.ratioFloatInput=raw.toFixed(4).replace(/\.0+$/,'').replace(/(\.\d*?)0+$/,'$1'); } else { $editor.cards.{{ signalKey }}.ratioFloatInput=''; } $editor.cards.{{ signalKey }}.ratioLocked='0';" data-attr:disabled="Number($editor.cards.{{ signalKey }}.scopeActive || 0) !== 1 || Number($editor.cards.{{ signalKey }}.widthAuto || 0) === 1 || Number($editor.cards.{{ signalKey }}.heightAuto || 0) === 1">
+                                                <label class="bpts-transform-ratio-source-toggle bpts-transform-input-addon" title="Lock height as fixed dimension">
+                                                    <input type="radio" name="{{ ratioSourceName }}" value="height" data-bind="{{ signalPathBase }}.ratioSourceDimension" data-attr:disabled="Number($editor.cards.{{ signalKey }}.scopeActive || 0) !== 1 || Number($editor.cards.{{ signalKey }}.widthAuto || 0) === 1 || Number($editor.cards.{{ signalKey }}.heightAuto || 0) === 1" aria-label="Lock height as fixed dimension">
+                                                    <span class="bpts-transform-input-addon-icon" aria-hidden="true">
+                                                        <svg class="bpts-transform-input-addon-lock bpts-transform-input-addon-lock-open" viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+                                                            <path d="M10 2a4 4 0 00-4 4v2h2V6a2 2 0 114 0v1h2V6a4 4 0 00-4-4zm-5 6a1 1 0 00-1 1v8a1 1 0 001 1h9.5a1 1 0 001-1V9a1 1 0 00-1-1H5zm4 3a1 1 0 112 0v2a1 1 0 11-2 0v-2z"></path>
+                                                        </svg>
+                                                        <svg class="bpts-transform-input-addon-lock bpts-transform-input-addon-lock-closed" viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+                                                            <path d="M6 8V6a4 4 0 118 0v2h1a1 1 0 011 1v7a1 1 0 01-1 1H5a1 1 0 01-1-1V9a1 1 0 011-1h1zm2 0h4V6a2 2 0 10-4 0v2zm2 3a1 1 0 00-1 1v2a1 1 0 102 0v-2a1 1 0 00-1-1z"></path>
+                                                        </svg>
+                                                    </span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="bpts-transform-edit-dimension-group">
+                                        <label class="bpts-transform-edit-label">Decimal</label>
+                                        <div class="bpts-transform-dimension-inline-row">
+                                            <div class="bpts-transform-input-with-addon">
+                                                <input class="text bpts-transform-ratio-input bpts-transform-ratio-float-input" type="number" min="0.0001" max="10000" step="0.0001" inputmode="decimal" aria-label="Ratio float" data-bind="{{ signalPathBase }}.ratioFloatInput" data-on:input="const raw=Number($editor.cards.{{ signalKey }}.ratioFloatInput||0); if(!Number.isFinite(raw)||raw<=0){ return; } const maxDen=1000; let bestNum=1; let bestDen=1; let bestError=Math.abs(raw-1); for(let den=1; den<=maxDen; den+=1){ const num=Math.max(1, Math.round(raw*den)); const err=Math.abs(raw-(num/den)); if(err<bestError){ bestError=err; bestNum=num; bestDen=den; if(err===0){ break; } } } const gcd=(a,b)=>{ let x=Math.abs(a); let y=Math.abs(b); while(y!==0){ const t=x%y; x=y; y=t; } return x||1; }; const d=gcd(bestNum,bestDen); $editor.cards.{{ signalKey }}.ratioWidthInput=String(Math.max(1, Math.round(bestNum/d))); $editor.cards.{{ signalKey }}.ratioHeightInput=String(Math.max(1, Math.round(bestDen/d))); $editor.cards.{{ signalKey }}.ratioLocked='0';" data-attr:disabled="Number($editor.cards.{{ signalKey }}.scopeActive || 0) !== 1 || Number($editor.cards.{{ signalKey }}.widthAuto || 0) === 1 || Number($editor.cards.{{ signalKey }}.heightAuto || 0) === 1">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="bpts-transform-dimensions-actions">
+                                        <button type="button" class="btn small bpts-transform-ratio-apply" data-bpts-action="ratio" data-attr:disabled="Number($editor.cards.{{ signalKey }}.scopeActive || 0) !== 1 || Number($editor.cards.{{ signalKey }}.widthAuto || 0) === 1 || Number($editor.cards.{{ signalKey }}.heightAuto || 0) === 1" data-on:click__throttle.300ms="$editor.cards.{{ signalKey }}.ratioLocked='1'; const page=el.closest('.bpts-transforms-page'); const url=page?.dataset?.applyCardOperationUrl || '/actions/craft-breakpoints/transforms/apply-card-operation'; const baseVersion=String($editor.baseVersion || ''); const csrf=Craft && Craft.csrfTokenName && Craft.csrfTokenValue ? {[Craft.csrfTokenName]: Craft.csrfTokenValue} : {}; @post(url, {contentType: 'json', payload: {setName: String($editor.cards.{{ signalKey }}.setName || ''), field: 'ratio', includeEscapeWidth: String($editor.cards.{{ signalKey }}.includeEscapeWidth || '0') === '1', scopeMode: $editor.cards.{{ signalKey }}.scopeMode || '', scopeBreakpoint: Number($editor.cards.{{ signalKey }}.scopeBreakpoint || 0) || null, ratioWidth: Number($editor.cards.{{ signalKey }}.ratioWidthInput || 0) || null, ratioHeight: Number($editor.cards.{{ signalKey }}.ratioHeightInput || 0) || null, ratioSourceDimension: $editor.cards.{{ signalKey }}.ratioSourceDimension || 'width', baseVersion, ...csrf}})">Apply</button>
+                                    </div>
+                                </div>
+                                <div class="bpts-transform-ratio-copy-row">
+                                    <label class="bpts-transform-ratio-input-wrap">
+                                            <span class="bpts-transform-input-with-addon bpts-transform-ratio-source-breakpoint-wrap">
+                                                <select class="bpts-transform-ratio-source-breakpoint-select" data-bind="{{ signalPathBase }}.ratioSourceBreakpoint" data-attr:disabled="Number($editor.cards.{{ signalKey }}.scopeActive || 0) !== 1 || Number($editor.cards.{{ signalKey }}.widthAuto || 0) === 1 || Number($editor.cards.{{ signalKey }}.heightAuto || 0) === 1">
+                                                    {{ ratioSourceBreakpointOptions }}
+                                                </select>
+                                            </span>
+                                    </label>
+                                    <button type="button" class="btn small bpts-transform-ratio-copy" data-attr:disabled="Number($editor.cards.{{ signalKey }}.scopeActive || 0) !== 1 || Number($editor.cards.{{ signalKey }}.widthAuto || 0) === 1 || Number($editor.cards.{{ signalKey }}.heightAuto || 0) === 1" data-on:click="const bp=Number($editor.cards.{{ signalKey }}.ratioSourceBreakpoint||0); const card=el.closest('.bpts-transform-card'); if(card&&Number.isFinite(bp)&&bp>0){ const rows=JSON.parse(card.dataset.renderedRows||'[]'); const row=rows.find((item)=>Number(item&&item.breakpoint||0)===bp)||null; const widthValue=row?Number(row.width):NaN; const heightValue=row?Number(row.height):NaN; if(Number.isFinite(widthValue)&&widthValue>0&&Number.isFinite(heightValue)&&heightValue>0){ $editor.cards.{{ signalKey }}.ratioWidthInput=String(Math.round(widthValue)); $editor.cards.{{ signalKey }}.ratioHeightInput=String(Math.round(heightValue)); const raw=widthValue/heightValue; $editor.cards.{{ signalKey }}.ratioFloatInput=raw.toFixed(4).replace(/\.0+$/,'').replace(/(\.\d*?)0+$/,'$1'); } }">Copy ratio</button>
+                                </div>
+                                </div>
+                            </section>
+                                </section>
+
+                            <section id="{{ editPanelId }}-panel-settings" role="tabpanel" aria-labelledby="{{ editPanelId }}-tab-settings" class="bpts-transform-tab-panel {{ settingsPanelActiveClass }}" data-tab-panel="settings" {{ settingsPanelHiddenAttr }} data-class:active="$editor.cards.{{ signalKey }}.activeTab === 'settings'" data-attr:hidden="$editor.cards.{{ signalKey }}.activeTab === 'settings' && $editor.cards.{{ signalKey }}.scopeMode === 'all' ? false : true">
+                            <section class="bpts-transform-settings-section" aria-label="Settings controls">
+                                <label class="bpts-transform-settings-toggle" for="{{ passHeightToggleId }}">
+                                    <input id="{{ passHeightToggleId }}" type="checkbox" class="bpts-transform-pass-height-toggle" data-bpts-action="passHeightWhenRenderedLteSaved" data-bind="{{ signalPathBase }}.passHeightWhenRenderedLteSaved" data-attr:disabled="$editor.cards.{{ signalKey }}.allowAnyHeight === true ? true : null" data-on:change__throttle.300ms="const page=el.closest('.bpts-transforms-page'); const url=page?.dataset?.applyCardOperationUrl || '/actions/craft-breakpoints/transforms/apply-card-operation'; const baseVersion=String($editor.baseVersion || ''); const csrf=Craft && Craft.csrfTokenName && Craft.csrfTokenValue ? {[Craft.csrfTokenName]: Craft.csrfTokenValue} : {}; @post(url, {contentType: 'json', payload: {setName: String($editor.cards.{{ signalKey }}.setName || ''), field: 'passHeightWhenRenderedLteSaved', value: $editor.cards.{{ signalKey }}.passHeightWhenRenderedLteSaved === true, baseVersion, ...csrf}})">
+                                    <span>Allow Shorter heights</span>
+                                </label>
+                                <p class="bpts-transform-settings-help">If you process a transform set on another page and the height is smaller due to less content, background images for example, it would get flagged if you don't use this option.</p>
+                                <p class="bpts-transform-settings-help">If it is larger you might want to know.</p>
+                                <label class="bpts-transform-settings-toggle" for="{{ allowAnyHeightToggleId }}">
+                                    <input id="{{ allowAnyHeightToggleId }}" type="checkbox" class="bpts-transform-allow-any-height-toggle" data-bpts-action="allowAnyHeight" data-bind="{{ signalPathBase }}.allowAnyHeight" data-attr:disabled="$editor.cards.{{ signalKey }}.passHeightWhenRenderedLteSaved === true ? true : null" data-on:change__throttle.300ms="const page=el.closest('.bpts-transforms-page'); const url=page?.dataset?.applyCardOperationUrl || '/actions/craft-breakpoints/transforms/apply-card-operation'; const baseVersion=String($editor.baseVersion || ''); const csrf=Craft && Craft.csrfTokenName && Craft.csrfTokenValue ? {[Craft.csrfTokenName]: Craft.csrfTokenValue} : {}; @post(url, {contentType: 'json', payload: {setName: String($editor.cards.{{ signalKey }}.setName || ''), field: 'allowAnyHeight', value: $editor.cards.{{ signalKey }}.allowAnyHeight === true, baseVersion, ...csrf}})">
+                                    <span>Allow Any Height</span>
+                                </label>
+                                <p class="bpts-transform-settings-help">When enabled, height is never flagged as a mismatch regardless of the rendered value.</p>
+                            </section>
+                            </section>
+                            </div>
+                        </section>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </section>{% endautoescape %}
