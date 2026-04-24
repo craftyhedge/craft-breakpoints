@@ -189,12 +189,14 @@ class Plugin extends BasePlugin
             return null;
         }
 
+        $item['url'] = 'craft-breakpoints';
+
         $item['subnav'] = [
             'processing' => [
                 'label' => Craft::t('craft-breakpoints', 'Transform Sets'),
                 'url' => 'craft-breakpoints/processing',
             ],
-            'settings' => [
+            'plugin-settings' => [
                 'label' => Craft::t('craft-breakpoints', 'Settings'),
                 'url' => 'craft-breakpoints/settings',
             ],

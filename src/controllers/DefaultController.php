@@ -17,14 +17,14 @@ class DefaultController extends Controller
 {
     public function actionIndex(): Response
     {
-        return $this->redirect(UrlHelper::cpUrl('craft-breakpoints/settings'));
+        return $this->redirect(UrlHelper::cpUrl('craft-breakpoints/processing'));
     }
 
     public function actionSettings(): Response
     {
         return $this->renderTemplate('craft-breakpoints/cp/settings', [
             'settings' => Plugin::getInstance()->getSettings(),
-            'selectedSubnavItem' => 'settings',
+            'selectedSubnavItem' => 'plugin-settings',
             'databaseStats' => Plugin::getInstance()->getDatabase()->getTableStats(),
             'databaseLatestRunAt' => Plugin::getInstance()->getDatabase()->getLatestRunTimestamp(),
         ]);
