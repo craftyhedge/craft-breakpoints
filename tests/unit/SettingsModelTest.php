@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace craftyhedge\craftbreakpointimages\tests\unit;
+namespace craftyhedge\craftbreakpoints\tests\unit;
 
 use Codeception\Test\Unit;
-use craftyhedge\craftbreakpointimages\models\Settings;
+use craftyhedge\craftbreakpoints\models\Settings;
 
 final class SettingsModelTest extends Unit
 {

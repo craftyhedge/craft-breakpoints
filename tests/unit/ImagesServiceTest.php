@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace craftyhedge\craftbreakpointimages\tests\unit;
+namespace craftyhedge\craftbreakpoints\tests\unit;
 
 use Codeception\Test\Unit;
 use craft\elements\Asset;
-use craftyhedge\craftbreakpointimages\Plugin;
-use craftyhedge\craftbreakpointimages\services\Images;
+use craftyhedge\craftbreakpoints\Plugin;
+use craftyhedge\craftbreakpoints\services\Images;
 
 final class ImagesServiceTest extends Unit
 {
@@ -18,7 +18,7 @@ final class ImagesServiceTest extends Unit
 
         $markup = $service->render(null, 'default');
 
-        $this->assertSame('<!-- Breakpoint Images: plugin unavailable -->', (string)$markup);
+        $this->assertSame('<!-- Breakpoints: plugin unavailable -->', (string)$markup);
     }
 
     public function testGetBreakpointDataReturnsEmptyArrayWhenPluginMissing(): void
@@ -58,7 +58,7 @@ final class ImagesServiceTest extends Unit
         $asset = $this->createMockAsset();
 
         $config = [
-            'pictureTemplatePath' => 'craft-breakpoint-images/does-not-exist.twig',
+            'pictureTemplatePath' => 'craft-breakpoints/does-not-exist.twig',
             'breakpoints' => ['xs' => 480],
             'escapeWidth' => 0,
             'imgClass' => 'images-service-test',

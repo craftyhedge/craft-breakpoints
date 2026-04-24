@@ -1,0 +1,27 @@
+{
+    "version": "2026-04-24T06:13:19.412655Z",
+    "sets": {
+        "hero": {
+            "name": "hero",
+            "includeEscapeWidth": false,
+            "variants": {
+                "xs": [],
+                "sm": {
+                    "width": 640,
+                    "height": 340,
+                    "enabled": true,
+                    "autoDimension": null
+                },
+                "md": [],
+                "lg": [],
+                "xl": [],
+                "2xl": []
+            },
+            "config": {
+                "passHeightWhenRenderedLteSaved": true,
+                "allowAnyHeight": false
+            },
+            "lastUpdatedAt": "2026-04-24T06:13:19+00:00"
+        }
+    }
+}

@@ -1,12 +1,12 @@
 <?php
 
-namespace craftyhedge\craftbreakpointimages\services;
+namespace craftyhedge\craftbreakpoints\services;
 
 use Craft;
 use craft\db\Query;
 use craft\helpers\Db;
 use craft\web\Application as WebApplication;
-use craftyhedge\craftbreakpointimages\Plugin;
+use craftyhedge\craftbreakpoints\Plugin;
 use yii\base\Component;
 
 class TelemetryService extends Component

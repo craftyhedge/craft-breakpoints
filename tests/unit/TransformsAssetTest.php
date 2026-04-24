@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace craftyhedge\craftbreakpointimages\tests\unit;
+namespace craftyhedge\craftbreakpoints\tests\unit;
 
 use Codeception\Test\Unit;
 use craft\web\assets\cp\CpAsset;
-use craftyhedge\craftbreakpointimages\web\assets\transforms\TransformsAsset;
+use craftyhedge\craftbreakpoints\web\assets\transforms\TransformsAsset;
 
 final class TransformsAssetTest extends Unit
 {

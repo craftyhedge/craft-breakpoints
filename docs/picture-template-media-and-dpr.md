@@ -1,8 +1,8 @@
-# Responsive Images in Breakpoint Images
+# Responsive Images in Breakpoints
 
 ## Overview
 
-Breakpoint Images renders responsive images with standard HTML image elements:
+Breakpoints renders responsive images with standard HTML image elements:
 
 - `<picture>`
 - `<source>`

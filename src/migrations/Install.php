@@ -1,6 +1,6 @@
 <?php
 
-namespace craftyhedge\craftbreakpointimages\migrations;
+namespace craftyhedge\craftbreakpoints\migrations;
 
 use craft\db\Migration;
 

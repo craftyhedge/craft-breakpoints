@@ -1,8 +1,8 @@
 <?php
 
-namespace craftyhedge\craftbreakpointimages\services;
+namespace craftyhedge\craftbreakpoints\services;
 
-use craftyhedge\craftbreakpointimages\Plugin;
+use craftyhedge\craftbreakpoints\Plugin;
 use yii\base\Component;
 
 class ProcessingConfig extends Component

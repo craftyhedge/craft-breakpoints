@@ -1,11 +1,11 @@
 <?php
 
-namespace craftyhedge\craftbreakpointimages\controllers;
+namespace craftyhedge\craftbreakpoints\controllers;
 
 use Craft;
 use craft\helpers\Json;
 use craft\web\Controller;
-use craftyhedge\craftbreakpointimages\Plugin;
+use craftyhedge\craftbreakpoints\Plugin;
 use starfederation\datastar\events\PatchSignals;
 use starfederation\datastar\ServerSentEventGenerator;
 use yii\web\Response;

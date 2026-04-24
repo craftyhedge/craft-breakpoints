@@ -1,14 +1,14 @@
 <?php
 
-namespace craftyhedge\craftbreakpointimages\controllers;
+namespace craftyhedge\craftbreakpoints\controllers;
 
 use Craft;
 use craft\elements\Entry;
 use craft\helpers\UrlHelper;
 use craft\web\Controller;
 use craft\web\View;
-use craftyhedge\craftbreakpointimages\Plugin;
-use craftyhedge\craftbreakpointimages\web\assets\transforms\TransformsAsset;
+use craftyhedge\craftbreakpoints\Plugin;
+use craftyhedge\craftbreakpoints\web\assets\transforms\TransformsAsset;
 use yii\helpers\Json;
 use yii\web\BadRequestHttpException;
 use yii\web\Response;
@@ -17,12 +17,12 @@ class DefaultController extends Controller
 {
     public function actionIndex(): Response
     {
-        return $this->redirect(UrlHelper::cpUrl('craft-breakpoint-images/settings'));
+        return $this->redirect(UrlHelper::cpUrl('craft-breakpoints/settings'));
     }
 
     public function actionSettings(): Response
     {
-        return $this->renderTemplate('craft-breakpoint-images/cp/settings', [
+        return $this->renderTemplate('craft-breakpoints/cp/settings', [
             'settings' => Plugin::getInstance()->getSettings(),
             'selectedSubnavItem' => 'settings',
             'databaseStats' => Plugin::getInstance()->getDatabase()->getTableStats(),
@@ -52,12 +52,12 @@ class DefaultController extends Controller
             View::POS_HEAD
         );
 
-        return $this->renderTemplate('craft-breakpoint-images/cp/transforms', [
+        return $this->renderTemplate('craft-breakpoints/cp/transforms', [
             'selectedSubnavItem' => 'processing',
             'processingConfig' => $config,
             'sidebarTransformRows' => $plugin->getTransformEditor()->buildSidebarTransformRows(),
             'currentBaseVersion' => $plugin->getTransformStore()->getCurrentVersion(),
-            'applyCardOperationUrl' => UrlHelper::cpUrl('actions/craft-breakpoint-images/transforms/apply-card-operation'),
+            'applyCardOperationUrl' => UrlHelper::cpUrl('actions/craft-breakpoints/transforms/apply-card-operation'),
             'selectedSourceEntries' => $selectedSourceEntry ? [$selectedSourceEntry] : [],
             'previewCenter' => (bool)$plugin->getConfigService()->get('previewCenter', true),
             'transformsDeveloperActionsEnabled' => $plugin->getConfigService()->areTransformsDeveloperActionsEnabled(),

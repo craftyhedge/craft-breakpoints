@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace craftyhedge\craftbreakpointimages\tests\unit;
+namespace craftyhedge\craftbreakpoints\tests\unit;
 
 use Codeception\Test\Unit;
 use craft\elements\Asset;
-use craftyhedge\craftbreakpointimages\Plugin;
+use craftyhedge\craftbreakpoints\Plugin;
 
 final class ImageRendererServiceTest extends Unit
 {
@@ -16,7 +16,7 @@ final class ImageRendererServiceTest extends Unit
 
         $markup = $renderer->render(null, 'default');
 
-        $this->assertSame('<!-- Breakpoint Images: no image provided -->', (string)$markup);
+        $this->assertSame('<!-- Breakpoints: no image provided -->', (string)$markup);
     }
 
     public function testPictureAttributesExposeBreakpointStatesFromTransformService(): void
@@ -50,7 +50,7 @@ final class ImageRendererServiceTest extends Unit
         $asset = $this->createMockAsset();
 
         $markup = $renderer->render($asset, 'default', [
-            'pictureTemplatePath' => 'craft-breakpoint-images/does-not-exist.twig',
+            'pictureTemplatePath' => 'craft-breakpoints/does-not-exist.twig',
             'breakpoints' => [
                 'xs' => 480,
             ],
@@ -80,7 +80,7 @@ final class ImageRendererServiceTest extends Unit
         $asset = $this->createMockSvgAsset();
 
         $markup = $renderer->render($asset, 'default', [
-            'svgTemplatePath' => 'craft-breakpoint-images/does-not-exist.twig',
+            'svgTemplatePath' => 'craft-breakpoints/does-not-exist.twig',
             'breakpoints' => [
                 'xs' => 480,
             ],

@@ -18,9 +18,9 @@ modules:
       projectConfig: {}
       migrations: []
       plugins:
-        craft-breakpoint-images:
-          class: '\craftyhedge\craftbreakpointimages\Plugin'
-          handle: craft-breakpoint-images
+        craft-breakpoints:
+          class: '\craftyhedge\craftbreakpoints\Plugin'
+          handle: craft-breakpoints
       cleanup: true
       transaction: true
       dbSetup: { clean: true, setupCraft: true }

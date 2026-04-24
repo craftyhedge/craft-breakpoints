@@ -18,7 +18,7 @@ import {
     isImageRenderable as processingIsImageRenderable,
     isTransparentPixelSrcset as processingIsTransparentPixelSrcset,
     normalizeLazyAttribute as processingNormalizeLazyAttribute,
-    prepareBreakpointImages as processingPrepareBreakpointImages,
+    prepareBreakpoints as processingPrepareBreakpoints,
     preloadBreakpointSources as processingPreloadBreakpointSources,
     sanitizeIssueSource as processingSanitizeIssueSource,
     toPositiveIntOrNull as processingToPositiveIntOrNull,
@@ -43,36 +43,36 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     const PREPARE_NORMALIZATION_SAMPLE_LIMIT = 12;
 
     const bpiProcessingConfig = window.bpiProcessingConfig || {};
-    const ENTRY_URL_ACTION = 'craft-breakpoint-images/default/entry-url';
-    const RENDER_RESULT_REVIEW_ACTION = 'craft-breakpoint-images/transforms/render-result-review';
-    const RENDER_INITIAL_REVIEW_ACTION = 'craft-breakpoint-images/transforms/render-initial-review';
-    const PERSIST_RUN_SNAPSHOT_ACTION = 'craft-breakpoint-images/transforms/persist-run-snapshot';
+    const ENTRY_URL_ACTION = 'craft-breakpoints/default/entry-url';
+    const RENDER_RESULT_REVIEW_ACTION = 'craft-breakpoints/transforms/render-result-review';
+    const RENDER_INITIAL_REVIEW_ACTION = 'craft-breakpoints/transforms/render-initial-review';
+    const PERSIST_RUN_SNAPSHOT_ACTION = 'craft-breakpoints/transforms/persist-run-snapshot';
     const DATASTAR_FETCH_EVENT = 'datastar-fetch';
     const DATASTAR_PATCH_SIGNALS_EVENT = 'datastar-patch-signals';
     const DATASTAR_SIGNAL_PATCH_EVENT = 'datastar-signal-patch';
 
     const elements = {
-        page: document.querySelector('.bpi-transforms-page'),
-        showCardSettingsSignalBridge: document.getElementById('bpi-show-card-settings-signal-bridge'),
-        uiResultsHeadingSignalBridge: document.getElementById('bpi-ui-results-heading-signal-bridge'),
-        resultsHeading: document.getElementById('bpi-results-heading'),
-        uiShowWarningOrderSignalBridge: document.getElementById('bpi-ui-show-warning-order-signal-bridge'),
-        uiResultsOrderingNoteLabelSignalBridge: document.getElementById('bpi-ui-results-ordering-note-label-signal-bridge'),
-        transformSetsSidebar: document.getElementById('bpi-transform-sets-sidebar'),
-        transformSetsList: document.getElementById('bpi-transform-sets-list'),
-        sourceEntry: document.getElementById('bpi-source-entry'),
-        status: document.getElementById('bpi-status'),
-        progressHost: document.getElementById('bpi-progress-host'),
-        resultsSettingsLightswitch: document.getElementById('bpi-results-settings-lightswitch'),
-        framePane: document.getElementById('bpi-frame-pane'),
-        wrapper: document.getElementById('bpi-frame-wrapper'),
-        warnings: document.getElementById('bpi-warnings'),
-        visualResults: document.getElementById('bpi-visual-results'),
-        btnOpenPreview: document.getElementById('bpi-open-preview'),
-        btnRun: document.getElementById('bpi-run-processing'),
-        btnStop: document.getElementById('bpi-stop-processing'),
-        btnClosePreview: document.getElementById('bpi-close-preview'),
-        btnCopy: document.getElementById('bpi-copy-output')
+        page: document.querySelector('.bpts-transforms-page'),
+        showCardSettingsSignalBridge: document.getElementById('bpts-show-card-settings-signal-bridge'),
+        uiResultsHeadingSignalBridge: document.getElementById('bpts-ui-results-heading-signal-bridge'),
+        resultsHeading: document.getElementById('bpts-results-heading'),
+        uiShowWarningOrderSignalBridge: document.getElementById('bpts-ui-show-warning-order-signal-bridge'),
+        uiResultsOrderingNoteLabelSignalBridge: document.getElementById('bpts-ui-results-ordering-note-label-signal-bridge'),
+        transformSetsSidebar: document.getElementById('bpts-transform-sets-sidebar'),
+        transformSetsList: document.getElementById('bpts-transform-sets-list'),
+        sourceEntry: document.getElementById('bpts-source-entry'),
+        status: document.getElementById('bpts-status'),
+        progressHost: document.getElementById('bpts-progress-host'),
+        resultsSettingsLightswitch: document.getElementById('bpts-results-settings-lightswitch'),
+        framePane: document.getElementById('bpts-frame-pane'),
+        wrapper: document.getElementById('bpts-frame-wrapper'),
+        warnings: document.getElementById('bpts-warnings'),
+        visualResults: document.getElementById('bpts-visual-results'),
+        btnOpenPreview: document.getElementById('bpts-open-preview'),
+        btnRun: document.getElementById('bpts-run-processing'),
+        btnStop: document.getElementById('bpts-stop-processing'),
+        btnClosePreview: document.getElementById('bpts-close-preview'),
+        btnCopy: document.getElementById('bpts-copy-output')
     };
 
     if (!elements.sourceEntry || !elements.wrapper) {
@@ -131,7 +131,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             return;
         }
 
-        elements.page.classList.toggle('bpi-results-reprocessing', Boolean(isReprocessing));
+        elements.page.classList.toggle('bpts-results-reprocessing', Boolean(isReprocessing));
     }
 
     function setReviewHydrated(isHydrated) {
@@ -139,7 +139,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             return;
         }
 
-        elements.page.classList.toggle('bpi-review-hydrating', !Boolean(isHydrated));
+        elements.page.classList.toggle('bpts-review-hydrating', !Boolean(isHydrated));
     }
 
     function getOrCreateProgressBar() {
@@ -243,7 +243,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
         document.addEventListener('click', (event) => {
             const target = event.target instanceof Element
-                ? event.target.closest('.bpi-entry-link[data-bpi-open-entry="true"]')
+                ? event.target.closest('.bpts-entry-link[data-bpts-open-entry="true"]')
                 : null;
 
             if (!(target instanceof Element)) {
@@ -331,7 +331,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             }
         }
 
-        const hiddenInputs = Array.from(elements.sourceEntry.querySelectorAll('input[type="hidden"][name="bpi-source-entry-id"]'));
+        const hiddenInputs = Array.from(elements.sourceEntry.querySelectorAll('input[type="hidden"][name="bpts-source-entry-id"]'));
         if (hiddenInputs.length) {
             hiddenInputs[hiddenInputs.length - 1].value = String(entryId);
             hiddenInputs[hiddenInputs.length - 1].dispatchEvent(new Event('change', { bubbles: true }));
@@ -353,7 +353,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
         document.addEventListener('click', (event) => {
             const target = event.target instanceof Element
-                ? event.target.closest('.bpi-process-again-button[data-bpi-process-again="true"]')
+                ? event.target.closest('.bpts-process-again-button[data-bpts-process-again="true"]')
                 : null;
 
             if (!(target instanceof Element)) {
@@ -395,7 +395,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
         document.addEventListener('click', (event) => {
             const target = event.target instanceof Element
-                ? event.target.closest('button.bpi-warning-process-observed[data-bpi-action="processObservedEntry"]')
+                ? event.target.closest('button.bpts-warning-process-observed[data-bpts-action="processObservedEntry"]')
                 : null;
 
             if (!(target instanceof HTMLButtonElement) || target.disabled) {
@@ -497,7 +497,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             return [];
         }
 
-        const cards = Array.from(elements.visualResults.querySelectorAll('.bpi-transform-card[data-set]'));
+        const cards = Array.from(elements.visualResults.querySelectorAll('.bpts-transform-card[data-set]'));
         return cards
             .map((card) => String(card.getAttribute('data-set') || '').trim())
             .filter((setName) => setName !== '');
@@ -519,15 +519,15 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         setItems.forEach((item) => {
             const setName = String(item.getAttribute('data-set') || '').trim();
             const isAvailable = setName !== '' && availableSetNames.has(setName);
-            const link = item.querySelector('a.bpi-transform-sidebar-link[data-set]');
+            const link = item.querySelector('a.bpts-transform-sidebar-link[data-set]');
 
-            item.classList.toggle('bpi-transform-sidebar-item-disabled', !isAvailable);
+            item.classList.toggle('bpts-transform-sidebar-item-disabled', !isAvailable);
 
             if (!(link instanceof HTMLAnchorElement)) {
                 return;
             }
 
-            link.classList.toggle('bpi-transform-sidebar-link-disabled', !isAvailable);
+            link.classList.toggle('bpts-transform-sidebar-link-disabled', !isAvailable);
             link.setAttribute('aria-disabled', isAvailable ? 'false' : 'true');
             link.tabIndex = isAvailable ? 0 : -1;
         });
@@ -552,13 +552,13 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                 return;
             }
 
-            item.classList.remove('bpi-transform-sidebar-item-warning');
+            item.classList.remove('bpts-transform-sidebar-item-warning');
             item.removeAttribute('data-observed-unsaved');
 
-            const link = item.querySelector('a.bpi-transform-sidebar-link');
+            const link = item.querySelector('a.bpts-transform-sidebar-link');
             if (link instanceof HTMLElement) {
-                link.classList.remove('bpi-transform-sidebar-link-warning');
-                const icon = link.querySelector('.bpi-transform-sidebar-warning-icon');
+                link.classList.remove('bpts-transform-sidebar-link-warning');
+                const icon = link.querySelector('.bpts-transform-sidebar-warning-icon');
                 if (icon) {
                     icon.remove();
                 }
@@ -624,7 +624,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
         list.addEventListener('click', (event) => {
             const target = event.target instanceof Element
-                ? event.target.closest('a.bpi-transform-sidebar-link[data-set]')
+                ? event.target.closest('a.bpts-transform-sidebar-link[data-set]')
                 : null;
 
             if (!(target instanceof HTMLAnchorElement)) {
@@ -958,7 +958,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             }
         }
 
-        const hiddenInputs = Array.from(elements.sourceEntry.querySelectorAll('input[type="hidden"][name="bpi-source-entry-id"]'));
+        const hiddenInputs = Array.from(elements.sourceEntry.querySelectorAll('input[type="hidden"][name="bpts-source-entry-id"]'));
         for (let index = hiddenInputs.length - 1; index >= 0; index -= 1) {
             const value = parseEntryId(hiddenInputs[index].value);
             if (value !== null) {
@@ -1010,8 +1010,8 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     function getOrCreatePreviewFrame() {
         if (!state.previewFrame) {
             const previewFrame = document.createElement(PREVIEW_FRAME_TAG);
-            previewFrame.id = 'bpi-processing-preview';
-            previewFrame.className = 'bpi-frame';
+            previewFrame.id = 'bpts-processing-preview';
+            previewFrame.className = 'bpts-frame';
             previewFrame.setAttribute('data-role', 'processing-preview');
             previewFrame.src = 'about:blank';
             elements.wrapper.appendChild(previewFrame);
@@ -1132,7 +1132,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
     function ensurePreviewScrollbarStyles() {
         const frameDocument = getFrameDocument();
-        const styleId = 'bpi-processing-scrollbar-style';
+        const styleId = 'bpts-processing-scrollbar-style';
         if (frameDocument.getElementById(styleId)) {
             return;
         }
@@ -1281,8 +1281,8 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         });
     }
 
-    function prepareBreakpointImages(breakpoint) {
-        return processingPrepareBreakpointImages({
+    function prepareBreakpoints(breakpoint) {
+        return processingPrepareBreakpoints({
             breakpoint,
             frameDocument: getFrameDocument(),
             frameWindow: state.previewFrame?.contentWindow || window,
@@ -1400,7 +1400,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             return;
         }
 
-        const grids = Array.from(elements.visualResults.querySelectorAll('.bpi-breakpoint-grid'));
+        const grids = Array.from(elements.visualResults.querySelectorAll('.bpts-breakpoint-grid'));
         grids.forEach((grid) => {
             updateGridScrollAffordance(grid);
         });
@@ -1412,16 +1412,16 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         const atStart = grid.scrollLeft <= 1;
         const atEnd = grid.scrollLeft >= (maxScrollLeft - 1);
 
-        grid.classList.toggle('bpi-drag-scrollable', isScrollable);
-        grid.classList.toggle('bpi-scroll-fade-active', isScrollable);
-        grid.classList.toggle('bpi-scroll-fade-left', isScrollable && !atStart);
-        grid.classList.toggle('bpi-scroll-fade-right', isScrollable && !atEnd);
+        grid.classList.toggle('bpts-drag-scrollable', isScrollable);
+        grid.classList.toggle('bpts-scroll-fade-active', isScrollable);
+        grid.classList.toggle('bpts-scroll-fade-left', isScrollable && !atStart);
+        grid.classList.toggle('bpts-scroll-fade-right', isScrollable && !atEnd);
     }
 
     function setupDragToScroll() {
         bindHorizontalDragScroll({
             bindingKey: '__BPI_TRANSFORMS_GRID_DRAG_BOUND',
-            findGridFromTarget: (target) => (target instanceof Element ? target.closest('.bpi-breakpoint-grid') : null),
+            findGridFromTarget: (target) => (target instanceof Element ? target.closest('.bpts-breakpoint-grid') : null),
             isManagedGrid: (grid) => Boolean(grid instanceof Element && elements.visualResults && elements.visualResults.contains(grid)),
             onPotentialDragStart: (grid) => {
                 updateGridScrollAffordance(grid);
@@ -1462,7 +1462,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             };
         }
 
-        const cards = Array.from(elements.visualResults.querySelectorAll('.bpi-transform-card[data-set]'));
+        const cards = Array.from(elements.visualResults.querySelectorAll('.bpts-transform-card[data-set]'));
         cards.forEach((card) => {
             const transformName = String(card.getAttribute('data-set') || '').trim();
             if (!transformName) {
@@ -1518,7 +1518,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
         document.addEventListener('click', (event) => {
             const target = event.target instanceof Element
-                ? event.target.closest('.bpi-transform-asset-page[data-asset-key]')
+                ? event.target.closest('.bpts-transform-asset-page[data-asset-key]')
                 : null;
 
             if (!(target instanceof Element)) {
@@ -1529,7 +1529,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                 return;
             }
 
-            const card = target.closest('.bpi-transform-card[data-set]');
+            const card = target.closest('.bpts-transform-card[data-set]');
             if (!(card instanceof Element) || !elements.visualResults.contains(card)) {
                 return;
             }
@@ -1599,7 +1599,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             return null;
         }
 
-        const cards = Array.from(elements.visualResults.querySelectorAll('.bpi-transform-card[data-set]'));
+        const cards = Array.from(elements.visualResults.querySelectorAll('.bpts-transform-card[data-set]'));
         return cards.find((card) => (card.getAttribute('data-set') || '') === transformName) || null;
     }
 
@@ -1896,12 +1896,12 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             return null;
         }
 
-        const actionHost = sourceElement.closest('[data-bpi-action]');
+        const actionHost = sourceElement.closest('[data-bpts-action]');
         if (!(actionHost instanceof Element)) {
             return null;
         }
 
-        const action = String(actionHost.getAttribute('data-bpi-action') || '').trim();
+        const action = String(actionHost.getAttribute('data-bpts-action') || '').trim();
         return action !== '' ? action : null;
     }
 
@@ -1923,7 +1923,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                 }
 
                 if (sourceElement && typeof sourceElement.closest === 'function') {
-                    const card = sourceElement.closest('.bpi-transform-card');
+                    const card = sourceElement.closest('.bpts-transform-card');
                     const transformName = card?.getAttribute('data-set') || '';
                     if (transformName) {
                         finalizeTransformUpdateFromServerStatus(transformName, serverStatus);
@@ -1944,7 +1944,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                 return;
             }
 
-            const card = sourceElement.closest('.bpi-transform-card');
+            const card = sourceElement.closest('.bpts-transform-card');
             if (!card || !elements.visualResults || !elements.visualResults.contains(card)) {
                 return;
             }
@@ -1982,7 +1982,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         if (!(elements.visualResults instanceof HTMLElement)) {
             return null;
         }
-        const cards = elements.visualResults.querySelectorAll('.bpi-transform-card[data-set]');
+        const cards = elements.visualResults.querySelectorAll('.bpts-transform-card[data-set]');
         for (const card of cards) {
             if (card.getBoundingClientRect().top >= 0) {
                 return card;
@@ -2419,7 +2419,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
                 failureStage = 'prepare-breakpoint-images';
                 const prepareStartedAt = Date.now();
-                const breakpointPreparer = getRunOverride('prepareBreakpointImages') || prepareBreakpointImages;
+                const breakpointPreparer = getRunOverride('prepareBreakpoints') || prepareBreakpoints;
                 const prepareResult = breakpointPreparer(breakpoint);
                 breakpointReport.activationStrategies = prepareResult.activationStrategies.slice();
                 breakpointReport.normalizationCount = prepareResult.normalizationCount;
@@ -2731,7 +2731,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             clearPreviewFrameForTests: () => {
                 state.previewFrame = null;
             },
-            prepareBreakpointImages,
+            prepareBreakpoints,
             buildBreakpointReadinessTracker,
             extractRowsForBreakpoint,
         };

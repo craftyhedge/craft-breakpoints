@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace craftyhedge\craftbreakpointimages\tests\integration;
+namespace craftyhedge\craftbreakpoints\tests\integration;
 
 use Codeception\Test\Unit;
 use Craft;
 use craft\helpers\UrlHelper;
-use craftyhedge\craftbreakpointimages\controllers\DefaultController;
-use craftyhedge\craftbreakpointimages\web\assets\transforms\TransformsAsset;
+use craftyhedge\craftbreakpoints\controllers\DefaultController;
+use craftyhedge\craftbreakpoints\web\assets\transforms\TransformsAsset;
 use yii\web\BadRequestHttpException;
 use yii\web\Response;
 
@@ -21,7 +21,7 @@ final class DefaultControllerTest extends Unit
         $this->assertInstanceOf(Response::class, $response);
         $this->assertTrue($response->getIsRedirection());
         $this->assertSame(
-            UrlHelper::cpUrl('craft-breakpoint-images/settings'),
+            UrlHelper::cpUrl('craft-breakpoints/settings'),
             (string)$response->getHeaders()->get('Location')
         );
     }
@@ -46,8 +46,8 @@ final class DefaultControllerTest extends Unit
         $registeredJs = implode("\n", array_merge(...array_values($view->js)));
         $this->assertStringContainsString('window.bpiProcessingConfig = ', $registeredJs);
         $this->assertArrayHasKey(TransformsAsset::class, $view->assetBundles);
-        $this->assertStringNotContainsString('bpi-frame-toolbar-actions', (string)$response->content);
-        $this->assertStringNotContainsString('bpi-open-preview', (string)$response->content);
+        $this->assertStringNotContainsString('bpts-frame-toolbar-actions', (string)$response->content);
+        $this->assertStringNotContainsString('bpts-open-preview', (string)$response->content);
     }
 
     public function testTransformsActionCanRenderDeveloperToolbarActionsWhenEnabledByConfig(): void
@@ -67,7 +67,7 @@ final class DefaultControllerTest extends Unit
             }
         };
 
-        $configService = \craftyhedge\craftbreakpointimages\Plugin::getInstance()->getConfigService();
+        $configService = \craftyhedge\craftbreakpoints\Plugin::getInstance()->getConfigService();
         $property = new \ReflectionProperty($configService, '_mergedConfig');
         $previous = $property->getValue($configService);
 
@@ -79,7 +79,7 @@ final class DefaultControllerTest extends Unit
             $response = $controller->actionTransforms();
 
             $this->assertSame(200, $response->statusCode);
-            $this->assertSame('craft-breakpoint-images/cp/transforms', $controller->capturedTemplatePayload['template'] ?? null);
+            $this->assertSame('craft-breakpoints/cp/transforms', $controller->capturedTemplatePayload['template'] ?? null);
             $this->assertTrue(($controller->capturedTemplatePayload['variables']['transformsDeveloperActionsEnabled'] ?? false) === true);
         } finally {
             $property->setValue($configService, $previous);

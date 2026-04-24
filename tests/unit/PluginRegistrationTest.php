@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace craftyhedge\craftbreakpointimages\tests\unit;
+namespace craftyhedge\craftbreakpoints\tests\unit;
 
 use Codeception\Test\Unit;
 use Craft;
-use craftyhedge\craftbreakpointimages\models\Settings;
-use craftyhedge\craftbreakpointimages\Plugin;
+use craftyhedge\craftbreakpoints\models\Settings;
+use craftyhedge\craftbreakpoints\Plugin;
 
 final class PluginRegistrationTest extends Unit
 {
@@ -16,7 +16,7 @@ final class PluginRegistrationTest extends Unit
         $plugin = Plugin::getInstance();
 
         $this->assertInstanceOf(Plugin::class, $plugin);
-        $this->assertSame('Breakpoint Images', $plugin->name);
+        $this->assertSame('Breakpoints', $plugin->name);
     }
 
     public function testPluginReturnsSettingsModel(): void
@@ -38,14 +38,14 @@ final class PluginRegistrationTest extends Unit
         $this->assertArrayHasKey('settings', $cpNavItem['subnav']);
         $this->assertArrayHasKey('processing', $cpNavItem['subnav']);
         $this->assertArrayNotHasKey('transforms', $cpNavItem['subnav']);
-        $this->assertSame('craft-breakpoint-images/settings', $cpNavItem['subnav']['settings']['url']);
-        $this->assertSame('craft-breakpoint-images/processing', $cpNavItem['subnav']['processing']['url']);
+        $this->assertSame('craft-breakpoints/settings', $cpNavItem['subnav']['settings']['url']);
+        $this->assertSame('craft-breakpoints/processing', $cpNavItem['subnav']['processing']['url']);
     }
 
     public function testTransformsConfigFileIsCreatedAndLoaded(): void
     {
         $plugin = Plugin::getInstance();
-        $configPath = Craft::$app->getPath()->getConfigPath() . '/craft-breakpoint-images/transform-sets.json';
+        $configPath = Craft::$app->getPath()->getConfigPath() . '/craft-breakpoints/transform-sets.json';
         $transforms = $plugin->getTransformStore()->getTransforms();
         $sets = $plugin->getTransformSets()->getSets();
 

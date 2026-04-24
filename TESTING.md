@@ -20,7 +20,7 @@ composer install
 Use your own credentials and keep them in sync with `tests/.env`.
 
 ```sh
-docker run -d --name craft-breakpoint-images-test-db \
+docker run -d --name craft-breakpoints-test-db \
   -p 3308:3306 \
   -e MYSQL_ROOT_PASSWORD=replace-root-password \
   -e MYSQL_USER=replace-user \
@@ -115,8 +115,8 @@ npm run test:js -- --coverage --coverage.provider=istanbul --coverage.reporter=t
 ## 5. Stop and remove the test database
 
 ```sh
-docker stop craft-breakpoint-images-test-db
-docker rm craft-breakpoint-images-test-db
+docker stop craft-breakpoints-test-db
+docker rm craft-breakpoints-test-db
 ```
 
 ## Troubleshooting

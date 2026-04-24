@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace craftyhedge\craftbreakpointimages\tests\unit;
+namespace craftyhedge\craftbreakpoints\tests\unit;
 
 use Codeception\Test\Unit;
 
@@ -10,7 +10,7 @@ final class TranslationsEnTest extends Unit
 {
     public function testEnglishTranslationsContainExpectedKeysAndValues(): void
     {
-        $translations = require CRAFT_ROOT_PATH . '/src/translations/en/craft-breakpoint-images.php';
+        $translations = require CRAFT_ROOT_PATH . '/src/translations/en/craft-breakpoints.php';
 
         $this->assertIsArray($translations);
         $this->assertArrayHasKey('Processing', $translations);

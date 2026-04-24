@@ -1,9 +1,9 @@
 <?php
 
-namespace craftyhedge\craftbreakpointimages\services;
+namespace craftyhedge\craftbreakpoints\services;
 
 use craft\elements\Asset;
-use craftyhedge\craftbreakpointimages\Plugin;
+use craftyhedge\craftbreakpoints\Plugin;
 use Twig\Markup;
 use yii\base\Component;
 
@@ -21,7 +21,7 @@ class Images extends Component
     {
         $plugin = $this->plugin();
         if ($plugin === null) {
-            return new Markup('<!-- Breakpoint Images: plugin unavailable -->', 'UTF-8');
+            return new Markup('<!-- Breakpoints: plugin unavailable -->', 'UTF-8');
         }
 
         return $plugin->getImageRenderer()->render($image, $setName, $config);

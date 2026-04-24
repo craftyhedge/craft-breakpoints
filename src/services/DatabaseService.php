@@ -1,10 +1,10 @@
 <?php
 
-namespace craftyhedge\craftbreakpointimages\services;
+namespace craftyhedge\craftbreakpoints\services;
 
 use Craft;
 use craft\db\Query;
-use craftyhedge\craftbreakpointimages\Plugin;
+use craftyhedge\craftbreakpoints\Plugin;
 use yii\base\Component;
 
 /**

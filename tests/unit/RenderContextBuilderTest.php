@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace craftyhedge\craftbreakpointimages\tests\unit;
+namespace craftyhedge\craftbreakpoints\tests\unit;
 
 use Codeception\Test\Unit;
 use craft\elements\Asset;
-use craftyhedge\craftbreakpointimages\Plugin;
-use craftyhedge\craftbreakpointimages\services\RenderContextBuilder;
+use craftyhedge\craftbreakpoints\Plugin;
+use craftyhedge\craftbreakpoints\services\RenderContextBuilder;
 
 final class RenderContextBuilderTest extends Unit
 {

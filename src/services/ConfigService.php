@@ -1,10 +1,10 @@
 <?php
 
-namespace craftyhedge\craftbreakpointimages\services;
+namespace craftyhedge\craftbreakpoints\services;
 
 use Craft;
-use craftyhedge\craftbreakpointimages\Plugin;
-use craftyhedge\craftbreakpointimages\models\Settings;
+use craftyhedge\craftbreakpoints\Plugin;
+use craftyhedge\craftbreakpoints\models\Settings;
 use craft\helpers\App;
 use craft\helpers\ArrayHelper;
 use craft\helpers\StringHelper;
@@ -12,9 +12,9 @@ use yii\base\Component;
 
 class ConfigService extends Component
 {
-    private const DEFAULT_TEMPLATE_PATH = 'craft-breakpoint-images/picture.twig';
-    private const DEFAULT_SVG_TEMPLATE_PATH = 'craft-breakpoint-images/svg.twig';
-    private const PROCESSING_DIAGNOSTICS_ENV = 'CRAFT_BREAKPOINT_IMAGES_PROCESSING_DIAGNOSTICS';
+    private const DEFAULT_TEMPLATE_PATH = 'craft-breakpoints/picture.twig';
+    private const DEFAULT_SVG_TEMPLATE_PATH = 'craft-breakpoints/svg.twig';
+    private const PROCESSING_DIAGNOSTICS_ENV = 'CRAFT_BREAKPOINTS_PROCESSING_DIAGNOSTICS';
 
     private ?Plugin $_plugin = null;
     private ?array $_mergedConfig = null;
@@ -207,10 +207,10 @@ class ConfigService extends Component
     private function getUserConfig(): array
     {
         try {
-            $config = Craft::$app->getConfig()->getConfigFromFile('craft-breakpoint-images');
+            $config = Craft::$app->getConfig()->getConfigFromFile('craft-breakpoints');
             return is_array($config) ? $config : [];
         } catch (\Throwable $e) {
-            Plugin::warning('Could not load project config for craft-breakpoint-images.');
+            Plugin::warning('Could not load project config for craft-breakpoints.');
             return [];
         }
     }

@@ -1,6 +1,6 @@
 <?php
 
-namespace craftyhedge\craftbreakpointimages;
+namespace craftyhedge\craftbreakpoints;
 
 use Craft;
 use craft\base\Model;
@@ -15,20 +15,20 @@ use craft\services\Plugins;
 use craft\web\UrlManager;
 use craft\web\View;
 use craft\web\twig\variables\CraftVariable;
-use craftyhedge\craftbreakpointimages\models\Settings;
-use craftyhedge\craftbreakpointimages\services\BreakpointPolicy;
-use craftyhedge\craftbreakpointimages\services\ConfigService;
-use craftyhedge\craftbreakpointimages\services\DatabaseService;
-use craftyhedge\craftbreakpointimages\services\ImageRenderer;
-use craftyhedge\craftbreakpointimages\services\Images;
-use craftyhedge\craftbreakpointimages\services\ImageTransforms;
-use craftyhedge\craftbreakpointimages\services\ProcessingConfig;
-use craftyhedge\craftbreakpointimages\services\RenderContextBuilder;
-use craftyhedge\craftbreakpointimages\services\TransformSets;
-use craftyhedge\craftbreakpointimages\services\TransformStore;
-use craftyhedge\craftbreakpointimages\services\TransformEditor;
-use craftyhedge\craftbreakpointimages\services\TelemetryService;
-use craftyhedge\craftbreakpointimages\web\twig\Extension;
+use craftyhedge\craftbreakpoints\models\Settings;
+use craftyhedge\craftbreakpoints\services\BreakpointPolicy;
+use craftyhedge\craftbreakpoints\services\ConfigService;
+use craftyhedge\craftbreakpoints\services\DatabaseService;
+use craftyhedge\craftbreakpoints\services\ImageRenderer;
+use craftyhedge\craftbreakpoints\services\Images;
+use craftyhedge\craftbreakpoints\services\ImageTransforms;
+use craftyhedge\craftbreakpoints\services\ProcessingConfig;
+use craftyhedge\craftbreakpoints\services\RenderContextBuilder;
+use craftyhedge\craftbreakpoints\services\TransformSets;
+use craftyhedge\craftbreakpoints\services\TransformStore;
+use craftyhedge\craftbreakpoints\services\TransformEditor;
+use craftyhedge\craftbreakpoints\services\TelemetryService;
+use craftyhedge\craftbreakpoints\web\twig\Extension;
 use Monolog\Formatter\LineFormatter;
 use Psr\Log\LogLevel;
 use yii\base\Event;
@@ -37,8 +37,8 @@ use yii\log\Logger;
 
 class Plugin extends BasePlugin
 {
-    private const LOG_TARGET = 'craft-breakpoint-images';
-    private const LOG_CATEGORY = 'craft-breakpoint-images';
+    private const LOG_TARGET = 'craft-breakpoints';
+    private const LOG_CATEGORY = 'craft-breakpoints';
 
     public static ?self $plugin = null;
 
@@ -69,7 +69,7 @@ class Plugin extends BasePlugin
     {
         parent::init();
         self::$plugin = $this;
-        $this->name = Craft::t('craft-breakpoint-images', 'Breakpoint Images');
+        $this->name = Craft::t('craft-breakpoints', 'Breakpoints');
 
         $this->registerLogTarget();
         $this->registerTwigExtension();
@@ -83,11 +83,11 @@ class Plugin extends BasePlugin
             UrlManager::class,
             UrlManager::EVENT_REGISTER_CP_URL_RULES,
             static function(RegisterUrlRulesEvent $event): void {
-                $event->rules['craft-breakpoint-images'] = 'craft-breakpoint-images/default/index';
-                $event->rules['craft-breakpoint-images/settings'] = 'craft-breakpoint-images/default/settings';
-                $event->rules['craft-breakpoint-images/processing'] = 'craft-breakpoint-images/default/transforms';
-                $event->rules['POST craft-breakpoint-images/database/cleanup-orphaned'] = 'craft-breakpoint-images/database/cleanup-orphaned';
-                $event->rules['POST craft-breakpoint-images/database/clear-all'] = 'craft-breakpoint-images/database/clear-all';
+                $event->rules['craft-breakpoints'] = 'craft-breakpoints/default/index';
+                $event->rules['craft-breakpoints/settings'] = 'craft-breakpoints/default/settings';
+                $event->rules['craft-breakpoints/processing'] = 'craft-breakpoints/default/transforms';
+                $event->rules['POST craft-breakpoints/database/cleanup-orphaned'] = 'craft-breakpoints/database/cleanup-orphaned';
+                $event->rules['POST craft-breakpoints/database/clear-all'] = 'craft-breakpoints/database/clear-all';
             }
         );
 
@@ -191,12 +191,12 @@ class Plugin extends BasePlugin
 
         $item['subnav'] = [
             'processing' => [
-                'label' => Craft::t('craft-breakpoint-images', 'Transform Sets'),
-                'url' => 'craft-breakpoint-images/processing',
+                'label' => Craft::t('craft-breakpoints', 'Transform Sets'),
+                'url' => 'craft-breakpoints/processing',
             ],
             'settings' => [
-                'label' => Craft::t('craft-breakpoint-images', 'Settings'),
-                'url' => 'craft-breakpoint-images/settings',
+                'label' => Craft::t('craft-breakpoints', 'Settings'),
+                'url' => 'craft-breakpoints/settings',
             ],
         ];
 
@@ -205,7 +205,7 @@ class Plugin extends BasePlugin
 
     public function getSettingsResponse(): mixed
     {
-        return Craft::$app->controller->redirect(UrlHelper::cpUrl('craft-breakpoint-images/settings'));
+        return Craft::$app->controller->redirect(UrlHelper::cpUrl('craft-breakpoints/settings'));
     }
 
     private function registerLogTarget(): void
@@ -235,7 +235,7 @@ class Plugin extends BasePlugin
             View::class,
             View::EVENT_REGISTER_SITE_TEMPLATE_ROOTS,
             static function(RegisterTemplateRootsEvent $event): void {
-                $event->roots['craft-breakpoint-images'] = __DIR__ . '/templates';
+                $event->roots['craft-breakpoints'] = __DIR__ . '/templates';
             }
         );
     }
@@ -275,7 +275,7 @@ class Plugin extends BasePlugin
     protected function settingsHtml(): ?string
     {
         return Craft::$app->getView()->renderTemplate(
-            'craft-breakpoint-images/settings',
+            'craft-breakpoints/settings',
             ['settings' => $this->getSettings()]
         );
     }

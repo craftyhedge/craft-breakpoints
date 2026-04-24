@@ -1,6 +1,6 @@
 <?php
 
-namespace craftyhedge\craftbreakpointimages\web\assets\transforms;
+namespace craftyhedge\craftbreakpoints\web\assets\transforms;
 
 use craft\web\AssetBundle;
 use craft\web\assets\cp\CpAsset;

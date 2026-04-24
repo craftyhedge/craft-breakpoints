@@ -1,9 +1,9 @@
 <?php
 
-namespace craftyhedge\craftbreakpointimages\services;
+namespace craftyhedge\craftbreakpoints\services;
 
 use craft\elements\Asset;
-use craftyhedge\craftbreakpointimages\Plugin;
+use craftyhedge\craftbreakpoints\Plugin;
 use yii\base\Component;
 
 class RenderContextBuilder extends Component

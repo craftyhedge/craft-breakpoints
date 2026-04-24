@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace craftyhedge\craftbreakpointimages\tests\unit;
+namespace craftyhedge\craftbreakpoints\tests\unit;
 
 use Codeception\Test\Unit;
 use Craft;
-use craftyhedge\craftbreakpointimages\Plugin;
-use craftyhedge\craftbreakpointimages\services\ConfigService;
+use craftyhedge\craftbreakpoints\Plugin;
+use craftyhedge\craftbreakpoints\services\ConfigService;
 
 final class BreakpointConfigServiceTest extends Unit
 {
@@ -65,7 +65,7 @@ final class BreakpointConfigServiceTest extends Unit
             'pictureTemplatePath' => '   ',
         ]);
 
-        $this->assertSame('craft-breakpoint-images/picture.twig', $templatePath);
+        $this->assertSame('craft-breakpoints/picture.twig', $templatePath);
     }
 
     public function testSvgTemplatePathFallsBackWhenBlank(): void
@@ -77,7 +77,7 @@ final class BreakpointConfigServiceTest extends Unit
             'svgTemplatePath' => '   ',
         ]);
 
-        $this->assertSame('craft-breakpoint-images/svg.twig', $templatePath);
+        $this->assertSame('craft-breakpoints/svg.twig', $templatePath);
     }
 
     public function testDefaultPluginConfigIsNotOverriddenByUntouchedSettingsDefaults(): void
@@ -89,7 +89,7 @@ final class BreakpointConfigServiceTest extends Unit
         $pluginConfig = is_array($pluginConfigRoot['*'] ?? null) ? $pluginConfigRoot['*'] : $pluginConfigRoot;
         $this->assertIsArray($pluginConfig);
 
-        $projectConfig = Craft::$app->getConfig()->getConfigFromFile('craft-breakpoint-images');
+        $projectConfig = Craft::$app->getConfig()->getConfigFromFile('craft-breakpoints');
         if (is_array($projectConfig) && array_key_exists('secondaryFormat', $projectConfig)) {
             $this->assertSame($projectConfig['secondaryFormat'], $service->get('secondaryFormat'));
             return;
@@ -131,8 +131,8 @@ final class BreakpointConfigServiceTest extends Unit
             'processingDiagnosticsEnabled' => true,
         ]));
 
-        $previous = getenv('CRAFT_BREAKPOINT_IMAGES_PROCESSING_DIAGNOSTICS');
-        putenv('CRAFT_BREAKPOINT_IMAGES_PROCESSING_DIAGNOSTICS=true');
+        $previous = getenv('CRAFT_BREAKPOINTS_PROCESSING_DIAGNOSTICS');
+        putenv('CRAFT_BREAKPOINTS_PROCESSING_DIAGNOSTICS=true');
 
         try {
             $this->assertTrue($service->isProcessingDiagnosticsEnabled([
@@ -140,9 +140,9 @@ final class BreakpointConfigServiceTest extends Unit
             ]));
         } finally {
             if ($previous === false) {
-                putenv('CRAFT_BREAKPOINT_IMAGES_PROCESSING_DIAGNOSTICS');
+                putenv('CRAFT_BREAKPOINTS_PROCESSING_DIAGNOSTICS');
             } else {
-                putenv('CRAFT_BREAKPOINT_IMAGES_PROCESSING_DIAGNOSTICS=' . $previous);
+                putenv('CRAFT_BREAKPOINTS_PROCESSING_DIAGNOSTICS=' . $previous);
             }
         }
     }

@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace craftyhedge\craftbreakpointimages\tests\unit;
+namespace craftyhedge\craftbreakpoints\tests\unit;
 
 use Codeception\Test\Unit;
-use craftyhedge\craftbreakpointimages\Plugin;
-use craftyhedge\craftbreakpointimages\services\TransformEditor;
-use craftyhedge\craftbreakpointimages\services\TelemetryService;
+use craftyhedge\craftbreakpoints\Plugin;
+use craftyhedge\craftbreakpoints\services\TransformEditor;
+use craftyhedge\craftbreakpoints\services\TelemetryService;
 
 final class TransformEditorServiceTest extends Unit
 {
@@ -261,10 +261,10 @@ final class TransformEditorServiceTest extends Unit
         ]));
 
         $html = (string)($result['visualResultsHtml'] ?? '');
-        $this->assertStringNotContainsString('bpi-transform-stats-warning', $html);
+        $this->assertStringNotContainsString('bpts-transform-stats-warning', $html);
 
         $xpath = $this->createReviewMarkupXPath($html);
-        $assetPages = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpi-transform-asset-page ')]");
+        $assetPages = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-asset-page ')]");
         $this->assertNotFalse($assetPages);
         $this->assertSame(2, $assetPages->length);
     }
@@ -317,11 +317,11 @@ final class TransformEditorServiceTest extends Unit
         ]));
 
         $html = (string)($result['visualResultsHtml'] ?? '');
-        $this->assertStringNotContainsString('bpi-breakpoint-column-mismatch', $html);
-        $this->assertStringNotContainsString('bpi-transform-asset-page-mismatch', $html);
+        $this->assertStringNotContainsString('bpts-breakpoint-column-mismatch', $html);
+        $this->assertStringNotContainsString('bpts-transform-asset-page-mismatch', $html);
 
         $xpath = $this->createReviewMarkupXPath($html);
-        $applyButtons = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpi-rendered-apply-single ')]");
+        $applyButtons = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpts-rendered-apply-single ')]");
         $this->assertNotFalse($applyButtons);
         $this->assertGreaterThan(0, $applyButtons->length);
     }
@@ -365,7 +365,7 @@ final class TransformEditorServiceTest extends Unit
         ]));
 
         $xpath = $this->createReviewMarkupXPath((string)($result['visualResultsHtml'] ?? ''));
-        $applyButtons = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpi-rendered-apply-single ') and @data-bpi-action='renderedValues' and contains(@aria-label, '640px')]");
+        $applyButtons = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpts-rendered-apply-single ') and @data-bpts-action='renderedValues' and contains(@aria-label, '640px')]");
         $this->assertNotFalse($applyButtons);
         $this->assertSame(1, $applyButtons->length);
     }
@@ -579,15 +579,15 @@ final class TransformEditorServiceTest extends Unit
         $this->assertSame(0, $result['warningCount'] ?? null);
 
         $xpath = $this->createReviewMarkupXPath((string)($result['visualResultsHtml'] ?? ''));
-        $cards = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi-transform-card ') and @data-set='hero']");
+        $cards = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-card ') and @data-set='hero']");
         $this->assertNotFalse($cards);
         $this->assertSame(1, $cards->length);
 
-        $hiddenApplyButtons = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpi-rendered-apply-all ') and contains(concat(' ', normalize-space(@class), ' '), ' bpi-force-hidden ')]");
+        $hiddenApplyButtons = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpts-rendered-apply-all ') and contains(concat(' ', normalize-space(@class), ' '), ' bpts-force-hidden ')]");
         $this->assertNotFalse($hiddenApplyButtons);
         $this->assertSame(1, $hiddenApplyButtons->length);
 
-        $hiddenColumnButtons = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpi-rendered-apply-single ') and contains(concat(' ', normalize-space(@class), ' '), ' bpi-force-hidden ')]");
+        $hiddenColumnButtons = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpts-rendered-apply-single ') and contains(concat(' ', normalize-space(@class), ' '), ' bpts-force-hidden ')]");
         $this->assertNotFalse($hiddenColumnButtons);
         $this->assertGreaterThan(0, $hiddenColumnButtons->length);
     }
@@ -617,7 +617,7 @@ final class TransformEditorServiceTest extends Unit
         ], fn() => $editor->renderInitialStoredReview());
 
         $xpath = $this->createReviewMarkupXPath((string)($result['visualResultsHtml'] ?? ''));
-        $escapeColumns = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi-transform-card ') and @data-set='hero']//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi-breakpoint-column ') and @data-breakpoint='1920']");
+        $escapeColumns = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-card ') and @data-set='hero']//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-breakpoint-column ') and @data-breakpoint='1920']");
         $this->assertNotFalse($escapeColumns);
         $this->assertSame(0, $escapeColumns->length);
     }
@@ -681,10 +681,10 @@ final class TransformEditorServiceTest extends Unit
             ], fn() => $editor->renderInitialStoredReview());
 
             $this->assertStringContainsString('data-set="hero"', (string)($result['visualResultsHtml'] ?? ''));
-            $this->assertStringContainsString('bpi-transform-last-process-pane', (string)($result['visualResultsHtml'] ?? ''));
-            $this->assertStringContainsString('bpi-transform-last-process-status-icon-success', (string)($result['visualResultsHtml'] ?? ''));
+            $this->assertStringContainsString('bpts-transform-last-process-pane', (string)($result['visualResultsHtml'] ?? ''));
+            $this->assertStringContainsString('bpts-transform-last-process-status-icon-success', (string)($result['visualResultsHtml'] ?? ''));
             $this->assertStringContainsString('data-icon="check"', (string)($result['visualResultsHtml'] ?? ''));
-            $this->assertStringContainsString('data-bpi-process-again="true"', (string)($result['visualResultsHtml'] ?? ''));
+            $this->assertStringContainsString('data-bpts-process-again="true"', (string)($result['visualResultsHtml'] ?? ''));
             $this->assertStringContainsString('data-entry-id="123"', (string)($result['visualResultsHtml'] ?? ''));
             $this->assertStringContainsString('2026-04-16 10:20:30', (string)($result['visualResultsHtml'] ?? ''));
             $this->assertStringNotContainsString('4321 ms', (string)($result['visualResultsHtml'] ?? ''));
@@ -717,7 +717,7 @@ final class TransformEditorServiceTest extends Unit
         ]));
 
         $xpath = $this->createReviewMarkupXPath((string)($result['visualResultsHtml'] ?? ''));
-        $visibleApplyButtons = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpi-rendered-apply-all ') and not(contains(concat(' ', normalize-space(@class), ' '), ' bpi-force-hidden '))]");
+        $visibleApplyButtons = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpts-rendered-apply-all ') and not(contains(concat(' ', normalize-space(@class), ' '), ' bpts-force-hidden '))]");
         $this->assertNotFalse($visibleApplyButtons);
         $this->assertSame(1, $visibleApplyButtons->length);
     }
@@ -762,11 +762,11 @@ final class TransformEditorServiceTest extends Unit
         ]));
 
         $xpath = $this->createReviewMarkupXPath((string)($result['visualResultsHtml'] ?? ''));
-        $breakpointColumns = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi-breakpoint-column ') and @data-breakpoint='640']");
+        $breakpointColumns = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-breakpoint-column ') and @data-breakpoint='640']");
         $this->assertNotFalse($breakpointColumns);
         $this->assertSame(1, $breakpointColumns->length);
 
-        $dummyHolders = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi-breakpoint-column ') and @data-breakpoint='640']//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi_breakpoint-result-image ')]");
+        $dummyHolders = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-breakpoint-column ') and @data-breakpoint='640']//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi_breakpoint-result-image ')]");
         $this->assertNotFalse($dummyHolders);
         $this->assertSame(1, $dummyHolders->length);
     }
@@ -1138,8 +1138,8 @@ final class TransformEditorServiceTest extends Unit
         ]));
 
         $html = (string)($result['visualResultsHtml'] ?? '');
-        $this->assertStringNotContainsString('bpi-breakpoint-column-mismatch', $html);
-        $this->assertStringNotContainsString('bpi-transform-asset-page-mismatch', $html);
+        $this->assertStringNotContainsString('bpts-breakpoint-column-mismatch', $html);
+        $this->assertStringNotContainsString('bpts-transform-asset-page-mismatch', $html);
     }
 
     public function testRenderResultReviewRendersPassHeightIndicatorWhenEnabledAndHidesWhenDisabled(): void
@@ -1171,8 +1171,8 @@ final class TransformEditorServiceTest extends Unit
         ]));
 
         $enabledHtml = (string)($enabledResult['visualResultsHtml'] ?? '');
-        $this->assertStringContainsString('bpi-transform-pass-height-indicator', $enabledHtml);
-        $this->assertStringNotContainsString('bpi-transform-pass-height-indicator bpi-force-hidden', $enabledHtml);
+        $this->assertStringContainsString('bpts-transform-pass-height-indicator', $enabledHtml);
+        $this->assertStringNotContainsString('bpts-transform-pass-height-indicator bpts-force-hidden', $enabledHtml);
 
         $disabledResult = $this->withRuntimeSets([
             'hero' => [
@@ -1199,7 +1199,7 @@ final class TransformEditorServiceTest extends Unit
         ]));
 
         $disabledHtml = (string)($disabledResult['visualResultsHtml'] ?? '');
-        $this->assertStringContainsString('bpi-transform-pass-height-indicator bpi-force-hidden', $disabledHtml);
+        $this->assertStringContainsString('bpts-transform-pass-height-indicator bpts-force-hidden', $disabledHtml);
     }
 
     public function testRenderResultReviewAcceptsSettingsTabFromEditTabState(): void
@@ -1228,7 +1228,7 @@ final class TransformEditorServiceTest extends Unit
         $this->assertStringContainsString('data-set="hero"', (string)($result['visualResultsHtml'] ?? ''));
         $this->assertStringContainsString('&quot;activeTab&quot;:&quot;settings&quot;', (string)($result['visualResultsHtml'] ?? ''));
         $this->assertStringContainsString('data-attr:data-active-tab=', (string)($result['visualResultsHtml'] ?? ''));
-        $this->assertStringContainsString('bpi-edit-panel-hero-tab-settings" type="button" role="tab" class="bpi-transform-tab active"', (string)($result['visualResultsHtml'] ?? ''));
+        $this->assertStringContainsString('bpts-edit-panel-hero-tab-settings" type="button" role="tab" class="bpts-transform-tab active"', (string)($result['visualResultsHtml'] ?? ''));
     }
 
     public function testRenderInitialStoredReviewRendersRatioOverlayAndMarksDerivedCurrentDimension(): void
@@ -1259,11 +1259,11 @@ final class TransformEditorServiceTest extends Unit
         $this->assertStringContainsString('bpi_current-ratio-overlay', $html);
 
         $xpath = $this->createReviewMarkupXPath($html);
-        $derivedHeight = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi-breakpoint-column ') and @data-breakpoint='640']//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi_current-dimension ') and contains(concat(' ', normalize-space(@class), ' '), ' bpi_current-dimension-derived ') and @data-dimension='height']");
+        $derivedHeight = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-breakpoint-column ') and @data-breakpoint='640']//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi_current-dimension ') and contains(concat(' ', normalize-space(@class), ' '), ' bpi_current-dimension-derived ') and @data-dimension='height']");
         $this->assertNotFalse($derivedHeight);
         $this->assertSame(1, $derivedHeight->length);
 
-        $ratioLockedAttr = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi-breakpoint-column ') and @data-breakpoint='640']/@data-current-ratio-locked");
+        $ratioLockedAttr = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-breakpoint-column ') and @data-breakpoint='640']/@data-current-ratio-locked");
         $this->assertNotFalse($ratioLockedAttr);
         $this->assertSame('1', (string)($ratioLockedAttr->item(0)?->nodeValue ?? ''));
     }
@@ -1294,11 +1294,11 @@ final class TransformEditorServiceTest extends Unit
 
         $xpath = $this->createReviewMarkupXPath((string)($result['visualResultsHtml'] ?? ''));
 
-        $derivedDims = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi-breakpoint-column ') and @data-breakpoint='640']//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi_current-dimension-derived ')]");
+        $derivedDims = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-breakpoint-column ') and @data-breakpoint='640']//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi_current-dimension-derived ')]");
         $this->assertNotFalse($derivedDims);
         $this->assertSame(0, $derivedDims->length);
 
-        $ratioLockedAttr = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi-breakpoint-column ') and @data-breakpoint='640']/@data-current-ratio-locked");
+        $ratioLockedAttr = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-breakpoint-column ') and @data-breakpoint='640']/@data-current-ratio-locked");
         $this->assertNotFalse($ratioLockedAttr);
         $this->assertSame('0', (string)($ratioLockedAttr->item(0)?->nodeValue ?? ''));
     }
@@ -1320,15 +1320,15 @@ final class TransformEditorServiceTest extends Unit
 
         $xpath = $this->createReviewMarkupXPath((string)($result['visualResultsHtml'] ?? ''));
 
-        $autoToggles = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpi-transform-auto-toggle ') and @data-bpi-action='dimensions']");
+        $autoToggles = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-auto-toggle ') and @data-bpts-action='dimensions']");
         $this->assertNotFalse($autoToggles);
         $this->assertSame(2, $autoToggles->length);
 
-        $widthToggle = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpi-transform-auto-toggle ') and @data-bpi-action='dimensions' and @aria-label='Toggle auto width']");
+        $widthToggle = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-auto-toggle ') and @data-bpts-action='dimensions' and @aria-label='Toggle auto width']");
         $this->assertNotFalse($widthToggle);
         $this->assertSame(1, $widthToggle->length);
 
-        $heightToggle = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpi-transform-auto-toggle ') and @data-bpi-action='dimensions' and @aria-label='Toggle auto height']");
+        $heightToggle = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-auto-toggle ') and @data-bpts-action='dimensions' and @aria-label='Toggle auto height']");
         $this->assertNotFalse($heightToggle);
         $this->assertSame(1, $heightToggle->length);
     }
@@ -1378,15 +1378,15 @@ final class TransformEditorServiceTest extends Unit
     {
         $xpath = $this->createReviewMarkupXPath($html);
 
-        $warningItems = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi-transform-card-warnings ')]//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi-warning-item ')]");
+        $warningItems = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-card-warnings ')]//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-warning-item ')]");
         $this->assertNotFalse($warningItems);
         $this->assertSame(1, $warningItems->length);
 
-        $warningHeading = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi-warning-heading ')]");
+        $warningHeading = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-warning-heading ')]");
         $this->assertNotFalse($warningHeading);
         $this->assertSame($expectedHeading, trim((string)($warningHeading->item(0)?->textContent ?? '')));
 
-        $applyButtons = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpi-warning-apply-rendered ')]");
+        $applyButtons = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpts-warning-apply-rendered ')]");
         $this->assertNotFalse($applyButtons);
         $this->assertSame(1, $applyButtons->length);
         $this->assertSame('Set to rendered', trim((string)($applyButtons->item(0)?->textContent ?? '')));
@@ -1396,7 +1396,7 @@ final class TransformEditorServiceTest extends Unit
     {
         $xpath = $this->createReviewMarkupXPath($html);
 
-        $cards = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi-transform-card ')]");
+        $cards = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-card ')]");
         $this->assertNotFalse($cards);
 
         $actualOrder = [];

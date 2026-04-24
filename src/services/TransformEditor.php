@@ -1,10 +1,10 @@
 <?php
 
-namespace craftyhedge\craftbreakpointimages\services;
+namespace craftyhedge\craftbreakpoints\services;
 
 use Craft;
 use craft\elements\Entry;
-use craftyhedge\craftbreakpointimages\Plugin;
+use craftyhedge\craftbreakpoints\Plugin;
 use yii\base\Component;
 
 class TransformEditor extends Component
@@ -1421,7 +1421,7 @@ class TransformEditor extends Component
     {
         if ($warnings === []) {
             return $showEmptyState
-                ? '<div class="bpi-warning-item bpi-warning-item-success">No warnings detected.</div>'
+                ? '<div class="bpts-warning-item bpts-warning-item-success">No warnings detected.</div>'
                 : '';
         }
 
@@ -1444,17 +1444,17 @@ class TransformEditor extends Component
                     fn(mixed $name): string => $this->escapeReviewHtml((string)$name),
                     $transforms,
                 );
-                $transformDetail = '<div class="bpi-warning-detail">' . implode(', ', $transformList) . '</div>';
+                $transformDetail = '<div class="bpts-warning-detail">' . implode(', ', $transformList) . '</div>';
             }
 
             $rowCount = isset($warning['rowCount']) && is_numeric($warning['rowCount'])
-                ? '<div class="bpi-warning-detail">rows: ' . (int)$warning['rowCount'] . '</div>'
+                ? '<div class="bpts-warning-detail">rows: ' . (int)$warning['rowCount'] . '</div>'
                 : '';
             $warningActions = $this->buildReviewWarningActionsMarkup(is_array($warning) ? $warning : [], $reviewMode);
-            $messageMarkup = '<div class="bpi-warning-detail"><p>' . $message . '</p></div>';
+            $messageMarkup = '<div class="bpts-warning-detail"><p>' . $message . '</p></div>';
 
             $chunks[] = sprintf(
-                '<div class="%s"><div class="bpi-warning-copy"><h3 class="bpi-warning-heading">%s</h3></div>%s%s%s%s</div>',
+                '<div class="%s"><div class="bpts-warning-copy"><h3 class="bpts-warning-heading">%s</h3></div>%s%s%s%s</div>',
                 $this->buildReviewWarningClass((string)($warning['code'] ?? 'warning')),
                 $code,
                 $messageMarkup,
@@ -1466,7 +1466,7 @@ class TransformEditor extends Component
 
         if ($chunks === []) {
             return $showEmptyState
-                ? '<div class="bpi-warning-item bpi-warning-item-success">No warnings detected.</div>'
+                ? '<div class="bpts-warning-item bpts-warning-item-success">No warnings detected.</div>'
                 : '';
         }
 
@@ -1476,10 +1476,10 @@ class TransformEditor extends Component
     private function buildReviewWarningClass(string $code): string
     {
         if ($code === 'missing-set-definitions') {
-            return 'bpi-warning-item bpi-warning-item-danger';
+            return 'bpts-warning-item bpts-warning-item-danger';
         }
 
-        return 'bpi-warning-item bpi-warning-item-neutral';
+        return 'bpts-warning-item bpts-warning-item-neutral';
     }
 
     private function buildReviewWarningLabel(string $code): string
@@ -1502,12 +1502,12 @@ class TransformEditor extends Component
         }
 
         if ($reviewMode === self::REVIEW_MODE_PROCESSED) {
-            return '<div class="bpi-warning-actions">'
-                . '<button type="button" class="btn small bpi-warning-apply-rendered"'
-                . ' data-bpi-action="renderedValues"'
+            return '<div class="bpts-warning-actions">'
+                . '<button type="button" class="btn small bpts-warning-apply-rendered"'
+                . ' data-bpts-action="renderedValues"'
                 . ' aria-label="Set all breakpoints to rendered values"'
                 . ' title="Set all breakpoints to rendered values"'
-                . ' data-on:click="@post(el.closest(\'.bpi-transforms-page\').dataset.applyCardOperationUrl || \'/actions/craft-breakpoint-images/transforms/apply-card-operation\', {contentType: \'json\', payload: {setName: el.closest(\'.bpi-transform-card\').dataset.set || \'\', field: \'renderedValues\', includeEscapeWidth: (el.closest(\'.bpi-transform-card\').dataset.includeEscapeWidth || \'0\') === \'1\', renderedRows: JSON.parse(el.closest(\'.bpi-transform-card\').dataset.renderedRows || \'[]\'), baseVersion: Number($editor.baseVersion || 1), ...(Craft && Craft.csrfTokenName && Craft.csrfTokenValue ? {[Craft.csrfTokenName]: Craft.csrfTokenValue} : {})}})">'
+                . ' data-on:click="@post(el.closest(\'.bpts-transforms-page\').dataset.applyCardOperationUrl || \'/actions/craft-breakpoints/transforms/apply-card-operation\', {contentType: \'json\', payload: {setName: el.closest(\'.bpts-transform-card\').dataset.set || \'\', field: \'renderedValues\', includeEscapeWidth: (el.closest(\'.bpts-transform-card\').dataset.includeEscapeWidth || \'0\') === \'1\', renderedRows: JSON.parse(el.closest(\'.bpts-transform-card\').dataset.renderedRows || \'[]\'), baseVersion: Number($editor.baseVersion || 1), ...(Craft && Craft.csrfTokenName && Craft.csrfTokenValue ? {[Craft.csrfTokenName]: Craft.csrfTokenValue} : {})}})">'
                 . 'Set to rendered'
                 . '</button>'
                 . '</div>';
@@ -1526,9 +1526,9 @@ class TransformEditor extends Component
                 $tooltip = 'Observed entry is not available in the current site.';
             }
 
-            return '<div class="bpi-warning-actions">'
-                . '<button type="button" class="btn small bpi-warning-process-observed"'
-                . ' data-bpi-action="processObservedEntry"'
+            return '<div class="bpts-warning-actions">'
+                . '<button type="button" class="btn small bpts-warning-process-observed"'
+                . ' data-bpts-action="processObservedEntry"'
                 . ' disabled'
                 . ' aria-label="' . $this->escapeReviewHtml($tooltip) . '"'
                 . ' title="' . $this->escapeReviewHtml($tooltip) . '">'
@@ -1537,9 +1537,9 @@ class TransformEditor extends Component
                 . '</div>';
         }
 
-        return '<div class="bpi-warning-actions">'
-            . '<button type="button" class="btn small bpi-warning-process-observed"'
-            . ' data-bpi-action="processObservedEntry"'
+        return '<div class="bpts-warning-actions">'
+            . '<button type="button" class="btn small bpts-warning-process-observed"'
+            . ' data-bpts-action="processObservedEntry"'
             . ' data-entry-id="' . $entryId . '"'
             . ' aria-label="Process observed entry"'
             . ' title="Process observed entry">'
@@ -1599,7 +1599,7 @@ class TransformEditor extends Component
             $assetMismatchTransformNames,
         );
         if ($transformNames === []) {
-            return '<div class="bpi-empty-state light">No transform sets found in results.</div>';
+            return '<div class="bpts-empty-state light">No transform sets found in results.</div>';
         }
 
         $runEntryData = $this->resolveRunEntryData($latestRunSnapshot);
@@ -1792,7 +1792,7 @@ class TransformEditor extends Component
             );
 
             $slug = $this->slugifyReviewTransformName($transformName);
-            $editPanelId = 'bpi-edit-panel-' . $slug;
+            $editPanelId = 'bpts-edit-panel-' . $slug;
             $activeDimensions = $tab === 'dimensions';
             $activeRatio = $tab === 'ratio';
             $activeSettings = $tab === 'settings';
@@ -1817,9 +1817,9 @@ class TransformEditor extends Component
 
             $editedSinceProcess = ($editedTransforms[$transformName] ?? false) === true;
             $breakpointMismatchWarningMarkup = ($hasBreakpointMismatchWarning && !$hasMissingSetWarning)
-                ? '<div class="bpi-warning-item bpi-warning-item-neutral">'
-                    . '<div class="bpi-warning-copy"><h3 class="bpi-warning-heading">' . ($editedSinceProcess ? 'Saved Values Changed' : 'Breakpoint Mismatch') . '</h3></div>'
-                    . '<div class="bpi-warning-detail">'
+                ? '<div class="bpts-warning-item bpts-warning-item-neutral">'
+                    . '<div class="bpts-warning-copy"><h3 class="bpts-warning-heading">' . ($editedSinceProcess ? 'Saved Values Changed' : 'Breakpoint Mismatch') . '</h3></div>'
+                    . '<div class="bpts-warning-detail">'
                         . ($editedSinceProcess
                             ? '<p>Saved values have been edited since the last process. Process to review these changes.</p>'
                             : '<p>Rendered values do not match the saved transform for one or more breakpoints.</p><p>If you made a change, it is best to process again and review the frontend is behaving correctly.</p>')
@@ -1828,9 +1828,9 @@ class TransformEditor extends Component
                 : '';
 
             $assetMismatchWarningMarkup = ($hasAssetMismatchWarning && !$hasMissingSetWarning)
-                ? '<div class="bpi-warning-item bpi-warning-item-neutral">'
-                    . '<div class="bpi-warning-copy"><h3 class="bpi-warning-heading">Asset Mismatch</h3></div>'
-                    . '<div class="bpi-warning-detail"><p>One or more assets have mismatched values that need reviewed.</p></div>'
+                ? '<div class="bpts-warning-item bpts-warning-item-neutral">'
+                    . '<div class="bpts-warning-copy"><h3 class="bpts-warning-heading">Asset Mismatch</h3></div>'
+                    . '<div class="bpts-warning-detail"><p>One or more assets have mismatched values that need reviewed.</p></div>'
                     . '</div>'
                 : '';
 
@@ -1857,15 +1857,15 @@ class TransformEditor extends Component
                 'cardSignalsStructural' => $this->escapeReviewHtml($cardSignalsStructuralJson),
                 'cardSignalsVolatile' => $this->escapeReviewHtml($cardSignalsVolatileJson),
                 'cardWarningStateClass' => $cardWarningsWithMismatch !== ''
-                    ? 'bpi-transform-card-warning'
+                    ? 'bpts-transform-card-warning'
                     : '',
                 'cardWarningsHtml' => $cardWarningsWithMismatch !== ''
-                    ? '<div class="bpi-transform-card-warnings">' . $cardWarningsWithMismatch . '</div>'
+                    ? '<div class="bpts-transform-card-warnings">' . $cardWarningsWithMismatch . '</div>'
                     : '',
                 'includeEscapeWidth' => $includeEscapeWidth ? '1' : '0',
                 'renderedRowsForTransformJson' => $this->escapeReviewHtml($renderedRowsForTransformJson),
                 'selectedAssetKey' => $this->escapeReviewHtml($selectedAssetKey),
-                'renderedApplyHiddenClass' => $hideRenderedApply ? 'bpi-force-hidden' : '',
+                'renderedApplyHiddenClass' => $hideRenderedApply ? 'bpts-force-hidden' : '',
                 'breakpointColumns' => $breakpointColumns,
                 'assetPaginationHtml' => $assetPaginationHtml,
                 'editPanelId' => $this->escapeReviewHtml($editPanelId),
@@ -1894,14 +1894,14 @@ class TransformEditor extends Component
                 'ratioSourceName' => $this->escapeReviewHtml($editPanelId . '-ratio-source'),
                 'passHeightToggleId' => $this->escapeReviewHtml($editPanelId . '-pass-height-toggle'),
                 'allowAnyHeightToggleId' => $this->escapeReviewHtml($editPanelId . '-allow-any-height-toggle'),
-                'passHeightIndicatorHiddenClass' => ($passHeightWhenRenderedLteSaved || $allowAnyHeight) ? '' : 'bpi-force-hidden',
+                'passHeightIndicatorHiddenClass' => ($passHeightWhenRenderedLteSaved || $allowAnyHeight) ? '' : 'bpts-force-hidden',
                 'ratioSourceBreakpointOptions' => $ratioSourceBreakpointOptions,
                 'lastProcessPanelHtml' => $lastProcessPanelHtml,
             ]);
         }
 
         if ($cards === []) {
-            return '<div class="bpi-empty-state light">No transform sets found in results.</div>';
+            return '<div class="bpts-empty-state light">No transform sets found in results.</div>';
         }
 
         return implode('', $cards);
@@ -2017,13 +2017,13 @@ class TransformEditor extends Component
         $previewMedia = $currentEnabled
             ? ($previewSrc !== ''
                 ? sprintf(
-                    '<img src="%s" alt="%s" class="bpi_breakpoint-result-image" draggable="false" style="--bpi-aspect-ratio:%s;">',
+                    '<img src="%s" alt="%s" class="bpi_breakpoint-result-image" draggable="false" style="--bpts-aspect-ratio:%s;">',
                     $this->escapeReviewHtml($previewSrc),
                     $this->escapeReviewHtml('Preview ' . $transformName . ' ' . $breakpoint . 'px'),
                     $this->escapeReviewHtml($aspectRatio),
                 )
                 : sprintf(
-                    '<div class="bpi_breakpoint-result-image" style="--bpi-aspect-ratio:%s;"></div>',
+                    '<div class="bpi_breakpoint-result-image" style="--bpts-aspect-ratio:%s;"></div>',
                     $this->escapeReviewHtml($aspectRatio),
                 ))
             : '';
@@ -2034,7 +2034,7 @@ class TransformEditor extends Component
             ? '<span class="bpi_hidden-notice">Hidden ' . $hiddenCount . '</span>'
             : '';
         $unloadedBadge = $unloadedCount > 0
-            ? '<span class="bpi-row-badge">Unloaded ' . $unloadedCount . '</span>'
+            ? '<span class="bpts-row-badge">Unloaded ' . $unloadedCount . '</span>'
             : '';
         $escapeBadge = $escapeBreakpoint !== null && $escapeBreakpoint === $breakpoint
             ? '<span class="bpi_escaped-notice">ESC</span>'
@@ -2061,9 +2061,9 @@ class TransformEditor extends Component
         $previewLockHeight = max(48, (int)($previewLockHeightsByBreakpoint[(string)$breakpoint] ?? 48));
 
         return $this->renderReviewTemplate('breakpoint-column-template.twig', [
-            'breakpointColumnSelectedClass' => $isSelected ? 'bpi-breakpoint-column-selected' : '',
-            'breakpointColumnMismatchClass' => $hasBreakpointMismatch ? 'bpi-breakpoint-column-mismatch' : '',
-            'breakpointColumnDisabledClass' => !$currentEnabled ? 'bpi-breakpoint-column-disabled' : '',
+            'breakpointColumnSelectedClass' => $isSelected ? 'bpts-breakpoint-column-selected' : '',
+            'breakpointColumnMismatchClass' => $hasBreakpointMismatch ? 'bpts-breakpoint-column-mismatch' : '',
+            'breakpointColumnDisabledClass' => !$currentEnabled ? 'bpts-breakpoint-column-disabled' : '',
             'breakpoint' => (string)$breakpoint,
             'breakpointColumnWidth' => (string)$breakpointColumnWidth,
             'previewLockHeight' => (string)$previewLockHeight,
@@ -2086,7 +2086,7 @@ class TransformEditor extends Component
             'breakpointEnableAriaChecked' => $currentEnabled ? 'true' : 'false',
             'renderedRowsPayloadJson' => $this->escapeReviewHtml($renderedRowsPayloadJson),
             'breakpointDisabledAttr' => $renderedRowsPayload === [] ? 'disabled' : '',
-            'breakpointRenderedApplyMatchClass' => $renderedApplyNoop ? 'bpi-rendered-apply-single-noop' : '',
+            'breakpointRenderedApplyMatchClass' => $renderedApplyNoop ? 'bpts-rendered-apply-single-noop' : '',
             'breakpointRenderedApplyAriaLabel' => $this->escapeReviewHtml(
                 ($renderedApplyNoop ? 'Rendered values already match for ' : 'Apply rendered values for ')
                 . $breakpoint
@@ -2098,8 +2098,8 @@ class TransformEditor extends Component
                 . 'px'
             ),
             'breakpointRenderedApplyIconName' => $renderedApplyNoop ? 'check' : 'arrow-down',
-            'breakpointRenderedApplyHiddenClass' => $hideRenderedApply ? 'bpi-force-hidden' : '',
-            'breakpointRenderedRowHiddenClass' => $hideRenderedApply ? 'bpi-force-hidden' : '',
+            'breakpointRenderedApplyHiddenClass' => $hideRenderedApply ? 'bpts-force-hidden' : '',
+            'breakpointRenderedRowHiddenClass' => $hideRenderedApply ? 'bpts-force-hidden' : '',
             'relativeWidth' => (string)$relativeWidth,
             'previewMedia' => $previewMedia,
             'widthClass' => $widthClass,
@@ -2964,7 +2964,7 @@ class TransformEditor extends Component
         ?array $observedData,
     ): string {
         if (!is_array($snapshot)) {
-            return '<aside class="bpi-transform-last-process-pane"><div class="bpi-transform-last-process-header"><span class="bpi-transform-last-process-status-icon bpi-transform-last-process-status-icon-unknown" aria-label="Unknown" title="Unknown"><span data-icon="alert" aria-hidden="true"></span></span></div><p class="light bpi-transform-last-process-empty">No saved run data yet.</p></aside>';
+            return '<aside class="bpts-transform-last-process-pane"><div class="bpts-transform-last-process-header"><span class="bpts-transform-last-process-status-icon bpts-transform-last-process-status-icon-unknown" aria-label="Unknown" title="Unknown"><span data-icon="alert" aria-hidden="true"></span></span></div><p class="light bpts-transform-last-process-empty">No saved run data yet.</p></aside>';
         }
 
         $ranAtLabel = $this->formatLatestRunTimestamp($snapshot['ranAt'] ?? null);
@@ -2978,15 +2978,15 @@ class TransformEditor extends Component
         $hasMismatch = $hasBreakpointMismatchCount || $hasAssetMismatchCount;
 
         if (!$hasHealthData) {
-            $statusIconClass = 'bpi-transform-last-process-status-icon-unknown';
+            $statusIconClass = 'bpts-transform-last-process-status-icon-unknown';
             $statusLabel = 'No Health Data';
             $statusIconName = 'alert';
         } elseif ($hasMismatch) {
-            $statusIconClass = 'bpi-transform-last-process-status-icon-failed';
+            $statusIconClass = 'bpts-transform-last-process-status-icon-failed';
             $statusLabel = 'Needs Review';
             $statusIconName = 'alert';
         } else {
-            $statusIconClass = 'bpi-transform-last-process-status-icon-success';
+            $statusIconClass = 'bpts-transform-last-process-status-icon-success';
             $statusLabel = 'Transform Sets Valid';
             $statusIconName = 'check';
         }
@@ -3015,7 +3015,7 @@ class TransformEditor extends Component
             $sourceUrl = trim((string)($observedData['sourceUrl'] ?? ''));
             if ($sourceUrl !== '') {
                 $observedUrlIconMarkup = sprintf(
-                    '<a href="%s" target="_blank" rel="noopener" class="bpi-transform-last-process-icon-btn" title="%s" aria-label="%s"><span data-icon="world" aria-hidden="true"></span></a>',
+                    '<a href="%s" target="_blank" rel="noopener" class="bpts-transform-last-process-icon-btn" title="%s" aria-label="%s"><span data-icon="world" aria-hidden="true"></span></a>',
                     $this->escapeReviewHtml($sourceUrl),
                     $this->escapeReviewHtml('Open observed page: ' . $sourceUrl),
                     $this->escapeReviewHtml('Open observed page'),
@@ -3029,7 +3029,7 @@ class TransformEditor extends Component
         if ($processAgainEntryId > 0) {
             $disabledAttrs = $canProcessAgain ? '' : ' disabled aria-disabled="true"';
             $processAgainMarkup = sprintf(
-                '<button type="button" class="bpi-transform-last-process-icon-btn bpi-process-again-button" data-bpi-process-again="true" data-entry-id="%s" title="Process this entry again" aria-label="Process this entry again"%s><span data-icon="refresh" aria-hidden="true"></span></button>',
+                '<button type="button" class="bpts-transform-last-process-icon-btn bpts-process-again-button" data-bpts-process-again="true" data-entry-id="%s" title="Process this entry again" aria-label="Process this entry again"%s><span data-icon="refresh" aria-hidden="true"></span></button>',
                 $this->escapeReviewHtml((string)$processAgainEntryId),
                 $disabledAttrs,
             );
@@ -3040,8 +3040,8 @@ class TransformEditor extends Component
             : $statusLabel;
 
         return sprintf(
-            '<aside class="bpi-transform-last-process-pane">'
-            . '<span class="bpi-transform-last-process-status-icon %s" aria-label="%s" title="%s"><span data-icon="%s" aria-hidden="true"></span></span>'
+            '<aside class="bpts-transform-last-process-pane">'
+            . '<span class="bpts-transform-last-process-status-icon %s" aria-label="%s" title="%s"><span data-icon="%s" aria-hidden="true"></span></span>'
             . '%s'
             . '%s'
             . '%s'
@@ -3077,7 +3077,7 @@ class TransformEditor extends Component
         $siteId = (int)($entryData['siteId'] ?? 0);
 
         return sprintf(
-            '<a class="bpi-entry-link" href="%s" data-bpi-open-entry="true" data-entry-id="%s" data-site-id="%s" title="%s">%s</a>',
+            '<a class="bpts-entry-link" href="%s" data-bpts-open-entry="true" data-entry-id="%s" data-site-id="%s" title="%s">%s</a>',
             $this->escapeReviewHtml($href),
             $this->escapeReviewHtml((string)$id),
             $this->escapeReviewHtml((string)max(0, $siteId)),
@@ -3105,7 +3105,7 @@ class TransformEditor extends Component
         $siteId = (int)($entryData['siteId'] ?? 0);
 
         return sprintf(
-            '<a class="bpi-transform-last-process-icon-btn bpi-entry-link" href="%s" data-bpi-open-entry="true" data-entry-id="%s" data-site-id="%s" title="%s" aria-label="%s"><span data-icon="%s" aria-hidden="true"></span></a>',
+            '<a class="bpts-transform-last-process-icon-btn bpts-entry-link" href="%s" data-bpts-open-entry="true" data-entry-id="%s" data-site-id="%s" title="%s" aria-label="%s"><span data-icon="%s" aria-hidden="true"></span></a>',
             $this->escapeReviewHtml($href),
             $this->escapeReviewHtml((string)$id),
             $this->escapeReviewHtml((string)max(0, $siteId)),
@@ -3524,9 +3524,9 @@ class TransformEditor extends Component
             $hasMismatch = ($assetMismatchByKey[$assetKey] ?? false) === true;
 
             $buttons .= sprintf(
-                '<button type="button" class="btn small bpi-transform-asset-page%s%s" data-asset-key="%s" data-on:click="$editor.cards.%s.selectedAssetKey=%s" data-class:active="$editor.cards.%s.selectedAssetKey === %s" data-attr:aria-pressed="$editor.cards.%s.selectedAssetKey === %s ? \'true\' : \'false\'" aria-label="Show %s" title="Show %s"%s>%d</button>',
+                '<button type="button" class="btn small bpts-transform-asset-page%s%s" data-asset-key="%s" data-on:click="$editor.cards.%s.selectedAssetKey=%s" data-class:active="$editor.cards.%s.selectedAssetKey === %s" data-attr:aria-pressed="$editor.cards.%s.selectedAssetKey === %s ? \'true\' : \'false\'" aria-label="Show %s" title="Show %s"%s>%d</button>',
                 $isActive ? ' active' : '',
-                $hasMismatch ? ' bpi-transform-asset-page-mismatch' : '',
+                $hasMismatch ? ' bpts-transform-asset-page-mismatch' : '',
                 $escapedAssetKey,
                 $signalKey,
                 $escapedAssetKeyJs,
@@ -3541,7 +3541,7 @@ class TransformEditor extends Component
             );
         }
 
-        return '<div class="bpi-transform-asset-pagination" role="toolbar" aria-label="Asset pagination">' . $buttons . '</div>';
+        return '<div class="bpts-transform-asset-pagination" role="toolbar" aria-label="Asset pagination">' . $buttons . '</div>';
     }
 
     /**

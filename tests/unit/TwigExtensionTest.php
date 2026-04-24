@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace craftyhedge\craftbreakpointimages\tests\unit;
+namespace craftyhedge\craftbreakpoints\tests\unit;
 
 use Codeception\Test\Unit;
 use craft\elements\Asset;
-use craftyhedge\craftbreakpointimages\Plugin;
-use craftyhedge\craftbreakpointimages\web\twig\Extension;
+use craftyhedge\craftbreakpoints\Plugin;
+use craftyhedge\craftbreakpoints\web\twig\Extension;
 use Twig\TwigFunction;
 
 final class TwigExtensionTest extends Unit
@@ -31,7 +31,7 @@ final class TwigExtensionTest extends Unit
         $callable = $function->getCallable();
         $result = $callable(null, 'default', []);
 
-        $this->assertSame('<!-- Breakpoint Images: no image provided -->', (string)$result);
+        $this->assertSame('<!-- Breakpoints: no image provided -->', (string)$result);
     }
 
     public function testImageFunctionCallablePassesThroughTransformAndConfig(): void
@@ -42,7 +42,7 @@ final class TwigExtensionTest extends Unit
 
         $asset = $this->createMockAsset();
         $config = [
-            'pictureTemplatePath' => 'craft-breakpoint-images/does-not-exist.twig',
+            'pictureTemplatePath' => 'craft-breakpoints/does-not-exist.twig',
             'breakpoints' => ['xs' => 480],
             'escapeWidth' => 0,
             'imgClass' => 'twig-extension-pass-through',

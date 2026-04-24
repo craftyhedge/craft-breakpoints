@@ -1,10 +1,10 @@
 <?php
 
-namespace craftyhedge\craftbreakpointimages\controllers;
+namespace craftyhedge\craftbreakpoints\controllers;
 
 use Craft;
 use craft\web\Controller;
-use craftyhedge\craftbreakpointimages\Plugin;
+use craftyhedge\craftbreakpoints\Plugin;
 use yii\web\Response;
 
 class DatabaseController extends Controller
@@ -52,7 +52,7 @@ class DatabaseController extends Controller
         Plugin::info('Database utility: ' . $message);
         return $this->asJson(array_merge([
             'success' => true,
-            'message' => Craft::t('craft-breakpoint-images', $message),
+            'message' => Craft::t('craft-breakpoints', $message),
             'stats' => Plugin::getInstance()->getDatabase()->getTableStats(),
         ], $extra));
     }

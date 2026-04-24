@@ -1,11 +1,11 @@
 <?php
 
-namespace craftyhedge\craftbreakpointimages\services;
+namespace craftyhedge\craftbreakpoints\services;
 
 use Craft;
 use craft\elements\Asset;
 use craft\web\View;
-use craftyhedge\craftbreakpointimages\Plugin;
+use craftyhedge\craftbreakpoints\Plugin;
 use Twig\Markup;
 use yii\helpers\Html;
 use yii\base\Component;
@@ -23,7 +23,7 @@ class ImageRenderer extends Component
     public function render(?Asset $image, string $setName, array $config = []): Markup
     {
         if ($image === null) {
-            return new Markup('<!-- Breakpoint Images: no image provided -->', 'UTF-8');
+            return new Markup('<!-- Breakpoints: no image provided -->', 'UTF-8');
         }
 
         $config['imageId'] = $image->id;
@@ -36,12 +36,12 @@ class ImageRenderer extends Component
     private function renderTemplateMarkup(array $config, Asset $image): Markup
     {
         if ($this->_plugin === null) {
-            return new Markup('<!-- Breakpoint Images: plugin unavailable -->', 'UTF-8');
+            return new Markup('<!-- Breakpoints: plugin unavailable -->', 'UTF-8');
         }
 
         $context = $this->_plugin->getRenderContextBuilder()->build($config, $image);
         if ($context === null) {
-            return new Markup('<!-- Breakpoint Images: could not build image attributes -->', 'UTF-8');
+            return new Markup('<!-- Breakpoints: could not build image attributes -->', 'UTF-8');
         }
 
         $pictureTemplatePath = (string)($context['pictureTemplatePath'] ?? '');

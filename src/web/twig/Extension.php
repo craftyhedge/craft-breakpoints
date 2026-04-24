@@ -1,10 +1,10 @@
 <?php
 
-namespace craftyhedge\craftbreakpointimages\web\twig;
+namespace craftyhedge\craftbreakpoints\web\twig;
 
 use Twig\Extension\AbstractExtension;
 use Twig\TwigFunction;
-use craftyhedge\craftbreakpointimages\Plugin;
+use craftyhedge\craftbreakpoints\Plugin;
 
 class Extension extends AbstractExtension
 {

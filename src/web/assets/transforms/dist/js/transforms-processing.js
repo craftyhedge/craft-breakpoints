@@ -470,7 +470,7 @@ export function activateLozad(frameWindow, frameDocument, prepareResult, pushStr
     }
 }
 
-export function prepareBreakpointImages({
+export function prepareBreakpoints({
     breakpoint,
     frameDocument,
     frameWindow,

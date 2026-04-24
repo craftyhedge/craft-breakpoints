@@ -33,7 +33,7 @@ export function bindHorizontalDragScroll(options = {}) {
 
     const findGridFromTarget = typeof options.findGridFromTarget === 'function'
         ? options.findGridFromTarget
-        : (target) => (target instanceof Element ? target.closest('.bpi-breakpoint-grid') : null);
+        : (target) => (target instanceof Element ? target.closest('.bpts-breakpoint-grid') : null);
 
     const isManagedGrid = typeof options.isManagedGrid === 'function'
         ? options.isManagedGrid
@@ -65,7 +65,7 @@ export function bindHorizontalDragScroll(options = {}) {
         }
 
         if (state.grid) {
-            state.grid.classList.remove('bpi-drag-scrolling');
+            state.grid.classList.remove('bpts-drag-scrolling');
 
             if (state.pointerId !== null && state.grid.hasPointerCapture?.(state.pointerId)) {
                 try {
@@ -160,7 +160,7 @@ export function bindHorizontalDragScroll(options = {}) {
         if (!state.moved) {
             state.moved = true;
             state.suppressClick = true;
-            state.grid.classList.add('bpi-drag-scrolling');
+            state.grid.classList.add('bpts-drag-scrolling');
         }
 
         event.preventDefault();
@@ -207,7 +207,7 @@ export function bindHorizontalDragScroll(options = {}) {
             return;
         }
 
-        const grid = target.closest('.bpi-breakpoint-grid');
+        const grid = target.closest('.bpts-breakpoint-grid');
         if (!(grid instanceof Element) || !isManagedGrid(grid)) {
             return;
         }

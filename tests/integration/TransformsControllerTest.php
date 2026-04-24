@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace craftyhedge\craftbreakpointimages\tests\integration;
+namespace craftyhedge\craftbreakpoints\tests\integration;
 
 use Codeception\Test\Unit;
 use Craft;
-use craftyhedge\craftbreakpointimages\controllers\TransformsController;
-use craftyhedge\craftbreakpointimages\Plugin;
-use craftyhedge\craftbreakpointimages\services\TelemetryService;
+use craftyhedge\craftbreakpoints\controllers\TransformsController;
+use craftyhedge\craftbreakpoints\Plugin;
+use craftyhedge\craftbreakpoints\services\TelemetryService;
 use yii\web\Response;
 
 final class TransformsControllerTest extends Unit

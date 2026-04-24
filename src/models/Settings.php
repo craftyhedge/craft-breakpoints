@@ -1,6 +1,6 @@
 <?php
 
-namespace craftyhedge\craftbreakpointimages\models;
+namespace craftyhedge\craftbreakpoints\models;
 
 use craft\base\Model;
 

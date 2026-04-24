@@ -1,21 +1,21 @@
 function buildRuntimeDom() {
     document.body.innerHTML = `
-    <div class="bpi-transforms-page"></div>
-    <input id="bpi-source-entry" value="" />
-    <div id="bpi-status"></div>
-    <div id="bpi-progress-host"></div>
-    <div id="bpi-frame-pane"></div>
-    <div id="bpi-frame-wrapper"></div>
-    <div id="bpi-warnings"></div>
-    <div id="bpi-visual-results"></div>
-    <nav id="bpi-transform-sets-sidebar">
-      <ul id="bpi-transform-sets-list"></ul>
+    <div class="bpts-transforms-page"></div>
+    <input id="bpts-source-entry" value="" />
+    <div id="bpts-status"></div>
+    <div id="bpts-progress-host"></div>
+    <div id="bpts-frame-pane"></div>
+    <div id="bpts-frame-wrapper"></div>
+    <div id="bpts-warnings"></div>
+    <div id="bpts-visual-results"></div>
+    <nav id="bpts-transform-sets-sidebar">
+      <ul id="bpts-transform-sets-list"></ul>
     </nav>
-    <button id="bpi-open-preview"></button>
-    <button id="bpi-run-processing"></button>
-    <button id="bpi-stop-processing"></button>
-    <button id="bpi-close-preview"></button>
-    <button id="bpi-copy-output"></button>
+    <button id="bpts-open-preview"></button>
+    <button id="bpts-run-processing"></button>
+    <button id="bpts-stop-processing"></button>
+    <button id="bpts-close-preview"></button>
+    <button id="bpts-copy-output"></button>
   `;
 }
 
@@ -32,7 +32,7 @@ async function loadRuntimeHooks() {
 
     window.__BPI_TEST_HOOKS = true;
 
-    await import('../../src/web/assets/transforms/dist/js/transforms.js?bpi-test-hooks');
+    await import('../../src/web/assets/transforms/dist/js/transforms.js?bpts-test-hooks');
 
     const hooks = window.__BPIProcessingTestHooks;
     if (!hooks || typeof hooks !== 'object') {
@@ -99,13 +99,13 @@ describe('transforms runtime helper logic', () => {
 
         expect(sendActionRequest).toHaveBeenCalledWith(
             'POST',
-            'craft-breakpoint-images/transforms/render-initial-review',
+            'craft-breakpoints/transforms/render-initial-review',
             expect.any(Object),
         );
         expect(result.warningCount).toBe(3);
-        expect(document.getElementById('bpi-visual-results').innerHTML).toContain('Initial cards');
-        expect(document.getElementById('bpi-warnings').innerHTML).toContain('Initial warning');
-        expect(document.getElementById('bpi-copy-output').hidden).toBe(true);
+        expect(document.getElementById('bpts-visual-results').innerHTML).toContain('Initial cards');
+        expect(document.getElementById('bpts-warnings').innerHTML).toContain('Initial warning');
+        expect(document.getElementById('bpts-copy-output').hidden).toBe(true);
     });
 
     it('sanitizes issue source URLs by removing query and hash', () => {
@@ -387,7 +387,7 @@ describe('transforms runtime helper logic', () => {
         `;
 
         hooks.setPreviewFrameForTests(frameDocument, {});
-        const result = hooks.prepareBreakpointImages(480);
+        const result = hooks.prepareBreakpoints(480);
 
         const img = frameDocument.querySelector('img');
         const source = frameDocument.querySelector('source');
@@ -996,11 +996,11 @@ describe('transforms runtime helper logic', () => {
     });
 
     it('collects review edit state from rendered transform cards', () => {
-        const visualResults = document.getElementById('bpi-visual-results');
+        const visualResults = document.getElementById('bpts-visual-results');
         visualResults.innerHTML = `
-            <article class="bpi-transform-card" data-set="hero" data-scope-mode="all" data-active-tab="settings" data-selected-asset-key="asset-hero"></article>
-            <article class="bpi-transform-card" data-set="card" data-scope-mode="breakpoint" data-scope-breakpoint="768" data-active-tab="ratio" data-selected-asset-key="asset-card"></article>
-            <article class="bpi-transform-card" data-set="teaser" data-scope-mode="invalid" data-active-tab="invalid"></article>
+            <article class="bpts-transform-card" data-set="hero" data-scope-mode="all" data-active-tab="settings" data-selected-asset-key="asset-hero"></article>
+            <article class="bpts-transform-card" data-set="card" data-scope-mode="breakpoint" data-scope-breakpoint="768" data-active-tab="ratio" data-selected-asset-key="asset-card"></article>
+            <article class="bpts-transform-card" data-set="teaser" data-scope-mode="invalid" data-active-tab="invalid"></article>
         `;
 
         const state = hooks.collectReviewEditStateFromDom();
@@ -1047,15 +1047,15 @@ describe('transforms runtime helper logic', () => {
         });
 
         const sendActionRequest = vi.fn().mockImplementation((_method, action) => {
-            if (action === 'craft-breakpoint-images/transforms/persist-run-snapshot') {
+            if (action === 'craft-breakpoints/transforms/persist-run-snapshot') {
                 return Promise.resolve({ data: { ok: true } });
             }
 
-            if (action === 'craft-breakpoint-images/transforms/render-result-review') {
+            if (action === 'craft-breakpoints/transforms/render-result-review') {
                 return Promise.resolve({
                     data: {
                         warningsHtml: '<div>ok</div>',
-                        visualResultsHtml: '<div class="bpi-transform-card" data-set="hero"></div>',
+                        visualResultsHtml: '<div class="bpts-transform-card" data-set="hero"></div>',
                         warningCount: 0,
                     },
                 });
@@ -1072,7 +1072,7 @@ describe('transforms runtime helper logic', () => {
         expect(sendActionRequest).toHaveBeenNthCalledWith(
             1,
             'POST',
-            'craft-breakpoint-images/transforms/persist-run-snapshot',
+            'craft-breakpoints/transforms/persist-run-snapshot',
             expect.objectContaining({
                 data: expect.objectContaining({
                     runStatus: 'completed',
@@ -1083,7 +1083,7 @@ describe('transforms runtime helper logic', () => {
         expect(sendActionRequest).toHaveBeenNthCalledWith(
             2,
             'POST',
-            'craft-breakpoint-images/transforms/render-result-review',
+            'craft-breakpoints/transforms/render-result-review',
             expect.any(Object),
         );
     });
@@ -1101,7 +1101,7 @@ describe('transforms runtime helper logic', () => {
         expect(sendActionRequest).toHaveBeenCalledTimes(1);
         expect(sendActionRequest).toHaveBeenCalledWith(
             'POST',
-            'craft-breakpoint-images/transforms/persist-run-snapshot',
+            'craft-breakpoints/transforms/persist-run-snapshot',
             expect.any(Object),
         );
     });
@@ -1126,7 +1126,7 @@ describe('transforms runtime helper logic', () => {
         expect(ok).toBe(true);
         expect(sendActionRequest).toHaveBeenCalledWith(
             'POST',
-            'craft-breakpoint-images/transforms/persist-run-snapshot',
+            'craft-breakpoints/transforms/persist-run-snapshot',
             expect.objectContaining({
                 data: expect.objectContaining({
                     runStatus: 'failed',
@@ -1157,7 +1157,7 @@ describe('transforms runtime helper logic', () => {
         expect(ok).toBe(true);
         expect(sendActionRequest).toHaveBeenCalledWith(
             'POST',
-            'craft-breakpoint-images/transforms/persist-run-snapshot',
+            'craft-breakpoints/transforms/persist-run-snapshot',
             expect.objectContaining({
                 data: expect.objectContaining({
                     runStatus: 'cancelled',
@@ -1192,7 +1192,7 @@ describe('transforms runtime helper logic', () => {
         hooks.setLastResultForTests({ summary: { warningCount: 0 }, rowsByBreakpoint });
 
         const sendActionRequest = vi.fn().mockImplementation((_method, action) => {
-            if (action === 'craft-breakpoint-images/transforms/persist-run-snapshot') {
+            if (action === 'craft-breakpoints/transforms/persist-run-snapshot') {
                 return Promise.resolve({ data: { ok: true } });
             }
             return Promise.resolve({
@@ -1205,7 +1205,7 @@ describe('transforms runtime helper logic', () => {
 
         expect(ok).toBe(true);
         const persistCall = sendActionRequest.mock.calls.find(
-            (c) => c[1] === 'craft-breakpoint-images/transforms/persist-run-snapshot',
+            (c) => c[1] === 'craft-breakpoints/transforms/persist-run-snapshot',
         );
         expect(persistCall).toBeTruthy();
         const payload = persistCall[2].data;
@@ -1220,15 +1220,15 @@ describe('transforms runtime helper logic', () => {
 
         await hooks.runProcessing();
 
-        expect(document.getElementById('bpi-status').textContent)
+        expect(document.getElementById('bpts-status').textContent)
             .toContain('No configured breakpoints available. Check plugin settings.');
 
         window.bpiProcessingConfig.breakpointValues = [480, 768];
     });
 
     it('completes runProcessing success flow with expected report and completion status', async () => {
-        const sourceEntry = document.getElementById('bpi-source-entry');
-        sourceEntry.innerHTML = '<input type="hidden" name="bpi-source-entry-id" value="42" />';
+        const sourceEntry = document.getElementById('bpts-source-entry');
+        sourceEntry.innerHTML = '<input type="hidden" name="bpts-source-entry-id" value="42" />';
 
         let publishedResult = null;
         let persistCallCount = 0;
@@ -1239,7 +1239,7 @@ describe('transforms runtime helper logic', () => {
             resolveSelectedEntryUrl: async () => 'https://example.test/page?secret=1',
             ensurePreviewFrame: async () => null,
             setPreviewWidth: async () => null,
-            prepareBreakpointImages: () => ({
+            prepareBreakpoints: () => ({
                 activationStrategies: ['none'],
                 normalizationCount: 0,
                 normalizationSamples: [],
@@ -1292,13 +1292,13 @@ describe('transforms runtime helper logic', () => {
         expect(publishedResult.summary.loadedImageCount).toBe(2);
         expect(hooks.getLastReport().status).toBe('completed');
         expect(hooks.getLastReport().resultPublished).toBe(true);
-        expect(document.getElementById('bpi-status').textContent)
+        expect(document.getElementById('bpts-status').textContent)
             .toContain('Done. 1 set processed. 0 warnings to address.');
     });
 
     it('reports cancelled processing when wait is aborted and avoids publishing results', async () => {
-        const sourceEntry = document.getElementById('bpi-source-entry');
-        sourceEntry.innerHTML = '<input type="hidden" name="bpi-source-entry-id" value="42" />';
+        const sourceEntry = document.getElementById('bpts-source-entry');
+        sourceEntry.innerHTML = '<input type="hidden" name="bpts-source-entry-id" value="42" />';
 
         let publishCount = 0;
         let persistCallCount = 0;
@@ -1307,7 +1307,7 @@ describe('transforms runtime helper logic', () => {
             resolveSelectedEntryUrl: async () => 'https://example.test/page?secret=1',
             ensurePreviewFrame: async () => null,
             setPreviewWidth: async () => null,
-            prepareBreakpointImages: () => ({
+            prepareBreakpoints: () => ({
                 activationStrategies: ['none'],
                 normalizationCount: 0,
                 normalizationSamples: [],
@@ -1351,17 +1351,17 @@ describe('transforms runtime helper logic', () => {
         expect(persistCallCount).toBe(1);
         expect(hooks.getLastReport().status).toBe('cancelled');
         expect(hooks.getLastReport().resultPublished).toBe(false);
-        expect(document.getElementById('bpi-status').textContent)
+        expect(document.getElementById('bpts-status').textContent)
             .toContain('Processing cancelled. No partial results were published.');
     });
 
     it('updates transform status through datastar started and success signal events', async () => {
         vi.useFakeTimers();
 
-        const visualResults = document.getElementById('bpi-visual-results');
+        const visualResults = document.getElementById('bpts-visual-results');
         visualResults.innerHTML = `
-            <article class="bpi-transform-card" data-set="hero">
-                <button data-bpi-action="saveSet" id="bpi-datastar-trigger"></button>
+            <article class="bpts-transform-card" data-set="hero">
+                <button data-bpts-action="saveSet" id="bpts-datastar-trigger"></button>
                 <div data-role="transform-update-status" data-state="idle" aria-label="">
                     <span data-role="transform-update-status-label"></span>
                 </div>
@@ -1378,7 +1378,7 @@ describe('transforms runtime helper logic', () => {
 
         window.Craft = { sendActionRequest };
 
-        const trigger = document.getElementById('bpi-datastar-trigger');
+        const trigger = document.getElementById('bpts-datastar-trigger');
         document.dispatchEvent(new CustomEvent('datastar-fetch', {
             detail: {
                 type: 'started',
@@ -1386,8 +1386,8 @@ describe('transforms runtime helper logic', () => {
             },
         }));
 
-        let statusElement = document.querySelector('#bpi-visual-results [data-role="transform-update-status"]');
-        let labelElement = document.querySelector('#bpi-visual-results [data-role="transform-update-status-label"]');
+        let statusElement = document.querySelector('#bpts-visual-results [data-role="transform-update-status"]');
+        let labelElement = document.querySelector('#bpts-visual-results [data-role="transform-update-status-label"]');
 
         expect(statusElement.getAttribute('data-state')).toBe('pending');
         expect(labelElement.textContent).toBe('Saving...');
@@ -1403,12 +1403,12 @@ describe('transforms runtime helper logic', () => {
         }));
 
         await vi.advanceTimersByTimeAsync(700);
-        statusElement = document.querySelector('#bpi-visual-results [data-role="transform-update-status"]');
+        statusElement = document.querySelector('#bpts-visual-results [data-role="transform-update-status"]');
         expect(statusElement.getAttribute('data-state')).toBe('success');
         expect(statusElement.getAttribute('aria-label')).toBe('Saved');
 
         await vi.advanceTimersByTimeAsync(1200);
-        statusElement = document.querySelector('#bpi-visual-results [data-role="transform-update-status"]');
+        statusElement = document.querySelector('#bpts-visual-results [data-role="transform-update-status"]');
         expect(statusElement.getAttribute('data-state')).toBe('idle');
 
         vi.useRealTimers();
@@ -1416,24 +1416,24 @@ describe('transforms runtime helper logic', () => {
 
     describe('syncSidebarObservedUnsavedFromSavedNames', () => {
         const seedSidebar = () => {
-            const list = document.getElementById('bpi-transform-sets-list');
+            const list = document.getElementById('bpts-transform-sets-list');
             list.innerHTML = `
-                <li data-set="heroImage" class="bpi-transform-sidebar-item-warning" data-observed-unsaved="1">
-                    <a href="#" class="bpi-transform-sidebar-link bpi-transform-sidebar-link-warning" data-set="heroImage">
-                        <span class="bpi-transform-sidebar-warning-icon" aria-hidden="true"><svg></svg></span>
+                <li data-set="heroImage" class="bpts-transform-sidebar-item-warning" data-observed-unsaved="1">
+                    <a href="#" class="bpts-transform-sidebar-link bpts-transform-sidebar-link-warning" data-set="heroImage">
+                        <span class="bpts-transform-sidebar-warning-icon" aria-hidden="true"><svg></svg></span>
                         <span class="visually-hidden">Not saved: </span>
                         heroImage
                     </a>
                 </li>
-                <li data-set="cardImage" class="bpi-transform-sidebar-item-warning" data-observed-unsaved="1">
-                    <a href="#" class="bpi-transform-sidebar-link bpi-transform-sidebar-link-warning" data-set="cardImage">
-                        <span class="bpi-transform-sidebar-warning-icon" aria-hidden="true"><svg></svg></span>
+                <li data-set="cardImage" class="bpts-transform-sidebar-item-warning" data-observed-unsaved="1">
+                    <a href="#" class="bpts-transform-sidebar-link bpts-transform-sidebar-link-warning" data-set="cardImage">
+                        <span class="bpts-transform-sidebar-warning-icon" aria-hidden="true"><svg></svg></span>
                         <span class="visually-hidden">Not saved: </span>
                         cardImage
                     </a>
                 </li>
                 <li data-set="staticImage">
-                    <a href="#" class="bpi-transform-sidebar-link" data-set="staticImage">staticImage</a>
+                    <a href="#" class="bpts-transform-sidebar-link" data-set="staticImage">staticImage</a>
                 </li>
             `;
         };
@@ -1444,17 +1444,17 @@ describe('transforms runtime helper logic', () => {
             hooks.syncSidebarObservedUnsavedFromSavedNames(['heroImage', 'staticImage']);
 
             const hero = document.querySelector('li[data-set="heroImage"]');
-            expect(hero.classList.contains('bpi-transform-sidebar-item-warning')).toBe(false);
+            expect(hero.classList.contains('bpts-transform-sidebar-item-warning')).toBe(false);
             expect(hero.hasAttribute('data-observed-unsaved')).toBe(false);
-            const heroLink = hero.querySelector('a.bpi-transform-sidebar-link');
-            expect(heroLink.classList.contains('bpi-transform-sidebar-link-warning')).toBe(false);
-            expect(heroLink.querySelector('.bpi-transform-sidebar-warning-icon')).toBeNull();
+            const heroLink = hero.querySelector('a.bpts-transform-sidebar-link');
+            expect(heroLink.classList.contains('bpts-transform-sidebar-link-warning')).toBe(false);
+            expect(heroLink.querySelector('.bpts-transform-sidebar-warning-icon')).toBeNull();
             expect(heroLink.querySelector('.visually-hidden')).toBeNull();
 
             const card = document.querySelector('li[data-set="cardImage"]');
-            expect(card.classList.contains('bpi-transform-sidebar-item-warning')).toBe(true);
+            expect(card.classList.contains('bpts-transform-sidebar-item-warning')).toBe(true);
             expect(card.getAttribute('data-observed-unsaved')).toBe('1');
-            expect(card.querySelector('.bpi-transform-sidebar-warning-icon')).not.toBeNull();
+            expect(card.querySelector('.bpts-transform-sidebar-warning-icon')).not.toBeNull();
         });
 
         it('is a no-op when savedSetNames is not an array', () => {
@@ -1465,7 +1465,7 @@ describe('transforms runtime helper logic', () => {
             hooks.syncSidebarObservedUnsavedFromSavedNames('heroImage');
 
             const hero = document.querySelector('li[data-set="heroImage"]');
-            expect(hero.classList.contains('bpi-transform-sidebar-item-warning')).toBe(true);
+            expect(hero.classList.contains('bpts-transform-sidebar-item-warning')).toBe(true);
             expect(hero.getAttribute('data-observed-unsaved')).toBe('1');
         });
 
@@ -1475,7 +1475,7 @@ describe('transforms runtime helper logic', () => {
             hooks.syncSidebarObservedUnsavedFromSavedNames(['staticImage']);
 
             const staticItem = document.querySelector('li[data-set="staticImage"]');
-            expect(staticItem.classList.contains('bpi-transform-sidebar-item-warning')).toBe(false);
+            expect(staticItem.classList.contains('bpts-transform-sidebar-item-warning')).toBe(false);
             expect(staticItem.hasAttribute('data-observed-unsaved')).toBe(false);
         });
     });
