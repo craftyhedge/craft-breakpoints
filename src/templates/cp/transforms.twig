@@ -115,10 +115,9 @@
     {% set initialBaseVersion = currentBaseVersion ?? '' %}
     <div
         class="bpts-transforms-page bpts-review-hydrating"
-        data-signals="{showCardSettings: false, ui: {resultsHeading: 'Saved Sets', showWarningOrder: false, resultsOrderingNoteLabel: ''}, editor: {baseVersion: '{{ initialBaseVersion|e('js') }}', cards: {}}}"
+        data-signals="{_applyCardOperationUrl: '{{ applyCardOperationUrl|e('js') }}', _csrfToken: '{{ craft.app.request.csrfToken|e('js') }}', showCardSettings: false, ui: {resultsHeading: 'Saved Sets', showWarningOrder: false, resultsOrderingNoteLabel: ''}, editor: {baseVersion: '{{ initialBaseVersion|e('js') }}', cards: {}}}"
         data-show-card-settings="0"
         data-attr:data-show-card-settings="(String($showCardSettings) === 'true' || String($showCardSettings) === '1') ? '1' : '0'"
-        data-apply-card-operation-url="{{ applyCardOperationUrl }}"
         data-preview-center="{{ (previewCenter ?? true) ? '1' : '0' }}"
         data-site-id="{{ currentSite.id ?? 0 }}"
     >
