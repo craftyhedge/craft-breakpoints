@@ -503,6 +503,56 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             .filter((setName) => setName !== '');
     }
 
+    function restoreVisualResultCardOrder(preferredOrderBySet = []) {
+        if (!elements.visualResults || !Array.isArray(preferredOrderBySet) || preferredOrderBySet.length < 1) {
+            return;
+        }
+
+        const cards = Array.from(elements.visualResults.querySelectorAll('.bpts-transform-card[data-set]'));
+        if (cards.length < 2) {
+            return;
+        }
+
+        const cardBySetName = new Map();
+        cards.forEach((card) => {
+            const setName = String(card.getAttribute('data-set') || '').trim();
+            if (setName !== '' && !cardBySetName.has(setName)) {
+                cardBySetName.set(setName, card);
+            }
+        });
+
+        const orderedCards = [];
+        preferredOrderBySet.forEach((rawSetName) => {
+            const setName = typeof rawSetName === 'string' ? rawSetName.trim() : '';
+            if (setName === '') {
+                return;
+            }
+
+            const card = cardBySetName.get(setName) || null;
+            if (!card) {
+                return;
+            }
+
+            orderedCards.push(card);
+            cardBySetName.delete(setName);
+        });
+
+        if (orderedCards.length < 1) {
+            return;
+        }
+
+        Array.from(cardBySetName.values()).forEach((card) => {
+            orderedCards.push(card);
+        });
+
+        orderedCards.forEach((card) => {
+            elements.visualResults.appendChild(card);
+        });
+
+        syncSidebarTransformOrderToCards();
+        scheduleBreakpointPreviewHeightSync();
+    }
+
     function syncSidebarTransformAvailability(cardOrder = []) {
         const list = elements.transformSetsList;
         if (!(list instanceof HTMLElement)) {
@@ -1554,12 +1604,14 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                     if (state.lastResult && typeof state.lastResult === 'object') {
                         await renderResultReview(state.lastResult, {
                             selectedAssetKeyBySetOverride,
+                            preserveCardOrder: true,
                         });
                         return;
                     }
 
                     await renderInitialStoredReview({
                         selectedAssetKeyBySetOverride,
+                        preserveCardOrder: true,
                     });
                 } catch (error) {
                     console.error(error);
@@ -1753,11 +1805,15 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
     async function refreshReviewCardsAfterSuccessfulUpdate() {
         if (state.lastResult) {
-            await renderResultReview(state.lastResult);
+            await renderResultReview(state.lastResult, {
+                preserveCardOrder: true,
+            });
             return;
         }
 
-        await renderInitialStoredReview();
+        await renderInitialStoredReview({
+            preserveCardOrder: true,
+        });
     }
 
     async function reprocessAfterRenderedValuesApplied() {
@@ -2173,6 +2229,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                 ...selectedAssetKeyBySetOverride,
             }
             : selectedAssetKeyBySet;
+        const preserveCardOrder = Boolean(options && typeof options === 'object' && options.preserveCardOrder === true);
 
         const response = await Craft.sendActionRequest('POST', RENDER_RESULT_REVIEW_ACTION, {
             data: {
@@ -2186,6 +2243,9 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
         const payload = response?.data || null;
         applyRenderedReviewPayload(payload);
+        if (preserveCardOrder) {
+            restoreVisualResultCardOrder(preferredOrderBySet);
+        }
         return payload;
     }
 
@@ -2212,6 +2272,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                 ...selectedAssetKeyBySetOverride,
             }
             : selectedAssetKeyBySet;
+        const preserveCardOrder = Boolean(options && typeof options === 'object' && options.preserveCardOrder === true);
 
         const response = await Craft.sendActionRequest('POST', RENDER_INITIAL_REVIEW_ACTION, {
             data: {
@@ -2224,6 +2285,9 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
         const payload = response?.data || null;
         applyRenderedReviewPayload(payload);
+        if (preserveCardOrder) {
+            restoreVisualResultCardOrder(preferredOrderBySet);
+        }
         return payload;
     }
 
