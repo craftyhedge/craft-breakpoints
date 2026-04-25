@@ -34,6 +34,7 @@ final class ReviewRenderer
         bool $hideRenderedApply = false,
         bool $hideAssetPagination = false,
         string $reviewMode = self::REVIEW_MODE_PROCESSED,
+        ?string $onlyTransformName = null,
     ): array {
         $normalizedReviewMode = $this->normalizeReviewMode($reviewMode);
         $rowsByBreakpoint = $this->normalizeReviewRowsByBreakpoint($result['rowsByBreakpoint'] ?? []);
@@ -63,6 +64,7 @@ final class ReviewRenderer
                 $normalizedSelectedAssetKeyBySet,
                 $hideAssetPagination,
                 $normalizedReviewMode,
+                $onlyTransformName,
             ),
             'warningCount' => $this->countReviewWarningsByTransform($warningsByTransform),
             'editScopeBySet' => $normalizedScopeState,
@@ -80,6 +82,7 @@ final class ReviewRenderer
         array $editTabBySet = [],
         array $selectedAssetKeyBySet = [],
         array $preferredOrderBySet = [],
+        ?string $onlyTransformName = null,
     ): array {
         $storedTransforms = $this->getReviewStoredTransforms();
         $previewCacheByTransformAndBreakpoint = $this->getPreviewCacheRowsByTransformAndBreakpoint();
@@ -221,7 +224,30 @@ final class ReviewRenderer
             hideRenderedApply: true,
             hideAssetPagination: true,
             reviewMode: self::REVIEW_MODE_SAVED,
+            onlyTransformName: $onlyTransformName,
         );
+    }
+
+    public function renderCardFragment(
+        string $setName,
+        array $editScopeBySet = [],
+        array $editTabBySet = [],
+        array $selectedAssetKeyBySet = [],
+    ): string {
+        $normalizedSetName = trim($setName);
+        if ($normalizedSetName === '') {
+            return '';
+        }
+
+        $rendered = $this->renderInitialStoredReview(
+            $editScopeBySet,
+            $editTabBySet,
+            $selectedAssetKeyBySet,
+            [$normalizedSetName],
+            $normalizedSetName,
+        );
+
+        return (string)($rendered['visualResultsHtml'] ?? '');
     }
 
     private function renderReviewWarningsMarkup(array $warnings, bool $showEmptyState = true, string $reviewMode = self::REVIEW_MODE_PROCESSED): string
@@ -269,6 +295,7 @@ final class ReviewRenderer
         array &$normalizedSelectedAssetKeyBySet,
         bool $hideAssetPagination,
         string $reviewMode,
+        ?string $onlyTransformName,
     ): string {
         $isProcessedReview = $reviewMode === self::REVIEW_MODE_PROCESSED;
         $transformNames = $this->collectReviewTransformNames($rowsByBreakpoint);
@@ -314,6 +341,10 @@ final class ReviewRenderer
         $cards = [];
 
         foreach ($transformNames as $transformName) {
+            if ($onlyTransformName !== null && $onlyTransformName !== '' && $transformName !== $onlyTransformName) {
+                continue;
+            }
+
             $observedBreakpoints = [];
             foreach ($configuredBreakpoints as $breakpoint) {
                 $rows = $rowsByBreakpoint[$breakpoint] ?? [];
@@ -413,6 +444,7 @@ final class ReviewRenderer
                             'scopeBreakpoint' => $scope['mode'] === 'breakpoint' ? (string)$scope['breakpoint'] : '',
                             'scopeActive' => $this->isReviewScopeActive($scope) ? '1' : '0',
                             'selectedAssetKey' => $selectedAssetKey,
+                            'draftByBreakpoint' => (object)[],
                             'passHeightWhenRenderedLteSaved' => $passHeightWhenRenderedLteSaved,
                             'allowAnyHeight' => $allowAnyHeight,
                         ],
@@ -559,6 +591,7 @@ final class ReviewRenderer
             }
 
             $cards[] = $this->renderReviewPartial('_partials/review/transform-card', [
+                'cardId' => $this->escapeReviewHtml('bpts-card-' . $signalKey),
                 'transformNameEscaped' => $this->escapeReviewHtml($transformName),
                 'signalKey' => $this->escapeReviewHtml($signalKey),
                 'cardSignalsStructural' => $this->escapeReviewHtml($cardSignalsStructuralJson),
@@ -598,6 +631,12 @@ final class ReviewRenderer
                 'heightInputId' => $this->escapeReviewHtml($editPanelId . '-height'),
                 'ratioWidthInputId' => $this->escapeReviewHtml($editPanelId . '-ratio-width'),
                 'ratioHeightInputId' => $this->escapeReviewHtml($editPanelId . '-ratio-height'),
+                'ratioFloatInputId' => $this->escapeReviewHtml($editPanelId . '-ratio-float'),
+                'widthInputValue' => $this->escapeReviewHtml($scopeValues['widthInput']),
+                'heightInputValue' => $this->escapeReviewHtml($scopeValues['heightInput']),
+                'ratioWidthInputValue' => $this->escapeReviewHtml($scopeValues['ratioWidthInput']),
+                'ratioHeightInputValue' => $this->escapeReviewHtml($scopeValues['ratioHeightInput']),
+                'ratioFloatInputValue' => $this->escapeReviewHtml($scopeValues['ratioFloatInput']),
                 'ratioSourceName' => $this->escapeReviewHtml($editPanelId . '-ratio-source'),
                 'passHeightToggleId' => $this->escapeReviewHtml($editPanelId . '-pass-height-toggle'),
                 'allowAnyHeightToggleId' => $this->escapeReviewHtml($editPanelId . '-allow-any-height-toggle'),

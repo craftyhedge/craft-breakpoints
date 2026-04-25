@@ -108,9 +108,10 @@ final class TransformsControllerTest extends Unit
         $response = $controller->actionApplyCardOperation();
 
         $this->assertSame(Response::FORMAT_RAW, $response->format);
+        $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
         $this->assertStringContainsString('"baseVersion":"5"', (string)$response->content);
+        $this->assertStringContainsString('data-kind="error"', (string)$response->content);
         $this->assertStringContainsString('Width update failed.', (string)$response->content);
-        $this->assertStringContainsString('setName is required.', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
     }
@@ -127,8 +128,9 @@ final class TransformsControllerTest extends Unit
         $response = $controller->actionApplyCardOperation();
 
         $this->assertSame(Response::FORMAT_RAW, $response->format);
+        $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
+        $this->assertStringContainsString('data-kind="error"', (string)$response->content);
         $this->assertStringContainsString('Breakpoint state update failed.', (string)$response->content);
-        $this->assertStringContainsString('setName is required.', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
     }
@@ -151,7 +153,8 @@ final class TransformsControllerTest extends Unit
         $response = $controller->actionApplyCardOperation();
 
         $this->assertSame(Response::FORMAT_RAW, $response->format);
-        $this->assertStringContainsString('enabled must be a boolean value.', (string)$response->content);
+        $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
+        $this->assertStringContainsString('data-kind="error"', (string)$response->content);
         $this->assertStringContainsString('Breakpoint state update failed.', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
@@ -169,7 +172,8 @@ final class TransformsControllerTest extends Unit
         $response = $controller->actionApplyCardOperation();
 
         $this->assertSame(Response::FORMAT_RAW, $response->format);
-        $this->assertStringContainsString('scopeBreakpoint is required when updating breakpoint state.', (string)$response->content);
+        $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
+        $this->assertStringContainsString('data-kind="error"', (string)$response->content);
         $this->assertStringContainsString('Breakpoint state update failed.', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
@@ -186,8 +190,9 @@ final class TransformsControllerTest extends Unit
         $response = $controller->actionApplyCardOperation();
 
         $this->assertSame(Response::FORMAT_RAW, $response->format);
+        $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
+        $this->assertStringContainsString('data-kind="error"', (string)$response->content);
         $this->assertStringContainsString('Allow shorter heights setting update failed.', (string)$response->content);
-        $this->assertStringContainsString('setName is required.', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
     }
@@ -203,8 +208,9 @@ final class TransformsControllerTest extends Unit
         $response = $controller->actionApplyCardOperation();
 
         $this->assertSame(Response::FORMAT_RAW, $response->format);
+        $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
+        $this->assertStringContainsString('data-kind="error"', (string)$response->content);
         $this->assertStringContainsString('Allow any height setting update failed.', (string)$response->content);
-        $this->assertStringContainsString('setName is required.', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
     }

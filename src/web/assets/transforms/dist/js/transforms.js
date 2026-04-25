@@ -48,8 +48,6 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     const RENDER_INITIAL_REVIEW_ACTION = 'craft-breakpoints/transforms/render-initial-review';
     const PERSIST_RUN_SNAPSHOT_ACTION = 'craft-breakpoints/transforms/persist-run-snapshot';
     const DATASTAR_FETCH_EVENT = 'datastar-fetch';
-    const DATASTAR_PATCH_SIGNALS_EVENT = 'datastar-patch-signals';
-    const DATASTAR_SIGNAL_PATCH_EVENT = 'datastar-signal-patch';
 
     const elements = {
         page: document.querySelector('.bpts-transforms-page'),
@@ -1803,6 +1801,21 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         applyTerminalStatus();
     }
 
+    function getServerStatusFromEditorStatusElement() {
+        const statusElement = document.getElementById('bpts-editor-status');
+        if (!(statusElement instanceof HTMLElement)) {
+            return null;
+        }
+
+        const kind = String(statusElement.dataset.kind || '').trim();
+        const message = String(statusElement.dataset.message || '').trim();
+        if (kind === '') {
+            return null;
+        }
+
+        return { kind, message };
+    }
+
     async function refreshReviewCardsAfterSuccessfulUpdate() {
         if (state.lastResult) {
             await renderResultReview(state.lastResult, {
@@ -1816,19 +1829,10 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         });
     }
 
-    async function reprocessAfterRenderedValuesApplied() {
-        setResultsReprocessing(true);
-        try {
-            await runProcessing();
-        } finally {
-            setResultsReprocessing(false);
-        }
-    }
-
     function finalizePendingTransformUpdatesFromServerStatus(serverStatus) {
         const status = serverStatus && typeof serverStatus === 'object' ? serverStatus : null;
         const kind = String(status?.kind || '').trim().toLowerCase();
-        if (kind !== 'success' && kind !== 'error') {
+        if (kind !== 'success' && kind !== 'error' && kind !== 'conflict' && kind !== 'draft') {
             return;
         }
 
@@ -1848,11 +1852,8 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         });
 
         if (kind === 'success') {
-            const shouldReprocess = state.lastResult
-                && pendingTransformEntries.some(({ action }) => action === 'renderedValues');
-
             pendingTransformEntries.forEach(({ transformName, action }) => {
-                if (action === 'deleteSet' && !state.lastResult) {
+                if (action === 'deleteSet' && state.lastResult) {
                     removeTransformFromLastResult(transformName);
                 }
 
@@ -1865,11 +1866,6 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             }
 
             void refreshReviewCardsAfterSuccessfulUpdate()
-                .then(() => {
-                    if (shouldReprocess) {
-                        return reprocessAfterRenderedValuesApplied();
-                    }
-                })
                 .catch((error) => {
                     console.error(error);
                 });
@@ -1877,13 +1873,21 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             return;
         }
 
-        if (status?.message) {
-            Craft.cp.displayError(status.message);
+        if (kind === 'error' || kind === 'conflict') {
+            if (status?.message) {
+                Craft.cp.displayError(status.message);
+            }
         }
+
+        const terminalMessage = typeof status?.message === 'string' && status.message.trim() !== ''
+            ? status.message
+            : (kind === 'draft'
+                ? 'Draft saved locally. Complete all enabled breakpoints to persist.'
+                : 'Update failed');
 
         pendingTransformEntries.forEach(({ transformName }) => {
             const runId = getUpdateStatusRunId(transformName);
-            scheduleTransformTerminalStatus(transformName, 'Update failed', 'error', CARD_UPDATE_STATUS_ERROR_CLEAR_DELAY_MS, runId);
+            scheduleTransformTerminalStatus(transformName, terminalMessage, 'error', CARD_UPDATE_STATUS_ERROR_CLEAR_DELAY_MS, runId);
         });
     }
 
@@ -1894,7 +1898,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
         const status = serverStatus && typeof serverStatus === 'object' ? serverStatus : null;
         const kind = String(status?.kind || '').trim().toLowerCase();
-        if (kind !== 'success' && kind !== 'error') {
+        if (kind !== 'success' && kind !== 'error' && kind !== 'conflict' && kind !== 'draft') {
             return;
         }
 
@@ -1903,7 +1907,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         const runId = getUpdateStatusRunId(transformName);
 
         if (kind === 'success') {
-            if (action === 'deleteSet' && !state.lastResult) {
+            if (action === 'deleteSet' && state.lastResult) {
                 removeTransformFromLastResult(transformName);
             }
 
@@ -1914,37 +1918,24 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             }
 
             void refreshReviewCardsAfterSuccessfulUpdate()
-                .then(() => {
-                    if (state.lastResult && action === 'renderedValues') {
-                        return reprocessAfterRenderedValuesApplied();
-                    }
-                })
                 .catch((error) => {
                     console.error(error);
                 });
             return;
         }
 
-        if (status?.message) {
-            Craft.cp.displayError(status.message);
+        if (kind === 'error' || kind === 'conflict') {
+            if (status?.message) {
+                Craft.cp.displayError(status.message);
+            }
         }
 
-        scheduleTransformTerminalStatus(transformName, 'Update failed', 'error', CARD_UPDATE_STATUS_ERROR_CLEAR_DELAY_MS, runId);
-    }
-
-    function parseServerStatusFromPatchSignalsArgs(argsRaw) {
-        const signalsRaw = argsRaw?.signals;
-        if (typeof signalsRaw !== 'string' || signalsRaw.trim() === '') {
-            return null;
-        }
-
-        try {
-            const parsed = JSON.parse(signalsRaw);
-            const serverStatus = parsed?.editor?.serverStatus;
-            return serverStatus && typeof serverStatus === 'object' ? serverStatus : null;
-        } catch (_error) {
-            return null;
-        }
+        const terminalMessage = typeof status?.message === 'string' && status.message.trim() !== ''
+            ? status.message
+            : (kind === 'draft'
+                ? 'Draft saved locally. Complete all enabled breakpoints to persist.'
+                : 'Update failed');
+        scheduleTransformTerminalStatus(transformName, terminalMessage, 'error', CARD_UPDATE_STATUS_ERROR_CLEAR_DELAY_MS, runId);
     }
 
     function getDatastarUpdateAction(sourceElement) {
@@ -1962,34 +1953,9 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     }
 
     function setupDatastarCardUpdateStatus() {
-        document.addEventListener(DATASTAR_SIGNAL_PATCH_EVENT, (event) => {
-            const detail = event?.detail;
-            const serverStatus = detail?.editor?.serverStatus;
-            finalizePendingTransformUpdatesFromServerStatus(serverStatus);
-        });
-
-        document.addEventListener('datastar-fetch', (event) => {
+        document.addEventListener(DATASTAR_FETCH_EVENT, (event) => {
             const detail = event?.detail || {};
             const sourceElement = detail.el;
-
-            if (detail.type === DATASTAR_PATCH_SIGNALS_EVENT) {
-                const serverStatus = parseServerStatusFromPatchSignalsArgs(detail.argsRaw);
-                if (!serverStatus) {
-                    return;
-                }
-
-                if (sourceElement && typeof sourceElement.closest === 'function') {
-                    const card = sourceElement.closest('.bpts-transform-card');
-                    const transformName = card?.getAttribute('data-set') || '';
-                    if (transformName) {
-                        finalizeTransformUpdateFromServerStatus(transformName, serverStatus);
-                        return;
-                    }
-                }
-
-                finalizePendingTransformUpdatesFromServerStatus(serverStatus);
-                return;
-            }
 
             if (!sourceElement || typeof sourceElement.closest !== 'function') {
                 return;
@@ -2022,7 +1988,8 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             }
 
             if (detail.type === 'finished') {
-                // Keep the visible pending copy stable; terminal status will apply after min linger.
+                const serverStatus = getServerStatusFromEditorStatusElement();
+                finalizeTransformUpdateFromServerStatus(transformName, serverStatus);
                 return;
             }
 

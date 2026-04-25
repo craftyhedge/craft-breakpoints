@@ -155,6 +155,7 @@ class TransformEditor extends Component
         ?int $value,
         string $dimension,
         ?bool $includeEscapeWidth = null,
+        array $draftByBreakpoint = [],
         ?string $expectedVersion = null,
     ): array {
         if ($this->_operationsService === null) {
@@ -168,6 +169,7 @@ class TransformEditor extends Component
             $value,
             $dimension,
             $includeEscapeWidth,
+            $draftByBreakpoint,
             $expectedVersion,
         );
     }
@@ -182,6 +184,7 @@ class TransformEditor extends Component
         ?bool $widthAuto = null,
         ?bool $heightAuto = null,
         bool $forceAll = false,
+        array $draftByBreakpoint = [],
         ?string $expectedVersion = null,
     ): array {
         if ($this->_operationsService === null) {
@@ -198,6 +201,7 @@ class TransformEditor extends Component
             $widthAuto,
             $heightAuto,
             $forceAll,
+            $draftByBreakpoint,
             $expectedVersion,
         );
     }
@@ -210,6 +214,7 @@ class TransformEditor extends Component
         ?int $ratioHeight,
         ?string $ratioSourceDimension,
         ?bool $includeEscapeWidth = null,
+        array $draftByBreakpoint = [],
         ?string $expectedVersion = null,
     ): array {
         if ($this->_operationsService === null) {
@@ -224,6 +229,7 @@ class TransformEditor extends Component
             $ratioHeight,
             $ratioSourceDimension,
             $includeEscapeWidth,
+            $draftByBreakpoint,
             $expectedVersion,
         );
     }
@@ -233,6 +239,7 @@ class TransformEditor extends Component
         ?int $scopeBreakpoint,
         ?bool $enabled,
         ?bool $includeEscapeWidth = null,
+        array $draftByBreakpoint = [],
         ?string $expectedVersion = null,
     ): array {
         if ($this->_operationsService === null) {
@@ -244,6 +251,7 @@ class TransformEditor extends Component
             $scopeBreakpoint,
             $enabled,
             $includeEscapeWidth,
+            $draftByBreakpoint,
             $expectedVersion,
         );
     }
@@ -252,6 +260,7 @@ class TransformEditor extends Component
         string $transformName,
         mixed $value,
         ?bool $includeEscapeWidth = null,
+        array $draftByBreakpoint = [],
         ?string $expectedVersion = null,
     ): array {
         if ($this->_operationsService === null) {
@@ -262,6 +271,7 @@ class TransformEditor extends Component
             $transformName,
             $value,
             $includeEscapeWidth,
+            $draftByBreakpoint,
             $expectedVersion,
         );
     }
@@ -270,6 +280,7 @@ class TransformEditor extends Component
         string $transformName,
         mixed $value,
         ?bool $includeEscapeWidth = null,
+        array $draftByBreakpoint = [],
         ?string $expectedVersion = null,
     ): array {
         if ($this->_operationsService === null) {
@@ -280,6 +291,7 @@ class TransformEditor extends Component
             $transformName,
             $value,
             $includeEscapeWidth,
+            $draftByBreakpoint,
             $expectedVersion,
         );
     }
@@ -289,6 +301,7 @@ class TransformEditor extends Component
         array $renderedRows,
         ?bool $includeEscapeWidth = null,
         bool $clearAuto = false,
+        array $draftByBreakpoint = [],
         ?string $expectedVersion = null,
     ): array {
         if ($this->_operationsService === null) {
@@ -300,6 +313,7 @@ class TransformEditor extends Component
             $renderedRows,
             $includeEscapeWidth,
             $clearAuto,
+            $draftByBreakpoint,
             $expectedVersion,
         );
     }
@@ -418,6 +432,24 @@ class TransformEditor extends Component
             $editTabBySet,
             $selectedAssetKeyBySet,
             $preferredOrderBySet,
+        );
+    }
+
+    public function renderCardFragment(
+        string $setName,
+        array $editScopeBySet = [],
+        array $editTabBySet = [],
+        array $selectedAssetKeyBySet = [],
+    ): string {
+        if ($this->_reviewRenderer === null) {
+            return '';
+        }
+
+        return $this->_reviewRenderer->renderCardFragment(
+            $setName,
+            $editScopeBySet,
+            $editTabBySet,
+            $selectedAssetKeyBySet,
         );
     }
 

@@ -196,7 +196,7 @@ class Plugin extends BasePlugin
                 'label' => Craft::t('craft-breakpoints', 'Transform Sets'),
                 'url' => 'craft-breakpoints/processing',
             ],
-            'plugin-settings' => [
+            'settings' => [
                 'label' => Craft::t('craft-breakpoints', 'Settings'),
                 'url' => 'craft-breakpoints/settings',
             ],

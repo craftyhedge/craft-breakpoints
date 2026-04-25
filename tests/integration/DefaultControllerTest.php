@@ -14,14 +14,14 @@ use yii\web\Response;
 
 final class DefaultControllerTest extends Unit
 {
-    public function testIndexRedirectsToSettings(): void
+    public function testIndexRedirectsToProcessing(): void
     {
         $response = $this->controller()->actionIndex();
 
         $this->assertInstanceOf(Response::class, $response);
         $this->assertTrue($response->getIsRedirection());
         $this->assertSame(
-            UrlHelper::cpUrl('craft-breakpoints/settings'),
+            UrlHelper::cpUrl('craft-breakpoints/processing'),
             (string)$response->getHeaders()->get('Location')
         );
     }

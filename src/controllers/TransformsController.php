@@ -6,6 +6,7 @@ use Craft;
 use craft\helpers\Json;
 use craft\web\Controller;
 use craftyhedge\craftbreakpoints\Plugin;
+use starfederation\datastar\events\PatchElements;
 use starfederation\datastar\events\PatchSignals;
 use starfederation\datastar\ServerSentEventGenerator;
 use yii\web\Response;
@@ -150,6 +151,7 @@ class TransformsController extends Controller
         $ratioWidthRaw = $this->request->getBodyParam('ratioWidth');
         $ratioHeightRaw = $this->request->getBodyParam('ratioHeight');
         $ratioSourceDimensionRaw = $this->request->getBodyParam('ratioSourceDimension');
+        $draftByBreakpointRaw = $this->request->getBodyParam('draftByBreakpoint', []);
         $baseVersion = $this->resolveBaseVersion(Plugin::getInstance()->getTransformStore()->getCurrentVersion());
 
         $includeEscapeWidth = $this->parseNullableBool($includeEscapeWidthRaw);
@@ -165,6 +167,7 @@ class TransformsController extends Controller
         $ratioHeight = $this->parseNullablePositiveInt($ratioHeightRaw);
         $ratioSourceDimension = $this->parseNullableNonEmptyString($ratioSourceDimensionRaw);
         $enabled = $this->parseNullableBool($this->request->getBodyParam('enabled'));
+        $draftByBreakpoint = is_array($draftByBreakpointRaw) ? $draftByBreakpointRaw : [];
 
         if ($field === 'renderedValues') {
             $renderedRowsRaw = $this->request->getBodyParam('renderedRows', []);
@@ -175,6 +178,7 @@ class TransformsController extends Controller
                 $renderedRows,
                 $includeEscapeWidth,
                 $clearAuto,
+                $draftByBreakpoint,
                 $baseVersion,
             );
         } elseif ($field === 'deleteSet') {
@@ -190,6 +194,7 @@ class TransformsController extends Controller
                 $widthAuto,
                 $heightAuto,
                 $forceAll,
+                $draftByBreakpoint,
                 $baseVersion,
             );
         } elseif ($field === 'ratio') {
@@ -201,6 +206,7 @@ class TransformsController extends Controller
                 $ratioHeight,
                 $ratioSourceDimension,
                 $includeEscapeWidth,
+                $draftByBreakpoint,
                 $baseVersion,
             );
         } elseif ($field === 'breakpointEnabled') {
@@ -209,6 +215,7 @@ class TransformsController extends Controller
                 $scopeBreakpoint,
                 $enabled,
                 $includeEscapeWidth,
+                $draftByBreakpoint,
                 $baseVersion,
             );
         } elseif ($field === 'passHeightWhenRenderedLteSaved') {
@@ -216,6 +223,7 @@ class TransformsController extends Controller
                 $setName,
                 $valueRaw,
                 $includeEscapeWidth,
+                $draftByBreakpoint,
                 $baseVersion,
             );
         } elseif ($field === 'allowAnyHeight') {
@@ -223,6 +231,7 @@ class TransformsController extends Controller
                 $setName,
                 $valueRaw,
                 $includeEscapeWidth,
+                $draftByBreakpoint,
                 $baseVersion,
             );
         } else {
@@ -233,6 +242,7 @@ class TransformsController extends Controller
                 $value,
                 $field,
                 $includeEscapeWidth,
+                $draftByBreakpoint,
                 $baseVersion,
             );
         }
@@ -242,26 +252,66 @@ class TransformsController extends Controller
             : $editor->defaultValidation();
         $persisted = ($operationResult['persisted'] ?? false) === true;
         $conflict = ($operationResult['conflict'] ?? false) === true;
+        $draftOnly = ($operationResult['draftOnly'] ?? false) === true;
         $currentVersion = (string)($operationResult['currentVersion'] ?? $baseVersion);
         $statusMessage = $this->buildOperationStatusMessage($field, $persisted, $conflict, $operationResult);
-        $draft = $editor->buildDraftFromStore();
+        $statusKind = $conflict ? 'conflict' : ($persisted ? 'success' : ($draftOnly ? 'draft' : 'error'));
 
-        $state = [
-            'sessionId' => $this->resolveSessionId(),
-            'baseVersion' => $currentVersion,
-            'draft' => $draft,
-            'draftJson' => $editor->encodeDraftJson($draft),
-            'serverStatus' => [
-                'kind' => $persisted ? 'success' : 'error',
-                'message' => $statusMessage,
+        $events = [];
+        $shouldPatchCard = $persisted || $conflict;
+        if ($shouldPatchCard) {
+            $cardMarkup = $editor->renderCardFragment($setName);
+            $cardId = $this->buildCardDomId($setName);
+            if ($cardMarkup !== '') {
+                $events[] = new PatchElements($cardMarkup);
+            } elseif ($cardId !== '') {
+                $events[] = new PatchElements('', [
+                    'selector' => '#' . $cardId,
+                    'mode' => 'remove',
+                ]);
+            }
+        }
+
+        $signalsPatch = [
+            'editor' => [
+                'baseVersion' => $currentVersion,
             ],
-            'validation' => $validation,
-            'resultSummary' => $editor->buildResultSummary($this->extractResultSummaryFromRequest()),
         ];
 
-        return $this->asDatastarSignalsPatch([
-            'editor' => $state,
-        ]);
+        if ($persisted && $setName !== '') {
+            $signalKey = $this->buildCardSignalKey($setName);
+            if ($signalKey !== '') {
+                if ($field === 'deleteSet') {
+                    $signalsPatch['editor']['cards'] = [
+                        $signalKey => null,
+                    ];
+
+                    $events[] = new PatchElements($this->renderEditorStatusFragment($statusKind, $statusMessage));
+                    $events[] = new PatchSignals($signalsPatch);
+
+                    return $this->asDatastarEventStream($events);
+                }
+
+                $cardSignalsPatch = [
+                    'draftByBreakpoint' => (object)[],
+                    'widthInput' => '',
+                    'heightInput' => '',
+                    'ratioWidthInput' => '',
+                    'ratioHeightInput' => '',
+                    'ratioFloatInput' => '',
+                    'ratioLocked' => '0',
+                ];
+
+                $signalsPatch['editor']['cards'] = [
+                    $signalKey => $cardSignalsPatch,
+                ];
+            }
+        }
+
+        $events[] = new PatchElements($this->renderEditorStatusFragment($statusKind, $statusMessage));
+        $events[] = new PatchSignals($signalsPatch);
+
+        return $this->asDatastarEventStream($events);
     }
 
     public function actionRenderResultReview(): Response
@@ -342,6 +392,14 @@ class TransformsController extends Controller
     private function asDatastarSignalsPatch(array $signals): Response
     {
         $event = new PatchSignals($signals);
+        return $this->asDatastarEventStream([$event]);
+    }
+
+    /**
+     * @param array<int, object> $events
+     */
+    private function asDatastarEventStream(array $events): Response
+    {
         $headers = ServerSentEventGenerator::headers();
 
         $response = Craft::$app->getResponse();
@@ -354,9 +412,54 @@ class TransformsController extends Controller
 
             $response->getHeaders()->set($name, $value);
         }
-        $response->content = $event->getOutput();
+        $output = '';
+        foreach ($events as $event) {
+            if (is_object($event) && method_exists($event, 'getOutput')) {
+                $output .= (string)$event->getOutput();
+            }
+        }
+        $response->content = $output;
 
         return $response;
+    }
+
+    private function renderEditorStatusFragment(string $kind, string $message): string
+    {
+        $escapedKind = htmlspecialchars($kind, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $escapedMessage = htmlspecialchars($message, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+        return sprintf(
+            '<div id="bpts-editor-status" data-kind="%s" data-message="%s" class="visually-hidden">%s</div>',
+            $escapedKind,
+            $escapedMessage,
+            $escapedMessage,
+        );
+    }
+
+    private function buildCardDomId(string $setName): string
+    {
+        $signalKey = $this->buildCardSignalKey($setName);
+        if ($signalKey === '') {
+            return '';
+        }
+
+        return 'bpts-card-' . $signalKey;
+    }
+
+    private function buildCardSignalKey(string $setName): string
+    {
+        $normalized = trim($setName);
+        if ($normalized === '') {
+            return '';
+        }
+
+        $slug = preg_replace('/[^a-z0-9]+/', '-', strtolower($normalized));
+        $slug = trim((string)$slug, '-');
+        if ($slug === '') {
+            $slug = 'transform';
+        }
+
+        return 't_' . str_replace('-', '_', $slug) . '_' . substr(sha1($normalized), 0, 8);
     }
 
     private function resolveSessionId(): string
@@ -499,6 +602,26 @@ class TransformsController extends Controller
     {
         if (!$persisted && $conflict) {
             return 'Draft is out of date. Refresh and retry.';
+        }
+
+        if (!$persisted) {
+            $validation = is_array($operationResult['validation'] ?? null)
+                ? $operationResult['validation']
+                : [];
+            $globalMessages = isset($validation['global']) && is_array($validation['global'])
+                ? $validation['global']
+                : [];
+
+            foreach ($globalMessages as $globalMessage) {
+                if (!is_string($globalMessage)) {
+                    continue;
+                }
+
+                $trimmed = trim($globalMessage);
+                if ($trimmed !== '') {
+                    return $trimmed;
+                }
+            }
         }
 
         if ($field === 'ratio') {
