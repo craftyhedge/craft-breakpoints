@@ -109,9 +109,9 @@ final class TransformsControllerTest extends Unit
 
         $this->assertSame(Response::FORMAT_RAW, $response->format);
         $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
-        $this->assertStringContainsString('"baseVersion":"5"', (string)$response->content);
+        $this->assertStringNotContainsString('patch-signals', (string)$response->content);
         $this->assertStringContainsString('data-kind="error"', (string)$response->content);
-        $this->assertStringContainsString('Width update failed.', (string)$response->content);
+        $this->assertStringContainsString('setName is required.', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
     }
@@ -130,7 +130,7 @@ final class TransformsControllerTest extends Unit
         $this->assertSame(Response::FORMAT_RAW, $response->format);
         $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
         $this->assertStringContainsString('data-kind="error"', (string)$response->content);
-        $this->assertStringContainsString('Breakpoint state update failed.', (string)$response->content);
+        $this->assertStringContainsString('setName is required.', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
     }
@@ -155,7 +155,7 @@ final class TransformsControllerTest extends Unit
         $this->assertSame(Response::FORMAT_RAW, $response->format);
         $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
         $this->assertStringContainsString('data-kind="error"', (string)$response->content);
-        $this->assertStringContainsString('Breakpoint state update failed.', (string)$response->content);
+        $this->assertStringContainsString('enabled must be a boolean value.', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
     }
@@ -174,7 +174,7 @@ final class TransformsControllerTest extends Unit
         $this->assertSame(Response::FORMAT_RAW, $response->format);
         $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
         $this->assertStringContainsString('data-kind="error"', (string)$response->content);
-        $this->assertStringContainsString('Breakpoint state update failed.', (string)$response->content);
+        $this->assertStringContainsString('scopeBreakpoint is required when updating breakpoint state.', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
     }
@@ -192,7 +192,7 @@ final class TransformsControllerTest extends Unit
         $this->assertSame(Response::FORMAT_RAW, $response->format);
         $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
         $this->assertStringContainsString('data-kind="error"', (string)$response->content);
-        $this->assertStringContainsString('Allow shorter heights setting update failed.', (string)$response->content);
+        $this->assertStringContainsString('setName is required.', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
     }
@@ -210,7 +210,7 @@ final class TransformsControllerTest extends Unit
         $this->assertSame(Response::FORMAT_RAW, $response->format);
         $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
         $this->assertStringContainsString('data-kind="error"', (string)$response->content);
-        $this->assertStringContainsString('Allow any height setting update failed.', (string)$response->content);
+        $this->assertStringContainsString('setName is required.', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
     }
@@ -254,6 +254,22 @@ final class TransformsControllerTest extends Unit
         $this->assertArrayHasKey('editTabBySet', $response->data);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
+    }
+
+    public function testRenderInitialReviewMarkupUsesSignalBindingsWithoutStaticInputValues(): void
+    {
+        $controller = $this->controllerWithBody([]);
+        $response = $controller->actionRenderInitialReview();
+
+        $this->assertSame(Response::FORMAT_JSON, $response->format);
+        $visualResults = (string)($response->data['visualResultsHtml'] ?? '');
+
+        $this->assertStringContainsString('data-bind="editor.cards.', $visualResults);
+        $this->assertDoesNotMatchRegularExpression('/bpts-transform-width-input[^>]*\svalue="/i', $visualResults);
+        $this->assertDoesNotMatchRegularExpression('/bpts-transform-height-input[^>]*\svalue="/i', $visualResults);
+        $this->assertDoesNotMatchRegularExpression('/bpts-transform-ratio-width-input[^>]*\svalue="/i', $visualResults);
+        $this->assertDoesNotMatchRegularExpression('/bpts-transform-ratio-height-input[^>]*\svalue="/i', $visualResults);
+        $this->assertDoesNotMatchRegularExpression('/bpts-transform-ratio-float-input[^>]*\svalue="/i', $visualResults);
     }
 
     private function controllerWithBody(array $bodyParams): TransformsController

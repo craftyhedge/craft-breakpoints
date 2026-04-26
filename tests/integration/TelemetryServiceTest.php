@@ -1,0 +1,86 @@
+<?php
+
+declare(strict_types=1);
+
+namespace craftyhedge\craftbreakpoints\tests\integration;
+
+use Codeception\Test\Unit;
+use Craft;
+use craftyhedge\craftbreakpoints\Plugin;
+use craftyhedge\craftbreakpoints\services\InitOptions;
+
+final class TelemetryServiceTest extends Unit
+{
+    protected function _before(): void
+    {
+        parent::_before();
+
+        Craft::$app->getDb()->createCommand()
+            ->delete('{{%bpi_transform_last_processed}}')
+            ->execute();
+    }
+
+    public function testRecordUsageRoundTripsInitOptionsThroughGetMostRecentByHandle(): void
+    {
+        $telemetry = Plugin::getInstance()->getTelemetry();
+        $initOptions = InitOptions::fromConfig([
+            'initWidth' => 320,
+            'initRatio' => '16:9',
+            'initWidthAuto' => false,
+            'initHeightAuto' => false,
+        ], false);
+
+        $telemetry->recordUsage('hero', $initOptions);
+
+        $byHandle = $telemetry->getMostRecentByHandle();
+
+        $this->assertArrayHasKey('hero', $byHandle);
+        $row = $byHandle['hero'];
+        $this->assertSame(320, $row['initWidth']);
+        $this->assertNull($row['initHeight']);
+        $this->assertNotNull($row['initRatio']);
+        $this->assertEqualsWithDelta(16 / 9, (float)$row['initRatio'], 1e-6);
+        $this->assertFalse($row['initWidthAuto']);
+        $this->assertFalse($row['initHeightAuto']);
+    }
+
+    public function testRecordUsagePersistsAutoFlagsForUnsavedSet(): void
+    {
+        $telemetry = Plugin::getInstance()->getTelemetry();
+        $initOptions = InitOptions::fromConfig([
+            'initWidth' => null,
+            'initHeight' => 180,
+            'initRatio' => null,
+            'initWidthAuto' => true,
+            'initHeightAuto' => false,
+        ], false);
+
+        $telemetry->recordUsage('autoHero', $initOptions);
+
+        $byHandle = $telemetry->getMostRecentByHandle();
+
+        $this->assertArrayHasKey('autoHero', $byHandle);
+        $row = $byHandle['autoHero'];
+        $this->assertNull($row['initWidth']);
+        $this->assertSame(180, $row['initHeight']);
+        $this->assertTrue($row['initWidthAuto']);
+        $this->assertFalse($row['initHeightAuto']);
+    }
+
+    public function testRecordUsageWithoutInitOptionsLeavesInitColumnsNull(): void
+    {
+        $telemetry = Plugin::getInstance()->getTelemetry();
+
+        $telemetry->recordUsage('plain');
+
+        $byHandle = $telemetry->getMostRecentByHandle();
+
+        $this->assertArrayHasKey('plain', $byHandle);
+        $row = $byHandle['plain'];
+        $this->assertNull($row['initWidth']);
+        $this->assertNull($row['initHeight']);
+        $this->assertNull($row['initRatio']);
+        $this->assertNull($row['initWidthAuto']);
+        $this->assertNull($row['initHeightAuto']);
+    }
+}

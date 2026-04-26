@@ -100,6 +100,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         progressBar: null,
         testRunProcessingOverrides: null,
     };
+    const pendingTransformBySourceElement = new WeakMap();
 
     const RESULTS_COPY = {
         saved: {
@@ -1534,9 +1535,11 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                     };
                 }
             } else {
+                const fallbackBreakpoint = toPositiveIntOrNull(card.getAttribute('data-scope-breakpoint'))
+                    || toPositiveIntOrNull(card.querySelector('.bpts-breakpoint-column[data-breakpoint]')?.getAttribute('data-breakpoint'));
                 editScopeBySet[transformName] = {
-                    mode: 'unset',
-                    breakpoint: null,
+                    mode: fallbackBreakpoint ? 'breakpoint' : 'all',
+                    breakpoint: fallbackBreakpoint,
                 };
             }
 
@@ -1816,6 +1819,68 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         return { kind, message };
     }
 
+    function parseServerStatusFromPatchSignalsArgs(argsRaw) {
+        const rawArgs = argsRaw && typeof argsRaw === 'object' ? argsRaw : null;
+        const rawSignals = rawArgs?.signals;
+
+        let signals = rawSignals;
+        if (typeof rawSignals === 'string') {
+            try {
+                signals = JSON.parse(rawSignals);
+            } catch (_error) {
+                return null;
+            }
+        }
+
+        if (!signals || typeof signals !== 'object') {
+            return null;
+        }
+
+        const editor = signals.editor;
+        if (!editor || typeof editor !== 'object') {
+            return null;
+        }
+
+        const serverStatus = editor.serverStatus;
+        if (!serverStatus || typeof serverStatus !== 'object') {
+            return null;
+        }
+
+        const kind = String(serverStatus.kind || '').trim();
+        if (kind === '') {
+            return null;
+        }
+
+        const message = String(serverStatus.message || '').trim();
+        return { kind, message };
+    }
+
+    function displayCpNotice(message) {
+        const text = String(message || '').trim();
+        if (text === '') {
+            return;
+        }
+
+        if (typeof Craft === 'undefined' || !Craft.cp || typeof Craft.cp.displayNotice !== 'function') {
+            return;
+        }
+
+        Craft.cp.displayNotice(text);
+    }
+
+    function displayCpError(message) {
+        const text = String(message || '').trim();
+        if (text === '') {
+            return;
+        }
+
+        if (typeof Craft === 'undefined' || !Craft.cp || typeof Craft.cp.displayError !== 'function') {
+            return;
+        }
+
+        Craft.cp.displayError(text);
+    }
+
     async function refreshReviewCardsAfterSuccessfulUpdate() {
         if (state.lastResult) {
             await renderResultReview(state.lastResult, {
@@ -1861,9 +1926,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                 scheduleTransformTerminalStatus(transformName, 'Updated', 'success', CARD_UPDATE_STATUS_CLEAR_DELAY_MS, runId);
             });
 
-            if (status?.message) {
-                Craft.cp.displayNotice(status.message);
-            }
+            displayCpNotice(status?.message);
 
             void refreshReviewCardsAfterSuccessfulUpdate()
                 .catch((error) => {
@@ -1874,9 +1937,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         }
 
         if (kind === 'error' || kind === 'conflict') {
-            if (status?.message) {
-                Craft.cp.displayError(status.message);
-            }
+            displayCpError(status?.message);
         }
 
         const terminalMessage = typeof status?.message === 'string' && status.message.trim() !== ''
@@ -1913,9 +1974,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
             scheduleTransformTerminalStatus(transformName, 'Updated', 'success', CARD_UPDATE_STATUS_CLEAR_DELAY_MS, runId);
 
-            if (status?.message) {
-                Craft.cp.displayNotice(status.message);
-            }
+            displayCpNotice(status?.message);
 
             void refreshReviewCardsAfterSuccessfulUpdate()
                 .catch((error) => {
@@ -1925,9 +1984,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         }
 
         if (kind === 'error' || kind === 'conflict') {
-            if (status?.message) {
-                Craft.cp.displayError(status.message);
-            }
+            displayCpError(status?.message);
         }
 
         const terminalMessage = typeof status?.message === 'string' && status.message.trim() !== ''
@@ -1956,6 +2013,41 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         document.addEventListener(DATASTAR_FETCH_EVENT, (event) => {
             const detail = event?.detail || {};
             const sourceElement = detail.el;
+            const eventType = String(detail.type || '').trim().toLowerCase();
+
+            const getTrackedTransformName = () => {
+                if (!sourceElement || typeof sourceElement.closest !== 'function') {
+                    return '';
+                }
+
+                const tracked = String(pendingTransformBySourceElement.get(sourceElement) || '').trim();
+                if (tracked !== '') {
+                    return tracked;
+                }
+
+                const card = sourceElement.closest('.bpts-transform-card');
+                if (!(card instanceof Element)) {
+                    return '';
+                }
+
+                return String(card.getAttribute('data-set') || '').trim();
+            };
+
+            if (eventType === 'finished') {
+                const serverStatus = getServerStatusFromEditorStatusElement();
+
+                const transformName = getTrackedTransformName();
+                if (transformName !== '') {
+                    finalizeTransformUpdateFromServerStatus(transformName, serverStatus);
+                    if (sourceElement && typeof sourceElement === 'object') {
+                        pendingTransformBySourceElement.delete(sourceElement);
+                    }
+                    return;
+                }
+
+                finalizePendingTransformUpdatesFromServerStatus(serverStatus);
+                return;
+            }
 
             if (!sourceElement || typeof sourceElement.closest !== 'function') {
                 return;
@@ -1979,6 +2071,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             if (detail.type === 'started') {
                 state.pendingTransformUpdates.add(transformName);
                 state.pendingTransformActionsByName[transformName] = action;
+                pendingTransformBySourceElement.set(sourceElement, transformName);
                 clearUpdateStatusResetTimer(transformName);
                 clearUpdateStatusTransitionTimer(transformName);
                 state.updateStatusStartedAtByTransform[transformName] = Date.now();
@@ -1987,16 +2080,14 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                 return;
             }
 
-            if (detail.type === 'finished') {
-                const serverStatus = getServerStatusFromEditorStatusElement();
-                finalizeTransformUpdateFromServerStatus(transformName, serverStatus);
-                return;
-            }
-
             if (detail.type === 'error' || detail.type === 'retries-failed') {
-                removePendingTransformUpdate(transformName);
-                const runId = getUpdateStatusRunId(transformName);
-                scheduleTransformTerminalStatus(transformName, 'Update failed', 'error', CARD_UPDATE_STATUS_ERROR_CLEAR_DELAY_MS, runId);
+                const trackedTransformName = getTrackedTransformName() || transformName;
+                if (trackedTransformName !== '') {
+                    removePendingTransformUpdate(trackedTransformName);
+                    const runId = getUpdateStatusRunId(trackedTransformName);
+                    scheduleTransformTerminalStatus(trackedTransformName, 'Update failed', 'error', CARD_UPDATE_STATUS_ERROR_CLEAR_DELAY_MS, runId);
+                }
+                pendingTransformBySourceElement.delete(sourceElement);
             }
         });
     }
@@ -2243,6 +2334,14 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
         const response = await Craft.sendActionRequest('POST', RENDER_INITIAL_REVIEW_ACTION, {
             data: {
+                result: state.lastResult && typeof state.lastResult === 'object'
+                    ? {
+                        breakpoints: Array.isArray(state.lastResult.breakpoints) ? state.lastResult.breakpoints : [],
+                        rowsByBreakpoint: state.lastResult.rowsByBreakpoint && typeof state.lastResult.rowsByBreakpoint === 'object'
+                            ? state.lastResult.rowsByBreakpoint
+                            : {},
+                    }
+                    : {},
                 editScopeBySet,
                 editTabBySet,
                 selectedAssetKeyBySet: mergedSelectedAssetKeyBySet,
@@ -2361,6 +2460,14 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
         const sourceUrl = await resolveSelectedEntryUrl();
         await ensurePreviewFrame(sourceUrl, false);
+
+        // Initial review and preview load start in parallel.
+        if (!state.lastResult) {
+            await renderInitialStoredReview({
+                preserveCardOrder: true,
+            });
+        }
+
         setStatus(successMessage);
     }
 

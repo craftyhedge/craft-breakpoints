@@ -259,6 +259,79 @@ final class ImageTransformsServiceTest extends Unit
         $this->assertSame(300, $breakpointData['primarySourceAttributes']['height']);
     }
 
+    public function testSavedSetIgnoresInitDimensionOptionsDuringGeneration(): void
+    {
+        $this->withTemporaryTransforms([
+            'saved-init-precedence' => [
+                'name' => 'saved-init-precedence',
+                'includeEscapeWidth' => false,
+                'transforms' => [
+                    [
+                        'width' => 640,
+                        'height' => 360,
+                        'enabled' => true,
+                        'autoDimension' => null,
+                    ],
+                ],
+                'config' => [],
+            ],
+        ], function(Plugin $plugin): void {
+            $service = $plugin->getImageTransforms();
+            $asset = $this->createMockAsset();
+
+            $savedNoInit = $service->getTransformedImages($asset, 'saved-init-precedence', 'primary', [
+                'transformName' => 'saved-init-precedence',
+                'breakpoints' => ['xs' => 640],
+                'escapeWidth' => 0,
+                'format' => 'jpg',
+                'secondaryFormat' => 'none',
+            ]);
+
+            $savedWithInit = $service->getTransformedImages($asset, 'saved-init-precedence', 'primary', [
+                'transformName' => 'saved-init-precedence',
+                'breakpoints' => ['xs' => 640],
+                'escapeWidth' => 0,
+                'initWidth' => 320,
+                'initHeight' => 200,
+                'initRatio' => '3:2',
+                'initWidthAuto' => true,
+                'format' => 'jpg',
+                'secondaryFormat' => 'none',
+            ]);
+
+            $this->assertSame($savedNoInit[0]['width'], $savedWithInit[0]['width']);
+            $this->assertSame($savedNoInit[0]['height'], $savedWithInit[0]['height']);
+            $this->assertSame($savedNoInit[0]['url'], $savedWithInit[0]['url']);
+        });
+    }
+
+    public function testUnsavedSetAppliesInitDimensionOptionsDuringGeneration(): void
+    {
+        $service = Plugin::getInstance()->getImageTransforms();
+        $asset = $this->createMockAsset();
+
+        $unsavedNoInit = $service->getTransformedImages($asset, 'unsaved-init-precedence', 'primary', [
+            'transformName' => 'unsaved-init-precedence',
+            'breakpoints' => ['xs' => 480],
+            'escapeWidth' => 0,
+            'format' => 'jpg',
+            'secondaryFormat' => 'none',
+        ]);
+
+        $unsavedWithInit = $service->getTransformedImages($asset, 'unsaved-init-precedence', 'primary', [
+            'transformName' => 'unsaved-init-precedence',
+            'breakpoints' => ['xs' => 480],
+            'escapeWidth' => 0,
+            'initWidth' => 320,
+            'initHeight' => 200,
+            'format' => 'jpg',
+            'secondaryFormat' => 'none',
+        ]);
+
+        $this->assertNotSame($unsavedNoInit[0]['width'], $unsavedWithInit[0]['width']);
+        $this->assertNotSame($unsavedNoInit[0]['height'], $unsavedWithInit[0]['height']);
+    }
+
     public function testSecondaryFormatUsesNamedTransformConfigAndDprSrcset(): void
     {
         $this->withTemporaryTransforms([

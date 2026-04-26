@@ -10,6 +10,95 @@ namespace craftyhedge\craftbreakpoints\services\transformeditor;
  */
 final class Support
 {
+    public static function parseNullableBool(mixed $raw): ?bool
+    {
+        if (is_bool($raw)) {
+            return $raw;
+        }
+
+        if (is_int($raw)) {
+            if ($raw === 1) {
+                return true;
+            }
+
+            if ($raw === 0) {
+                return false;
+            }
+
+            return null;
+        }
+
+        if (is_float($raw)) {
+            if (!is_finite($raw)) {
+                return null;
+            }
+
+            if ($raw === 1.0) {
+                return true;
+            }
+
+            if ($raw === 0.0) {
+                return false;
+            }
+
+            return null;
+        }
+
+        if (is_string($raw)) {
+            $normalized = strtolower(trim($raw));
+            if (in_array($normalized, ['true', '1', 'yes', 'on'], true)) {
+                return true;
+            }
+
+            if (in_array($normalized, ['false', '0', 'no', 'off'], true)) {
+                return false;
+            }
+        }
+
+        return null;
+    }
+
+    public static function parseNullablePositiveInt(mixed $raw): ?int
+    {
+        if (is_int($raw)) {
+            return $raw > 0 ? $raw : null;
+        }
+
+        if (is_float($raw)) {
+            if (!is_finite($raw) || floor($raw) !== $raw) {
+                return null;
+            }
+
+            $value = (int)$raw;
+
+            return $value > 0 ? $value : null;
+        }
+
+        if (!is_string($raw)) {
+            return null;
+        }
+
+        $normalized = trim($raw);
+        if ($normalized === '' || !ctype_digit($normalized)) {
+            return null;
+        }
+
+        $value = (int)$normalized;
+
+        return $value > 0 ? $value : null;
+    }
+
+    public static function parseNullableNonEmptyString(mixed $raw): ?string
+    {
+        if (!is_string($raw)) {
+            return null;
+        }
+
+        $trimmed = trim($raw);
+
+        return $trimmed !== '' ? $trimmed : null;
+    }
+
     public static function normalizeNullablePositiveInt(mixed $value): ?int
     {
         if ($value === null || $value === '') {
@@ -181,5 +270,4 @@ final class Support
             'fields' => [],
         ];
     }
-
 }

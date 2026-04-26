@@ -821,6 +821,40 @@
     stroke-linejoin: round;
 }
 
+.bpts-transform-init-applied-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 8px;
+    line-height: 1;
+    color: #b48a00;
+    font-size: 0.85em;
+    font-weight: 500;
+}
+
+.bpts-transform-init-applied-indicator .icon {
+    color: #b48a00;
+}
+
+.bpts-transform-init-applied-label {
+    color: #b48a00;
+}
+
+.bpts-init-value,
+input.bpts-init-value {
+    color: #b48a00;
+    border-color: #d9b84a;
+    background-color: #fffbe6;
+}
+
+input.bpts-init-value::placeholder {
+    color: #c9a64a;
+}
+
+.bpi_current-dimension.bpts-init-value {
+    color: #b48a00;
+}
+
 .bpts-breakpoint-grid.bpts-drag-scrollable {
     cursor: grab;
     -ms-overflow-style: none;

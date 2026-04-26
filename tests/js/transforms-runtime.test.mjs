@@ -1,6 +1,7 @@
 function buildRuntimeDom() {
     document.body.innerHTML = `
     <div class="bpts-transforms-page"></div>
+    <div id="bpts-editor-status" data-kind="ready" data-message=""></div>
     <input id="bpts-source-entry" value="" />
     <div id="bpts-status"></div>
     <div id="bpts-progress-host"></div>
@@ -1008,7 +1009,7 @@ describe('transforms runtime helper logic', () => {
         expect(state.preferredOrderBySet).toEqual(['hero', 'card', 'teaser']);
         expect(state.editScopeBySet.hero).toEqual({ mode: 'all', breakpoint: null });
         expect(state.editScopeBySet.card).toEqual({ mode: 'breakpoint', breakpoint: 768 });
-        expect(state.editScopeBySet.teaser).toEqual({ mode: 'unset', breakpoint: null });
+        expect(state.editScopeBySet.teaser).toEqual({ mode: 'all', breakpoint: null });
         expect(state.editTabBySet.hero).toBe('settings');
         expect(state.editTabBySet.card).toBe('ratio');
         expect(state.editTabBySet.teaser).toBe('dimensions');
@@ -1355,7 +1356,7 @@ describe('transforms runtime helper logic', () => {
             .toContain('Processing cancelled. No partial results were published.');
     });
 
-    it('updates transform status through datastar started and success signal events', async () => {
+    it('updates transform status when finished arrives after card replacement', async () => {
         vi.useFakeTimers();
 
         const visualResults = document.getElementById('bpts-visual-results');
@@ -1392,13 +1393,23 @@ describe('transforms runtime helper logic', () => {
         expect(statusElement.getAttribute('data-state')).toBe('pending');
         expect(labelElement.textContent).toBe('Saving...');
 
+        // Simulate server patch replacing the card before datastar emits "finished".
+        visualResults.innerHTML = `
+            <article class="bpts-transform-card" data-set="hero">
+                <div data-role="transform-update-status" data-state="idle" aria-label="">
+                    <span data-role="transform-update-status-label"></span>
+                </div>
+            </article>
+        `;
+
+        const editorStatus = document.getElementById('bpts-editor-status');
+        editorStatus.dataset.kind = 'success';
+        editorStatus.dataset.message = 'Saved';
+
         document.dispatchEvent(new CustomEvent('datastar-fetch', {
             detail: {
-                type: 'datastar-patch-signals',
+                type: 'finished',
                 el: trigger,
-                argsRaw: {
-                    signals: JSON.stringify({ editor: { serverStatus: { kind: 'success' } } }),
-                },
             },
         }));
 

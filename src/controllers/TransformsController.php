@@ -6,6 +6,7 @@ use Craft;
 use craft\helpers\Json;
 use craft\web\Controller;
 use craftyhedge\craftbreakpoints\Plugin;
+use craftyhedge\craftbreakpoints\services\transformeditor\Support;
 use starfederation\datastar\events\PatchElements;
 use starfederation\datastar\events\PatchSignals;
 use starfederation\datastar\ServerSentEventGenerator;
@@ -152,21 +153,21 @@ class TransformsController extends Controller
         $ratioHeightRaw = $this->request->getBodyParam('ratioHeight');
         $ratioSourceDimensionRaw = $this->request->getBodyParam('ratioSourceDimension');
         $draftByBreakpointRaw = $this->request->getBodyParam('draftByBreakpoint', []);
-        $baseVersion = $this->resolveBaseVersion(Plugin::getInstance()->getTransformStore()->getCurrentVersion());
+        $baseVersion = Plugin::getInstance()->getTransformStore()->getCurrentVersion();
 
-        $includeEscapeWidth = $this->parseNullableBool($includeEscapeWidthRaw);
-        $scopeBreakpoint = $this->parseNullablePositiveInt($scopeBreakpointRaw);
-        $value = $this->parseNullablePositiveInt($valueRaw);
-        $width = $this->parseNullablePositiveInt($widthRaw);
-        $height = $this->parseNullablePositiveInt($heightRaw);
-        $widthAuto = $this->parseNullableBool($widthAutoRaw);
-        $heightAuto = $this->parseNullableBool($heightAutoRaw);
-        $forceAll = $this->parseNullableBool($this->request->getBodyParam('forceAll')) === true;
-        $clearAuto = $this->parseNullableBool($this->request->getBodyParam('clearAuto')) === true;
-        $ratioWidth = $this->parseNullablePositiveInt($ratioWidthRaw);
-        $ratioHeight = $this->parseNullablePositiveInt($ratioHeightRaw);
-        $ratioSourceDimension = $this->parseNullableNonEmptyString($ratioSourceDimensionRaw);
-        $enabled = $this->parseNullableBool($this->request->getBodyParam('enabled'));
+        $includeEscapeWidth = Support::parseNullableBool($includeEscapeWidthRaw);
+        $scopeBreakpoint = Support::parseNullablePositiveInt($scopeBreakpointRaw);
+        $value = Support::parseNullablePositiveInt($valueRaw);
+        $width = Support::parseNullablePositiveInt($widthRaw);
+        $height = Support::parseNullablePositiveInt($heightRaw);
+        $widthAuto = Support::parseNullableBool($widthAutoRaw);
+        $heightAuto = Support::parseNullableBool($heightAutoRaw);
+        $forceAll = Support::parseNullableBool($this->request->getBodyParam('forceAll')) === true;
+        $clearAuto = Support::parseNullableBool($this->request->getBodyParam('clearAuto')) === true;
+        $ratioWidth = Support::parseNullablePositiveInt($ratioWidthRaw);
+        $ratioHeight = Support::parseNullablePositiveInt($ratioHeightRaw);
+        $ratioSourceDimension = Support::parseNullableNonEmptyString($ratioSourceDimensionRaw);
+        $enabled = Support::parseNullableBool($this->request->getBodyParam('enabled'));
         $draftByBreakpoint = is_array($draftByBreakpointRaw) ? $draftByBreakpointRaw : [];
 
         if ($field === 'renderedValues') {
@@ -253,14 +254,13 @@ class TransformsController extends Controller
         $persisted = ($operationResult['persisted'] ?? false) === true;
         $conflict = ($operationResult['conflict'] ?? false) === true;
         $draftOnly = ($operationResult['draftOnly'] ?? false) === true;
-        $currentVersion = (string)($operationResult['currentVersion'] ?? $baseVersion);
         $statusMessage = $this->buildOperationStatusMessage($field, $persisted, $conflict, $operationResult);
         $statusKind = $conflict ? 'conflict' : ($persisted ? 'success' : ($draftOnly ? 'draft' : 'error'));
 
         $events = [];
         $shouldPatchCard = $persisted || $conflict;
         if ($shouldPatchCard) {
-            $cardMarkup = $editor->renderCardFragment($setName);
+            $cardMarkup = $editor->renderCardFragment($setName, $draftByBreakpoint);
             $cardId = $this->buildCardDomId($setName);
             if ($cardMarkup !== '') {
                 $events[] = new PatchElements($cardMarkup);
@@ -272,44 +272,18 @@ class TransformsController extends Controller
             }
         }
 
-        $signalsPatch = [
-            'editor' => [
-                'baseVersion' => $currentVersion,
-            ],
-        ];
-
         if ($persisted && $setName !== '') {
             $signalKey = $this->buildCardSignalKey($setName);
             if ($signalKey !== '') {
                 if ($field === 'deleteSet') {
-                    $signalsPatch['editor']['cards'] = [
-                        $signalKey => null,
-                    ];
-
                     $events[] = new PatchElements($this->renderEditorStatusFragment($statusKind, $statusMessage));
-                    $events[] = new PatchSignals($signalsPatch);
 
                     return $this->asDatastarEventStream($events);
                 }
-
-                $cardSignalsPatch = [
-                    'draftByBreakpoint' => (object)[],
-                    'widthInput' => '',
-                    'heightInput' => '',
-                    'ratioWidthInput' => '',
-                    'ratioHeightInput' => '',
-                    'ratioFloatInput' => '',
-                    'ratioLocked' => '0',
-                ];
-
-                $signalsPatch['editor']['cards'] = [
-                    $signalKey => $cardSignalsPatch,
-                ];
             }
         }
 
         $events[] = new PatchElements($this->renderEditorStatusFragment($statusKind, $statusMessage));
-        $events[] = new PatchSignals($signalsPatch);
 
         return $this->asDatastarEventStream($events);
     }
@@ -325,6 +299,7 @@ class TransformsController extends Controller
         $editTabBySet = $this->readBodyArrayParam('editTabBySet');
         $selectedAssetKeyBySet = $this->readBodyArrayParam('selectedAssetKeyBySet');
         $preferredOrderBySet = $this->readBodyArrayParam('preferredOrderBySet');
+        $draftByBreakpointBySet = $this->readBodyArrayParam('draftByBreakpointBySet');
 
         $rendered = $editor->renderResultReview(
             $result,
@@ -332,6 +307,7 @@ class TransformsController extends Controller
             $editTabBySet,
             $selectedAssetKeyBySet,
             $preferredOrderBySet,
+            $draftByBreakpointBySet,
         );
 
         return $this->asJson($rendered);
@@ -343,16 +319,20 @@ class TransformsController extends Controller
         $this->requirePostRequest();
 
         $editor = Plugin::getInstance()->getTransformEditor();
+        $result = $this->readBodyArrayParam('result');
         $editScopeBySet = $this->readBodyArrayParam('editScopeBySet');
         $editTabBySet = $this->readBodyArrayParam('editTabBySet');
         $selectedAssetKeyBySet = $this->readBodyArrayParam('selectedAssetKeyBySet');
         $preferredOrderBySet = $this->readBodyArrayParam('preferredOrderBySet');
+        $draftByBreakpointBySet = $this->readBodyArrayParam('draftByBreakpointBySet');
 
         $rendered = $editor->renderInitialStoredReview(
             $editScopeBySet,
             $editTabBySet,
             $selectedAssetKeyBySet,
             $preferredOrderBySet,
+            $draftByBreakpointBySet,
+            $result,
         );
 
         return $this->asJson($rendered);
@@ -511,91 +491,6 @@ class TransformsController extends Controller
             'width', 'height', 'dimensions', 'ratio', 'breakpointEnabled', 'passHeightWhenRenderedLteSaved', 'allowAnyHeight', 'renderedValues', 'deleteSet' => $field,
             default => 'width',
         };
-    }
-
-    private function parseNullableBool(mixed $raw): ?bool
-    {
-        if (is_bool($raw)) {
-            return $raw;
-        }
-
-        if (is_int($raw)) {
-            if ($raw === 1) {
-                return true;
-            }
-
-            if ($raw === 0) {
-                return false;
-            }
-
-            return null;
-        }
-
-        if (is_float($raw)) {
-            if ($raw === 1.0) {
-                return true;
-            }
-
-            if ($raw === 0.0) {
-                return false;
-            }
-
-            return null;
-        }
-
-        if (is_string($raw)) {
-            $normalized = strtolower(trim($raw));
-            if ($normalized === 'true' || $normalized === '1') {
-                return true;
-            }
-
-            if ($normalized === 'false' || $normalized === '0') {
-                return false;
-            }
-        }
-
-        return null;
-    }
-
-    private function parseNullablePositiveInt(mixed $raw): ?int
-    {
-        if (is_int($raw)) {
-            return $raw > 0 ? $raw : null;
-        }
-
-        if (is_float($raw)) {
-            if (!is_finite($raw) || floor($raw) !== $raw) {
-                return null;
-            }
-
-            $value = (int)$raw;
-
-            return $value > 0 ? $value : null;
-        }
-
-        if (!is_string($raw)) {
-            return null;
-        }
-
-        $normalized = trim($raw);
-        if ($normalized === '' || !ctype_digit($normalized)) {
-            return null;
-        }
-
-        $value = (int)$normalized;
-
-        return $value > 0 ? $value : null;
-    }
-
-    private function parseNullableNonEmptyString(mixed $raw): ?string
-    {
-        if (!is_string($raw)) {
-            return null;
-        }
-
-        $trimmed = trim($raw);
-
-        return $trimmed !== '' ? $trimmed : null;
     }
 
     private function buildOperationStatusMessage(string $field, bool $persisted, bool $conflict, array $operationResult = []): string

@@ -15,6 +15,11 @@ class Install extends Migration
                 'sourceElementId' => $this->integer()->null()->defaultValue(null),
                 'sourceUrl' => $this->string(255)->null()->defaultValue(null),
                 'lastSeenAt' => $this->dateTime()->notNull(),
+                'initWidth' => $this->integer()->null()->defaultValue(null),
+                'initHeight' => $this->integer()->null()->defaultValue(null),
+                'initRatio' => $this->string(32)->null()->defaultValue(null),
+                'initWidthAuto' => $this->boolean()->null()->defaultValue(null),
+                'initHeightAuto' => $this->boolean()->null()->defaultValue(null),
                 'dateCreated' => $this->dateTime()->notNull(),
                 'dateUpdated' => $this->dateTime()->notNull(),
             ]);

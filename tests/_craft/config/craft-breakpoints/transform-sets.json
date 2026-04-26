@@ -1,5 +1,5 @@
 {
-    "version": "2026-04-25T08:15:39.424576Z",
+    "version": "2026-04-26T08:32:13.470861Z",
     "sets": {
         "hero": {
             "name": "hero",
@@ -8,7 +8,7 @@
                 "xs": {
                     "width": null,
                     "height": null,
-                    "enabled": true,
+                    "enabled": false,
                     "autoDimension": null,
                     "ratioWidth": null,
                     "ratioHeight": null,
@@ -28,7 +28,7 @@
                 "md": {
                     "width": null,
                     "height": null,
-                    "enabled": true,
+                    "enabled": false,
                     "autoDimension": null,
                     "ratioWidth": null,
                     "ratioHeight": null,
@@ -38,7 +38,7 @@
                 "lg": {
                     "width": null,
                     "height": null,
-                    "enabled": true,
+                    "enabled": false,
                     "autoDimension": null,
                     "ratioWidth": null,
                     "ratioHeight": null,
@@ -48,7 +48,7 @@
                 "xl": {
                     "width": null,
                     "height": null,
-                    "enabled": true,
+                    "enabled": false,
                     "autoDimension": null,
                     "ratioWidth": null,
                     "ratioHeight": null,
@@ -58,7 +58,7 @@
                 "2xl": {
                     "width": null,
                     "height": null,
-                    "enabled": true,
+                    "enabled": false,
                     "autoDimension": null,
                     "ratioWidth": null,
                     "ratioHeight": null,
@@ -70,7 +70,7 @@
                 "passHeightWhenRenderedLteSaved": true,
                 "allowAnyHeight": false
             },
-            "lastUpdatedAt": "2026-04-25T08:15:39+00:00"
+            "lastUpdatedAt": "2026-04-26T08:32:13+00:00"
         }
     }
 }

@@ -381,6 +381,7 @@ class TransformEditor extends Component
         array $editTabBySet = [],
         array $selectedAssetKeyBySet = [],
         array $preferredOrderBySet = [],
+        array $draftByBreakpointBySet = [],
         bool $hideRenderedApply = false,
         bool $hideAssetPagination = false,
         string $reviewMode = self::REVIEW_MODE_PROCESSED,
@@ -403,6 +404,7 @@ class TransformEditor extends Component
             $editTabBySet,
             $selectedAssetKeyBySet,
             $preferredOrderBySet,
+            $draftByBreakpointBySet,
             $hideRenderedApply,
             $hideAssetPagination,
             $reviewMode,
@@ -414,6 +416,8 @@ class TransformEditor extends Component
         array $editTabBySet = [],
         array $selectedAssetKeyBySet = [],
         array $preferredOrderBySet = [],
+        array $draftByBreakpointBySet = [],
+        array $result = [],
     ): array {
         if ($this->_reviewRenderer === null) {
             return [
@@ -432,11 +436,15 @@ class TransformEditor extends Component
             $editTabBySet,
             $selectedAssetKeyBySet,
             $preferredOrderBySet,
+            $draftByBreakpointBySet,
+            null,
+            $result,
         );
     }
 
     public function renderCardFragment(
         string $setName,
+        array $draftByBreakpoint = [],
         array $editScopeBySet = [],
         array $editTabBySet = [],
         array $selectedAssetKeyBySet = [],
@@ -447,6 +455,7 @@ class TransformEditor extends Component
 
         return $this->_reviewRenderer->renderCardFragment(
             $setName,
+            $draftByBreakpoint,
             $editScopeBySet,
             $editTabBySet,
             $selectedAssetKeyBySet,

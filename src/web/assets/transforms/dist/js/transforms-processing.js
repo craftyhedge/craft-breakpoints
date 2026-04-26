@@ -880,6 +880,11 @@ export function toPositiveIntOrNull(value) {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
+export function toPositiveFloatOrNull(value) {
+    const parsed = Number.parseFloat(String(value ?? '').trim());
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
 export function extractRowsForBreakpoint({
     breakpoint,
     frameDocument,
@@ -890,6 +895,7 @@ export function extractRowsForBreakpoint({
     deriveSource,
     isLikelyBroken,
     toPositiveIntOrNullFn = toPositiveIntOrNull,
+    toPositiveFloatOrNullFn = toPositiveFloatOrNull,
 }) {
     const images = Array.from(frameDocument.querySelectorAll('picture[data-set] img'));
 

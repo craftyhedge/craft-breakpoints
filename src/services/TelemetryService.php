@@ -70,7 +70,7 @@ class TelemetryService extends Component
         return $configService->allowTransformEditing();
     }
 
-    public function recordUsage(string $transformHandle): void
+    public function recordUsage(string $transformHandle, ?InitOptions $initOptions = null): void
     {
         if (!$this->canWriteTelemetry()) {
             return;
@@ -103,13 +103,13 @@ class TelemetryService extends Component
             }
 
             $this->_seenHandles[$handle] = true;
-            $this->upsertUsage($handle, $sourceElementId, $sourceUrl);
+            $this->upsertUsage($handle, $sourceElementId, $sourceUrl, $initOptions);
 
             return;
         }
 
         // Queue/console runtimes have no web request lifecycle; write immediately.
-        $this->upsertUsage($handle, $sourceElementId, $sourceUrl);
+        $this->upsertUsage($handle, $sourceElementId, $sourceUrl, $initOptions);
     }
 
     private function isProcessingIframeRequest(): bool
@@ -145,7 +145,7 @@ class TelemetryService extends Component
         $this->_seenHandles = [];
     }
 
-    private function upsertUsage(string $handle, ?int $sourceElementId, ?string $sourceUrl): void
+    private function upsertUsage(string $handle, ?int $sourceElementId, ?string $sourceUrl, ?InitOptions $initOptions = null): void
     {
         $now = Db::prepareDateForDb(new \DateTime());
         $normalizedSourceUrl = $sourceUrl;
@@ -153,13 +153,38 @@ class TelemetryService extends Component
             $normalizedSourceUrl = mb_substr($normalizedSourceUrl, 0, self::SOURCE_URL_MAX_LENGTH);
         }
 
+        $row = [
+            'transformHandle' => $handle,
+            'sourceElementId' => $sourceElementId,
+            'sourceUrl' => $normalizedSourceUrl,
+            'lastSeenAt' => $now,
+            'initWidth' => null,
+            'initHeight' => null,
+            'initRatio' => null,
+            'initWidthAuto' => null,
+            'initHeightAuto' => null,
+        ];
+
+        if ($initOptions !== null) {
+            $hasAnyInit = $initOptions->width !== null
+                || $initOptions->height !== null
+                || $initOptions->ratio !== null
+                || $initOptions->widthAuto
+                || $initOptions->heightAuto;
+
+            if ($hasAnyInit) {
+                $row['initWidth'] = $initOptions->width;
+                $row['initHeight'] = $initOptions->height;
+                $row['initRatio'] = $initOptions->ratio !== null
+                    ? ($initOptions->ratioRaw ?? rtrim(rtrim(number_format($initOptions->ratio, 8, '.', ''), '0'), '.'))
+                    : null;
+                $row['initWidthAuto'] = $initOptions->widthAuto ? 1 : 0;
+                $row['initHeightAuto'] = $initOptions->heightAuto ? 1 : 0;
+            }
+        }
+
         try {
-            Db::upsert('{{%bpi_transform_last_processed}}', [
-                'transformHandle' => $handle,
-                'sourceElementId' => $sourceElementId,
-                'sourceUrl' => $normalizedSourceUrl,
-                'lastSeenAt' => $now,
-            ]);
+            Db::upsert('{{%bpi_transform_last_processed}}', $row);
         } catch (\Throwable $e) {
             Plugin::warning('Telemetry write failed for handle "' . $handle . '": ' . $e->getMessage());
         }
@@ -180,15 +205,25 @@ class TelemetryService extends Component
 
     /**
      * Returns one row per observed transform handle, carrying the most-recently
-     * observed entry reference for that handle.
+     * observed entry reference and persisted init options for that handle.
      *
-     * @return array<string, array{handle: string, entryId: ?int, sourceUrl: ?string, lastSeenAt: string}>
+     * @return array<string, array{handle: string, entryId: ?int, sourceUrl: ?string, lastSeenAt: string, initWidth: ?int, initHeight: ?int, initRatio: ?string, initWidthAuto: ?bool, initHeightAuto: ?bool}>
      */
     public function getMostRecentByHandle(): array
     {
         try {
             $rows = (new Query())
-                ->select(['transformHandle', 'sourceElementId', 'sourceUrl', 'lastSeenAt'])
+                ->select([
+                    'transformHandle',
+                    'sourceElementId',
+                    'sourceUrl',
+                    'lastSeenAt',
+                    'initWidth',
+                    'initHeight',
+                    'initRatio',
+                    'initWidthAuto',
+                    'initHeightAuto',
+                ])
                 ->from('{{%bpi_transform_last_processed}}')
                 ->orderBy(['lastSeenAt' => SORT_DESC])
                 ->all();
@@ -205,11 +240,22 @@ class TelemetryService extends Component
             }
 
             $entryId = $row['sourceElementId'] ?? null;
+            $initWidth = $row['initWidth'] ?? null;
+            $initHeight = $row['initHeight'] ?? null;
+            $initRatio = $row['initRatio'] ?? null;
+            $initWidthAuto = $row['initWidthAuto'] ?? null;
+            $initHeightAuto = $row['initHeightAuto'] ?? null;
+
             $byHandle[$handle] = [
                 'handle' => $handle,
                 'entryId' => $entryId !== null ? (int)$entryId : null,
                 'sourceUrl' => isset($row['sourceUrl']) ? (string)$row['sourceUrl'] : null,
                 'lastSeenAt' => (string)($row['lastSeenAt'] ?? ''),
+                'initWidth' => $initWidth !== null && $initWidth !== '' ? (int)$initWidth : null,
+                'initHeight' => $initHeight !== null && $initHeight !== '' ? (int)$initHeight : null,
+                'initRatio' => $initRatio !== null && $initRatio !== '' ? (string)$initRatio : null,
+                'initWidthAuto' => $initWidthAuto === null || $initWidthAuto === '' ? null : ((int)$initWidthAuto === 1),
+                'initHeightAuto' => $initHeightAuto === null || $initHeightAuto === '' ? null : ((int)$initHeightAuto === 1),
             ];
         }
 
@@ -219,10 +265,10 @@ class TelemetryService extends Component
     /**
      * Returns one row per observed transform handle whose handle is not present
      * in $configuredHandles. The row carries the most-recently observed entry
-     * reference for that handle.
+     * reference and persisted init options for that handle.
      *
      * @param array<int, string> $configuredHandles
-     * @return array<int, array{handle: string, entryId: ?int, sourceUrl: ?string, lastSeenAt: string}>
+     * @return array<int, array{handle: string, entryId: ?int, sourceUrl: ?string, lastSeenAt: string, initWidth: ?int, initHeight: ?int, initRatio: ?string, initWidthAuto: ?bool, initHeightAuto: ?bool}>
      */
     public function getObservedUnsavedHandles(array $configuredHandles): array
     {

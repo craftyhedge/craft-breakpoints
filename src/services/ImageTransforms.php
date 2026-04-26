@@ -46,10 +46,11 @@ class ImageTransforms extends Component
         $breakpointNames = array_keys($allBreakpoints);
         $breakpointName = $breakpointNames[$loopIndex] ?? null;
         $namedSet = $this->getNamedSet($config);
+        $initOptions = InitOptions::fromConfig($config, $namedSet !== null);
         $variant = $breakpointName !== null
             ? $this->getVariantByBreakpointName($namedSet, (string)$breakpointName)
             : null;
-        $autoDimension = $this->resolveAutoDimension($variant, $config);
+        $autoDimension = $this->resolveAutoDimension($variant, $initOptions);
 
         if ($this->_plugin->getBreakpointPolicy()->isBreakpointDisabled($breakpointName, $config)) {
             $sourceMediaQuery = $this->getDisabledMediaQuery($breakpoint);
@@ -64,7 +65,7 @@ class ImageTransforms extends Component
                 $variant,
                 null,
                 $autoDimension,
-                'bpi_first-source-set'
+                'bpi_first-source-set',
             ));
 
             if ($sourceMediaQuery !== '') {
@@ -85,7 +86,7 @@ class ImageTransforms extends Component
                     $variant,
                     null,
                     $autoDimension,
-                    'bpi_secondary-source-set'
+                    'bpi_secondary-source-set',
                 ));
 
                 if ($sourceMediaQuery !== '') {
@@ -146,7 +147,7 @@ class ImageTransforms extends Component
             $variant,
             $primary,
             $autoDimension,
-            'bpi_first-source-set'
+            'bpi_first-source-set',
         ));
 
         if ($mediaQuery !== '') {
@@ -166,7 +167,7 @@ class ImageTransforms extends Component
                 $variant,
                 $secondary,
                 $autoDimension,
-                'bpi_secondary-source-set'
+                'bpi_secondary-source-set',
             ));
 
             if ($mediaQuery !== '') {
@@ -264,7 +265,10 @@ class ImageTransforms extends Component
             throw new \InvalidArgumentException('A non-empty set name is required.');
         }
 
-        $this->_plugin->getTelemetry()->recordUsage($setName);
+        $namedSet = $this->getNamedSet($config);
+        $initOptions = InitOptions::fromConfig($config, $namedSet !== null);
+
+        $this->_plugin->getTelemetry()->recordUsage($setName, $initOptions);
 
         $config['setName'] = $setName;
 
@@ -275,7 +279,6 @@ class ImageTransforms extends Component
 
         $mergedConfig = $this->_plugin->getConfigService()->getConfig($config);
         $breakpoints = $this->_plugin->getBreakpointPolicy()->getBreakpointsForSet($config, $mergedConfig);
-        $namedSet = $this->getNamedSet($config);
         $namedSetConfig = $this->getNamedSetConfig($namedSet);
 
         $primaryFormat = $this->normalizeTargetFormat(
@@ -312,8 +315,8 @@ class ImageTransforms extends Component
         }
 
         $aspectRatio = $sourceWidth / max($sourceHeight, 1);
-        $initWidth = $this->normalizePositiveInt($config['initWidth'] ?? null);
-        $initHeight = $this->normalizePositiveInt($config['initHeight'] ?? null);
+        $initWidth = $initOptions->width;
+        $initHeight = $initOptions->height;
 
         $transformed = [];
 
@@ -361,7 +364,7 @@ class ImageTransforms extends Component
                 $targetHeight = (int)round($targetWidth / $aspectRatio);
             }
 
-            $autoDimension = $this->resolveAutoDimension($namedSetVariant, $config);
+            $autoDimension = $this->resolveAutoDimension($namedSetVariant, $initOptions);
 
             $transformWidth = $targetWidth;
             $transformHeight = $targetHeight;
@@ -433,7 +436,7 @@ class ImageTransforms extends Component
         return $transformed;
     }
 
-    private function resolveAutoDimension(?array $namedSetVariant, array $config): ?string
+    private function resolveAutoDimension(?array $namedSetVariant, InitOptions $initOptions): ?string
     {
         if ($namedSetVariant !== null && isset($namedSetVariant['autoDimension'])) {
             $autoDimension = $namedSetVariant['autoDimension'];
@@ -444,37 +447,15 @@ class ImageTransforms extends Component
             return null;
         }
 
-        if (($config['widthAuto'] ?? false) === true) {
+        if ($initOptions->widthAuto) {
             return 'width';
         }
 
-        if (($config['heightAuto'] ?? false) === true) {
+        if ($initOptions->heightAuto) {
             return 'height';
-        }
-
-        $initWidth = $this->normalizePositiveInt($config['initWidth'] ?? null);
-        $initHeight = $this->normalizePositiveInt($config['initHeight'] ?? null);
-
-        if ($initWidth !== null && $initHeight === null) {
-            return 'height';
-        }
-
-        if ($initHeight !== null && $initWidth === null) {
-            return 'width';
         }
 
         return null;
-    }
-
-    private function normalizePositiveInt(mixed $value): ?int
-    {
-        if (!is_numeric($value)) {
-            return null;
-        }
-
-        $parsed = (int)$value;
-
-        return $parsed > 0 ? $parsed : null;
     }
 
     private function normalizeTargetFormat(string $format, string $fallback): string
@@ -655,7 +636,7 @@ class ImageTransforms extends Component
         ?array $variant,
         ?array $fallbackTransform,
         ?string $autoDimension,
-        string $className
+        string $className,
     ): array {
         $explicitWidth = isset($variant['width']) && is_numeric($variant['width'])
             ? (int)$variant['width']

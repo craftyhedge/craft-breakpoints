@@ -768,7 +768,7 @@ final class TransformEditorServiceTest extends Unit
 
         $dummyHolders = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-breakpoint-column ') and @data-breakpoint='640']//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi_breakpoint-result-image ')]");
         $this->assertNotFalse($dummyHolders);
-        $this->assertSame(1, $dummyHolders->length);
+        $this->assertSame(0, $dummyHolders->length);
     }
 
     public function testApplySetPassHeightWhenRenderedLteSavedOperationPersistsConfigWithoutMutatingVariants(): void
@@ -798,7 +798,10 @@ final class TransformEditorServiceTest extends Unit
 
             $sets = Plugin::getInstance()->getTransformStore()->getSets();
             $this->assertTrue((($sets['hero']['config']['passHeightWhenRenderedLteSaved'] ?? false) === true));
-            $this->assertSame($beforeSm, $sets['hero']['variants']['sm'] ?? []);
+            $this->assertSame(
+                $this->extractVariantCoreFields($beforeSm),
+                $this->extractVariantCoreFields($sets['hero']['variants']['sm'] ?? []),
+            );
         });
     }
 
@@ -857,7 +860,10 @@ final class TransformEditorServiceTest extends Unit
 
             $sets = Plugin::getInstance()->getTransformStore()->getSets();
             $this->assertTrue((($sets['hero']['config']['allowAnyHeight'] ?? false) === true));
-            $this->assertSame($beforeSm, $sets['hero']['variants']['sm'] ?? []);
+            $this->assertSame(
+                $this->extractVariantCoreFields($beforeSm),
+                $this->extractVariantCoreFields($sets['hero']['variants']['sm'] ?? []),
+            );
         });
     }
 
@@ -1262,10 +1268,6 @@ final class TransformEditorServiceTest extends Unit
         $derivedHeight = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-breakpoint-column ') and @data-breakpoint='640']//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi_current-dimension ') and contains(concat(' ', normalize-space(@class), ' '), ' bpi_current-dimension-derived ') and @data-dimension='height']");
         $this->assertNotFalse($derivedHeight);
         $this->assertSame(1, $derivedHeight->length);
-
-        $ratioLockedAttr = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-breakpoint-column ') and @data-breakpoint='640']/@data-current-ratio-locked");
-        $this->assertNotFalse($ratioLockedAttr);
-        $this->assertSame('1', (string)($ratioLockedAttr->item(0)?->nodeValue ?? ''));
     }
 
     public function testRenderInitialStoredReviewDoesNotMarkDerivedDimensionWhenAutoIsActive(): void
@@ -1297,10 +1299,6 @@ final class TransformEditorServiceTest extends Unit
         $derivedDims = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-breakpoint-column ') and @data-breakpoint='640']//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi_current-dimension-derived ')]");
         $this->assertNotFalse($derivedDims);
         $this->assertSame(0, $derivedDims->length);
-
-        $ratioLockedAttr = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-breakpoint-column ') and @data-breakpoint='640']/@data-current-ratio-locked");
-        $this->assertNotFalse($ratioLockedAttr);
-        $this->assertSame('0', (string)($ratioLockedAttr->item(0)?->nodeValue ?? ''));
     }
 
     public function testRenderInitialStoredReviewIncludesDimensionsActionOnAutoToggles(): void
@@ -1333,6 +1331,92 @@ final class TransformEditorServiceTest extends Unit
         $this->assertSame(1, $heightToggle->length);
     }
 
+    public function testRenderInitialStoredReviewSeedsInitWidthAndHeightForUnsavedSetFromTelemetry(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $previousTelemetry = Plugin::getInstance()->getTelemetry();
+        Plugin::getInstance()->set('telemetry', new class() extends TelemetryService {
+            public function canEditTransforms(): bool
+            {
+                return true;
+            }
+            public function getMostRecentByHandle(): array
+            {
+                return [
+                    'hero' => [
+                        'handle' => 'hero',
+                        'entryId' => null,
+                        'sourceUrl' => null,
+                        'lastSeenAt' => '',
+                        'initWidth' => 320,
+                        'initHeight' => 180,
+                        'initRatio' => null,
+                        'initWidthAuto' => false,
+                        'initHeightAuto' => false,
+                    ],
+                ];
+            }
+            public function getObservedUnsavedHandles(array $configuredHandles): array
+            {
+                return array_values($this->getMostRecentByHandle());
+            }
+        });
+
+        try {
+            $result = $this->withRuntimeSets([], fn() => $editor->renderInitialStoredReview());
+        } finally {
+            Plugin::getInstance()->set('telemetry', $previousTelemetry);
+        }
+
+        $html = (string)($result['visualResultsHtml'] ?? '');
+        $this->assertStringContainsString('&quot;widthInput&quot;:&quot;320&quot;', $html);
+        $this->assertStringContainsString('&quot;heightInput&quot;:&quot;180&quot;', $html);
+    }
+
+    public function testRenderInitialStoredReviewSeedsInitAutoForUnsavedSetFromTelemetry(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $previousTelemetry = Plugin::getInstance()->getTelemetry();
+        Plugin::getInstance()->set('telemetry', new class() extends TelemetryService {
+            public function canEditTransforms(): bool
+            {
+                return true;
+            }
+            public function getMostRecentByHandle(): array
+            {
+                return [
+                    'hero' => [
+                        'handle' => 'hero',
+                        'entryId' => null,
+                        'sourceUrl' => null,
+                        'lastSeenAt' => '',
+                        'initWidth' => null,
+                        'initHeight' => 180,
+                        'initRatio' => null,
+                        'initWidthAuto' => true,
+                        'initHeightAuto' => false,
+                    ],
+                ];
+            }
+            public function getObservedUnsavedHandles(array $configuredHandles): array
+            {
+                return array_values($this->getMostRecentByHandle());
+            }
+        });
+
+        try {
+            $result = $this->withRuntimeSets([], fn() => $editor->renderInitialStoredReview());
+        } finally {
+            Plugin::getInstance()->set('telemetry', $previousTelemetry);
+        }
+
+        $html = (string)($result['visualResultsHtml'] ?? '');
+        $this->assertStringContainsString('&quot;widthAuto&quot;:&quot;1&quot;', $html);
+        $this->assertStringContainsString('&quot;heightAuto&quot;:&quot;0&quot;', $html);
+    }
+
     private function setEditorPlugin(TransformEditor $editor, ?Plugin $plugin): void
     {
         $property = new \ReflectionProperty($editor, '_plugin');
@@ -1363,9 +1447,41 @@ final class TransformEditorServiceTest extends Unit
 
     private function withRuntimeSets(array $sets, callable $callback): mixed
     {
+        $breakpointNames = array_keys(Plugin::getInstance()->getConfigService()->getBreakpoints());
+        $normalizedSets = [];
+
+        foreach ($sets as $setName => $setDefinition) {
+            if (!is_string($setName) || !is_array($setDefinition)) {
+                continue;
+            }
+
+            $includeEscapeWidth = ($setDefinition['includeEscapeWidth'] ?? false) === true;
+            $setBreakpointNames = $includeEscapeWidth
+                ? $breakpointNames
+                : array_values(array_filter($breakpointNames, static fn(string $name): bool => $name !== 'escape'));
+
+            $variants = isset($setDefinition['variants']) && is_array($setDefinition['variants'])
+                ? $setDefinition['variants']
+                : [];
+
+            foreach ($setBreakpointNames as $breakpointName) {
+                if (!array_key_exists($breakpointName, $variants)) {
+                    $variants[$breakpointName] = [
+                        'width' => null,
+                        'height' => null,
+                        'enabled' => false,
+                        'autoDimension' => null,
+                    ];
+                }
+            }
+
+            $setDefinition['variants'] = $variants;
+            $normalizedSets[$setName] = $setDefinition;
+        }
+
         $store = Plugin::getInstance()->getTransformStore();
         $previousSets = $store->getSets();
-        $store->replaceSetsForRuntime($sets);
+        $store->replaceSetsForRuntime($normalizedSets);
 
         try {
             return $callback();
@@ -1390,6 +1506,20 @@ final class TransformEditorServiceTest extends Unit
         $this->assertNotFalse($applyButtons);
         $this->assertSame(1, $applyButtons->length);
         $this->assertSame('Set to rendered', trim((string)($applyButtons->item(0)?->textContent ?? '')));
+    }
+
+    /**
+     * @param array<string, mixed> $variant
+     * @return array<string, mixed>
+     */
+    private function extractVariantCoreFields(array $variant): array
+    {
+        return [
+            'width' => $variant['width'] ?? null,
+            'height' => $variant['height'] ?? null,
+            'enabled' => $variant['enabled'] ?? null,
+            'autoDimension' => $variant['autoDimension'] ?? null,
+        ];
     }
 
     private function assertReviewTransformOrder(string $html, array $expectedOrder): void

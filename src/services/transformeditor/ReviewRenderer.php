@@ -16,6 +16,15 @@ final class ReviewRenderer
 {
     private const REVIEW_MODE_PROCESSED = 'processed';
     private const REVIEW_MODE_SAVED = 'saved';
+    private readonly CardStateBuilder $cardStateBuilder;
+
+    /**
+     * Per-render cache of telemetry init options keyed by transform handle.
+     * Reset on each public render entry point.
+     *
+     * @var array<string, array{handle: string, entryId: ?int, sourceUrl: ?string, lastSeenAt: string, initWidth: ?int, initHeight: ?int, initRatio: ?string, initWidthAuto: ?bool, initHeightAuto: ?bool}>|null
+     */
+    private ?array $telemetryInitByHandleCache = null;
 
     public function __construct(
         private readonly Plugin $plugin,
@@ -23,6 +32,7 @@ final class ReviewRenderer
         private readonly HealthAnalyzer $healthAnalyzer,
         private readonly ReviewWarningsBuilder $warningsBuilder,
     ) {
+        $this->cardStateBuilder = new CardStateBuilder();
     }
 
     public function renderResultReview(
@@ -31,50 +41,33 @@ final class ReviewRenderer
         array $editTabBySet = [],
         array $selectedAssetKeyBySet = [],
         array $preferredOrderBySet = [],
+        array $draftByBreakpointBySet = [],
         bool $hideRenderedApply = false,
         bool $hideAssetPagination = false,
         string $reviewMode = self::REVIEW_MODE_PROCESSED,
         ?string $onlyTransformName = null,
     ): array {
         $normalizedReviewMode = $this->normalizeReviewMode($reviewMode);
+        $this->telemetryInitByHandleCache = null;
         $rowsByBreakpoint = $this->normalizeReviewRowsByBreakpoint($result['rowsByBreakpoint'] ?? []);
         $breakpoints = $this->normalizeReviewBreakpoints($result['breakpoints'] ?? []);
         if ($breakpoints === []) {
             $breakpoints = $this->getReviewConfiguredBreakpoints();
         }
 
-        $warningsByTransform = $this->buildReviewWarningsByTransform($rowsByBreakpoint);
-        $normalizedScopeState = [];
-        $normalizedTabState = [];
-        $normalizedSelectedAssetKeyBySet = [];
-
-        return [
-            'warningsHtml' => '',
-            'visualResultsHtml' => $this->buildReviewCardsMarkup(
-                $rowsByBreakpoint,
-                $breakpoints,
-                $warningsByTransform,
-                $editScopeBySet,
-                $editTabBySet,
-                $selectedAssetKeyBySet,
-                $preferredOrderBySet,
-                $normalizedScopeState,
-                $normalizedTabState,
-                $hideRenderedApply,
-                $normalizedSelectedAssetKeyBySet,
-                $hideAssetPagination,
-                $normalizedReviewMode,
-                $onlyTransformName,
-            ),
-            'warningCount' => $this->countReviewWarningsByTransform($warningsByTransform),
-            'editScopeBySet' => $normalizedScopeState,
-            'editTabBySet' => $normalizedTabState,
-            'selectedAssetKeyBySet' => $normalizedSelectedAssetKeyBySet,
-            'savedSetNames' => array_values(array_filter(
-                array_keys($this->getReviewStoredTransforms()),
-                static fn($name): bool => is_string($name) && $name !== '',
-            )),
-        ];
+        return $this->renderReview(
+            $rowsByBreakpoint,
+            $breakpoints,
+            $editScopeBySet,
+            $editTabBySet,
+            $selectedAssetKeyBySet,
+            $preferredOrderBySet,
+            $draftByBreakpointBySet,
+            $hideRenderedApply,
+            $hideAssetPagination,
+            $normalizedReviewMode,
+            $onlyTransformName,
+        );
     }
 
     public function renderInitialStoredReview(
@@ -82,8 +75,11 @@ final class ReviewRenderer
         array $editTabBySet = [],
         array $selectedAssetKeyBySet = [],
         array $preferredOrderBySet = [],
+        array $draftByBreakpointBySet = [],
         ?string $onlyTransformName = null,
+        array $result = [],
     ): array {
+        $this->telemetryInitByHandleCache = null;
         $storedTransforms = $this->getReviewStoredTransforms();
         $previewCacheByTransformAndBreakpoint = $this->getPreviewCacheRowsByTransformAndBreakpoint();
         $syntheticRowsByBreakpoint = [];
@@ -215,21 +211,90 @@ final class ReviewRenderer
             }
         }
 
-        return $this->renderResultReview(
-            ['rowsByBreakpoint' => $syntheticRowsByBreakpoint],
+        $resultRowsByBreakpoint = $this->normalizeReviewRowsByBreakpoint($result['rowsByBreakpoint'] ?? []);
+        $resultBreakpoints = $this->normalizeReviewBreakpoints($result['breakpoints'] ?? []);
+
+        $mergedRowsByBreakpoint = $syntheticRowsByBreakpoint;
+        foreach ($resultRowsByBreakpoint as $breakpoint => $rows) {
+            if (!isset($mergedRowsByBreakpoint[$breakpoint]) || !is_array($mergedRowsByBreakpoint[$breakpoint])) {
+                $mergedRowsByBreakpoint[$breakpoint] = $rows;
+                continue;
+            }
+
+            // Keep source-observed rows first so init seed state can be applied in saved mode.
+            $mergedRowsByBreakpoint[$breakpoint] = array_values(array_merge($rows, $mergedRowsByBreakpoint[$breakpoint]));
+        }
+
+        return $this->renderReview(
+            $this->normalizeReviewRowsByBreakpoint($mergedRowsByBreakpoint),
+            $resultBreakpoints,
             $editScopeBySet,
             $editTabBySet,
             $selectedAssetKeyBySet,
             $preferredOrderBySet,
-            hideRenderedApply: true,
-            hideAssetPagination: true,
-            reviewMode: self::REVIEW_MODE_SAVED,
-            onlyTransformName: $onlyTransformName,
+            $draftByBreakpointBySet,
+            true,
+            true,
+            self::REVIEW_MODE_SAVED,
+            $onlyTransformName,
         );
+    }
+
+    private function renderReview(
+        array $rowsByBreakpoint,
+        array $breakpoints,
+        array $editScopeBySet,
+        array $editTabBySet,
+        array $selectedAssetKeyBySet,
+        array $preferredOrderBySet,
+        array $draftByBreakpointBySet,
+        bool $hideRenderedApply,
+        bool $hideAssetPagination,
+        string $reviewMode,
+        ?string $onlyTransformName,
+    ): array {
+        if ($breakpoints === []) {
+            $breakpoints = $this->getReviewConfiguredBreakpoints();
+        }
+
+        $warningsByTransform = $this->buildReviewWarningsByTransform($rowsByBreakpoint);
+        $normalizedScopeState = [];
+        $normalizedTabState = [];
+        $normalizedSelectedAssetKeyBySet = [];
+
+        return [
+            'warningsHtml' => '',
+            'visualResultsHtml' => $this->buildReviewCardsMarkup(
+                $rowsByBreakpoint,
+                $breakpoints,
+                $warningsByTransform,
+                $editScopeBySet,
+                $editTabBySet,
+                $selectedAssetKeyBySet,
+                $preferredOrderBySet,
+                $draftByBreakpointBySet,
+                $normalizedScopeState,
+                $normalizedTabState,
+                $hideRenderedApply,
+                $normalizedSelectedAssetKeyBySet,
+                $hideAssetPagination,
+                $reviewMode,
+                $onlyTransformName,
+            ),
+            'warningCount' => $this->countReviewWarningsByTransform($warningsByTransform),
+            'editScopeBySet' => $normalizedScopeState,
+            'editTabBySet' => $normalizedTabState,
+            'selectedAssetKeyBySet' => $normalizedSelectedAssetKeyBySet,
+            'savedSetNames' => array_values(array_filter(
+                array_keys($this->getReviewStoredTransforms()),
+                static fn($name): bool => is_string($name) && $name !== '',
+            )),
+        ];
     }
 
     public function renderCardFragment(
         string $setName,
+        array $draftByBreakpoint = [],
         array $editScopeBySet = [],
         array $editTabBySet = [],
         array $selectedAssetKeyBySet = [],
@@ -244,6 +309,7 @@ final class ReviewRenderer
             $editTabBySet,
             $selectedAssetKeyBySet,
             [$normalizedSetName],
+            [$normalizedSetName => $draftByBreakpoint],
             $normalizedSetName,
         );
 
@@ -289,6 +355,7 @@ final class ReviewRenderer
         array $editTabBySet,
         array $selectedAssetKeyBySet,
         array $preferredOrderBySet,
+        array $draftByBreakpointBySet,
         array &$normalizedScopeState,
         array &$normalizedTabState,
         bool $hideRenderedApply,
@@ -372,10 +439,7 @@ final class ReviewRenderer
                 continue;
             }
 
-            $currentRows = $this->buildReviewCurrentRowsForTransform(
-                $storedTransformConfig,
-                $transformBreakpoints,
-            );
+            $hasSavedSet = $storedTransformConfig !== null;
 
             $assetCollection = $this->buildReviewAssetCollectionForTransform(
                 $rowsByBreakpoint,
@@ -394,18 +458,43 @@ final class ReviewRenderer
                 $transformBreakpoints,
             );
 
-            $scope = $this->normalizeReviewScope(
-                $editScopeBySet[$transformName] ?? null,
+            $currentRows = $this->buildReviewCurrentRowsForTransform(
+                $storedTransformConfig,
                 $transformBreakpoints,
             );
-            $tab = $this->normalizeReviewTab($editTabBySet[$transformName] ?? null);
+            $initSeedState = $this->buildInitSeedStateByBreakpoint(
+                $transformName,
+                $transformBreakpoints,
+                !$hasSavedSet,
+            );
+            if (($initSeedState['seedRows'] ?? []) !== []) {
+                $currentRows = $this->applyInitSeedRowsToCurrentRows(
+                    $currentRows,
+                    $initSeedState['seedRows'],
+                );
+            }
+
+            $draftByBreakpoint = is_array($draftByBreakpointBySet[$transformName] ?? null)
+                ? $draftByBreakpointBySet[$transformName]
+                : [];
+            $cardState = $this->cardStateBuilder->build(
+                $currentRows,
+                $transformBreakpoints,
+                $editScopeBySet[$transformName] ?? null,
+                $editTabBySet[$transformName] ?? null,
+                $draftByBreakpoint,
+            );
+            $scope = $cardState['scope'];
+            $tab = $cardState['tab'];
+            $scopeValues = $cardState['scopeValues'];
+            $rowsByBreakpointSignal = $cardState['rowsByBreakpoint'];
+            $firstBreakpoint = $cardState['firstBreakpoint'];
             $passHeightWhenRenderedLteSaved = $this->isPassHeightWhenRenderedLteSavedEnabled($storedTransformConfig);
             $allowAnyHeight = $this->isAllowAnyHeightEnabled($storedTransformConfig);
 
             $selectedBreakpoint = $scope['mode'] === 'breakpoint' ? $scope['breakpoint'] : null;
             $signalKey = $this->getReviewTransformSignalKey($transformName);
             $signalPathBase = 'editor.cards.' . $signalKey;
-            $scopeValues = $this->getReviewScopeDimensionInputValues($currentRows, $scope);
 
             $ratioTabDisabled = $scope['mode'] === 'breakpoint'
                 && ($scopeValues['widthAuto'] === '1' || $scopeValues['heightAuto'] === '1');
@@ -418,7 +507,7 @@ final class ReviewRenderer
 
             $ratioSourceBreakpointDefault = $selectedBreakpoint !== null
                 ? (string)$selectedBreakpoint
-                : (string)$transformBreakpoints[0];
+                : ($firstBreakpoint !== null ? (string)$firstBreakpoint : '');
 
             $ratioSourceBreakpointOptions = '';
             foreach ($transformBreakpoints as $transformBreakpoint) {
@@ -444,7 +533,10 @@ final class ReviewRenderer
                             'scopeBreakpoint' => $scope['mode'] === 'breakpoint' ? (string)$scope['breakpoint'] : '',
                             'scopeActive' => $this->isReviewScopeActive($scope) ? '1' : '0',
                             'selectedAssetKey' => $selectedAssetKey,
-                            'draftByBreakpoint' => (object)[],
+                            'draftByBreakpoint' => $draftByBreakpoint,
+                            'rowsByBreakpoint' => $rowsByBreakpointSignal,
+                            'firstBreakpoint' => $firstBreakpoint !== null ? (string)$firstBreakpoint : '',
+                            'initSeedAppliedAny' => ($cardState['initSeedAppliedAny'] ?? false) === true,
                             'passHeightWhenRenderedLteSaved' => $passHeightWhenRenderedLteSaved,
                             'allowAnyHeight' => $allowAnyHeight,
                         ],
@@ -452,30 +544,17 @@ final class ReviewRenderer
                 ],
             ];
 
-            $cardSignalsVolatile = [
-                'editor' => [
-                    'cards' => [
-                        $signalKey => [
-                            'widthInput' => $scopeValues['widthInput'],
-                            'heightInput' => $scopeValues['heightInput'],
-                            'widthAuto' => $scopeValues['widthAuto'],
-                            'heightAuto' => $scopeValues['heightAuto'],
-                            'ratioWidthInput' => $scopeValues['ratioWidthInput'],
-                            'ratioHeightInput' => $scopeValues['ratioHeightInput'],
-                            'ratioFloatInput' => $scopeValues['ratioFloatInput'],
-                        ],
-                    ],
-                ],
-            ];
+            $cardSignalsStructural['editor']['cards'][$signalKey]['widthInput'] = $scopeValues['widthInput'];
+            $cardSignalsStructural['editor']['cards'][$signalKey]['heightInput'] = $scopeValues['heightInput'];
+            $cardSignalsStructural['editor']['cards'][$signalKey]['widthAuto'] = $scopeValues['widthAuto'];
+            $cardSignalsStructural['editor']['cards'][$signalKey]['heightAuto'] = $scopeValues['heightAuto'];
+            $cardSignalsStructural['editor']['cards'][$signalKey]['ratioWidthInput'] = $scopeValues['ratioWidthInput'];
+            $cardSignalsStructural['editor']['cards'][$signalKey]['ratioHeightInput'] = $scopeValues['ratioHeightInput'];
+            $cardSignalsStructural['editor']['cards'][$signalKey]['ratioFloatInput'] = $scopeValues['ratioFloatInput'];
 
             $cardSignalsStructuralJson = json_encode($cardSignalsStructural, JSON_UNESCAPED_SLASHES);
             if (!is_string($cardSignalsStructuralJson)) {
                 $cardSignalsStructuralJson = '{"editor":{"cards":{}}}';
-            }
-
-            $cardSignalsVolatileJson = json_encode($cardSignalsVolatile, JSON_UNESCAPED_SLASHES);
-            if (!is_string($cardSignalsVolatileJson)) {
-                $cardSignalsVolatileJson = '{"editor":{"cards":{}}}';
             }
 
             $columnWidths = $this->calculateReviewBreakpointColumnWidths($transformBreakpoints);
@@ -595,7 +674,6 @@ final class ReviewRenderer
                 'transformNameEscaped' => $this->escapeReviewHtml($transformName),
                 'signalKey' => $this->escapeReviewHtml($signalKey),
                 'cardSignalsStructural' => $this->escapeReviewHtml($cardSignalsStructuralJson),
-                'cardSignalsVolatile' => $this->escapeReviewHtml($cardSignalsVolatileJson),
                 'cardWarningStateClass' => $cardWarningsWithMismatch !== ''
                     ? 'bpts-transform-card-warning'
                     : '',
@@ -632,11 +710,6 @@ final class ReviewRenderer
                 'ratioWidthInputId' => $this->escapeReviewHtml($editPanelId . '-ratio-width'),
                 'ratioHeightInputId' => $this->escapeReviewHtml($editPanelId . '-ratio-height'),
                 'ratioFloatInputId' => $this->escapeReviewHtml($editPanelId . '-ratio-float'),
-                'widthInputValue' => $this->escapeReviewHtml($scopeValues['widthInput']),
-                'heightInputValue' => $this->escapeReviewHtml($scopeValues['heightInput']),
-                'ratioWidthInputValue' => $this->escapeReviewHtml($scopeValues['ratioWidthInput']),
-                'ratioHeightInputValue' => $this->escapeReviewHtml($scopeValues['ratioHeightInput']),
-                'ratioFloatInputValue' => $this->escapeReviewHtml($scopeValues['ratioFloatInput']),
                 'ratioSourceName' => $this->escapeReviewHtml($editPanelId . '-ratio-source'),
                 'passHeightToggleId' => $this->escapeReviewHtml($editPanelId . '-pass-height-toggle'),
                 'allowAnyHeightToggleId' => $this->escapeReviewHtml($editPanelId . '-allow-any-height-toggle'),
@@ -821,7 +894,6 @@ final class ReviewRenderer
             'currentRatioFloatValue' => $currentRatioFloatValue,
             'currentRatioSourceDimension' => $currentRatioSourceDimension,
             'currentRatioLockedValue' => $currentRatioLocked ? '1' : '0',
-            'currentEnabledValue' => $currentEnabled ? '1' : '0',
             'currentAutoDimension' => $autoDimension ?? '',
             'escapeBadge' => $escapeBadge,
             'hiddenBadge' => $hiddenBadge,
@@ -1874,6 +1946,226 @@ final class ReviewRenderer
             ),
             'ratioSourceDimension' => $ratioLocked ? $ratioSourceDimension : 'width',
         ];
+    }
+
+    /**
+     * @param array<int, array<int, array<string, mixed>>> $selectedAssetRowsByBreakpoint
+     * @param array<int, int> $transformBreakpoints
+    * @return array{seedRows: array<int, array<string, mixed>>}
+     */
+    /**
+     * Build per-breakpoint init seed rows from persisted telemetry init options
+     * for the given handle. No DOM relay; canonical source is the telemetry
+     * row written on every front-end `bpi_image()` invocation.
+     *
+     * @param array<int, int> $transformBreakpoints
+     * @return array{seedRows: array<int, array<string, mixed>>}
+     */
+    private function buildInitSeedStateByBreakpoint(
+        string $transformName,
+        array $transformBreakpoints,
+        bool $allowInitSeed,
+    ): array {
+        if (!$allowInitSeed || trim($transformName) === '') {
+            return ['seedRows' => []];
+        }
+
+        $row = $this->getTelemetryInitByHandle()[$transformName] ?? null;
+        if (!is_array($row)) {
+            return ['seedRows' => []];
+        }
+
+        $seedWidth = $this->normalizeNullablePositiveInt($row['initWidth'] ?? null);
+        $seedHeight = $this->normalizeNullablePositiveInt($row['initHeight'] ?? null);
+        $widthAuto = ($row['initWidthAuto'] ?? null) === true;
+        $heightAuto = ($row['initHeightAuto'] ?? null) === true && !$widthAuto;
+        $seedAutoDimension = $widthAuto ? 'width' : ($heightAuto ? 'height' : null);
+
+        $ratioRaw = $row['initRatio'] ?? null;
+        $ratioRawString = is_string($ratioRaw) ? trim($ratioRaw) : null;
+        $ratio = is_string($ratioRaw) && is_numeric(trim($ratioRaw))
+            ? (float)trim($ratioRaw)
+            : (is_numeric($ratioRaw) ? (float)$ratioRaw : null);
+        if ($ratio !== null && (!is_finite($ratio) || $ratio <= 0)) {
+            $ratio = null;
+        }
+
+        // Prefer the original "x:y" pair the user supplied so values aren't reduced.
+        $ratioPair = $this->buildRatioPairFromRawString($ratioRawString);
+        if ($ratioPair['width'] !== null && $ratioPair['height'] !== null) {
+            $ratio = $ratioPair['width'] / $ratioPair['height'];
+        } elseif ($ratio !== null) {
+            $ratioPair = $this->buildRatioPairFromFloat($ratio);
+        }
+
+        if ($seedWidth !== null && $seedHeight !== null) {
+            $ratio = null;
+            $ratioPair = ['width' => null, 'height' => null];
+        }
+
+        $ratioWidth = $ratioPair['width'];
+        $ratioHeight = $ratioPair['height'];
+
+        $hasRatioSeed = $ratioWidth !== null && $ratioHeight !== null;
+        $hasDimensionSeed = $seedWidth !== null || $seedHeight !== null || $seedAutoDimension !== null;
+        if (!$hasRatioSeed && !$hasDimensionSeed) {
+            return ['seedRows' => []];
+        }
+
+        $seedRow = [
+            'width' => $seedWidth,
+            'height' => $seedHeight,
+            'autoDimension' => $seedAutoDimension,
+            'ratioWidth' => $ratioWidth,
+            'ratioHeight' => $ratioHeight,
+            'ratioSourceDimension' => 'width',
+            'ratioLocked' => $hasRatioSeed,
+            'initSeedApplied' => true,
+        ];
+
+        $seedRows = [];
+        foreach ($transformBreakpoints as $breakpoint) {
+            if (!is_int($breakpoint) || $breakpoint <= 0) {
+                continue;
+            }
+            $seedRows[$breakpoint] = $seedRow;
+        }
+
+        return ['seedRows' => $seedRows];
+    }
+
+    /**
+     * @return array<string, array{handle: string, entryId: ?int, sourceUrl: ?string, lastSeenAt: string, initWidth: ?int, initHeight: ?int, initRatio: ?string, initWidthAuto: ?bool, initHeightAuto: ?bool}>
+     */
+    private function getTelemetryInitByHandle(): array
+    {
+        if ($this->telemetryInitByHandleCache !== null) {
+            return $this->telemetryInitByHandleCache;
+        }
+
+        $telemetry = $this->plugin?->getTelemetry();
+        $this->telemetryInitByHandleCache = $telemetry !== null
+            ? $telemetry->getMostRecentByHandle()
+            : [];
+
+        return $this->telemetryInitByHandleCache;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $currentRowsByBreakpoint
+     * @param array<int, array<string, mixed>> $seedRowsByBreakpoint
+     * @return array<int, array<string, mixed>>
+     */
+    private function applyInitSeedRowsToCurrentRows(array $currentRowsByBreakpoint, array $seedRowsByBreakpoint): array
+    {
+        foreach ($seedRowsByBreakpoint as $breakpoint => $seedRow) {
+            if (!is_int($breakpoint) || !isset($currentRowsByBreakpoint[$breakpoint]) || !is_array($seedRow)) {
+                continue;
+            }
+
+            $currentRowsByBreakpoint[$breakpoint] = array_merge(
+                $currentRowsByBreakpoint[$breakpoint],
+                [
+                    'width' => $seedRow['width'] ?? null,
+                    'height' => $seedRow['height'] ?? null,
+                    'autoDimension' => $seedRow['autoDimension'] ?? null,
+                    'ratioWidth' => $seedRow['ratioWidth'] ?? null,
+                    'ratioHeight' => $seedRow['ratioHeight'] ?? null,
+                    'ratioSourceDimension' => $seedRow['ratioSourceDimension'] ?? 'width',
+                    'ratioLocked' => ($seedRow['ratioLocked'] ?? false) === true,
+                    'initSeedApplied' => ($seedRow['initSeedApplied'] ?? false) === true,
+                ],
+            );
+        }
+
+        return $currentRowsByBreakpoint;
+    }
+
+    /**
+     * Parse a stored "x:y" ratio string into an integer pair without reducing.
+     * Returns the user-supplied dimensions verbatim when both are positive whole numbers.
+     *
+     * @return array{width: ?int, height: ?int}
+     */
+    private function buildRatioPairFromRawString(?string $raw): array
+    {
+        if ($raw === null) {
+            return ['width' => null, 'height' => null];
+        }
+
+        $trimmed = trim($raw);
+        if ($trimmed === '' || strpos($trimmed, ':') === false) {
+            return ['width' => null, 'height' => null];
+        }
+
+        $parts = explode(':', $trimmed, 2);
+        if (count($parts) !== 2 || !is_numeric($parts[0]) || !is_numeric($parts[1])) {
+            return ['width' => null, 'height' => null];
+        }
+
+        $left = (float)$parts[0];
+        $right = (float)$parts[1];
+        if (!is_finite($left) || !is_finite($right) || $left <= 0 || $right <= 0) {
+            return ['width' => null, 'height' => null];
+        }
+
+        $width = (int)round($left);
+        $height = (int)round($right);
+        if ($width <= 0 || $height <= 0) {
+            return ['width' => null, 'height' => null];
+        }
+
+        return ['width' => $width, 'height' => $height];
+    }
+
+    /**
+     * @return array{width: ?int, height: ?int}
+     */
+    private function buildRatioPairFromFloat(?float $ratio): array
+    {
+        if ($ratio === null || !is_finite($ratio) || $ratio <= 0) {
+            return ['width' => null, 'height' => null];
+        }
+
+        $maxDenominator = 1000;
+        $bestNum = 1;
+        $bestDen = 1;
+        $bestError = abs($ratio - 1.0);
+
+        for ($den = 1; $den <= $maxDenominator; $den++) {
+            $num = max(1, (int)round($ratio * $den));
+            $value = $num / $den;
+            $error = abs($ratio - $value);
+            if ($error < $bestError) {
+                $bestError = $error;
+                $bestNum = $num;
+                $bestDen = $den;
+                if ($error === 0.0) {
+                    break;
+                }
+            }
+        }
+
+        $gcd = $this->greatestCommonDivisor($bestNum, $bestDen);
+
+        return [
+            'width' => (int)max(1, (int)round($bestNum / $gcd)),
+            'height' => (int)max(1, (int)round($bestDen / $gcd)),
+        ];
+    }
+
+    private function greatestCommonDivisor(int $left, int $right): int
+    {
+        $a = abs($left);
+        $b = abs($right);
+
+        while ($b !== 0) {
+            $temp = $a % $b;
+            $a = $b;
+            $b = $temp;
+        }
+
+        return $a > 0 ? $a : 1;
     }
 
     private function buildReviewWarningsByTransform(array $rowsByBreakpoint): array

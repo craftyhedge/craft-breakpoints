@@ -3,6 +3,7 @@
 namespace craftyhedge\craftbreakpoints\services;
 
 use craftyhedge\craftbreakpoints\Plugin;
+use craftyhedge\craftbreakpoints\services\transformeditor\Support;
 
 readonly class InitOptions
 {
@@ -12,27 +13,31 @@ readonly class InitOptions
         public ?float $ratio,
         public bool $widthAuto,
         public bool $heightAuto,
+        public ?string $ratioRaw = null,
     ) {
     }
 
     public static function fromConfig(array $config, bool $hasSavedSet): self
     {
         if ($hasSavedSet) {
-            return new self(null, null, null, false, false);
+            return new self(null, null, null, false, false, null);
         }
 
         $width = self::positiveInt($config['initWidth'] ?? null);
         $height = self::positiveInt($config['initHeight'] ?? null);
-        $ratio = self::parseRatio($config['initRatio'] ?? null);
+        $rawRatio = $config['initRatio'] ?? null;
+        $ratio = self::parseRatio($rawRatio);
+        $ratioRaw = self::preserveRawRatio($rawRatio, $ratio);
 
         if ($width !== null && $height !== null) {
             $ratio = null;
+            $ratioRaw = null;
         }
 
         $widthAuto = self::toBool($config['initWidthAuto'] ?? false);
         $heightAuto = self::toBool($config['initHeightAuto'] ?? false) && !$widthAuto;
 
-        return new self($width, $height, $ratio, $widthAuto, $heightAuto);
+        return new self($width, $height, $ratio, $widthAuto, $heightAuto, $ratioRaw);
     }
 
     public function toSeedArray(): array
@@ -48,13 +53,29 @@ readonly class InitOptions
 
     private static function positiveInt(mixed $value): ?int
     {
-        if (!is_numeric($value)) {
+        return Support::parseNullablePositiveInt($value);
+    }
+
+    /**
+     * Preserve the user-supplied ratio in its original form when it could parse,
+     * so consumers can show "1920:1080" instead of a reduced "16:9".
+     */
+    private static function preserveRawRatio(mixed $value, ?float $parsed): ?string
+    {
+        if ($parsed === null) {
             return null;
         }
 
-        $parsed = (int)$value;
+        if (is_string($value)) {
+            $trimmed = trim($value);
+            return $trimmed !== '' ? $trimmed : null;
+        }
 
-        return $parsed > 0 ? $parsed : null;
+        if (is_numeric($value)) {
+            return rtrim(rtrim(number_format((float)$value, 8, '.', ''), '0'), '.');
+        }
+
+        return null;
     }
 
     private static function parseRatio(mixed $value): ?float
@@ -117,19 +138,6 @@ readonly class InitOptions
 
     private static function toBool(mixed $value): bool
     {
-        if (is_bool($value)) {
-            return $value;
-        }
-
-        if (is_numeric($value)) {
-            return (int)$value === 1;
-        }
-
-        $normalized = strtolower(trim((string)$value));
-
-        return $normalized === 'true'
-            || $normalized === '1'
-            || $normalized === 'yes'
-            || $normalized === 'on';
+        return Support::parseNullableBool($value) === true;
     }
 }
