@@ -207,10 +207,10 @@ class ConfigService extends Component
     private function getUserConfig(): array
     {
         try {
-            $config = Craft::$app->getConfig()->getConfigFromFile('craft-breakpoints');
+            $config = Craft::$app->getConfig()->getConfigFromFile('breakpoints');
             return is_array($config) ? $config : [];
         } catch (\Throwable $e) {
-            Plugin::warning('Could not load project config for craft-breakpoints.');
+            Plugin::warning('Could not load project config for breakpoints.');
             return [];
         }
     }

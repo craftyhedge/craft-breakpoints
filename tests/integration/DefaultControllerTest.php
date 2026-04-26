@@ -34,6 +34,47 @@ final class DefaultControllerTest extends Unit
         $this->assertFalse($response->getIsRedirection());
     }
 
+    public function testSettingsActionUsesEffectiveConfigOverridesForDisplay(): void
+    {
+        $controller = new class('default', Craft::$app) extends DefaultController {
+            public ?array $capturedTemplatePayload = null;
+
+            public function renderTemplate(string $template, array $variables = [], ?string $templateMode = null): Response
+            {
+                $this->capturedTemplatePayload = [
+                    'template' => $template,
+                    'variables' => $variables,
+                    'templateMode' => $templateMode,
+                ];
+
+                return parent::renderTemplate($template, $variables, $templateMode);
+            }
+        };
+
+        $configService = \craftyhedge\craftbreakpoints\Plugin::getInstance()->getConfigService();
+        $property = new \ReflectionProperty($configService, '_mergedConfig');
+        $previous = $property->getValue($configService);
+
+        $nextConfig = is_array($previous) ? $previous : [];
+        $nextConfig['format'] = 'webp';
+        $nextConfig['quality'] = 60;
+        $property->setValue($configService, $nextConfig);
+
+        try {
+            $response = $controller->actionSettings();
+
+            $this->assertSame(200, $response->statusCode);
+            $this->assertSame('craft-breakpoints/cp/settings', $controller->capturedTemplatePayload['template'] ?? null);
+
+            $settings = $controller->capturedTemplatePayload['variables']['settings'] ?? null;
+            $this->assertNotNull($settings);
+            $this->assertSame('webp', $settings->format);
+            $this->assertSame(60, $settings->quality);
+        } finally {
+            $property->setValue($configService, $previous);
+        }
+    }
+
     public function testTransformsActionRegistersConfigScriptAndAssetBundle(): void
     {
         $view = Craft::$app->getView();

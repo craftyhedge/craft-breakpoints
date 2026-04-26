@@ -89,7 +89,7 @@ final class BreakpointConfigServiceTest extends Unit
         $pluginConfig = is_array($pluginConfigRoot['*'] ?? null) ? $pluginConfigRoot['*'] : $pluginConfigRoot;
         $this->assertIsArray($pluginConfig);
 
-        $projectConfig = Craft::$app->getConfig()->getConfigFromFile('craft-breakpoints');
+        $projectConfig = Craft::$app->getConfig()->getConfigFromFile('breakpoints');
         if (is_array($projectConfig) && array_key_exists('secondaryFormat', $projectConfig)) {
             $this->assertSame($projectConfig['secondaryFormat'], $service->get('secondaryFormat'));
             return;

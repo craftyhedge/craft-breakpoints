@@ -22,11 +22,15 @@ class DefaultController extends Controller
 
     public function actionSettings(): Response
     {
+        $plugin = Plugin::getInstance();
+        $settings = clone $plugin->getSettings();
+        $settings->setAttributes($plugin->getConfigService()->getConfig(), false);
+
         return $this->renderTemplate('craft-breakpoints/cp/settings', [
-            'settings' => Plugin::getInstance()->getSettings(),
+            'settings' => $settings,
             'selectedSubnavItem' => 'settings',
-            'databaseStats' => Plugin::getInstance()->getDatabase()->getTableStats(),
-            'databaseLatestRunAt' => Plugin::getInstance()->getDatabase()->getLatestRunTimestamp(),
+            'databaseStats' => $plugin->getDatabase()->getTableStats(),
+            'databaseLatestRunAt' => $plugin->getDatabase()->getLatestRunTimestamp(),
         ]);
     }
 
