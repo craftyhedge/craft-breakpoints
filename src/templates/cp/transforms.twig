@@ -59,7 +59,7 @@
                     <a href="#" class="bpts-transform-sidebar-link{% if isObservedUnsaved %} bpts-transform-sidebar-link-warning{% endif %}" data-set="{{ row.name|e('html_attr') }}">
                         {% if isObservedUnsaved %}
                             <span class="bpts-transform-sidebar-warning-icon" aria-hidden="true" title="{{ 'Observed but not saved'|t('craft-breakpoints') }}">
-                                <svg viewBox="0 0 16 16" focusable="false"><path d="M8 1.5 15 14H1L8 1.5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 6v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="12" r="0.9" fill="currentColor"/></svg>
+                                <span class="icon" data-icon="view"></span>
                             </span>
                             <span class="visually-hidden">{{ 'Not saved:'|t('craft-breakpoints') }} </span>
                         {% endif %}

@@ -19,7 +19,8 @@
             : 'bpts-warning-item bpts-warning-item-neutral'
         -%}
         {%- set label = code == 'missing-set-definitions' ? 'Transform Set Missing' : code -%}
-<div class="{{ warningClass }}"><div class="bpts-warning-copy"><h3 class="bpts-warning-heading">{{ label }}</h3></div><div class="bpts-warning-detail"><p>{{ warning.message ?? 'Warning' }}</p></div>
+        {%- set showObservedIcon = code == 'missing-set-definitions' and reviewMode == 'saved' and (warning.entryId ?? 0) > 0 -%}
+    <div class="{{ warningClass }}"><div class="bpts-warning-copy"><h3 class="bpts-warning-heading">{% if showObservedIcon %}<span class="bpts-warning-observed-icon" aria-hidden="true" title="{{ 'Observed set'|t('craft-breakpoints') }}"><span class="icon" data-icon="view"></span></span>{% endif %}{{ label }}</h3></div><div class="bpts-warning-detail"><p>{{ warning.message ?? 'Warning' }}</p></div>
         {%- if warning.transforms is defined and warning.transforms is iterable and warning.transforms|length > 0 -%}
 <div class="bpts-warning-detail">{% for name in warning.transforms %}{% if not loop.first %}, {% endif %}{{ name }}{% endfor %}</div>
         {%- endif -%}

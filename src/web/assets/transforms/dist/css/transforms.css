@@ -207,19 +207,22 @@
 }
 
 .bpts-transform-sidebar-warning-icon {
-    display: inline-flex;
-    align-items: center;
-    width: 12px;
-    height: 12px;
+    display: inline-block;
+    width: 14px;
+    height: 14px;
     margin-right: 6px;
     color: var(--error-color);
-    vertical-align: -1px;
+    line-height: 14px;
+    vertical-align: baseline;
+    position: relative;
+    top: -1px;
 }
 
-.bpts-transform-sidebar-warning-icon svg {
-    width: 12px;
-    height: 12px;
+.bpts-transform-sidebar-warning-icon .icon {
+    width: 14px;
+    height: 14px;
     display: block;
+    line-height: 14px;
 }
 
 .bpts-frame-pane,
@@ -520,7 +523,7 @@
 .bpts-warning-item {
     border-bottom: 1px solid var(--border-hairline-medium);
     border-radius: 8px 8px 0px 0px;
-    padding: 8px 10px;
+    padding: 12px 24px;
     background: var(--gray-050);
     color: var(--text-color);
     font-size: 12px;
@@ -531,10 +534,31 @@
 }
 
 .bpts-warning-item .bpts-warning-heading {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     font-weight: 600;
     font-size: 13px;
     line-height: 1.2;
     margin: 0;
+}
+
+.bpts-warning-observed-icon {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    line-height: 14px;
+    color: currentColor;
+    vertical-align: baseline;
+    position: relative;
+    top: -1px;
+}
+
+.bpts-warning-observed-icon .icon {
+    width: 12px;
+    height: 12px;
+    display: block;
+    line-height: 12px;
 }
 
 .bpts-warning-copy {
@@ -555,6 +579,29 @@
 
 .bpts-warning-actions {
     margin-top: 8px;
+}
+
+.bpts-warning-item .btn.bpts-warning-process-observed {
+    --button-bg: var(--blue-600, #2f6fdb);
+    --button-bg--hover: var(--blue-700, var(--bpts-color-primary-700));
+    --button-bg--active: var(--blue-800, var(--bpts-color-primary-800));
+    --button-border: 1px solid var(--blue-700, var(--bpts-color-primary-700));
+    --button-border--hover: 1px solid var(--blue-800, var(--bpts-color-primary-800));
+    --button-border--active: 1px solid var(--blue-900, #102e66);
+    --text-color: var(--bpts-color-white, #fff);
+    background: var(--button-bg);
+    border: var(--button-border);
+    color: var(--text-color);
+}
+
+.bpts-warning-item .btn.bpts-warning-process-observed:hover,
+.bpts-warning-item .btn.bpts-warning-process-observed:active {
+    color: var(--bpts-color-white, #fff);
+}
+
+.bpts-warning-item .btn.bpts-warning-process-observed:focus-visible {
+    outline: 2px solid var(--blue-300, #91b5f5);
+    outline-offset: 1px;
 }
 
 .bpts-warning-apply-rendered {
