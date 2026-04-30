@@ -37,8 +37,8 @@ use yii\log\Logger;
 
 class Plugin extends BasePlugin
 {
-    private const LOG_TARGET = 'craft-breakpoints';
-    private const LOG_CATEGORY = 'craft-breakpoints';
+    private const LOG_TARGET = 'breakpoints';
+    private const LOG_CATEGORY = 'breakpoints';
 
     public static ?self $plugin = null;
 
@@ -69,7 +69,7 @@ class Plugin extends BasePlugin
     {
         parent::init();
         self::$plugin = $this;
-        $this->name = Craft::t('craft-breakpoints', 'Breakpoints');
+        $this->name = Craft::t('breakpoints', 'Breakpoints');
 
         $this->registerLogTarget();
         $this->registerTwigExtension();
@@ -83,11 +83,11 @@ class Plugin extends BasePlugin
             UrlManager::class,
             UrlManager::EVENT_REGISTER_CP_URL_RULES,
             static function(RegisterUrlRulesEvent $event): void {
-                $event->rules['craft-breakpoints'] = 'craft-breakpoints/default/index';
-                $event->rules['craft-breakpoints/settings'] = 'craft-breakpoints/default/settings';
-                $event->rules['craft-breakpoints/processing'] = 'craft-breakpoints/default/transforms';
-                $event->rules['POST craft-breakpoints/database/cleanup-orphaned'] = 'craft-breakpoints/database/cleanup-orphaned';
-                $event->rules['POST craft-breakpoints/database/clear-all'] = 'craft-breakpoints/database/clear-all';
+                $event->rules['breakpoints'] = 'breakpoints/default/index';
+                $event->rules['breakpoints/settings'] = 'breakpoints/default/settings';
+                $event->rules['breakpoints/processing'] = 'breakpoints/default/transforms';
+                $event->rules['POST breakpoints/database/cleanup-orphaned'] = 'breakpoints/database/cleanup-orphaned';
+                $event->rules['POST breakpoints/database/clear-all'] = 'breakpoints/database/clear-all';
             }
         );
 
@@ -189,16 +189,16 @@ class Plugin extends BasePlugin
             return null;
         }
 
-        $item['url'] = 'craft-breakpoints';
+        $item['url'] = 'breakpoints';
 
         $item['subnav'] = [
             'processing' => [
-                'label' => Craft::t('craft-breakpoints', 'Transform Sets'),
-                'url' => 'craft-breakpoints/processing',
+                'label' => Craft::t('breakpoints', 'Transform Sets'),
+                'url' => 'breakpoints/processing',
             ],
             'settings' => [
-                'label' => Craft::t('craft-breakpoints', 'Settings'),
-                'url' => 'craft-breakpoints/settings',
+                'label' => Craft::t('breakpoints', 'Settings'),
+                'url' => 'breakpoints/settings',
             ],
         ];
 
@@ -207,7 +207,7 @@ class Plugin extends BasePlugin
 
     public function getSettingsResponse(): mixed
     {
-        return Craft::$app->controller->redirect(UrlHelper::cpUrl('craft-breakpoints/settings'));
+        return Craft::$app->controller->redirect(UrlHelper::cpUrl('breakpoints/settings'));
     }
 
     private function registerLogTarget(): void
@@ -237,7 +237,7 @@ class Plugin extends BasePlugin
             View::class,
             View::EVENT_REGISTER_SITE_TEMPLATE_ROOTS,
             static function(RegisterTemplateRootsEvent $event): void {
-                $event->roots['craft-breakpoints'] = __DIR__ . '/templates';
+                $event->roots['breakpoints'] = __DIR__ . '/templates';
             }
         );
 
@@ -245,7 +245,7 @@ class Plugin extends BasePlugin
             View::class,
             View::EVENT_REGISTER_CP_TEMPLATE_ROOTS,
             static function(RegisterTemplateRootsEvent $event): void {
-                $event->roots['craft-breakpoints'] = __DIR__ . '/templates';
+                $event->roots['breakpoints'] = __DIR__ . '/templates';
             }
         );
     }
@@ -285,7 +285,7 @@ class Plugin extends BasePlugin
     protected function settingsHtml(): ?string
     {
         return Craft::$app->getView()->renderTemplate(
-            'craft-breakpoints/settings',
+            'breakpoints/settings',
             ['settings' => $this->getSettings()]
         );
     }

@@ -12,8 +12,8 @@ use yii\base\Component;
 
 class ConfigService extends Component
 {
-    private const DEFAULT_TEMPLATE_PATH = 'craft-breakpoints/picture.twig';
-    private const DEFAULT_SVG_TEMPLATE_PATH = 'craft-breakpoints/svg.twig';
+    private const DEFAULT_TEMPLATE_PATH = 'breakpoints/picture.twig';
+    private const DEFAULT_SVG_TEMPLATE_PATH = 'breakpoints/svg.twig';
     private const PROCESSING_DIAGNOSTICS_ENV = 'CRAFT_BREAKPOINTS_PROCESSING_DIAGNOSTICS';
 
     private ?Plugin $_plugin = null;

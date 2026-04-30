@@ -43,10 +43,10 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     const PREPARE_NORMALIZATION_SAMPLE_LIMIT = 12;
 
     const bpiProcessingConfig = window.bpiProcessingConfig || {};
-    const ENTRY_URL_ACTION = 'craft-breakpoints/default/entry-url';
-    const RENDER_RESULT_REVIEW_ACTION = 'craft-breakpoints/transforms/render-result-review';
-    const RENDER_INITIAL_REVIEW_ACTION = 'craft-breakpoints/transforms/render-initial-review';
-    const PERSIST_RUN_SNAPSHOT_ACTION = 'craft-breakpoints/transforms/persist-run-snapshot';
+    const ENTRY_URL_ACTION = 'breakpoints/default/entry-url';
+    const RENDER_RESULT_REVIEW_ACTION = 'breakpoints/transforms/render-result-review';
+    const RENDER_INITIAL_REVIEW_ACTION = 'breakpoints/transforms/render-initial-review';
+    const PERSIST_RUN_SNAPSHOT_ACTION = 'breakpoints/transforms/persist-run-snapshot';
     const DATASTAR_FETCH_EVENT = 'datastar-fetch';
 
     const elements = {

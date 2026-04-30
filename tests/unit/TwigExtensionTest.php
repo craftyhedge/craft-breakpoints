@@ -42,7 +42,7 @@ final class TwigExtensionTest extends Unit
 
         $asset = $this->createMockAsset();
         $config = [
-            'pictureTemplatePath' => 'craft-breakpoints/does-not-exist.twig',
+            'pictureTemplatePath' => 'breakpoints/does-not-exist.twig',
             'breakpoints' => ['xs' => 480],
             'escapeWidth' => 0,
             'imgClass' => 'twig-extension-pass-through',

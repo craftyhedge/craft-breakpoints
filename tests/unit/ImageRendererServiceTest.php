@@ -50,7 +50,7 @@ final class ImageRendererServiceTest extends Unit
         $asset = $this->createMockAsset();
 
         $markup = $renderer->render($asset, 'default', [
-            'pictureTemplatePath' => 'craft-breakpoints/does-not-exist.twig',
+            'pictureTemplatePath' => 'breakpoints/does-not-exist.twig',
             'breakpoints' => [
                 'xs' => 480,
             ],
@@ -80,7 +80,7 @@ final class ImageRendererServiceTest extends Unit
         $asset = $this->createMockSvgAsset();
 
         $markup = $renderer->render($asset, 'default', [
-            'svgTemplatePath' => 'craft-breakpoints/does-not-exist.twig',
+            'svgTemplatePath' => 'breakpoints/does-not-exist.twig',
             'breakpoints' => [
                 'xs' => 480,
             ],

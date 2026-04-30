@@ -17,7 +17,7 @@ class DefaultController extends Controller
 {
     public function actionIndex(): Response
     {
-        return $this->redirect(UrlHelper::cpUrl('craft-breakpoints/processing'));
+        return $this->redirect(UrlHelper::cpUrl('breakpoints/processing'));
     }
 
     public function actionSettings(): Response
@@ -26,7 +26,7 @@ class DefaultController extends Controller
         $settings = clone $plugin->getSettings();
         $settings->setAttributes($plugin->getConfigService()->getConfig(), false);
 
-        return $this->renderTemplate('craft-breakpoints/cp/settings', [
+        return $this->renderTemplate('breakpoints/cp/settings', [
             'settings' => $settings,
             'selectedSubnavItem' => 'settings',
             'databaseStats' => $plugin->getDatabase()->getTableStats(),
@@ -56,12 +56,12 @@ class DefaultController extends Controller
             View::POS_HEAD
         );
 
-        return $this->renderTemplate('craft-breakpoints/cp/transforms', [
+        return $this->renderTemplate('breakpoints/cp/transforms', [
             'selectedSubnavItem' => 'processing',
             'processingConfig' => $config,
             'sidebarTransformRows' => $plugin->getTransformEditor()->buildSidebarTransformRows(),
             'currentBaseVersion' => $plugin->getTransformStore()->getCurrentVersion(),
-            'applyCardOperationUrl' => UrlHelper::cpUrl('actions/craft-breakpoints/transforms/apply-card-operation'),
+            'applyCardOperationUrl' => UrlHelper::cpUrl('actions/breakpoints/transforms/apply-card-operation'),
             'selectedSourceEntries' => $selectedSourceEntry ? [$selectedSourceEntry] : [],
             'previewCenter' => (bool)$plugin->getConfigService()->get('previewCenter', true),
             'transformsDeveloperActionsEnabled' => $plugin->getConfigService()->areTransformsDeveloperActionsEnabled(),

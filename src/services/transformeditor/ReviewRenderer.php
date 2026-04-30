@@ -1369,7 +1369,7 @@ final class ReviewRenderer
         try {
             $view->setTemplateMode(View::TEMPLATE_MODE_CP);
             return $view->renderTemplate(
-                'craft-breakpoints/cp/' . $template,
+                'breakpoints/cp/' . $template,
                 $variables,
                 View::TEMPLATE_MODE_CP,
             );

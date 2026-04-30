@@ -21,13 +21,13 @@ Craft CMS 5 plugin for responsive breakpoint image helpers.
 Install with Composer in your Craft project:
 
 ```sh
-composer require craftyhedge/craft-breakpoints
+composer require craftyhedge/breakpoints
 ```
 
 Then install the plugin:
 
 ```sh
-php craft plugin/install craft-breakpoints
+php craft plugin/install breakpoints
 ```
 
 ## Documentation
@@ -37,8 +37,8 @@ php craft plugin/install craft-breakpoints
 
 ## Support
 
-- Source: <https://github.com/craftyhedge/craft-breakpoints>
-- Issues: <https://github.com/craftyhedge/craft-breakpoints/issues>
+- Source: <https://github.com/craftyhedge/breakpoints>
+- Issues: <https://github.com/craftyhedge/breakpoints/issues>
 
 ## License
 

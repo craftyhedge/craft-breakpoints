@@ -1,5 +1,5 @@
 {
-    "name": "craft-breakpoints-js-tests",
+    "name": "breakpoints-js-tests",
     "private": true,
     "type": "module",
     "scripts": {

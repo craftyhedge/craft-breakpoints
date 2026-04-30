@@ -52,7 +52,7 @@ class DatabaseController extends Controller
         Plugin::info('Database utility: ' . $message);
         return $this->asJson(array_merge([
             'success' => true,
-            'message' => Craft::t('craft-breakpoints', $message),
+            'message' => Craft::t('breakpoints', $message),
             'stats' => Plugin::getInstance()->getDatabase()->getTableStats(),
         ], $extra));
     }

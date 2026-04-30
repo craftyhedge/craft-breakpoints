@@ -1,6 +1,6 @@
 {% extends "_layouts/cp" %}
 {% import '_includes/forms' as forms %}
-{% set title = 'Transform Sets'|t('craft-breakpoints') %}
+{% set title = 'Transform Sets'|t('breakpoints') %}
 {% set selectedSubnavItem = selectedSubnavItem ?? 'processing' %}
 {% if canEditTransforms ?? false %}
     {% set toolbar %}
@@ -35,12 +35,12 @@
         {{ reviewToolbarActions }}
         {% if canEditTransforms ?? false %}
             <div class="bpts-results-settings-toggle">
-                <div id="bpts-results-settings-lightswitch" class="lightswitch small bpts-results-settings-lightswitch" role="switch" tabindex="0" aria-label="{{ 'Edit'|t('craft-breakpoints') }}" aria-checked="false">
+                <div id="bpts-results-settings-lightswitch" class="lightswitch small bpts-results-settings-lightswitch" role="switch" tabindex="0" aria-label="{{ 'Edit'|t('breakpoints') }}" aria-checked="false">
                     <div class="lightswitch-container">
                         <div class="handle"></div>
                     </div>
                 </div>
-                <span>{{ 'Edit'|t('craft-breakpoints') }}</span>
+                <span>{{ 'Edit'|t('breakpoints') }}</span>
             </div>
         {% endif %}
     </div>
@@ -49,8 +49,8 @@
 
 {% block sidebar %}
     {% set sidebarRows = sidebarTransformRows ?? [] %}
-    <h2 id="bpts-results-heading" class="heading">{{ 'Saved Sets'|t('craft-breakpoints') }}</h2>
-    <nav id="bpts-transform-sets-sidebar" aria-label="{{ 'Transform Sets'|t('craft-breakpoints') }}">
+    <h2 id="bpts-results-heading" class="heading">{{ 'Saved Sets'|t('breakpoints') }}</h2>
+    <nav id="bpts-transform-sets-sidebar" aria-label="{{ 'Transform Sets'|t('breakpoints') }}">
         <ul id="bpts-transform-sets-list">
             {% for row in sidebarRows %}
                 {% set isObservedUnsaved = row.isObservedUnsaved ?? false %}
@@ -58,16 +58,16 @@
                     {% if isObservedUnsaved %}class="bpts-transform-sidebar-item-warning" data-observed-unsaved="1"{% endif %}>
                     <a href="#" class="bpts-transform-sidebar-link{% if isObservedUnsaved %} bpts-transform-sidebar-link-warning{% endif %}" data-set="{{ row.name|e('html_attr') }}">
                         {% if isObservedUnsaved %}
-                            <span class="bpts-transform-sidebar-warning-icon" aria-hidden="true" title="{{ 'Observed but not saved'|t('craft-breakpoints') }}">
+                            <span class="bpts-transform-sidebar-warning-icon" aria-hidden="true" title="{{ 'Observed but not saved'|t('breakpoints') }}">
                                 <span class="icon" data-icon="view"></span>
                             </span>
-                            <span class="visually-hidden">{{ 'Not saved:'|t('craft-breakpoints') }} </span>
+                            <span class="visually-hidden">{{ 'Not saved:'|t('breakpoints') }} </span>
                         {% endif %}
                         {{ row.name }}
                     </a>
                 </li>
             {% else %}
-                <li><a>{{ 'No transform sets found.'|t('craft-breakpoints') }}</a></li>
+                <li><a>{{ 'No transform sets found.'|t('breakpoints') }}</a></li>
             {% endfor %}
         </ul>
     </nav>
@@ -80,14 +80,14 @@
                 id: 'bpts-source-entry',
                 name: 'bpts-source-entry-id',
                 elementType: 'craft\\elements\\Entry',
-                selectionLabel: 'Choose Source'|t('craft-breakpoints'),
+                selectionLabel: 'Choose Source'|t('breakpoints'),
                 single: true,
                 elements: selectedSourceEntries ?? []
             }) }}
         </div>
         {{ forms.button({
             id: 'bpts-run-processing',
-            label: 'Process'|t('craft-breakpoints'),
+            label: 'Process'|t('breakpoints'),
             disabled: true,
             attributes: not (canEditTransforms ?? false) ? {
                 hidden: true,
@@ -97,7 +97,7 @@
         {{ forms.button({
             id: 'bpts-stop-processing',
             class: 'bpts-stop-processing',
-            label: 'Quit Waiting'|t('craft-breakpoints'),
+            label: 'Quit Waiting'|t('breakpoints'),
             attributes: not (canEditTransforms ?? false)
                 ? {
                     hidden: true,
@@ -116,7 +116,7 @@
     <div
         class="bpts-transforms-page bpts-review-hydrating"
         data-signals="{_applyCardOperationUrl: '{{ applyCardOperationUrl|e('js') }}', _csrfToken: '{{ craft.app.request.csrfToken|e('js') }}', showCardSettings: false, ui: {resultsHeading: 'Saved Sets', showWarningOrder: false, resultsOrderingNoteLabel: ''}, editor: {baseVersion: '{{ initialBaseVersion|e('js') }}', cards: {}}}"
-        data-persist:craft-breakpoints-editor__session="{include: /^editor\\.cards\\./}"
+        data-persist:breakpoints-editor__session="{include: /^editor\\.cards\\./}"
         data-show-card-settings="0"
         data-attr:data-show-card-settings="(String($showCardSettings) === 'true' || String($showCardSettings) === '1') ? '1' : '0'"
         data-preview-center="{{ (previewCenter ?? true) ? '1' : '0' }}"

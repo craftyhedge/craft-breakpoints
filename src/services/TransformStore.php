@@ -11,7 +11,7 @@ use yii\base\Component;
 class TransformStore extends Component
 {
     private const CONFIG_FOLDER_PERMISSIONS = 0755;
-    private const SETS_CONFIG_PATH = '/craft-breakpoints/transform-sets.json';
+    private const SETS_CONFIG_PATH = '/breakpoints/transform-sets.json';
 
     private ?Plugin $_plugin = null;
     private ?array $_sets = null;

@@ -21,7 +21,7 @@ final class DefaultControllerTest extends Unit
         $this->assertInstanceOf(Response::class, $response);
         $this->assertTrue($response->getIsRedirection());
         $this->assertSame(
-            UrlHelper::cpUrl('craft-breakpoints/processing'),
+            UrlHelper::cpUrl('breakpoints/processing'),
             (string)$response->getHeaders()->get('Location')
         );
     }
@@ -64,7 +64,7 @@ final class DefaultControllerTest extends Unit
             $response = $controller->actionSettings();
 
             $this->assertSame(200, $response->statusCode);
-            $this->assertSame('craft-breakpoints/cp/settings', $controller->capturedTemplatePayload['template'] ?? null);
+            $this->assertSame('breakpoints/cp/settings', $controller->capturedTemplatePayload['template'] ?? null);
 
             $settings = $controller->capturedTemplatePayload['variables']['settings'] ?? null;
             $this->assertNotNull($settings);
@@ -120,7 +120,7 @@ final class DefaultControllerTest extends Unit
             $response = $controller->actionTransforms();
 
             $this->assertSame(200, $response->statusCode);
-            $this->assertSame('craft-breakpoints/cp/transforms', $controller->capturedTemplatePayload['template'] ?? null);
+            $this->assertSame('breakpoints/cp/transforms', $controller->capturedTemplatePayload['template'] ?? null);
             $this->assertTrue(($controller->capturedTemplatePayload['variables']['transformsDeveloperActionsEnabled'] ?? false) === true);
         } finally {
             $property->setValue($configService, $previous);

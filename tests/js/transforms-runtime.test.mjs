@@ -100,7 +100,7 @@ describe('transforms runtime helper logic', () => {
 
         expect(sendActionRequest).toHaveBeenCalledWith(
             'POST',
-            'craft-breakpoints/transforms/render-initial-review',
+            'breakpoints/transforms/render-initial-review',
             expect.any(Object),
         );
         expect(result.warningCount).toBe(3);
@@ -1048,11 +1048,11 @@ describe('transforms runtime helper logic', () => {
         });
 
         const sendActionRequest = vi.fn().mockImplementation((_method, action) => {
-            if (action === 'craft-breakpoints/transforms/persist-run-snapshot') {
+            if (action === 'breakpoints/transforms/persist-run-snapshot') {
                 return Promise.resolve({ data: { ok: true } });
             }
 
-            if (action === 'craft-breakpoints/transforms/render-result-review') {
+            if (action === 'breakpoints/transforms/render-result-review') {
                 return Promise.resolve({
                     data: {
                         warningsHtml: '<div>ok</div>',
@@ -1073,7 +1073,7 @@ describe('transforms runtime helper logic', () => {
         expect(sendActionRequest).toHaveBeenNthCalledWith(
             1,
             'POST',
-            'craft-breakpoints/transforms/persist-run-snapshot',
+            'breakpoints/transforms/persist-run-snapshot',
             expect.objectContaining({
                 data: expect.objectContaining({
                     runStatus: 'completed',
@@ -1084,7 +1084,7 @@ describe('transforms runtime helper logic', () => {
         expect(sendActionRequest).toHaveBeenNthCalledWith(
             2,
             'POST',
-            'craft-breakpoints/transforms/render-result-review',
+            'breakpoints/transforms/render-result-review',
             expect.any(Object),
         );
     });
@@ -1102,7 +1102,7 @@ describe('transforms runtime helper logic', () => {
         expect(sendActionRequest).toHaveBeenCalledTimes(1);
         expect(sendActionRequest).toHaveBeenCalledWith(
             'POST',
-            'craft-breakpoints/transforms/persist-run-snapshot',
+            'breakpoints/transforms/persist-run-snapshot',
             expect.any(Object),
         );
     });
@@ -1127,7 +1127,7 @@ describe('transforms runtime helper logic', () => {
         expect(ok).toBe(true);
         expect(sendActionRequest).toHaveBeenCalledWith(
             'POST',
-            'craft-breakpoints/transforms/persist-run-snapshot',
+            'breakpoints/transforms/persist-run-snapshot',
             expect.objectContaining({
                 data: expect.objectContaining({
                     runStatus: 'failed',
@@ -1158,7 +1158,7 @@ describe('transforms runtime helper logic', () => {
         expect(ok).toBe(true);
         expect(sendActionRequest).toHaveBeenCalledWith(
             'POST',
-            'craft-breakpoints/transforms/persist-run-snapshot',
+            'breakpoints/transforms/persist-run-snapshot',
             expect.objectContaining({
                 data: expect.objectContaining({
                     runStatus: 'cancelled',
@@ -1193,7 +1193,7 @@ describe('transforms runtime helper logic', () => {
         hooks.setLastResultForTests({ summary: { warningCount: 0 }, rowsByBreakpoint });
 
         const sendActionRequest = vi.fn().mockImplementation((_method, action) => {
-            if (action === 'craft-breakpoints/transforms/persist-run-snapshot') {
+            if (action === 'breakpoints/transforms/persist-run-snapshot') {
                 return Promise.resolve({ data: { ok: true } });
             }
             return Promise.resolve({
@@ -1206,7 +1206,7 @@ describe('transforms runtime helper logic', () => {
 
         expect(ok).toBe(true);
         const persistCall = sendActionRequest.mock.calls.find(
-            (c) => c[1] === 'craft-breakpoints/transforms/persist-run-snapshot',
+            (c) => c[1] === 'breakpoints/transforms/persist-run-snapshot',
         );
         expect(persistCall).toBeTruthy();
         const payload = persistCall[2].data;

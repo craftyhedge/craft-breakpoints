@@ -38,14 +38,14 @@ final class PluginRegistrationTest extends Unit
         $this->assertArrayHasKey('settings', $cpNavItem['subnav']);
         $this->assertArrayHasKey('processing', $cpNavItem['subnav']);
         $this->assertArrayNotHasKey('transforms', $cpNavItem['subnav']);
-        $this->assertSame('craft-breakpoints/settings', $cpNavItem['subnav']['settings']['url']);
-        $this->assertSame('craft-breakpoints/processing', $cpNavItem['subnav']['processing']['url']);
+        $this->assertSame('breakpoints/settings', $cpNavItem['subnav']['settings']['url']);
+        $this->assertSame('breakpoints/processing', $cpNavItem['subnav']['processing']['url']);
     }
 
     public function testTransformsConfigFileIsCreatedAndLoaded(): void
     {
         $plugin = Plugin::getInstance();
-        $configPath = Craft::$app->getPath()->getConfigPath() . '/craft-breakpoints/transform-sets.json';
+        $configPath = Craft::$app->getPath()->getConfigPath() . '/breakpoints/transform-sets.json';
         $transforms = $plugin->getTransformStore()->getTransforms();
         $sets = $plugin->getTransformSets()->getSets();
 

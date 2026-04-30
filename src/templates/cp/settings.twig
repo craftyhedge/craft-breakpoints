@@ -1,12 +1,12 @@
 {% extends "_layouts/cp" %}
-{% set title = 'Settings'|t('craft-breakpoints') %}
+{% set title = 'Settings'|t('breakpoints') %}
 {% set selectedSubnavItem = selectedSubnavItem ?? 'settings' %}
 {% set fullPageForm = true %}
 
 {% set formActions = [
     {
         label: 'Save and continue editing'|t('app'),
-        redirect: 'craft-breakpoints/settings'|hash,
+        redirect: 'breakpoints/settings'|hash,
         shortcut: true,
         retainScroll: true,
     },
@@ -18,11 +18,11 @@
 {% set templatesTabClass = settings.getErrors('pictureTemplatePath') or settings.getErrors('svgTemplatePath') ? 'error' : '' %}
 
 {% set tabs = {
-    formats: { label: 'Output & Quality'|t('craft-breakpoints'), url: '#formats', class: formatsTabClass },
-    behavior: { label: 'Transform Settings'|t('craft-breakpoints'), url: '#behavior', class: behaviorTabClass },
-    templates: { label: 'Templates'|t('craft-breakpoints'), url: '#templates', class: templatesTabClass },
-    editor: { label: 'Editor UI'|t('craft-breakpoints'), url: '#editor', class: editorTabClass },
-    database: { label: 'Database'|t('craft-breakpoints'), url: '#database' }
+    formats: { label: 'Output & Quality'|t('breakpoints'), url: '#formats', class: formatsTabClass },
+    behavior: { label: 'Transform Settings'|t('breakpoints'), url: '#behavior', class: behaviorTabClass },
+    templates: { label: 'Templates'|t('breakpoints'), url: '#templates', class: templatesTabClass },
+    editor: { label: 'Editor UI'|t('breakpoints'), url: '#editor', class: editorTabClass },
+    database: { label: 'Database'|t('breakpoints'), url: '#database' }
 } %}
 
 {% set selectedTab = craft.app.request.getParam('tab') ?? 'formats' %}
@@ -33,10 +33,10 @@
 
 {% block content %}
     {{ actionInput('plugins/save-plugin-settings') }}
-    {{ hiddenInput('pluginHandle', 'craft-breakpoints') }}
-    {{ redirectInput('craft-breakpoints/settings') }}
+    {{ hiddenInput('pluginHandle', 'breakpoints') }}
+    {{ redirectInput('breakpoints/settings') }}
 
-    {% include 'craft-breakpoints/settings' with {
+    {% include 'breakpoints/settings' with {
         settings: settings,
         selectedTab: selectedTab,
         useTabs: true,

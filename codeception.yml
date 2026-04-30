@@ -18,9 +18,9 @@ modules:
       projectConfig: {}
       migrations: []
       plugins:
-        craft-breakpoints:
+        breakpoints:
           class: '\craftyhedge\craftbreakpoints\Plugin'
-          handle: craft-breakpoints
+          handle: breakpoints
       cleanup: true
       transaction: true
       dbSetup: { clean: true, setupCraft: true }

@@ -11,12 +11,12 @@
 {% set selectedTab = selectedTab ?? (craft.app.request.getParam('tab') ?? 'formats') %}
 
 {% set pictureTemplatePathValue = settings.pictureTemplatePath ?? '' %}
-{% if pictureTemplatePathValue == 'craft-breakpoints/picture.twig' %}
+{% if pictureTemplatePathValue == 'breakpoints/picture.twig' %}
     {% set pictureTemplatePathValue = '' %}
 {% endif %}
 
 {% set svgTemplatePathValue = settings.svgTemplatePath ?? '' %}
-{% if svgTemplatePathValue == 'craft-breakpoints/svg.twig' %}
+{% if svgTemplatePathValue == 'breakpoints/svg.twig' %}
     {% set svgTemplatePathValue = '' %}
 {% endif %}
 
@@ -227,17 +227,17 @@
 </div>
 
 <div id="database" {% if useTabs and selectedTab != 'database' %}class="hidden"{% endif %}>
-    <h2>{{ 'Database Utilities'|t('craft-breakpoints') }}</h2>
-    <p class="instructions">{{ 'Inspect and clean up plugin-owned tables.'|t('craft-breakpoints') }}</p>
+    <h2>{{ 'Database Utilities'|t('breakpoints') }}</h2>
+    <p class="instructions">{{ 'Inspect and clean up plugin-owned tables.'|t('breakpoints') }}</p>
 
     <table id="bpts-db-stats" class="bpts-db-stats">
         <tbody>
         {% for row in databaseStats ?? [] %}
             <tr data-stat-key="{{ row.key }}">
                 <th scope="row">
-                    {{ row.label|t('craft-breakpoints') }}
+                    {{ row.label|t('breakpoints') }}
                     {% if not row.exists %}
-                        <span class="error">{{ 'missing'|t('craft-breakpoints') }}</span>
+                        <span class="error">{{ 'missing'|t('breakpoints') }}</span>
                     {% endif %}
                 </th>
                 <td data-stat-rows>{{ row.rows }}</td>
@@ -248,7 +248,7 @@
 
     {% if databaseLatestRunAt %}
         <p class="light">
-            {{ 'Last run snapshot recorded at'|t('craft-breakpoints') }}
+            {{ 'Last run snapshot recorded at'|t('breakpoints') }}
             <strong>{{ databaseLatestRunAt|datetime('short') }}</strong>.
         </p>
     {% endif %}
@@ -263,18 +263,18 @@
 
     <hr>
 
-    <h3>{{ 'Clean up orphaned data'|t('craft-breakpoints') }}</h3>
-    <p class="instructions">{{ 'Deletes rows whose transform handle is no longer in the saved config, and rows that reference deleted entries. Safe to run anytime.'|t('craft-breakpoints') }}</p>
+    <h3>{{ 'Clean up orphaned data'|t('breakpoints') }}</h3>
+    <p class="instructions">{{ 'Deletes rows whose transform handle is no longer in the saved config, and rows that reference deleted entries. Safe to run anytime.'|t('breakpoints') }}</p>
     <div class="buttons">
         {{ forms.button({
-            label: 'Clean up'|t('craft-breakpoints'),
+            label: 'Clean up'|t('breakpoints'),
             icon: 'broom',
             spinner: true,
-            busyMessage: 'Cleaning up…'|t('craft-breakpoints'),
+            busyMessage: 'Cleaning up…'|t('breakpoints'),
             attributes: {
                 data: {
                     'bpts-db-action': 'cleanup-orphaned',
-                    'bpts-db-confirm': 'Run orphan cleanup now?'|t('craft-breakpoints'),
+                    'bpts-db-confirm': 'Run orphan cleanup now?'|t('breakpoints'),
                 },
             },
         }) }}
@@ -282,19 +282,19 @@
 
     <hr>
 
-    <h3>{{ 'Clear all plugin data'|t('craft-breakpoints') }}</h3>
-    <p class="instructions warning">{{ 'Empties every plugin-owned table. Transform configuration is preserved, but telemetry, snapshots, and preview cache are removed.'|t('craft-breakpoints') }}</p>
+    <h3>{{ 'Clear all plugin data'|t('breakpoints') }}</h3>
+    <p class="instructions warning">{{ 'Empties every plugin-owned table. Transform configuration is preserved, but telemetry, snapshots, and preview cache are removed.'|t('breakpoints') }}</p>
     <div class="buttons">
         {{ forms.button({
-            label: 'Clear all'|t('craft-breakpoints'),
+            label: 'Clear all'|t('breakpoints'),
             icon: 'trash',
             spinner: true,
-            busyMessage: 'Clearing…'|t('craft-breakpoints'),
+            busyMessage: 'Clearing…'|t('breakpoints'),
             class: ['secondary'],
             attributes: {
                 data: {
                     'bpts-db-action': 'clear-all',
-                    'bpts-db-confirm': 'Permanently clear ALL plugin data? This cannot be undone.'|t('craft-breakpoints'),
+                    'bpts-db-confirm': 'Permanently clear ALL plugin data? This cannot be undone.'|t('breakpoints'),
                 },
             },
         }) }}
@@ -308,8 +308,8 @@
     }
 
     var actionMap = {
-        'cleanup-orphaned': 'craft-breakpoints/database/cleanup-orphaned',
-        'clear-all': 'craft-breakpoints/database/clear-all'
+        'cleanup-orphaned': 'breakpoints/database/cleanup-orphaned',
+        'clear-all': 'breakpoints/database/clear-all'
     };
 
     function updateStats(stats) {
@@ -346,7 +346,7 @@
                 .catch(function(error) {
                     var msg = (error && error.response && error.response.data && error.response.data.message)
                         ? error.response.data.message
-                        : Craft.t('craft-breakpoints', 'Database action failed.');
+                        : Craft.t('breakpoints', 'Database action failed.');
                     Craft.cp.displayError(msg);
                 })
                 .finally(function() {

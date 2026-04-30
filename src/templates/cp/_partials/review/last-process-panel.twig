@@ -19,7 +19,7 @@
     {%- if runEntry is not null and (runEntry.id ?? 0) > 0 -%}
         {%- set runTitle = (runEntry.title ?? '')|trim -%}
         {%- set runTooltip = runTitle != '' ? 'Processed entry: ' ~ runTitle : 'Open processed entry' -%}
-{% include 'craft-breakpoints/cp/_partials/review/entry-link' with {
+{% include 'breakpoints/cp/_partials/review/entry-link' with {
     id: runEntry.id,
     href: (runEntry.cpEditUrl ?? '#')|trim ?: '#',
     siteId: max(0, (runEntry.siteId ?? 0)),
@@ -35,7 +35,7 @@
     {%- if observedEntry is not null and (observedEntry.id ?? 0) > 0 -%}
         {%- set observedTitle = (observedEntry.title ?? '')|trim -%}
         {%- set observedTooltip = observedTitle != '' ? 'Last observed entry: ' ~ observedTitle : 'Open last observed entry' -%}
-{% include 'craft-breakpoints/cp/_partials/review/entry-link' with {
+{% include 'breakpoints/cp/_partials/review/entry-link' with {
     id: observedEntry.id,
     href: (observedEntry.cpEditUrl ?? '#')|trim ?: '#',
     siteId: max(0, (observedEntry.siteId ?? 0)),
