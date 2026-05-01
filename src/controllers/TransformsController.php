@@ -152,7 +152,6 @@ class TransformsController extends Controller
         $ratioWidthRaw = $this->request->getBodyParam('ratioWidth');
         $ratioHeightRaw = $this->request->getBodyParam('ratioHeight');
         $ratioSourceDimensionRaw = $this->request->getBodyParam('ratioSourceDimension');
-        $draftByBreakpointRaw = $this->request->getBodyParam('draftByBreakpoint', []);
         $baseVersion = Plugin::getInstance()->getTransformStore()->getCurrentVersion();
 
         $includeEscapeWidth = Support::parseNullableBool($includeEscapeWidthRaw);
@@ -168,7 +167,6 @@ class TransformsController extends Controller
         $ratioHeight = Support::parseNullablePositiveInt($ratioHeightRaw);
         $ratioSourceDimension = Support::parseNullableNonEmptyString($ratioSourceDimensionRaw);
         $enabled = Support::parseNullableBool($this->request->getBodyParam('enabled'));
-        $draftByBreakpoint = is_array($draftByBreakpointRaw) ? $draftByBreakpointRaw : [];
 
         if ($field === 'renderedValues') {
             $renderedRowsRaw = $this->request->getBodyParam('renderedRows', []);
@@ -179,7 +177,6 @@ class TransformsController extends Controller
                 $renderedRows,
                 $includeEscapeWidth,
                 $clearAuto,
-                $draftByBreakpoint,
                 $baseVersion,
             );
         } elseif ($field === 'deleteSet') {
@@ -195,7 +192,6 @@ class TransformsController extends Controller
                 $widthAuto,
                 $heightAuto,
                 $forceAll,
-                $draftByBreakpoint,
                 $baseVersion,
             );
         } elseif ($field === 'ratio') {
@@ -207,7 +203,6 @@ class TransformsController extends Controller
                 $ratioHeight,
                 $ratioSourceDimension,
                 $includeEscapeWidth,
-                $draftByBreakpoint,
                 $baseVersion,
             );
         } elseif ($field === 'breakpointEnabled') {
@@ -216,7 +211,6 @@ class TransformsController extends Controller
                 $scopeBreakpoint,
                 $enabled,
                 $includeEscapeWidth,
-                $draftByBreakpoint,
                 $baseVersion,
             );
         } elseif ($field === 'passHeightWhenRenderedLteSaved') {
@@ -224,7 +218,6 @@ class TransformsController extends Controller
                 $setName,
                 $valueRaw,
                 $includeEscapeWidth,
-                $draftByBreakpoint,
                 $baseVersion,
             );
         } elseif ($field === 'allowAnyHeight') {
@@ -232,7 +225,6 @@ class TransformsController extends Controller
                 $setName,
                 $valueRaw,
                 $includeEscapeWidth,
-                $draftByBreakpoint,
                 $baseVersion,
             );
         } else {
@@ -243,7 +235,6 @@ class TransformsController extends Controller
                 $value,
                 $field,
                 $includeEscapeWidth,
-                $draftByBreakpoint,
                 $baseVersion,
             );
         }
@@ -253,14 +244,15 @@ class TransformsController extends Controller
             : $editor->defaultValidation();
         $persisted = ($operationResult['persisted'] ?? false) === true;
         $conflict = ($operationResult['conflict'] ?? false) === true;
-        $draftOnly = ($operationResult['draftOnly'] ?? false) === true;
         $statusMessage = $this->buildOperationStatusMessage($field, $persisted, $conflict, $operationResult);
-        $statusKind = $conflict ? 'conflict' : ($persisted ? 'success' : ($draftOnly ? 'draft' : 'error'));
+        $statusKind = $conflict ? 'conflict' : ($persisted ? 'success' : 'error');
 
         $events = [];
         $shouldPatchCard = $persisted || $conflict;
         if ($shouldPatchCard) {
-            $cardMarkup = $editor->renderCardFragment($setName, $draftByBreakpoint);
+            $editScopeBySet = $this->buildCardEditScope($setName, $scopeMode, $scopeBreakpoint);
+            $editTabBySet = $this->buildCardEditTab($setName, $field);
+            $cardMarkup = $editor->renderCardFragment($setName, $editScopeBySet, $editTabBySet);
             $cardId = $this->buildCardDomId($setName);
             if ($cardMarkup !== '') {
                 $events[] = new PatchElements($cardMarkup);
@@ -299,7 +291,6 @@ class TransformsController extends Controller
         $editTabBySet = $this->readBodyArrayParam('editTabBySet');
         $selectedAssetKeyBySet = $this->readBodyArrayParam('selectedAssetKeyBySet');
         $preferredOrderBySet = $this->readBodyArrayParam('preferredOrderBySet');
-        $draftByBreakpointBySet = $this->readBodyArrayParam('draftByBreakpointBySet');
 
         $rendered = $editor->renderResultReview(
             $result,
@@ -307,7 +298,6 @@ class TransformsController extends Controller
             $editTabBySet,
             $selectedAssetKeyBySet,
             $preferredOrderBySet,
-            $draftByBreakpointBySet,
         );
 
         return $this->asJson($rendered);
@@ -324,14 +314,12 @@ class TransformsController extends Controller
         $editTabBySet = $this->readBodyArrayParam('editTabBySet');
         $selectedAssetKeyBySet = $this->readBodyArrayParam('selectedAssetKeyBySet');
         $preferredOrderBySet = $this->readBodyArrayParam('preferredOrderBySet');
-        $draftByBreakpointBySet = $this->readBodyArrayParam('draftByBreakpointBySet');
 
         $rendered = $editor->renderInitialStoredReview(
             $editScopeBySet,
             $editTabBySet,
             $selectedAssetKeyBySet,
             $preferredOrderBySet,
-            $draftByBreakpointBySet,
             $result,
         );
 
@@ -440,6 +428,54 @@ class TransformsController extends Controller
         }
 
         return 't_' . str_replace('-', '_', $slug) . '_' . substr(sha1($normalized), 0, 8);
+    }
+
+    /**
+     * @return array<string, array{mode: string, breakpoint: ?int}>
+     */
+    private function buildCardEditScope(string $setName, string $scopeMode, ?int $scopeBreakpoint): array
+    {
+        if ($setName === '') {
+            return [];
+        }
+
+        if ($scopeMode === 'breakpoint' && $scopeBreakpoint !== null) {
+            return [
+                $setName => [
+                    'mode' => 'breakpoint',
+                    'breakpoint' => $scopeBreakpoint,
+                ],
+            ];
+        }
+
+        if ($scopeMode === 'all') {
+            return [
+                $setName => [
+                    'mode' => 'all',
+                    'breakpoint' => null,
+                ],
+            ];
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function buildCardEditTab(string $setName, string $field): array
+    {
+        if ($setName === '') {
+            return [];
+        }
+
+        $tab = match ($field) {
+            'ratio' => 'ratio',
+            'passHeightWhenRenderedLteSaved', 'allowAnyHeight' => 'settings',
+            default => 'dimensions',
+        };
+
+        return [$setName => $tab];
     }
 
     private function resolveSessionId(): string

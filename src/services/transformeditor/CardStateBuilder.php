@@ -7,7 +7,6 @@ final class CardStateBuilder
     /**
      * @param array<int, array<string, mixed>> $currentRowsByBreakpoint
      * @param array<int, int> $transformBreakpoints
-     * @param array<string, mixed> $draftByBreakpoint
      * @return array{scope: array{mode: string, breakpoint: ?int}, tab: string, rowsByBreakpoint: array<string, array<string, mixed>>, scopeValues: array<string, string>, firstBreakpoint: ?int, initSeedAppliedAny: bool}
      */
     public function build(
@@ -15,12 +14,11 @@ final class CardStateBuilder
         array $transformBreakpoints,
         mixed $rawScope,
         mixed $rawTab,
-        array $draftByBreakpoint = [],
     ): array {
         $scope = $this->normalizeScope($rawScope, $transformBreakpoints);
         $rowsByBreakpoint = $this->buildRowsByBreakpointState($currentRowsByBreakpoint, $transformBreakpoints);
         $tab = $this->normalizeTab($rawTab);
-        $scopeValues = $this->resolveScopeValues($rowsByBreakpoint, $scope, $draftByBreakpoint);
+        $scopeValues = $this->resolveScopeValues($rowsByBreakpoint, $scope);
 
         $initSeedAppliedAny = false;
         foreach ($rowsByBreakpoint as $row) {
@@ -144,10 +142,9 @@ final class CardStateBuilder
     /**
      * @param array<string, array<string, mixed>> $rowsByBreakpoint
      * @param array{mode: string, breakpoint: ?int} $scope
-     * @param array<string, mixed> $draftByBreakpoint
      * @return array<string, string>
      */
-    private function resolveScopeValues(array $rowsByBreakpoint, array $scope, array $draftByBreakpoint): array
+    private function resolveScopeValues(array $rowsByBreakpoint, array $scope): array
     {
         if (($scope['mode'] ?? 'all') !== 'breakpoint') {
             return $this->emptyScopeValues();
@@ -166,14 +163,6 @@ final class CardStateBuilder
             return $this->emptyScopeValues();
         }
 
-        $draft = is_array($draftByBreakpoint[$breakpointKey] ?? null)
-            ? $draftByBreakpoint[$breakpointKey]
-            : null;
-
-        if ($draft !== null) {
-            $row = $this->applyDraftToRowState($row, $draft);
-        }
-
         return [
             'widthInput' => (string)($row['widthInput'] ?? ''),
             'heightInput' => (string)($row['heightInput'] ?? ''),
@@ -184,36 +173,6 @@ final class CardStateBuilder
             'ratioHeightInput' => (string)($row['ratioHeightInput'] ?? ''),
             'ratioFloatInput' => (string)($row['ratioFloatInput'] ?? ''),
             'ratioSourceDimension' => (string)($row['ratioSourceDimension'] ?? 'width'),
-        ];
-    }
-
-    /**
-     * @param array<string, mixed> $row
-     * @param array<string, mixed> $draft
-     * @return array<string, mixed>
-     */
-    private function applyDraftToRowState(array $row, array $draft): array
-    {
-        $autoDimension = Support::normalizeAutoDimension($draft['autoDimension'] ?? null) ?? '';
-        $widthAuto = $autoDimension === 'width' ? '1' : '0';
-        $heightAuto = $autoDimension === 'height' ? '1' : '0';
-
-        $ratioWidthInput = trim((string)($draft['ratioWidthInput'] ?? $row['ratioWidthInput'] ?? ''));
-        $ratioHeightInput = trim((string)($draft['ratioHeightInput'] ?? $row['ratioHeightInput'] ?? ''));
-        $ratioFloatInput = trim((string)($draft['ratioFloatInput'] ?? $row['ratioFloatInput'] ?? ''));
-        $ratioLocked = ((string)($draft['ratioLocked'] ?? '0')) === '1' ? '1' : '0';
-
-        return [
-            ...$row,
-            'widthInput' => trim((string)($draft['widthInput'] ?? $row['widthInput'] ?? '')),
-            'heightInput' => trim((string)($draft['heightInput'] ?? $row['heightInput'] ?? '')),
-            'widthAuto' => $widthAuto,
-            'heightAuto' => $heightAuto,
-            'ratioWidthInput' => $ratioWidthInput,
-            'ratioHeightInput' => $ratioHeightInput,
-            'ratioFloatInput' => $ratioFloatInput,
-            'ratioLocked' => $ratioLocked,
-            'ratioSourceDimension' => Support::normalizeRatioSourceDimension($draft['ratioSourceDimension'] ?? null) ?? 'width',
         ];
     }
 

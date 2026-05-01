@@ -2,19 +2,22 @@
 
 namespace craftyhedge\craftbreakpoints\services\transformeditor;
 
+use craftyhedge\craftbreakpoints\services\ConfigService;
 use craftyhedge\craftbreakpoints\services\TelemetryService;
 
 /**
  * Builds per-transform review warnings (currently: missing set definitions)
  * and provides warning metadata used for rendering (class, label).
  *
- * Depends on SnapshotReader for observed entry data and TelemetryService for
- * edit-permission decisions on the warning message text.
+ * Depends on SnapshotReader for observed entry data, ConfigService for
+ * configured breakpoints, and TelemetryService for edit-permission decisions
+ * on warning message text.
  */
 final class ReviewWarningsBuilder
 {
     public function __construct(
         private readonly SnapshotReader $snapshotReader,
+        private readonly ConfigService $configService,
         private readonly TelemetryService $telemetry,
     ) {
     }
@@ -27,10 +30,26 @@ final class ReviewWarningsBuilder
     public function buildWarningsByTransform(array $rowsByBreakpoint, array $storedTransforms): array
     {
         $warningsByTransform = [];
+        $observedTransformNames = self::collectTransformNames($rowsByBreakpoint);
+        $observedTransformSet = array_fill_keys($observedTransformNames, true);
         $configTransformNames = array_keys($storedTransforms);
         sort($configTransformNames, SORT_STRING);
 
-        $observedTransformNames = self::collectTransformNames($rowsByBreakpoint);
+        foreach ($storedTransforms as $transformName => $transformDefinition) {
+            if (!is_string($transformName) || $transformName === '' || !is_array($transformDefinition)) {
+                continue;
+            }
+
+            if (!isset($observedTransformSet[$transformName])) {
+                continue;
+            }
+
+            $emptyBreakpoints = $this->collectEmptyEnabledBreakpoints($transformDefinition);
+            if ($emptyBreakpoints !== []) {
+                $warningsByTransform[$transformName][] = $this->buildEmptyEnabledBreakpointsWarning($emptyBreakpoints);
+            }
+        }
+
         $missingDefinitions = array_values(array_diff($observedTransformNames, $configTransformNames));
         if ($missingDefinitions === []) {
             return $warningsByTransform;
@@ -87,6 +106,30 @@ final class ReviewWarningsBuilder
     }
 
     /**
+     * @param int[] $breakpoints
+     * @return array<string, mixed>
+     */
+    public function buildEmptyEnabledBreakpointsWarning(array $breakpoints): array
+    {
+        $normalizedBreakpoints = array_values(array_unique(array_filter(
+            array_map(static fn(mixed $value): int => (int)$value, $breakpoints),
+            static fn(int $value): bool => $value > 0,
+        )));
+        sort($normalizedBreakpoints, SORT_NUMERIC);
+
+        $breakpointList = implode(', ', array_map(static fn(int $value): string => $value . 'px', $normalizedBreakpoints));
+
+        return [
+            'code' => 'empty-enabled-breakpoints',
+            'message' => $breakpointList !== ''
+                ? 'One or more enabled breakpoints have empty values: ' . $breakpointList . '.'
+                : 'One or more enabled breakpoints have empty values.',
+            'breakpoints' => $normalizedBreakpoints,
+            'breakpointCount' => count($normalizedBreakpoints),
+        ];
+    }
+
+    /**
      * @param array<string, array<int, array<string, mixed>>> $warningsByTransform
      */
     public static function countWarningsByTransform(array $warningsByTransform): int
@@ -123,5 +166,79 @@ final class ReviewWarningsBuilder
         sort($transformNames, SORT_STRING);
 
         return $transformNames;
+    }
+
+    /**
+     * @param array<string, mixed> $transformDefinition
+     * @return int[]
+     */
+    private function collectEmptyEnabledBreakpoints(array $transformDefinition): array
+    {
+        $includeEscapeWidth = ($transformDefinition['includeEscapeWidth'] ?? false) === true;
+        $breakpoints = $this->resolveBreakpointsForTransform($includeEscapeWidth);
+
+        if ($breakpoints === []) {
+            return [];
+        }
+
+        $rawEntries = isset($transformDefinition['transforms']) && is_array($transformDefinition['transforms'])
+            ? array_values($transformDefinition['transforms'])
+            : [];
+        $entries = Support::normalizeTransformEntriesForBreakpoints($breakpoints, $rawEntries);
+
+        $emptyBreakpoints = [];
+        foreach ($breakpoints as $index => $breakpoint) {
+            $entry = isset($entries[$index]) && is_array($entries[$index])
+                ? $entries[$index]
+                : Support::buildDefaultTransformEntry();
+
+            if (($entry['enabled'] ?? true) !== true) {
+                continue;
+            }
+
+            $autoDimension = $entry['autoDimension'] ?? null;
+            $width = $entry['width'] ?? null;
+            $height = $entry['height'] ?? null;
+
+            // Warn only for truly empty enabled breakpoints, not partial values.
+            $isEmpty = $width === null && $height === null;
+
+            if ($isEmpty) {
+                $emptyBreakpoints[] = (int)$breakpoint;
+            }
+        }
+
+        $emptyBreakpoints = array_values(array_unique($emptyBreakpoints));
+        sort($emptyBreakpoints, SORT_NUMERIC);
+
+        return $emptyBreakpoints;
+    }
+
+    /**
+     * @return int[]
+     */
+    private function resolveBreakpointsForTransform(bool $includeEscapeWidth): array
+    {
+        $breakpoints = $this->configService->getBreakpoints();
+        if (!is_array($breakpoints)) {
+            return [];
+        }
+
+        if (!$includeEscapeWidth) {
+            unset($breakpoints['escape']);
+        }
+
+        $values = [];
+        foreach ($breakpoints as $breakpoint) {
+            $normalized = Support::normalizeNullablePositiveInt($breakpoint);
+            if ($normalized !== null) {
+                $values[] = $normalized;
+            }
+        }
+
+        $values = array_values(array_unique($values));
+        sort($values, SORT_NUMERIC);
+
+        return $values;
     }
 }

@@ -1897,7 +1897,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     function finalizePendingTransformUpdatesFromServerStatus(serverStatus) {
         const status = serverStatus && typeof serverStatus === 'object' ? serverStatus : null;
         const kind = String(status?.kind || '').trim().toLowerCase();
-        if (kind !== 'success' && kind !== 'error' && kind !== 'conflict' && kind !== 'draft') {
+        if (kind !== 'success' && kind !== 'error' && kind !== 'conflict') {
             return;
         }
 
@@ -1942,9 +1942,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
         const terminalMessage = typeof status?.message === 'string' && status.message.trim() !== ''
             ? status.message
-            : (kind === 'draft'
-                ? 'Draft saved locally. Complete all enabled breakpoints to persist.'
-                : 'Update failed');
+            : 'Update failed';
 
         pendingTransformEntries.forEach(({ transformName }) => {
             const runId = getUpdateStatusRunId(transformName);
@@ -1959,7 +1957,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
         const status = serverStatus && typeof serverStatus === 'object' ? serverStatus : null;
         const kind = String(status?.kind || '').trim().toLowerCase();
-        if (kind !== 'success' && kind !== 'error' && kind !== 'conflict' && kind !== 'draft') {
+        if (kind !== 'success' && kind !== 'error' && kind !== 'conflict') {
             return;
         }
 
@@ -1989,9 +1987,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
         const terminalMessage = typeof status?.message === 'string' && status.message.trim() !== ''
             ? status.message
-            : (kind === 'draft'
-                ? 'Draft saved locally. Complete all enabled breakpoints to persist.'
-                : 'Update failed');
+            : 'Update failed';
         scheduleTransformTerminalStatus(transformName, terminalMessage, 'error', CARD_UPDATE_STATUS_ERROR_CLEAR_DELAY_MS, runId);
     }
 

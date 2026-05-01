@@ -184,6 +184,58 @@ final class TransformEditorServiceTest extends Unit
         $this->assertSame($viaSetDimension, $viaWidthOperation);
     }
 
+    public function testApplySetDimensionsOperationPersistsWhenOtherEnabledBreakpointsAreEmpty(): void
+    {
+        $plugin = Plugin::getInstance();
+        $editor = $plugin->getTransformEditor();
+        $breakpoints = $plugin->getConfigService()->getBreakpoints();
+        unset($breakpoints['escape']);
+        $firstBreakpoint = (int)reset($breakpoints);
+        $breakpointNames = array_keys($breakpoints);
+        $firstBreakpointName = (string)($breakpointNames[0] ?? '');
+        $secondBreakpointName = (string)($breakpointNames[1] ?? '');
+        $variants = [];
+
+        foreach (array_keys($breakpoints) as $breakpointName) {
+            $variants[$breakpointName] = [
+                'width' => null,
+                'height' => null,
+                'enabled' => true,
+                'autoDimension' => null,
+            ];
+        }
+
+        $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => $variants,
+                'config' => [],
+            ],
+        ], function () use ($editor, $firstBreakpoint, $firstBreakpointName, $secondBreakpointName): void {
+            $result = $editor->applySetDimensionsOperation(
+                'hero',
+                'breakpoint',
+                $firstBreakpoint,
+                321,
+                654,
+                false,
+                false,
+                false,
+            );
+
+            $this->assertTrue(($result['persisted'] ?? false) === true);
+            $this->assertFalse(($result['validation']['hasErrors'] ?? true) === true);
+
+            $sets = Plugin::getInstance()->getTransformStore()->getSets();
+            $variants = $sets['hero']['variants'] ?? [];
+            $this->assertSame(321, $variants[$firstBreakpointName]['width'] ?? null);
+            $this->assertSame(654, $variants[$firstBreakpointName]['height'] ?? null);
+            $this->assertNull($variants[$secondBreakpointName]['width'] ?? null);
+            $this->assertNull($variants[$secondBreakpointName]['height'] ?? null);
+        });
+    }
+
     public function testDeleteSetOperationRemovesOnlyRequestedSet(): void
     {
         $editor = Plugin::getInstance()->getTransformEditor();

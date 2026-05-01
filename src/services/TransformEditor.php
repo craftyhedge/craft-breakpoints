@@ -45,6 +45,7 @@ class TransformEditor extends Component
             );
             $this->_warningsBuilder = new ReviewWarningsBuilder(
                 $this->_snapshotReader,
+                $this->_plugin->getConfigService(),
                 $this->_plugin->getTelemetry(),
             );
             $this->_draftService = new DraftService(
@@ -155,7 +156,6 @@ class TransformEditor extends Component
         ?int $value,
         string $dimension,
         ?bool $includeEscapeWidth = null,
-        array $draftByBreakpoint = [],
         ?string $expectedVersion = null,
     ): array {
         if ($this->_operationsService === null) {
@@ -169,7 +169,6 @@ class TransformEditor extends Component
             $value,
             $dimension,
             $includeEscapeWidth,
-            $draftByBreakpoint,
             $expectedVersion,
         );
     }
@@ -184,7 +183,6 @@ class TransformEditor extends Component
         ?bool $widthAuto = null,
         ?bool $heightAuto = null,
         bool $forceAll = false,
-        array $draftByBreakpoint = [],
         ?string $expectedVersion = null,
     ): array {
         if ($this->_operationsService === null) {
@@ -201,7 +199,6 @@ class TransformEditor extends Component
             $widthAuto,
             $heightAuto,
             $forceAll,
-            $draftByBreakpoint,
             $expectedVersion,
         );
     }
@@ -214,7 +211,6 @@ class TransformEditor extends Component
         ?int $ratioHeight,
         ?string $ratioSourceDimension,
         ?bool $includeEscapeWidth = null,
-        array $draftByBreakpoint = [],
         ?string $expectedVersion = null,
     ): array {
         if ($this->_operationsService === null) {
@@ -229,7 +225,6 @@ class TransformEditor extends Component
             $ratioHeight,
             $ratioSourceDimension,
             $includeEscapeWidth,
-            $draftByBreakpoint,
             $expectedVersion,
         );
     }
@@ -239,7 +234,6 @@ class TransformEditor extends Component
         ?int $scopeBreakpoint,
         ?bool $enabled,
         ?bool $includeEscapeWidth = null,
-        array $draftByBreakpoint = [],
         ?string $expectedVersion = null,
     ): array {
         if ($this->_operationsService === null) {
@@ -251,7 +245,6 @@ class TransformEditor extends Component
             $scopeBreakpoint,
             $enabled,
             $includeEscapeWidth,
-            $draftByBreakpoint,
             $expectedVersion,
         );
     }
@@ -260,7 +253,6 @@ class TransformEditor extends Component
         string $transformName,
         mixed $value,
         ?bool $includeEscapeWidth = null,
-        array $draftByBreakpoint = [],
         ?string $expectedVersion = null,
     ): array {
         if ($this->_operationsService === null) {
@@ -271,7 +263,6 @@ class TransformEditor extends Component
             $transformName,
             $value,
             $includeEscapeWidth,
-            $draftByBreakpoint,
             $expectedVersion,
         );
     }
@@ -280,7 +271,6 @@ class TransformEditor extends Component
         string $transformName,
         mixed $value,
         ?bool $includeEscapeWidth = null,
-        array $draftByBreakpoint = [],
         ?string $expectedVersion = null,
     ): array {
         if ($this->_operationsService === null) {
@@ -291,7 +281,6 @@ class TransformEditor extends Component
             $transformName,
             $value,
             $includeEscapeWidth,
-            $draftByBreakpoint,
             $expectedVersion,
         );
     }
@@ -301,7 +290,6 @@ class TransformEditor extends Component
         array $renderedRows,
         ?bool $includeEscapeWidth = null,
         bool $clearAuto = false,
-        array $draftByBreakpoint = [],
         ?string $expectedVersion = null,
     ): array {
         if ($this->_operationsService === null) {
@@ -313,7 +301,6 @@ class TransformEditor extends Component
             $renderedRows,
             $includeEscapeWidth,
             $clearAuto,
-            $draftByBreakpoint,
             $expectedVersion,
         );
     }
@@ -381,7 +368,6 @@ class TransformEditor extends Component
         array $editTabBySet = [],
         array $selectedAssetKeyBySet = [],
         array $preferredOrderBySet = [],
-        array $draftByBreakpointBySet = [],
         bool $hideRenderedApply = false,
         bool $hideAssetPagination = false,
         string $reviewMode = self::REVIEW_MODE_PROCESSED,
@@ -404,7 +390,6 @@ class TransformEditor extends Component
             $editTabBySet,
             $selectedAssetKeyBySet,
             $preferredOrderBySet,
-            $draftByBreakpointBySet,
             $hideRenderedApply,
             $hideAssetPagination,
             $reviewMode,
@@ -416,7 +401,6 @@ class TransformEditor extends Component
         array $editTabBySet = [],
         array $selectedAssetKeyBySet = [],
         array $preferredOrderBySet = [],
-        array $draftByBreakpointBySet = [],
         array $result = [],
     ): array {
         if ($this->_reviewRenderer === null) {
@@ -436,7 +420,6 @@ class TransformEditor extends Component
             $editTabBySet,
             $selectedAssetKeyBySet,
             $preferredOrderBySet,
-            $draftByBreakpointBySet,
             null,
             $result,
         );
@@ -444,7 +427,6 @@ class TransformEditor extends Component
 
     public function renderCardFragment(
         string $setName,
-        array $draftByBreakpoint = [],
         array $editScopeBySet = [],
         array $editTabBySet = [],
         array $selectedAssetKeyBySet = [],
@@ -455,7 +437,6 @@ class TransformEditor extends Component
 
         return $this->_reviewRenderer->renderCardFragment(
             $setName,
-            $draftByBreakpoint,
             $editScopeBySet,
             $editTabBySet,
             $selectedAssetKeyBySet,

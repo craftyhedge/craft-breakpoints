@@ -32,7 +32,6 @@ final class OperationsService
         ?int $value,
         string $dimension,
         ?bool $includeEscapeWidth = null,
-        array $draftByBreakpoint = [],
         ?string $expectedVersion = null,
     ): array {
         $validation = Support::defaultValidation();
@@ -77,7 +76,6 @@ final class OperationsService
             : [];
 
         $entries = Support::normalizeTransformEntriesForBreakpoints($breakpoints, $rawEntries);
-        $entries = $this->applyDraftByBreakpointToEntries($entries, $breakpoints, $draftByBreakpoint);
 
         $preserveAutos = $scopeMode !== 'breakpoint';
 
@@ -161,7 +159,7 @@ final class OperationsService
                 : [],
         ]);
 
-        return $this->persistOperationTransforms($transforms, $validation, $expectedVersion, $transformName);
+        return $this->persistOperationTransforms($transforms, $validation, $expectedVersion);
     }
 
     /**
@@ -177,7 +175,6 @@ final class OperationsService
         ?bool $widthAuto = null,
         ?bool $heightAuto = null,
         bool $forceAll = false,
-        array $draftByBreakpoint = [],
         ?string $expectedVersion = null,
     ): array {
         $validation = Support::defaultValidation();
@@ -213,7 +210,6 @@ final class OperationsService
             : [];
 
         $entries = Support::normalizeTransformEntriesForBreakpoints($breakpoints, $rawEntries);
-        $entries = $this->applyDraftByBreakpointToEntries($entries, $breakpoints, $draftByBreakpoint);
 
         $resolvedWidthAuto = $widthAuto === true;
         $resolvedHeightAuto = $heightAuto === true && !$resolvedWidthAuto;
@@ -330,7 +326,7 @@ final class OperationsService
                 : [],
         ]);
 
-        return $this->persistOperationTransforms($transforms, $validation, $expectedVersion, $transformName);
+        return $this->persistOperationTransforms($transforms, $validation, $expectedVersion);
     }
 
     /**
@@ -344,7 +340,6 @@ final class OperationsService
         ?int $ratioHeight,
         ?string $ratioSourceDimension,
         ?bool $includeEscapeWidth = null,
-        array $draftByBreakpoint = [],
         ?string $expectedVersion = null,
     ): array {
         $validation = Support::defaultValidation();
@@ -408,7 +403,6 @@ final class OperationsService
             : [];
 
         $entries = Support::normalizeTransformEntriesForBreakpoints($breakpoints, $rawEntries);
-        $entries = $this->applyDraftByBreakpointToEntries($entries, $breakpoints, $draftByBreakpoint);
 
         $preserveAutos = $scopeMode !== 'breakpoint';
         $appliedBreakpoints = [];
@@ -554,7 +548,7 @@ final class OperationsService
                 : [],
         ]);
 
-        $persistResult = $this->persistOperationTransforms($transforms, $validation, $expectedVersion, $transformName);
+        $persistResult = $this->persistOperationTransforms($transforms, $validation, $expectedVersion);
         $persistResult['operationDetails'] = [
             'appliedBreakpoints' => $appliedBreakpoints,
             'skippedBreakpoints' => $skippedBreakpoints,
@@ -571,7 +565,6 @@ final class OperationsService
         ?int $scopeBreakpoint,
         ?bool $enabled,
         ?bool $includeEscapeWidth = null,
-        array $draftByBreakpoint = [],
         ?string $expectedVersion = null,
     ): array {
         $validation = Support::defaultValidation();
@@ -635,7 +628,6 @@ final class OperationsService
             : [];
 
         $entries = Support::normalizeTransformEntriesForBreakpoints($breakpoints, $rawEntries);
-        $entries = $this->applyDraftByBreakpointToEntries($entries, $breakpoints, $draftByBreakpoint);
 
         $entry = isset($entries[$breakpointIndex]) && is_array($entries[$breakpointIndex])
             ? $entries[$breakpointIndex]
@@ -652,7 +644,7 @@ final class OperationsService
                 : [],
         ]);
 
-        return $this->persistOperationTransforms($transforms, $validation, $expectedVersion, $transformName);
+        return $this->persistOperationTransforms($transforms, $validation, $expectedVersion);
     }
 
     /**
@@ -662,7 +654,6 @@ final class OperationsService
         string $transformName,
         mixed $value,
         ?bool $includeEscapeWidth = null,
-        array $draftByBreakpoint = [],
         ?string $expectedVersion = null,
     ): array {
         return $this->applyConfigFlagOperation(
@@ -671,7 +662,6 @@ final class OperationsService
             'allowAnyHeight',
             $value === true,
             $includeEscapeWidth,
-            $draftByBreakpoint,
             $expectedVersion,
         );
     }
@@ -683,7 +673,6 @@ final class OperationsService
         string $transformName,
         mixed $value,
         ?bool $includeEscapeWidth = null,
-        array $draftByBreakpoint = [],
         ?string $expectedVersion = null,
     ): array {
         return $this->applyConfigFlagOperation(
@@ -692,7 +681,6 @@ final class OperationsService
             'passHeightWhenRenderedLteSaved',
             $value === true,
             $includeEscapeWidth,
-            $draftByBreakpoint,
             $expectedVersion,
         );
     }
@@ -706,7 +694,6 @@ final class OperationsService
         string $mutuallyExclusiveFlag,
         bool $value,
         ?bool $includeEscapeWidth,
-        array $draftByBreakpoint,
         ?string $expectedVersion,
     ): array {
         $validation = Support::defaultValidation();
@@ -741,7 +728,6 @@ final class OperationsService
             ? array_values($transformDefinition['transforms'])
             : [];
         $entries = Support::normalizeTransformEntriesForBreakpoints($breakpoints, $rawEntries);
-        $entries = $this->applyDraftByBreakpointToEntries($entries, $breakpoints, $draftByBreakpoint);
 
         $config = isset($transformDefinition['config']) && is_array($transformDefinition['config'])
             ? $transformDefinition['config']
@@ -758,7 +744,7 @@ final class OperationsService
             'config' => $config,
         ]);
 
-        return $this->persistOperationTransforms($transforms, $validation, $expectedVersion, $transformName);
+        return $this->persistOperationTransforms($transforms, $validation, $expectedVersion);
     }
 
     /**
@@ -770,7 +756,6 @@ final class OperationsService
         array $renderedRows,
         ?bool $includeEscapeWidth = null,
         bool $clearAuto = false,
-        array $draftByBreakpoint = [],
         ?string $expectedVersion = null,
     ): array {
         $validation = Support::defaultValidation();
@@ -806,7 +791,6 @@ final class OperationsService
             : [];
 
         $entries = Support::normalizeTransformEntriesForBreakpoints($breakpoints, $rawEntries);
-        $entries = $this->applyDraftByBreakpointToEntries($entries, $breakpoints, $draftByBreakpoint);
 
         $breakpointIndexes = [];
         foreach ($breakpoints as $index => $breakpoint) {
@@ -950,7 +934,7 @@ final class OperationsService
                 : [],
         ]);
 
-        return $this->persistOperationTransforms($transforms, $validation, $expectedVersion, $transformName);
+        return $this->persistOperationTransforms($transforms, $validation, $expectedVersion);
     }
 
     /**
@@ -970,7 +954,6 @@ final class OperationsService
             $value,
             'width',
             null,
-            [],
             $expectedVersion,
         );
     }
@@ -1002,7 +985,7 @@ final class OperationsService
         }
 
         unset($transforms[$transformName]);
-        $result = $this->persistOperationTransforms($transforms, $validation, $expectedVersion, null);
+        $result = $this->persistOperationTransforms($transforms, $validation, $expectedVersion);
 
         if (($result['persisted'] ?? false) === true) {
             $this->telemetry->deletePreviewCacheByTransformHandle($transformName);
@@ -1016,22 +999,8 @@ final class OperationsService
      * @param array<string, mixed> $validation
      * @return array<string, mixed>
      */
-    private function persistOperationTransforms(array $transforms, array $validation, ?string $expectedVersion, ?string $targetTransformName): array
+    private function persistOperationTransforms(array $transforms, array $validation, ?string $expectedVersion): array
     {
-        if ($targetTransformName !== null && isset($transforms[$targetTransformName]) && is_array($transforms[$targetTransformName])) {
-            if ($this->hasUnderspecifiedEnabledEntries($transforms[$targetTransformName])) {
-                Support::addGlobalError($validation, 'Draft is incomplete. Complete enabled breakpoint dimensions before saving.');
-
-                return [
-                    'persisted' => false,
-                    'conflict' => false,
-                    'draftOnly' => true,
-                    'currentVersion' => $this->transformStore->getCurrentVersion(),
-                    'validation' => $validation,
-                ];
-            }
-        }
-
         $resolvedExpectedVersion = $expectedVersion ?? $this->transformStore->getCurrentVersion();
         $persistResult = $this->transformStore->persistTransforms($transforms, $resolvedExpectedVersion);
         $conflict = ($persistResult['conflict'] ?? false) === true;
@@ -1062,99 +1031,4 @@ final class OperationsService
         return array_values(array_map(static fn(mixed $value): int => (int)$value, $breakpoints));
     }
 
-    /**
-     * @param array<string, mixed> $transformDefinition
-     */
-    private function hasUnderspecifiedEnabledEntries(array $transformDefinition): bool
-    {
-        $entries = isset($transformDefinition['transforms']) && is_array($transformDefinition['transforms'])
-            ? array_values($transformDefinition['transforms'])
-            : [];
-
-        foreach ($entries as $entry) {
-            $normalized = Support::normalizeTransformEntry($entry);
-            if (($normalized['enabled'] ?? true) !== true) {
-                continue;
-            }
-
-            $autoDimension = $normalized['autoDimension'] ?? null;
-            $width = $normalized['width'] ?? null;
-            $height = $normalized['height'] ?? null;
-
-            if ($autoDimension === 'width' && $height === null) {
-                return true;
-            }
-
-            if ($autoDimension === 'height' && $width === null) {
-                return true;
-            }
-
-            if ($autoDimension !== 'width' && $autoDimension !== 'height' && ($width === null || $height === null)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * @param array<int, array<string, mixed>> $entries
-     * @param int[] $breakpoints
-     * @param array<string, mixed> $draftByBreakpoint
-     * @return array<int, array<string, mixed>>
-     */
-    private function applyDraftByBreakpointToEntries(array $entries, array $breakpoints, array $draftByBreakpoint): array
-    {
-        if ($draftByBreakpoint === []) {
-            return $entries;
-        }
-
-        foreach ($draftByBreakpoint as $breakpointKey => $draftRaw) {
-            if (!is_array($draftRaw)) {
-                continue;
-            }
-
-            $breakpoint = is_numeric($breakpointKey) ? (int)$breakpointKey : 0;
-            if ($breakpoint <= 0) {
-                continue;
-            }
-
-            $index = array_search($breakpoint, $breakpoints, true);
-            if (!is_int($index)) {
-                continue;
-            }
-
-            $entry = isset($entries[$index]) && is_array($entries[$index])
-                ? $entries[$index]
-                : Support::buildDefaultTransformEntry();
-
-            $width = Support::normalizeNullablePositiveInt($draftRaw['widthInput'] ?? null);
-            $height = Support::normalizeNullablePositiveInt($draftRaw['heightInput'] ?? null);
-            $autoDimension = Support::normalizeAutoDimension($draftRaw['autoDimension'] ?? null);
-
-            $entry['width'] = $width;
-            $entry['height'] = $height;
-
-            if ($autoDimension === 'width') {
-                $entry['autoDimension'] = 'width';
-                $entry['width'] = null;
-            } elseif ($autoDimension === 'height') {
-                $entry['autoDimension'] = 'height';
-                $entry['height'] = null;
-            } else {
-                $entry['autoDimension'] = null;
-            }
-
-            $entry['ratioWidth'] = Support::normalizeNullablePositiveInt($draftRaw['ratioWidthInput'] ?? null);
-            $entry['ratioHeight'] = Support::normalizeNullablePositiveInt($draftRaw['ratioHeightInput'] ?? null);
-            $entry['ratioSourceDimension'] = Support::normalizeRatioSourceDimension($draftRaw['ratioSourceDimension'] ?? null) ?? 'width';
-            $entry['ratioLocked'] = ($draftRaw['ratioLocked'] ?? '0') === '1'
-                && $entry['ratioWidth'] !== null
-                && $entry['ratioHeight'] !== null;
-
-            $entries[$index] = $entry;
-        }
-
-        return $entries;
-    }
 }

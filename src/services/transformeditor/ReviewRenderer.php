@@ -41,7 +41,6 @@ final class ReviewRenderer
         array $editTabBySet = [],
         array $selectedAssetKeyBySet = [],
         array $preferredOrderBySet = [],
-        array $draftByBreakpointBySet = [],
         bool $hideRenderedApply = false,
         bool $hideAssetPagination = false,
         string $reviewMode = self::REVIEW_MODE_PROCESSED,
@@ -62,7 +61,6 @@ final class ReviewRenderer
             $editTabBySet,
             $selectedAssetKeyBySet,
             $preferredOrderBySet,
-            $draftByBreakpointBySet,
             $hideRenderedApply,
             $hideAssetPagination,
             $normalizedReviewMode,
@@ -75,7 +73,6 @@ final class ReviewRenderer
         array $editTabBySet = [],
         array $selectedAssetKeyBySet = [],
         array $preferredOrderBySet = [],
-        array $draftByBreakpointBySet = [],
         ?string $onlyTransformName = null,
         array $result = [],
     ): array {
@@ -232,7 +229,6 @@ final class ReviewRenderer
             $editTabBySet,
             $selectedAssetKeyBySet,
             $preferredOrderBySet,
-            $draftByBreakpointBySet,
             true,
             true,
             self::REVIEW_MODE_SAVED,
@@ -247,7 +243,6 @@ final class ReviewRenderer
         array $editTabBySet,
         array $selectedAssetKeyBySet,
         array $preferredOrderBySet,
-        array $draftByBreakpointBySet,
         bool $hideRenderedApply,
         bool $hideAssetPagination,
         string $reviewMode,
@@ -272,7 +267,6 @@ final class ReviewRenderer
                 $editTabBySet,
                 $selectedAssetKeyBySet,
                 $preferredOrderBySet,
-                $draftByBreakpointBySet,
                 $normalizedScopeState,
                 $normalizedTabState,
                 $hideRenderedApply,
@@ -294,7 +288,6 @@ final class ReviewRenderer
 
     public function renderCardFragment(
         string $setName,
-        array $draftByBreakpoint = [],
         array $editScopeBySet = [],
         array $editTabBySet = [],
         array $selectedAssetKeyBySet = [],
@@ -309,7 +302,6 @@ final class ReviewRenderer
             $editTabBySet,
             $selectedAssetKeyBySet,
             [$normalizedSetName],
-            [$normalizedSetName => $draftByBreakpoint],
             $normalizedSetName,
         );
 
@@ -355,7 +347,6 @@ final class ReviewRenderer
         array $editTabBySet,
         array $selectedAssetKeyBySet,
         array $preferredOrderBySet,
-        array $draftByBreakpointBySet,
         array &$normalizedScopeState,
         array &$normalizedTabState,
         bool $hideRenderedApply,
@@ -474,15 +465,11 @@ final class ReviewRenderer
                 );
             }
 
-            $draftByBreakpoint = is_array($draftByBreakpointBySet[$transformName] ?? null)
-                ? $draftByBreakpointBySet[$transformName]
-                : [];
             $cardState = $this->cardStateBuilder->build(
                 $currentRows,
                 $transformBreakpoints,
                 $editScopeBySet[$transformName] ?? null,
                 $editTabBySet[$transformName] ?? null,
-                $draftByBreakpoint,
             );
             $scope = $cardState['scope'];
             $tab = $cardState['tab'];
@@ -533,7 +520,6 @@ final class ReviewRenderer
                             'scopeBreakpoint' => $scope['mode'] === 'breakpoint' ? (string)$scope['breakpoint'] : '',
                             'scopeActive' => $this->isReviewScopeActive($scope) ? '1' : '0',
                             'selectedAssetKey' => $selectedAssetKey,
-                            'draftByBreakpoint' => $draftByBreakpoint,
                             'rowsByBreakpoint' => $rowsByBreakpointSignal,
                             'firstBreakpoint' => $firstBreakpoint !== null ? (string)$firstBreakpoint : '',
                             'initSeedAppliedAny' => ($cardState['initSeedAppliedAny'] ?? false) === true,
@@ -626,15 +612,26 @@ final class ReviewRenderer
                 && (($latestRunSummaryForTransform['hasBreakpointMismatch'] ?? false) === true);
 
             $hasMissingSetWarning = false;
+            $hasEmptyBreakpointsWarning = false;
             foreach ($cardWarnings as $w) {
-                if (is_array($w) && ($w['code'] ?? '') === 'missing-set-definitions') {
+                if (!is_array($w)) {
+                    continue;
+                }
+
+                $warningCode = (string)($w['code'] ?? '');
+                if ($warningCode === 'missing-set-definitions') {
                     $hasMissingSetWarning = true;
-                    break;
+                }
+
+                if ($warningCode === 'empty-enabled-breakpoints') {
+                    $hasEmptyBreakpointsWarning = true;
                 }
             }
 
+            $suppressMismatchBanners = $hasMissingSetWarning || $hasEmptyBreakpointsWarning;
+
             $editedSinceProcess = ($editedTransforms[$transformName] ?? false) === true;
-            $breakpointMismatchWarningMarkup = ($hasBreakpointMismatchWarning && !$hasMissingSetWarning)
+            $breakpointMismatchWarningMarkup = ($hasBreakpointMismatchWarning && !$suppressMismatchBanners)
                 ? '<div class="bpts-warning-item bpts-warning-item-neutral">'
                     . '<div class="bpts-warning-copy"><h3 class="bpts-warning-heading">' . ($editedSinceProcess ? 'Saved Values Changed' : 'Breakpoint Mismatch') . '</h3></div>'
                     . '<div class="bpts-warning-detail">'
@@ -645,7 +642,7 @@ final class ReviewRenderer
                     . '</div>'
                 : '';
 
-            $assetMismatchWarningMarkup = ($hasAssetMismatchWarning && !$hasMissingSetWarning)
+            $assetMismatchWarningMarkup = ($hasAssetMismatchWarning && !$suppressMismatchBanners)
                 ? '<div class="bpts-warning-item bpts-warning-item-neutral">'
                     . '<div class="bpts-warning-copy"><h3 class="bpts-warning-heading">Asset Mismatch</h3></div>'
                     . '<div class="bpts-warning-detail"><p>One or more assets have mismatched values that need reviewed.</p></div>'
