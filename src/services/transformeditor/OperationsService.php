@@ -23,6 +23,60 @@ final class OperationsService
     }
 
     /**
+     * @param array<int, mixed> $renderedRows
+     * @return array{width: int, height: int}|null
+     */
+    public function resolveRenderedRatioByBreakpoint(string $transformName, int $breakpoint, array $renderedRows): ?array
+    {
+        if ($transformName === '' || $breakpoint <= 0) {
+            return null;
+        }
+
+        return $this->resolveRenderedRatioByBreakpointInternal($renderedRows, $breakpoint);
+    }
+
+    /**
+     * @param array<int, mixed> $renderedRows
+     * @return array{width: int, height: int}|null
+     */
+    private function resolveRenderedRatioByBreakpointInternal(array $renderedRows, int $breakpoint): ?array
+    {
+        foreach ($renderedRows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $rowBreakpoint = Support::parseNullablePositiveInt($row['breakpoint'] ?? null);
+            if ($rowBreakpoint !== $breakpoint) {
+                continue;
+            }
+
+            $width = $this->normalizeRenderedRatioDimension($row['width'] ?? null);
+            $height = $this->normalizeRenderedRatioDimension($row['height'] ?? null);
+            if ($width === null || $height === null) {
+                return null;
+            }
+
+            return [
+                'width' => $width,
+                'height' => $height,
+            ];
+        }
+
+        return null;
+    }
+
+    private function normalizeRenderedRatioDimension(mixed $raw): ?int
+    {
+        if (!is_numeric($raw)) {
+            return null;
+        }
+
+        $rounded = (int)round((float)$raw);
+        return $rounded > 0 ? $rounded : null;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function applySetDimensionOperation(
@@ -330,6 +384,230 @@ final class OperationsService
     }
 
     /**
+     * @param array<int, mixed> $renderedRows
+     * @return array<string, mixed>
+     */
+    public function applySetToggleAutoWidthOperation(
+        string $transformName,
+        string $scopeMode,
+        ?int $scopeBreakpoint,
+        ?int $heightValue,
+        array $renderedRows,
+        ?bool $includeEscapeWidth = null,
+        ?string $expectedVersion = null,
+    ): array {
+        return $this->applySetToggleAutoDimensionOperation(
+            $transformName,
+            $scopeMode,
+            $scopeBreakpoint,
+            'width',
+            $heightValue,
+            $renderedRows,
+            $includeEscapeWidth,
+            $expectedVersion,
+        );
+    }
+
+    /**
+     * @param array<int, mixed> $renderedRows
+     * @return array<string, mixed>
+     */
+    public function applySetToggleAutoHeightOperation(
+        string $transformName,
+        string $scopeMode,
+        ?int $scopeBreakpoint,
+        ?int $widthValue,
+        array $renderedRows,
+        ?bool $includeEscapeWidth = null,
+        ?string $expectedVersion = null,
+    ): array {
+        return $this->applySetToggleAutoDimensionOperation(
+            $transformName,
+            $scopeMode,
+            $scopeBreakpoint,
+            'height',
+            $widthValue,
+            $renderedRows,
+            $includeEscapeWidth,
+            $expectedVersion,
+        );
+    }
+
+    /**
+     * @param array<int, mixed> $renderedRows
+     * @return array<string, mixed>
+     */
+    private function applySetToggleAutoDimensionOperation(
+        string $transformName,
+        string $scopeMode,
+        ?int $scopeBreakpoint,
+        string $autoDimension,
+        ?int $companionValue,
+        array $renderedRows,
+        ?bool $includeEscapeWidth,
+        ?string $expectedVersion,
+    ): array {
+        $validation = Support::defaultValidation();
+
+        if ($transformName === '') {
+            Support::addGlobalError($validation, 'setName is required.');
+
+            return [
+                'persisted' => false,
+                'validation' => $validation,
+            ];
+        }
+
+        if ($autoDimension !== 'width' && $autoDimension !== 'height') {
+            Support::addGlobalError($validation, 'autoDimension must be width or height.');
+
+            return [
+                'persisted' => false,
+                'validation' => $validation,
+            ];
+        }
+
+        if ($scopeMode === 'breakpoint' && $scopeBreakpoint === null) {
+            Support::addGlobalError($validation, 'scopeBreakpoint is required when scopeMode is breakpoint.');
+
+            return [
+                'persisted' => false,
+                'validation' => $validation,
+            ];
+        }
+
+        $isAutoEnabledForScope = $scopeMode === 'breakpoint'
+            && $scopeBreakpoint !== null
+            && $this->resolveBreakpointAutoDimension($transformName, $scopeBreakpoint, $includeEscapeWidth) === $autoDimension;
+
+        if ($isAutoEnabledForScope) {
+            if ($scopeMode === 'all') {
+                return $this->applyRenderedValuesOperation(
+                    $transformName,
+                    $renderedRows,
+                    $includeEscapeWidth,
+                    true,
+                    $expectedVersion,
+                );
+            }
+
+            $restoredValue = $this->resolveRenderedDimensionForBreakpoint($renderedRows, (int)$scopeBreakpoint, $autoDimension);
+
+            if ($autoDimension === 'width') {
+                return $this->applySetDimensionsOperation(
+                    $transformName,
+                    'breakpoint',
+                    $scopeBreakpoint,
+                    $restoredValue,
+                    $companionValue,
+                    $includeEscapeWidth,
+                    false,
+                    false,
+                    false,
+                    $expectedVersion,
+                );
+            }
+
+            return $this->applySetDimensionsOperation(
+                $transformName,
+                'breakpoint',
+                $scopeBreakpoint,
+                $companionValue,
+                $restoredValue,
+                $includeEscapeWidth,
+                false,
+                false,
+                false,
+                $expectedVersion,
+            );
+        }
+
+        $forceAll = $scopeMode === 'all';
+
+        if ($autoDimension === 'width') {
+            return $this->applySetDimensionsOperation(
+                $transformName,
+                $scopeMode,
+                $scopeBreakpoint,
+                null,
+                $companionValue,
+                $includeEscapeWidth,
+                true,
+                false,
+                $forceAll,
+                $expectedVersion,
+            );
+        }
+
+        return $this->applySetDimensionsOperation(
+            $transformName,
+            $scopeMode,
+            $scopeBreakpoint,
+            $companionValue,
+            null,
+            $includeEscapeWidth,
+            false,
+            true,
+            $forceAll,
+            $expectedVersion,
+        );
+    }
+
+    private function resolveBreakpointAutoDimension(string $transformName, int $scopeBreakpoint, ?bool $includeEscapeWidth): ?string
+    {
+        $transforms = $this->transformStore->getTransforms();
+        $transformDefinition = isset($transforms[$transformName]) && is_array($transforms[$transformName])
+            ? $transforms[$transformName]
+            : null;
+        if ($transformDefinition === null) {
+            return null;
+        }
+
+        $resolvedIncludeEscapeWidth = ($transformDefinition['includeEscapeWidth'] ?? false) === true
+            || ($includeEscapeWidth === true && !isset($transformDefinition['includeEscapeWidth']));
+        $breakpoints = $this->getBreakpointsForTransform($resolvedIncludeEscapeWidth);
+        $breakpointIndex = array_search($scopeBreakpoint, $breakpoints, true);
+        if (!is_int($breakpointIndex)) {
+            return null;
+        }
+
+        $rawEntries = isset($transformDefinition['transforms']) && is_array($transformDefinition['transforms'])
+            ? array_values($transformDefinition['transforms'])
+            : [];
+        $entries = Support::normalizeTransformEntriesForBreakpoints($breakpoints, $rawEntries);
+        $entry = isset($entries[$breakpointIndex]) && is_array($entries[$breakpointIndex])
+            ? $entries[$breakpointIndex]
+            : Support::buildDefaultTransformEntry();
+
+        return Support::normalizeAutoDimension($entry['autoDimension'] ?? null);
+    }
+
+    /**
+     * @param array<int, mixed> $renderedRows
+     */
+    private function resolveRenderedDimensionForBreakpoint(array $renderedRows, int $scopeBreakpoint, string $dimension): ?int
+    {
+        if ($scopeBreakpoint <= 0) {
+            return null;
+        }
+
+        foreach ($renderedRows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $rowBreakpoint = Support::parseNullablePositiveInt($row['breakpoint'] ?? null);
+            if ($rowBreakpoint !== $scopeBreakpoint) {
+                continue;
+            }
+
+            return Support::parseNullablePositiveInt($row[$dimension] ?? null);
+        }
+
+        return null;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function applySetRatioOperation(
@@ -566,6 +844,7 @@ final class OperationsService
         ?bool $enabled,
         ?bool $includeEscapeWidth = null,
         ?string $expectedVersion = null,
+        bool $enabledProvided = true,
     ): array {
         $validation = Support::defaultValidation();
 
@@ -587,7 +866,7 @@ final class OperationsService
             ];
         }
 
-        if ($enabled === null) {
+        if ($enabledProvided && $enabled === null) {
             Support::addGlobalError($validation, 'enabled must be a boolean value.');
 
             return [
@@ -632,6 +911,11 @@ final class OperationsService
         $entry = isset($entries[$breakpointIndex]) && is_array($entries[$breakpointIndex])
             ? $entries[$breakpointIndex]
             : Support::buildDefaultTransformEntry();
+
+        if (!$enabledProvided) {
+            $enabled = (($entry['enabled'] ?? true) === true) ? false : true;
+        }
+
         $entry['enabled'] = $enabled;
         $entries[$breakpointIndex] = $entry;
 

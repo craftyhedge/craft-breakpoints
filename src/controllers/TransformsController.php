@@ -7,6 +7,7 @@ use craft\helpers\Json;
 use craft\web\Controller;
 use craftyhedge\craftbreakpoints\Plugin;
 use craftyhedge\craftbreakpoints\services\transformeditor\CardOperationRequest;
+use craftyhedge\craftbreakpoints\services\transformeditor\Support;
 use starfederation\datastar\events\PatchElements;
 use starfederation\datastar\events\PatchSignals;
 use starfederation\datastar\ServerSentEventGenerator;
@@ -188,6 +189,12 @@ class TransformsController extends Controller
             ]);
         }
 
+        if ($this->operationRequiresRenderedRows($operation->operation) && $operation->hasMalformedRenderedRows) {
+            return $this->asDatastarEventStream([
+                new PatchElements($this->renderEditorStatusFragment('error', 'renderedRows payload is malformed.')),
+            ]);
+        }
+
         if ($operation->operation === 'renderedValues.apply') {
             $operationResult = $editor->applyRenderedValuesOperation(
                 $operation->setName,
@@ -199,36 +206,118 @@ class TransformsController extends Controller
         } elseif ($operation->operation === 'set.delete') {
             $operationResult = $editor->deleteSetOperation($operation->setName, $operation->baseVersion);
         } elseif ($operation->operation === 'dimensions.apply') {
+            $requestedScope = $this->readRequestedCardScope($operation->setName);
+            $scopeMode = $requestedScope['mode'] ?? $operation->scopeMode;
+            $scopeBreakpoint = $requestedScope['breakpoint'] ?? $operation->scopeBreakpoint;
             $operationResult = $editor->applySetDimensionsOperation(
                 $operation->setName,
-                $operation->scopeMode,
-                $operation->scopeBreakpoint,
-                $operation->width,
-                $operation->height,
+                $scopeMode,
+                $scopeBreakpoint,
+                $this->readRequestedCardSignalNullablePositiveInt($operation->setName, 'widthInput') ?? $operation->width,
+                $this->readRequestedCardSignalNullablePositiveInt($operation->setName, 'heightInput') ?? $operation->height,
                 $operation->includeEscapeWidth,
-                $operation->widthAuto,
-                $operation->heightAuto,
+                $this->readRequestedCardSignalBool($operation->setName, 'widthAuto') ?? $operation->widthAuto,
+                $this->readRequestedCardSignalBool($operation->setName, 'heightAuto') ?? $operation->heightAuto,
                 $operation->forceAll,
                 $operation->baseVersion,
             );
+        } elseif ($operation->operation === 'dimensions.toggleAutoWidth') {
+            $requestedScope = $this->readRequestedCardScope($operation->setName);
+            $scopeMode = $requestedScope['mode'] ?? $operation->scopeMode;
+            $scopeBreakpoint = $requestedScope['breakpoint'] ?? $operation->scopeBreakpoint;
+            $operationResult = $editor->applySetToggleAutoWidthOperation(
+                $operation->setName,
+                $scopeMode,
+                $scopeBreakpoint,
+                $this->readRequestedCardSignalNullablePositiveInt($operation->setName, 'heightInput') ?? $operation->height,
+                $operation->renderedRows,
+                $operation->includeEscapeWidth,
+                $operation->baseVersion,
+            );
+        } elseif ($operation->operation === 'dimensions.toggleAutoHeight') {
+            $requestedScope = $this->readRequestedCardScope($operation->setName);
+            $scopeMode = $requestedScope['mode'] ?? $operation->scopeMode;
+            $scopeBreakpoint = $requestedScope['breakpoint'] ?? $operation->scopeBreakpoint;
+            $operationResult = $editor->applySetToggleAutoHeightOperation(
+                $operation->setName,
+                $scopeMode,
+                $scopeBreakpoint,
+                $this->readRequestedCardSignalNullablePositiveInt($operation->setName, 'widthInput') ?? $operation->width,
+                $operation->renderedRows,
+                $operation->includeEscapeWidth,
+                $operation->baseVersion,
+            );
+        } elseif ($operation->operation === 'ratio.copyFromRenderedBreakpoint') {
+            if ($operation->setName === '') {
+                return $this->asDatastarEventStream([
+                    new PatchElements($this->renderEditorStatusFragment('error', 'setName is required.')),
+                ]);
+            }
+
+            $sourceBreakpoint = $this->readRequestedCardSignalNullablePositiveInt($operation->setName, 'ratioSourceBreakpoint');
+            if ($sourceBreakpoint === null) {
+                return $this->asDatastarEventStream([
+                    new PatchElements($this->renderEditorStatusFragment('error', 'ratioSourceBreakpoint is required.')),
+                ]);
+            }
+
+            $copiedRatio = $editor->applySetCopyRatioFromRenderedBreakpointOperation(
+                $operation->setName,
+                $sourceBreakpoint,
+                $operation->renderedRows,
+            );
+            if ($copiedRatio === null) {
+                return $this->asDatastarEventStream([
+                    new PatchElements($this->renderEditorStatusFragment('error', 'No rendered ratio source found for selected breakpoint.')),
+                ]);
+            }
+
+            $signalKey = $this->buildCardSignalKey($operation->setName);
+            if ($signalKey === '') {
+                return $this->asDatastarEventStream([
+                    new PatchElements($this->renderEditorStatusFragment('error', 'Unable to resolve card state key.')),
+                ]);
+            }
+
+            return $this->asDatastarEventStream([
+                new PatchSignals([
+                    'editor' => [
+                        'cards' => [
+                            $signalKey => [
+                                'ratioWidthInput' => (string)$copiedRatio['width'],
+                                'ratioHeightInput' => (string)$copiedRatio['height'],
+                                'ratioFloatInput' => Support::formatRatioFloatInput($copiedRatio['width'], $copiedRatio['height']),
+                                'ratioLocked' => '0',
+                            ],
+                        ],
+                    ],
+                ]),
+                new PatchElements($this->renderEditorStatusFragment('success', 'Copied rendered ratio for selected breakpoint.')),
+            ]);
         } elseif ($operation->operation === 'ratio.apply') {
+            $requestedScope = $this->readRequestedCardScope($operation->setName);
+            $scopeMode = $requestedScope['mode'] ?? $operation->scopeMode;
+            $scopeBreakpoint = $requestedScope['breakpoint'] ?? $operation->scopeBreakpoint;
             $operationResult = $editor->applySetRatioOperation(
                 $operation->setName,
-                $operation->scopeMode,
-                $operation->scopeBreakpoint,
-                $operation->ratioWidth,
-                $operation->ratioHeight,
-                $operation->ratioSourceDimension,
+                $scopeMode,
+                $scopeBreakpoint,
+                $this->readRequestedCardSignalNullablePositiveInt($operation->setName, 'ratioWidthInput') ?? $operation->ratioWidth,
+                $this->readRequestedCardSignalNullablePositiveInt($operation->setName, 'ratioHeightInput') ?? $operation->ratioHeight,
+                $this->readRequestedCardSignalString($operation->setName, 'ratioSourceDimension') ?? $operation->ratioSourceDimension,
                 $operation->includeEscapeWidth,
                 $operation->baseVersion,
             );
         } elseif ($operation->operation === 'breakpoint.toggleEnabled') {
+            $requestBody = $this->request->getBodyParams();
+            $enabledProvided = is_array($requestBody) && array_key_exists('enabled', $requestBody);
             $operationResult = $editor->applySetBreakpointEnabledOperation(
                 $operation->setName,
                 $operation->scopeBreakpoint,
                 $operation->enabled,
                 $operation->includeEscapeWidth,
                 $operation->baseVersion,
+                $enabledProvided,
             );
         } elseif ($operation->operation === 'settings.setPassHeightWhenRenderedLteSaved') {
             $operationResult = $editor->applySetPassHeightWhenRenderedLteSavedOperation(
@@ -276,7 +365,12 @@ class TransformsController extends Controller
 
         $shouldPatchCard = $persisted || $conflict;
         if ($shouldPatchCard) {
-            $editScopeBySet = $this->buildCardEditScope($operation->setName, $operation->scopeMode, $operation->scopeBreakpoint);
+            [$resolvedScopeMode, $resolvedScopeBreakpoint] = $this->resolveCardEditScopeForOperation(
+                $operation->setName,
+                $operation->scopeMode,
+                $operation->scopeBreakpoint,
+            );
+            $editScopeBySet = $this->buildCardEditScope($operation->setName, $resolvedScopeMode, $resolvedScopeBreakpoint);
             $editTabBySet = $this->buildCardEditTab($operation->setName, $operation->field);
             $selectedAssetKeyBySet = $this->buildCardSelectedAssetKey($operation->setName);
             $cardMarkup = $editor->renderCardFragment(
@@ -493,6 +587,65 @@ class TransformsController extends Controller
     }
 
     /**
+     * @return array{string, ?int}
+     */
+    private function resolveCardEditScopeForOperation(string $setName, string $scopeMode, ?int $scopeBreakpoint): array
+    {
+        if ($setName === '') {
+            return [$scopeMode, $scopeBreakpoint];
+        }
+
+        $requestBody = $this->request->getBodyParams();
+        if (is_array($requestBody) && array_key_exists('scopeMode', $requestBody)) {
+            return [$scopeMode, $scopeBreakpoint];
+        }
+
+        $requestedScope = $this->readRequestedCardScope($setName);
+        if ($requestedScope === null) {
+            if ($scopeBreakpoint !== null) {
+                return ['breakpoint', $scopeBreakpoint];
+            }
+
+            return [$scopeMode, $scopeBreakpoint];
+        }
+
+        return [$requestedScope['mode'], $requestedScope['breakpoint']];
+    }
+
+    /**
+     * @return array{mode: string, breakpoint: ?int}|null
+     */
+    private function readRequestedCardScope(string $setName): ?array
+    {
+        $rawScopeMode = trim((string)$this->readRequestedCardSignalString($setName, 'scopeMode'));
+        if ($rawScopeMode === 'all') {
+            return [
+                'mode' => 'all',
+                'breakpoint' => null,
+            ];
+        }
+
+        if ($rawScopeMode !== 'breakpoint') {
+            return null;
+        }
+
+        $rawScopeBreakpoint = trim((string)$this->readRequestedCardSignalString($setName, 'scopeBreakpoint'));
+        if ($rawScopeBreakpoint === '' || !preg_match('/^\d+$/', $rawScopeBreakpoint)) {
+            return null;
+        }
+
+        $scopeBreakpoint = (int)$rawScopeBreakpoint;
+        if ($scopeBreakpoint <= 0) {
+            return null;
+        }
+
+        return [
+            'mode' => 'breakpoint',
+            'breakpoint' => $scopeBreakpoint,
+        ];
+    }
+
+    /**
      * @return array<string, string>
      */
     private function buildCardEditTab(string $setName, string $field): array
@@ -588,6 +741,36 @@ class TransformsController extends Controller
 
         $rawValue = $card[$key] ?? null;
         return is_string($rawValue) ? $rawValue : null;
+    }
+
+    private function readRequestedCardSignalNullablePositiveInt(string $setName, string $key): ?int
+    {
+        $rawValue = $this->readRequestedCardSignalString($setName, $key);
+        if ($rawValue === null) {
+            return null;
+        }
+
+        return Support::parseNullablePositiveInt($rawValue);
+    }
+
+    private function readRequestedCardSignalBool(string $setName, string $key): ?bool
+    {
+        $rawValue = $this->readRequestedCardSignalString($setName, $key);
+        if ($rawValue === null) {
+            return null;
+        }
+
+        return Support::parseNullableBool($rawValue);
+    }
+
+    private function operationRequiresRenderedRows(string $operation): bool
+    {
+        return in_array($operation, [
+            'renderedValues.apply',
+            'ratio.copyFromRenderedBreakpoint',
+            'dimensions.toggleAutoWidth',
+            'dimensions.toggleAutoHeight',
+        ], true);
     }
 
     private function resolveSessionId(): string

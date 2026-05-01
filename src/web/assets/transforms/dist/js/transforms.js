@@ -125,14 +125,6 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         elements.page.classList.toggle('is-processing', Boolean(isProcessing));
     }
 
-    function setResultsReprocessing(isReprocessing) {
-        if (!elements.page) {
-            return;
-        }
-
-        elements.page.classList.toggle('bpts-results-reprocessing', Boolean(isReprocessing));
-    }
-
     function setReviewHydrated(isHydrated) {
         if (!elements.page) {
             return;
@@ -2261,53 +2253,45 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             return null;
         }
 
-        if (typeof Craft === 'undefined' || typeof Craft.sendActionRequest !== 'function') {
-            return null;
-        }
-
-        const {
-            editScopeBySet,
-            editTabBySet,
-            selectedAssetKeyBySet,
-            preferredOrderBySet,
-        } = collectReviewEditStateFromDom();
-        const selectedAssetKeyBySetOverride = options
-            && typeof options === 'object'
-            && options.selectedAssetKeyBySetOverride
-            && typeof options.selectedAssetKeyBySetOverride === 'object'
-            ? options.selectedAssetKeyBySetOverride
-            : null;
-        const mergedSelectedAssetKeyBySet = selectedAssetKeyBySetOverride
-            ? {
-                ...selectedAssetKeyBySet,
-                ...selectedAssetKeyBySetOverride,
-            }
-            : selectedAssetKeyBySet;
-        const preserveCardOrder = Boolean(options && typeof options === 'object' && options.preserveCardOrder === true);
-
-        const response = await Craft.sendActionRequest('POST', RENDER_RESULT_REVIEW_ACTION, {
-            data: {
-                result,
-                editScopeBySet,
-                editTabBySet,
-                selectedAssetKeyBySet: mergedSelectedAssetKeyBySet,
-                preferredOrderBySet,
-            },
+        const context = buildReviewRenderRequestContext(options);
+        const payload = await requestReviewRenderPayload(RENDER_RESULT_REVIEW_ACTION, {
+            result,
+            editScopeBySet: context.editScopeBySet,
+            editTabBySet: context.editTabBySet,
+            selectedAssetKeyBySet: context.selectedAssetKeyBySet,
+            preferredOrderBySet: context.preferredOrderBySet,
         });
-
-        const payload = response?.data || null;
         applyRenderedReviewPayload(payload);
-        if (preserveCardOrder) {
-            restoreVisualResultCardOrder(preferredOrderBySet);
+        if (context.preserveCardOrder) {
+            restoreVisualResultCardOrder(context.preferredOrderBySet);
         }
         return payload;
     }
 
     async function renderInitialStoredReview(options = null) {
-        if (typeof Craft === 'undefined' || typeof Craft.sendActionRequest !== 'function') {
-            return null;
+        const context = buildReviewRenderRequestContext(options);
+        const payload = await requestReviewRenderPayload(RENDER_INITIAL_REVIEW_ACTION, {
+            result: state.lastResult && typeof state.lastResult === 'object'
+                ? {
+                    breakpoints: Array.isArray(state.lastResult.breakpoints) ? state.lastResult.breakpoints : [],
+                    rowsByBreakpoint: state.lastResult.rowsByBreakpoint && typeof state.lastResult.rowsByBreakpoint === 'object'
+                        ? state.lastResult.rowsByBreakpoint
+                        : {},
+                }
+                : {},
+            editScopeBySet: context.editScopeBySet,
+            editTabBySet: context.editTabBySet,
+            selectedAssetKeyBySet: context.selectedAssetKeyBySet,
+            preferredOrderBySet: context.preferredOrderBySet,
+        });
+        applyRenderedReviewPayload(payload);
+        if (context.preserveCardOrder) {
+            restoreVisualResultCardOrder(context.preferredOrderBySet);
         }
+        return payload;
+    }
 
+    function buildReviewRenderRequestContext(options = null) {
         const {
             editScopeBySet,
             editTabBySet,
@@ -2320,37 +2304,33 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             && typeof options.selectedAssetKeyBySetOverride === 'object'
             ? options.selectedAssetKeyBySetOverride
             : null;
-        const mergedSelectedAssetKeyBySet = selectedAssetKeyBySetOverride
-            ? {
-                ...selectedAssetKeyBySet,
-                ...selectedAssetKeyBySetOverride,
-            }
-            : selectedAssetKeyBySet;
-        const preserveCardOrder = Boolean(options && typeof options === 'object' && options.preserveCardOrder === true);
 
-        const response = await Craft.sendActionRequest('POST', RENDER_INITIAL_REVIEW_ACTION, {
-            data: {
-                result: state.lastResult && typeof state.lastResult === 'object'
-                    ? {
-                        breakpoints: Array.isArray(state.lastResult.breakpoints) ? state.lastResult.breakpoints : [],
-                        rowsByBreakpoint: state.lastResult.rowsByBreakpoint && typeof state.lastResult.rowsByBreakpoint === 'object'
-                            ? state.lastResult.rowsByBreakpoint
-                            : {},
-                    }
-                    : {},
-                editScopeBySet,
-                editTabBySet,
-                selectedAssetKeyBySet: mergedSelectedAssetKeyBySet,
-                preferredOrderBySet,
-            },
+        return {
+            editScopeBySet,
+            editTabBySet,
+            selectedAssetKeyBySet: selectedAssetKeyBySetOverride
+                ? {
+                    ...selectedAssetKeyBySet,
+                    ...selectedAssetKeyBySetOverride,
+                }
+                : selectedAssetKeyBySet,
+            preferredOrderBySet,
+            preserveCardOrder: Boolean(options && typeof options === 'object' && options.preserveCardOrder === true),
+        };
+    }
+
+    async function requestReviewRenderPayload(action, data) {
+        // Keep review rerender transport browser-local while PHP remains
+        // the renderer of card and warning markup.
+        if (typeof Craft === 'undefined' || typeof Craft.sendActionRequest !== 'function') {
+            return null;
+        }
+
+        const response = await Craft.sendActionRequest('POST', action, {
+            data,
         });
 
-        const payload = response?.data || null;
-        applyRenderedReviewPayload(payload);
-        if (preserveCardOrder) {
-            restoreVisualResultCardOrder(preferredOrderBySet);
-        }
-        return payload;
+        return response?.data || null;
     }
 
     async function publishResult(result) {

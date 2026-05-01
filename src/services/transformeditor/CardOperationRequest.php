@@ -20,7 +20,10 @@ final class CardOperationRequest
     private const OPERATION_DIMENSION_WIDTH = 'dimension.width';
     private const OPERATION_DIMENSION_HEIGHT = 'dimension.height';
     private const OPERATION_DIMENSIONS_APPLY = 'dimensions.apply';
+    private const OPERATION_DIMENSIONS_TOGGLE_AUTO_WIDTH = 'dimensions.toggleAutoWidth';
+    private const OPERATION_DIMENSIONS_TOGGLE_AUTO_HEIGHT = 'dimensions.toggleAutoHeight';
     private const OPERATION_RATIO_APPLY = 'ratio.apply';
+    private const OPERATION_RATIO_COPY_FROM_RENDERED_BREAKPOINT = 'ratio.copyFromRenderedBreakpoint';
     private const OPERATION_BREAKPOINT_TOGGLE_ENABLED = 'breakpoint.toggleEnabled';
     private const OPERATION_SETTINGS_SET_PASS_HEIGHT_WHEN_RENDERED_LTE_SAVED = 'settings.setPassHeightWhenRenderedLteSaved';
     private const OPERATION_SETTINGS_SET_ALLOW_ANY_HEIGHT = 'settings.setAllowAnyHeight';
@@ -36,7 +39,10 @@ final class CardOperationRequest
         self::OPERATION_DIMENSION_WIDTH => self::FIELD_WIDTH,
         self::OPERATION_DIMENSION_HEIGHT => self::FIELD_HEIGHT,
         self::OPERATION_DIMENSIONS_APPLY => self::FIELD_DIMENSIONS,
+        self::OPERATION_DIMENSIONS_TOGGLE_AUTO_WIDTH => self::FIELD_DIMENSIONS,
+        self::OPERATION_DIMENSIONS_TOGGLE_AUTO_HEIGHT => self::FIELD_DIMENSIONS,
         self::OPERATION_RATIO_APPLY => self::FIELD_RATIO,
+        self::OPERATION_RATIO_COPY_FROM_RENDERED_BREAKPOINT => self::FIELD_RATIO,
         self::OPERATION_BREAKPOINT_TOGGLE_ENABLED => self::FIELD_BREAKPOINT_ENABLED,
         self::OPERATION_SETTINGS_SET_PASS_HEIGHT_WHEN_RENDERED_LTE_SAVED => self::FIELD_PASS_HEIGHT_WHEN_RENDERED_LTE_SAVED,
         self::OPERATION_SETTINGS_SET_ALLOW_ANY_HEIGHT => self::FIELD_ALLOW_ANY_HEIGHT,
@@ -65,6 +71,7 @@ final class CardOperationRequest
         public readonly ?string $ratioSourceDimension,
         public readonly ?bool $enabled,
         public readonly array $renderedRows,
+        public readonly bool $hasMalformedRenderedRows,
         public readonly string $baseVersion,
         public readonly mixed $valueRaw,
         public readonly bool $hasValidOperation,
@@ -80,7 +87,9 @@ final class CardOperationRequest
         $rawBaseVersion = trim((string)$request->getBodyParam('baseVersion', ''));
         $resolvedBaseVersion = $rawBaseVersion !== '' ? $rawBaseVersion : $fallbackBaseVersion;
 
-        $renderedRowsRaw = $request->getBodyParam('renderedRows', []);
+        [$renderedRows, $hasMalformedRenderedRows] = self::normalizeRenderedRows(
+            $request->getBodyParam('renderedRows', []),
+        );
 
         return new self(
             setName: trim((string)$request->getBodyParam('setName', '')),
@@ -100,11 +109,58 @@ final class CardOperationRequest
             ratioHeight: Support::parseNullablePositiveInt($request->getBodyParam('ratioHeight')),
             ratioSourceDimension: Support::parseNullableNonEmptyString($request->getBodyParam('ratioSourceDimension')),
             enabled: Support::parseNullableBool($request->getBodyParam('enabled')),
-            renderedRows: is_array($renderedRowsRaw) ? $renderedRowsRaw : [],
+            renderedRows: $renderedRows,
+            hasMalformedRenderedRows: $hasMalformedRenderedRows,
             baseVersion: $resolvedBaseVersion,
             valueRaw: $request->getBodyParam('value'),
             hasValidOperation: $operation !== '',
         );
+    }
+
+    /**
+     * @return array{0: array<int, array{breakpoint: int, width: ?int, height: ?int}>, 1: bool}
+     */
+    private static function normalizeRenderedRows(mixed $rawRenderedRows): array
+    {
+        if (is_string($rawRenderedRows)) {
+            $decodedRows = json_decode($rawRenderedRows, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                return [[], true];
+            }
+
+            $rawRenderedRows = $decodedRows;
+        }
+
+        if (!is_array($rawRenderedRows)) {
+            return [[], true];
+        }
+
+        $normalizedRows = [];
+        $hasMalformedRows = false;
+
+        foreach ($rawRenderedRows as $row) {
+            if (!is_array($row)) {
+                $hasMalformedRows = true;
+                continue;
+            }
+
+            $breakpoint = Support::parseNullablePositiveInt($row['breakpoint'] ?? null);
+            $width = Support::parseNullablePositiveInt($row['width'] ?? null);
+            $height = Support::parseNullablePositiveInt($row['height'] ?? null);
+
+            if ($breakpoint === null || ($width === null && $height === null)) {
+                $hasMalformedRows = true;
+                continue;
+            }
+
+            $normalizedRows[] = [
+                'breakpoint' => $breakpoint,
+                'width' => $width,
+                'height' => $height,
+            ];
+        }
+
+        return [$normalizedRows, $hasMalformedRows];
     }
 
     private static function normalizeOperation(string $operation): string

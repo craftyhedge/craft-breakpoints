@@ -122,4 +122,96 @@ final class CardOperationRequestTest extends Unit
         $this->assertSame('hero', $operation->setName);
         $this->assertNull($operation->scopeBreakpoint);
     }
+
+    public function testFromRequestNormalizesDimensionsToggleAutoWidthOperation(): void
+    {
+        Craft::$app->getRequest()->setBodyParams([
+            'setName' => 'hero',
+            'operation' => 'dimensions.toggleAutoWidth',
+        ]);
+
+        $operation = CardOperationRequest::fromRequest(Craft::$app->getRequest(), 'fallback-version');
+
+        $this->assertTrue($operation->hasValidOperation);
+        $this->assertSame('dimensions.toggleAutoWidth', $operation->operation);
+        $this->assertSame('dimensions', $operation->field);
+    }
+
+    public function testFromRequestNormalizesDimensionsToggleAutoHeightOperation(): void
+    {
+        Craft::$app->getRequest()->setBodyParams([
+            'setName' => 'hero',
+            'operation' => 'dimensions.toggleAutoHeight',
+        ]);
+
+        $operation = CardOperationRequest::fromRequest(Craft::$app->getRequest(), 'fallback-version');
+
+        $this->assertTrue($operation->hasValidOperation);
+        $this->assertSame('dimensions.toggleAutoHeight', $operation->operation);
+        $this->assertSame('dimensions', $operation->field);
+    }
+
+    public function testFromRequestNormalizesRatioCopyFromRenderedBreakpointOperation(): void
+    {
+        Craft::$app->getRequest()->setBodyParams([
+            'setName' => 'hero',
+            'operation' => 'ratio.copyFromRenderedBreakpoint',
+        ]);
+
+        $operation = CardOperationRequest::fromRequest(Craft::$app->getRequest(), 'fallback-version');
+
+        $this->assertTrue($operation->hasValidOperation);
+        $this->assertSame('ratio.copyFromRenderedBreakpoint', $operation->operation);
+        $this->assertSame('ratio', $operation->field);
+    }
+
+    public function testFromRequestDecodesRenderedRowsFromJsonString(): void
+    {
+        Craft::$app->getRequest()->setBodyParams([
+            'setName' => 'hero',
+            'operation' => 'ratio.copyFromRenderedBreakpoint',
+            'renderedRows' => '[{"breakpoint":640,"width":320,"height":180}]',
+        ]);
+
+        $operation = CardOperationRequest::fromRequest(Craft::$app->getRequest(), 'fallback-version');
+
+        $this->assertCount(1, $operation->renderedRows);
+        $this->assertSame(640, $operation->renderedRows[0]['breakpoint'] ?? null);
+        $this->assertSame(320, $operation->renderedRows[0]['width'] ?? null);
+        $this->assertSame(180, $operation->renderedRows[0]['height'] ?? null);
+        $this->assertFalse($operation->hasMalformedRenderedRows);
+    }
+
+    public function testFromRequestFlagsMalformedRenderedRowsJson(): void
+    {
+        Craft::$app->getRequest()->setBodyParams([
+            'setName' => 'hero',
+            'operation' => 'renderedValues.apply',
+            'renderedRows' => '{not-json}',
+        ]);
+
+        $operation = CardOperationRequest::fromRequest(Craft::$app->getRequest(), 'fallback-version');
+
+        $this->assertSame([], $operation->renderedRows);
+        $this->assertTrue($operation->hasMalformedRenderedRows);
+    }
+
+    public function testFromRequestNormalizesAndFlagsMixedRenderedRowsPayload(): void
+    {
+        Craft::$app->getRequest()->setBodyParams([
+            'setName' => 'hero',
+            'operation' => 'renderedValues.apply',
+            'renderedRows' => [
+                ['breakpoint' => 640, 'width' => 320, 'height' => 180],
+                ['breakpoint' => 'bad', 'width' => 320, 'height' => 180],
+                'invalid-row',
+            ],
+        ]);
+
+        $operation = CardOperationRequest::fromRequest(Craft::$app->getRequest(), 'fallback-version');
+
+        $this->assertCount(1, $operation->renderedRows);
+        $this->assertSame(640, $operation->renderedRows[0]['breakpoint'] ?? null);
+        $this->assertTrue($operation->hasMalformedRenderedRows);
+    }
 }

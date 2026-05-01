@@ -203,6 +203,54 @@ class TransformEditor extends Component
         );
     }
 
+    public function applySetToggleAutoWidthOperation(
+        string $transformName,
+        string $scopeMode,
+        ?int $scopeBreakpoint,
+        ?int $heightValue,
+        array $renderedRows,
+        ?bool $includeEscapeWidth = null,
+        ?string $expectedVersion = null,
+    ): array {
+        if ($this->_operationsService === null) {
+            return ['persisted' => false, 'validation' => $this->defaultValidation()];
+        }
+
+        return $this->_operationsService->applySetToggleAutoWidthOperation(
+            $transformName,
+            $scopeMode,
+            $scopeBreakpoint,
+            $heightValue,
+            $renderedRows,
+            $includeEscapeWidth,
+            $expectedVersion,
+        );
+    }
+
+    public function applySetToggleAutoHeightOperation(
+        string $transformName,
+        string $scopeMode,
+        ?int $scopeBreakpoint,
+        ?int $widthValue,
+        array $renderedRows,
+        ?bool $includeEscapeWidth = null,
+        ?string $expectedVersion = null,
+    ): array {
+        if ($this->_operationsService === null) {
+            return ['persisted' => false, 'validation' => $this->defaultValidation()];
+        }
+
+        return $this->_operationsService->applySetToggleAutoHeightOperation(
+            $transformName,
+            $scopeMode,
+            $scopeBreakpoint,
+            $widthValue,
+            $renderedRows,
+            $includeEscapeWidth,
+            $expectedVersion,
+        );
+    }
+
     public function applySetRatioOperation(
         string $transformName,
         string $scopeMode,
@@ -229,12 +277,25 @@ class TransformEditor extends Component
         );
     }
 
+    public function applySetCopyRatioFromRenderedBreakpointOperation(
+        string $transformName,
+        int $sourceBreakpoint,
+        array $renderedRows,
+    ): ?array {
+        if ($this->_operationsService === null) {
+            return null;
+        }
+
+        return $this->_operationsService->resolveRenderedRatioByBreakpoint($transformName, $sourceBreakpoint, $renderedRows);
+    }
+
     public function applySetBreakpointEnabledOperation(
         string $transformName,
         ?int $scopeBreakpoint,
         ?bool $enabled,
         ?bool $includeEscapeWidth = null,
         ?string $expectedVersion = null,
+        bool $enabledProvided = true,
     ): array {
         if ($this->_operationsService === null) {
             return ['persisted' => false, 'validation' => $this->defaultValidation()];
@@ -246,6 +307,7 @@ class TransformEditor extends Component
             $enabled,
             $includeEscapeWidth,
             $expectedVersion,
+            $enabledProvided,
         );
     }
 

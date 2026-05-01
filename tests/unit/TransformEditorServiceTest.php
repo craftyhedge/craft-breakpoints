@@ -612,6 +612,90 @@ final class TransformEditorServiceTest extends Unit
         );
     }
 
+    public function testRenderResultReviewNormalizesInvalidSelectedAssetKeyToFirstAvailableAsset(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $result = $this->withReviewFixtureSets(fn() => $editor->renderResultReview(
+            [
+                'breakpoints' => [640],
+                'rowsByBreakpoint' => [
+                    640 => [
+                        [
+                            'assetId' => '100',
+                            'transform' => 'hero',
+                            'enabled' => true,
+                            'isVisible' => true,
+                            'loaded' => true,
+                            'rendered' => ['width' => 600, 'height' => 340],
+                            'transformDimensions' => ['width' => 600, 'height' => 340, 'autoDimension' => null],
+                        ],
+                        [
+                            'assetId' => '101',
+                            'transform' => 'hero',
+                            'enabled' => true,
+                            'isVisible' => true,
+                            'loaded' => true,
+                            'rendered' => ['width' => 610, 'height' => 350],
+                            'transformDimensions' => ['width' => 600, 'height' => 340, 'autoDimension' => null],
+                        ],
+                    ],
+                ],
+            ],
+            [],
+            [],
+            ['hero' => 'does-not-exist']
+        ));
+
+        $normalized = is_array($result['selectedAssetKeyBySet'] ?? null)
+            ? $result['selectedAssetKeyBySet']
+            : [];
+
+        $this->assertSame('asset:hero:100', $normalized['hero'] ?? null);
+    }
+
+    public function testRenderResultReviewKeepsSelectedAssetKeyWhenItExists(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $result = $this->withReviewFixtureSets(fn() => $editor->renderResultReview(
+            [
+                'breakpoints' => [640],
+                'rowsByBreakpoint' => [
+                    640 => [
+                        [
+                            'assetId' => '100',
+                            'transform' => 'hero',
+                            'enabled' => true,
+                            'isVisible' => true,
+                            'loaded' => true,
+                            'rendered' => ['width' => 600, 'height' => 340],
+                            'transformDimensions' => ['width' => 600, 'height' => 340, 'autoDimension' => null],
+                        ],
+                        [
+                            'assetId' => '101',
+                            'transform' => 'hero',
+                            'enabled' => true,
+                            'isVisible' => true,
+                            'loaded' => true,
+                            'rendered' => ['width' => 610, 'height' => 350],
+                            'transformDimensions' => ['width' => 600, 'height' => 340, 'autoDimension' => null],
+                        ],
+                    ],
+                ],
+            ],
+            [],
+            [],
+            ['hero' => 'asset:hero:101']
+        ));
+
+        $normalized = is_array($result['selectedAssetKeyBySet'] ?? null)
+            ? $result['selectedAssetKeyBySet']
+            : [];
+
+        $this->assertSame('asset:hero:101', $normalized['hero'] ?? null);
+    }
+
     public function testRenderInitialStoredReviewRendersCardsAndHidesRenderedApplyAll(): void
     {
         $editor = Plugin::getInstance()->getTransformEditor();

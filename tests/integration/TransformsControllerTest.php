@@ -193,6 +193,226 @@ final class TransformsControllerTest extends Unit
         $this->assertTrue($controller->postRequestChecked);
     }
 
+    public function testApplyCardOperationTogglesBreakpointEnabledWhenEnabledIsOmitted(): void
+    {
+        $breakpoints = Plugin::getInstance()->getConfigService()->getBreakpoints();
+        unset($breakpoints['escape']);
+        $firstBreakpointValue = (int)($breakpoints[(string)array_key_first($breakpoints)] ?? 0);
+
+        $this->assertGreaterThan(0, $firstBreakpointValue);
+
+        $controller = $this->controllerWithBody([
+            'baseVersion' => Plugin::getInstance()->getTransformStore()->getCurrentVersion(),
+            'operation' => 'breakpoint.toggleEnabled',
+            'setName' => 'hero',
+            'scopeBreakpoint' => $firstBreakpointValue,
+        ]);
+        $response = $controller->actionApplyCardOperation();
+
+        $this->assertSame(Response::FORMAT_RAW, $response->format);
+        $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
+        $this->assertStringNotContainsString('enabled must be a boolean value.', (string)$response->content);
+        $this->assertTrue($controller->cpRequestChecked);
+        $this->assertTrue($controller->postRequestChecked);
+    }
+
+    public function testApplyCardOperationToggleEnabledPreservesRequestedBreakpointScope(): void
+    {
+        $breakpoints = Plugin::getInstance()->getConfigService()->getBreakpoints();
+        unset($breakpoints['escape']);
+        $firstBreakpointValue = (int)($breakpoints[(string)array_key_first($breakpoints)] ?? 0);
+
+        $this->assertGreaterThan(0, $firstBreakpointValue);
+
+        $signalKey = $this->buildSignalKey('hero');
+        $controller = $this->controllerWithBody([
+            'baseVersion' => Plugin::getInstance()->getTransformStore()->getCurrentVersion(),
+            'operation' => 'breakpoint.toggleEnabled',
+            'setName' => 'hero',
+            'scopeBreakpoint' => $firstBreakpointValue,
+            'editor' => [
+                'cards' => [
+                    $signalKey => [
+                        'scopeMode' => 'breakpoint',
+                        'scopeBreakpoint' => (string)$firstBreakpointValue,
+                    ],
+                ],
+            ],
+        ]);
+        $response = $controller->actionApplyCardOperation();
+
+        $this->assertSame(Response::FORMAT_RAW, $response->format);
+        $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
+        $this->assertStringNotContainsString('scopeMode&quot;:&quot;all&quot;', (string)$response->content);
+        $this->assertStringContainsString('scopeMode&quot;:&quot;breakpoint&quot;', (string)$response->content);
+        $this->assertTrue($controller->cpRequestChecked);
+        $this->assertTrue($controller->postRequestChecked);
+    }
+
+    public function testApplyCardOperationToggleEnabledWithoutEditorSignalsUsesBreakpointScope(): void
+    {
+        $breakpoints = Plugin::getInstance()->getConfigService()->getBreakpoints();
+        unset($breakpoints['escape']);
+        $firstBreakpointValue = (int)($breakpoints[(string)array_key_first($breakpoints)] ?? 0);
+
+        $this->assertGreaterThan(0, $firstBreakpointValue);
+
+        $controller = $this->controllerWithBody([
+            'baseVersion' => Plugin::getInstance()->getTransformStore()->getCurrentVersion(),
+            'operation' => 'breakpoint.toggleEnabled',
+            'setName' => 'hero',
+            'scopeBreakpoint' => $firstBreakpointValue,
+        ]);
+        $response = $controller->actionApplyCardOperation();
+
+        $this->assertSame(Response::FORMAT_RAW, $response->format);
+        $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
+        $this->assertStringContainsString('scopeMode&quot;:&quot;breakpoint&quot;', (string)$response->content);
+        $this->assertStringNotContainsString('scopeMode&quot;:&quot;all&quot;', (string)$response->content);
+        $this->assertTrue($controller->cpRequestChecked);
+        $this->assertTrue($controller->postRequestChecked);
+    }
+
+    public function testApplyCardOperationRoutesDimensionsToggleAutoWidthOperation(): void
+    {
+        $controller = $this->controllerWithBody([
+            'baseVersion' => 6,
+            'operation' => 'dimensions.toggleAutoWidth',
+            'setName' => '',
+        ]);
+        $response = $controller->actionApplyCardOperation();
+
+        $this->assertSame(Response::FORMAT_RAW, $response->format);
+        $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
+        $this->assertStringContainsString('data-kind="error"', (string)$response->content);
+        $this->assertStringContainsString('setName is required.', (string)$response->content);
+        $this->assertTrue($controller->cpRequestChecked);
+        $this->assertTrue($controller->postRequestChecked);
+    }
+
+    public function testApplyCardOperationRoutesDimensionsToggleAutoHeightOperation(): void
+    {
+        $controller = $this->controllerWithBody([
+            'baseVersion' => 6,
+            'operation' => 'dimensions.toggleAutoHeight',
+            'setName' => '',
+        ]);
+        $response = $controller->actionApplyCardOperation();
+
+        $this->assertSame(Response::FORMAT_RAW, $response->format);
+        $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
+        $this->assertStringContainsString('data-kind="error"', (string)$response->content);
+        $this->assertStringContainsString('setName is required.', (string)$response->content);
+        $this->assertTrue($controller->cpRequestChecked);
+        $this->assertTrue($controller->postRequestChecked);
+    }
+
+    public function testApplyCardOperationRatioCopyRequiresRatioSourceBreakpoint(): void
+    {
+        $controller = $this->controllerWithBody([
+            'baseVersion' => 6,
+            'operation' => 'ratio.copyFromRenderedBreakpoint',
+            'setName' => 'hero',
+            'renderedRows' => '[{"breakpoint":640,"width":320,"height":180}]',
+        ]);
+        $response = $controller->actionApplyCardOperation();
+
+        $this->assertSame(Response::FORMAT_RAW, $response->format);
+        $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
+        $this->assertStringContainsString('ratioSourceBreakpoint is required.', (string)$response->content);
+        $this->assertTrue($controller->cpRequestChecked);
+        $this->assertTrue($controller->postRequestChecked);
+    }
+
+    public function testApplyCardOperationRatioCopyPatchesSignalsFromRenderedRow(): void
+    {
+        $signalKey = $this->buildSignalKey('hero');
+        $controller = $this->controllerWithBody([
+            'baseVersion' => 6,
+            'operation' => 'ratio.copyFromRenderedBreakpoint',
+            'setName' => 'hero',
+            'renderedRows' => '[{"breakpoint":640,"width":320,"height":180}]',
+            'editor' => [
+                'cards' => [
+                    $signalKey => [
+                        'ratioSourceBreakpoint' => '640',
+                    ],
+                ],
+            ],
+        ]);
+        $response = $controller->actionApplyCardOperation();
+
+        $this->assertSame(Response::FORMAT_RAW, $response->format);
+        $this->assertStringContainsString('patch-signals', (string)$response->content);
+        $this->assertStringContainsString('ratioWidthInput', (string)$response->content);
+        $this->assertStringContainsString('320', (string)$response->content);
+        $this->assertStringContainsString('180', (string)$response->content);
+        $this->assertTrue($controller->cpRequestChecked);
+        $this->assertTrue($controller->postRequestChecked);
+    }
+
+    public function testApplyCardOperationRejectsMalformedRenderedRowsForRenderedValuesApply(): void
+    {
+        $controller = $this->controllerWithBody([
+            'baseVersion' => 6,
+            'operation' => 'renderedValues.apply',
+            'setName' => 'hero',
+            'renderedRows' => '{bad-json}',
+        ]);
+        $response = $controller->actionApplyCardOperation();
+
+        $this->assertSame(Response::FORMAT_RAW, $response->format);
+        $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
+        $this->assertStringContainsString('data-kind="error"', (string)$response->content);
+        $this->assertStringContainsString('renderedRows payload is malformed.', (string)$response->content);
+        $this->assertTrue($controller->cpRequestChecked);
+        $this->assertTrue($controller->postRequestChecked);
+    }
+
+    public function testApplyCardOperationRejectsMalformedRenderedRowsForRatioCopy(): void
+    {
+        $signalKey = $this->buildSignalKey('hero');
+        $controller = $this->controllerWithBody([
+            'baseVersion' => 6,
+            'operation' => 'ratio.copyFromRenderedBreakpoint',
+            'setName' => 'hero',
+            'renderedRows' => '{bad-json}',
+            'editor' => [
+                'cards' => [
+                    $signalKey => [
+                        'ratioSourceBreakpoint' => '640',
+                    ],
+                ],
+            ],
+        ]);
+        $response = $controller->actionApplyCardOperation();
+
+        $this->assertSame(Response::FORMAT_RAW, $response->format);
+        $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
+        $this->assertStringContainsString('data-kind="error"', (string)$response->content);
+        $this->assertStringContainsString('renderedRows payload is malformed.', (string)$response->content);
+        $this->assertTrue($controller->cpRequestChecked);
+        $this->assertTrue($controller->postRequestChecked);
+    }
+
+    public function testApplyCardOperationRejectsMalformedRenderedRowsForAutoToggle(): void
+    {
+        $controller = $this->controllerWithBody([
+            'baseVersion' => 6,
+            'operation' => 'dimensions.toggleAutoWidth',
+            'setName' => 'hero',
+            'renderedRows' => '{bad-json}',
+        ]);
+        $response = $controller->actionApplyCardOperation();
+
+        $this->assertSame(Response::FORMAT_RAW, $response->format);
+        $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
+        $this->assertStringContainsString('data-kind="error"', (string)$response->content);
+        $this->assertStringContainsString('renderedRows payload is malformed.', (string)$response->content);
+        $this->assertTrue($controller->cpRequestChecked);
+        $this->assertTrue($controller->postRequestChecked);
+    }
+
     public function testApplyCardOperationRejectsFractionalScopeBreakpoint(): void
     {
         $controller = $this->controllerWithBody([
@@ -254,6 +474,7 @@ final class TransformsControllerTest extends Unit
             'result' => 'not-an-array',
             'editScopeBySet' => 'invalid-scope',
             'editTabBySet' => 'invalid-tab',
+            'selectedAssetKeyBySet' => 'invalid-selected-asset',
             'preferredOrderBySet' => 'invalid-order',
         ]);
         $response = $controller->actionRenderResultReview();
@@ -265,6 +486,46 @@ final class TransformsControllerTest extends Unit
         $this->assertArrayHasKey('warningCount', $response->data);
         $this->assertSame('', $response->data['warningsHtml'] ?? null);
         $this->assertStringContainsString('No transform sets found in results.', (string)($response->data['visualResultsHtml'] ?? ''));
+        $this->assertTrue($controller->cpRequestChecked);
+        $this->assertTrue($controller->postRequestChecked);
+    }
+
+    public function testRenderResultReviewNormalizesSelectedAssetKeyBySetFromRequestPayload(): void
+    {
+        $controller = $this->controllerWithBody([
+            'result' => [
+                'breakpoints' => [640],
+                'rowsByBreakpoint' => [
+                    640 => [
+                        [
+                            'assetId' => '100',
+                            'transform' => 'hero',
+                            'enabled' => true,
+                            'isVisible' => true,
+                            'loaded' => true,
+                            'rendered' => ['width' => 600, 'height' => 340],
+                            'transformDimensions' => ['width' => 600, 'height' => 340, 'autoDimension' => null],
+                        ],
+                        [
+                            'assetId' => '101',
+                            'transform' => 'hero',
+                            'enabled' => true,
+                            'isVisible' => true,
+                            'loaded' => true,
+                            'rendered' => ['width' => 620, 'height' => 350],
+                            'transformDimensions' => ['width' => 620, 'height' => 350, 'autoDimension' => null],
+                        ],
+                    ],
+                ],
+            ],
+            'selectedAssetKeyBySet' => ['hero' => 'does-not-exist'],
+        ]);
+        $response = $controller->actionRenderResultReview();
+
+        $this->assertSame(Response::FORMAT_JSON, $response->format);
+        $this->assertIsArray($response->data);
+        $this->assertIsArray($response->data['selectedAssetKeyBySet'] ?? null);
+        $this->assertSame('asset:hero:100', $response->data['selectedAssetKeyBySet']['hero'] ?? null);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
     }
@@ -303,6 +564,13 @@ final class TransformsControllerTest extends Unit
         $this->assertDoesNotMatchRegularExpression('/bpts-transform-ratio-width-input[^>]*\svalue="/i', $visualResults);
         $this->assertDoesNotMatchRegularExpression('/bpts-transform-ratio-height-input[^>]*\svalue="/i', $visualResults);
         $this->assertDoesNotMatchRegularExpression('/bpts-transform-ratio-float-input[^>]*\svalue="/i', $visualResults);
+        $this->assertStringContainsString('@post($_applyCardOperationUrl', $visualResults);
+        $this->assertStringContainsString('dimensions.toggleAutoWidth', $visualResults);
+        $this->assertStringContainsString('dimensions.toggleAutoHeight', $visualResults);
+        $this->assertStringContainsString('renderedValues.apply', $visualResults);
+        $this->assertStringContainsString('ratio.copyFromRenderedBreakpoint', $visualResults);
+        $this->assertStringNotContainsString('localStateByBreakpoint', $visualResults);
+        $this->assertStringNotContainsString('JSON.parse(', $visualResults);
     }
 
     private function controllerWithBody(array $bodyParams): TransformsController
@@ -323,5 +591,16 @@ final class TransformsControllerTest extends Unit
                 $this->postRequestChecked = true;
             }
         };
+    }
+
+    private function buildSignalKey(string $setName): string
+    {
+        $slug = preg_replace('/[^a-z0-9]+/', '-', strtolower(trim($setName)));
+        $slug = trim((string)$slug, '-');
+        if ($slug === '') {
+            $slug = 'transform';
+        }
+
+        return 't_' . str_replace('-', '_', $slug) . '_' . substr(sha1($setName), 0, 8);
     }
 }
