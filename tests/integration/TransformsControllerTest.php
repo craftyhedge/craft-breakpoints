@@ -326,19 +326,12 @@ final class TransformsControllerTest extends Unit
 
     public function testApplyCardOperationRatioCopyPatchesSignalsFromRenderedRow(): void
     {
-        $signalKey = $this->buildSignalKey('hero');
         $controller = $this->controllerWithBody([
             'baseVersion' => 6,
             'operation' => 'ratio.copyFromRenderedBreakpoint',
             'setName' => 'hero',
+            'ratioSourceBreakpoint' => 640,
             'renderedRows' => '[{"breakpoint":640,"width":320,"height":180}]',
-            'editor' => [
-                'cards' => [
-                    $signalKey => [
-                        'ratioSourceBreakpoint' => '640',
-                    ],
-                ],
-            ],
         ]);
         $response = $controller->actionApplyCardOperation();
 
@@ -371,19 +364,12 @@ final class TransformsControllerTest extends Unit
 
     public function testApplyCardOperationRejectsMalformedRenderedRowsForRatioCopy(): void
     {
-        $signalKey = $this->buildSignalKey('hero');
         $controller = $this->controllerWithBody([
             'baseVersion' => 6,
             'operation' => 'ratio.copyFromRenderedBreakpoint',
             'setName' => 'hero',
+            'ratioSourceBreakpoint' => 640,
             'renderedRows' => '{bad-json}',
-            'editor' => [
-                'cards' => [
-                    $signalKey => [
-                        'ratioSourceBreakpoint' => '640',
-                    ],
-                ],
-            ],
         ]);
         $response = $controller->actionApplyCardOperation();
 
@@ -569,8 +555,12 @@ final class TransformsControllerTest extends Unit
         $this->assertStringContainsString('dimensions.toggleAutoHeight', $visualResults);
         $this->assertStringContainsString('renderedValues.apply', $visualResults);
         $this->assertStringContainsString('ratio.copyFromRenderedBreakpoint', $visualResults);
+        $this->assertStringContainsString('ratioSourceBreakpoint: Number($editor.cards.', $visualResults);
+        $this->assertStringContainsString('ratioFloat: Number($editor.cards.', $visualResults);
         $this->assertStringNotContainsString('localStateByBreakpoint', $visualResults);
         $this->assertStringNotContainsString('JSON.parse(', $visualResults);
+        $this->assertStringNotContainsString('const maxDen=', $visualResults);
+        $this->assertStringNotContainsString('const gcd=', $visualResults);
     }
 
     private function controllerWithBody(array $bodyParams): TransformsController

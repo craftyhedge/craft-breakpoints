@@ -99,6 +99,34 @@ final class Support
         return $trimmed !== '' ? $trimmed : null;
     }
 
+    public static function parseNullablePositiveFloat(mixed $raw): ?float
+    {
+        if (is_int($raw) || is_float($raw)) {
+            $value = (float)$raw;
+            if (!is_finite($value) || $value <= 0) {
+                return null;
+            }
+
+            return $value;
+        }
+
+        if (!is_string($raw)) {
+            return null;
+        }
+
+        $normalized = trim($raw);
+        if ($normalized === '' || !is_numeric($normalized)) {
+            return null;
+        }
+
+        $value = (float)$normalized;
+        if (!is_finite($value) || $value <= 0) {
+            return null;
+        }
+
+        return $value;
+    }
+
     public static function normalizeNullablePositiveInt(mixed $value): ?int
     {
         if ($value === null || $value === '') {
@@ -233,6 +261,56 @@ final class Support
         $trimmed = rtrim(rtrim($formatted, '0'), '.');
 
         return $trimmed !== '' ? $trimmed : '0';
+    }
+
+    /**
+     * @return array{width: int, height: int}|null
+     */
+    public static function approximateRatioPairFromFloat(?float $ratioValue, int $maxDenominator = 1000): ?array
+    {
+        if ($ratioValue === null || !is_finite($ratioValue) || $ratioValue <= 0 || $maxDenominator < 1) {
+            return null;
+        }
+
+        $bestNumerator = 1;
+        $bestDenominator = 1;
+        $bestError = abs($ratioValue - 1.0);
+
+        for ($denominator = 1; $denominator <= $maxDenominator; $denominator++) {
+            $numerator = max(1, (int)round($ratioValue * $denominator));
+            $error = abs($ratioValue - ($numerator / $denominator));
+            if ($error < $bestError) {
+                $bestError = $error;
+                $bestNumerator = $numerator;
+                $bestDenominator = $denominator;
+                if ($error === 0.0) {
+                    break;
+                }
+            }
+        }
+
+        $divisor = self::greatestCommonDivisor($bestNumerator, $bestDenominator);
+        $width = max(1, (int)round($bestNumerator / $divisor));
+        $height = max(1, (int)round($bestDenominator / $divisor));
+
+        return [
+            'width' => $width,
+            'height' => $height,
+        ];
+    }
+
+    private static function greatestCommonDivisor(int $left, int $right): int
+    {
+        $a = abs($left);
+        $b = abs($right);
+
+        while ($b !== 0) {
+            $tmp = $a % $b;
+            $a = $b;
+            $b = $tmp;
+        }
+
+        return $a > 0 ? $a : 1;
     }
 
     public static function truncateUrl(string $url, int $maxLength): string

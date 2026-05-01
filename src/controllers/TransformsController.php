@@ -254,7 +254,8 @@ class TransformsController extends Controller
                 ]);
             }
 
-            $sourceBreakpoint = $this->readRequestedCardSignalNullablePositiveInt($operation->setName, 'ratioSourceBreakpoint');
+            $sourceBreakpoint = $this->readRequestedCardSignalNullablePositiveInt($operation->setName, 'ratioSourceBreakpoint')
+                ?? $operation->ratioSourceBreakpoint;
             if ($sourceBreakpoint === null) {
                 return $this->asDatastarEventStream([
                     new PatchElements($this->renderEditorStatusFragment('error', 'ratioSourceBreakpoint is required.')),
@@ -298,12 +299,27 @@ class TransformsController extends Controller
             $requestedScope = $this->readRequestedCardScope($operation->setName);
             $scopeMode = $requestedScope['mode'] ?? $operation->scopeMode;
             $scopeBreakpoint = $requestedScope['breakpoint'] ?? $operation->scopeBreakpoint;
+
+            $ratioWidth = $this->readRequestedCardSignalNullablePositiveInt($operation->setName, 'ratioWidthInput') ?? $operation->ratioWidth;
+            $ratioHeight = $this->readRequestedCardSignalNullablePositiveInt($operation->setName, 'ratioHeightInput') ?? $operation->ratioHeight;
+
+            if ($ratioWidth === null || $ratioHeight === null) {
+                $ratioFloat = Support::parseNullablePositiveFloat(
+                    $this->readRequestedCardSignalString($operation->setName, 'ratioFloatInput'),
+                ) ?? $operation->ratioFloat;
+                $ratioPair = Support::approximateRatioPairFromFloat($ratioFloat);
+                if ($ratioPair !== null) {
+                    $ratioWidth = $ratioPair['width'];
+                    $ratioHeight = $ratioPair['height'];
+                }
+            }
+
             $operationResult = $editor->applySetRatioOperation(
                 $operation->setName,
                 $scopeMode,
                 $scopeBreakpoint,
-                $this->readRequestedCardSignalNullablePositiveInt($operation->setName, 'ratioWidthInput') ?? $operation->ratioWidth,
-                $this->readRequestedCardSignalNullablePositiveInt($operation->setName, 'ratioHeightInput') ?? $operation->ratioHeight,
+                $ratioWidth,
+                $ratioHeight,
                 $this->readRequestedCardSignalString($operation->setName, 'ratioSourceDimension') ?? $operation->ratioSourceDimension,
                 $operation->includeEscapeWidth,
                 $operation->baseVersion,
