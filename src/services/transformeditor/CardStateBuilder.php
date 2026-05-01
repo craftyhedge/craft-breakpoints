@@ -17,8 +17,8 @@ final class CardStateBuilder
     ): array {
         $scope = $this->normalizeScope($rawScope, $transformBreakpoints);
         $rowsByBreakpoint = $this->buildRowsByBreakpointState($currentRowsByBreakpoint, $transformBreakpoints);
-        $tab = $this->normalizeTab($rawTab);
         $scopeValues = $this->resolveScopeValues($rowsByBreakpoint, $scope);
+        $tab = $this->normalizeTab($rawTab, $scopeValues);
 
         $initSeedAppliedAny = false;
         foreach ($rowsByBreakpoint as $row) {
@@ -66,10 +66,22 @@ final class CardStateBuilder
         return ['mode' => 'all', 'breakpoint' => null];
     }
 
-    private function normalizeTab(mixed $rawTab): string
+    /**
+     * @param array<string, string> $scopeValues
+     */
+    private function normalizeTab(mixed $rawTab, array $scopeValues): string
     {
         $tab = is_string($rawTab) ? strtolower(trim($rawTab)) : '';
-        return in_array($tab, ['dimensions', 'ratio', 'settings'], true) ? $tab : 'dimensions';
+        $normalizedTab = in_array($tab, ['dimensions', 'ratio', 'settings'], true) ? $tab : 'dimensions';
+
+        $ratioBlockedByAuto = ($scopeValues['widthAuto'] ?? '0') === '1'
+            || ($scopeValues['heightAuto'] ?? '0') === '1';
+
+        if ($normalizedTab === 'ratio' && $ratioBlockedByAuto) {
+            return 'dimensions';
+        }
+
+        return $normalizedTab;
     }
 
     /**

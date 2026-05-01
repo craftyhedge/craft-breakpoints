@@ -6,7 +6,7 @@ use Craft;
 use craft\helpers\Json;
 use craft\web\Controller;
 use craftyhedge\craftbreakpoints\Plugin;
-use craftyhedge\craftbreakpoints\services\transformeditor\Support;
+use craftyhedge\craftbreakpoints\services\transformeditor\CardOperationRequest;
 use starfederation\datastar\events\PatchElements;
 use starfederation\datastar\events\PatchSignals;
 use starfederation\datastar\ServerSentEventGenerator;
@@ -139,103 +139,120 @@ class TransformsController extends Controller
 
         $editor = Plugin::getInstance()->getTransformEditor();
 
-        $setName = trim((string)$this->request->getBodyParam('setName', ''));
-        $scopeMode = trim((string)$this->request->getBodyParam('scopeMode', 'all'));
-        $field = $this->normalizeOperationField(trim((string)$this->request->getBodyParam('field', 'width')));
-        $includeEscapeWidthRaw = $this->request->getBodyParam('includeEscapeWidth');
-        $scopeBreakpointRaw = $this->request->getBodyParam('scopeBreakpoint');
-        $valueRaw = $this->request->getBodyParam('value');
-        $widthRaw = $this->request->getBodyParam('width');
-        $heightRaw = $this->request->getBodyParam('height');
-        $widthAutoRaw = $this->request->getBodyParam('widthAuto');
-        $heightAutoRaw = $this->request->getBodyParam('heightAuto');
-        $ratioWidthRaw = $this->request->getBodyParam('ratioWidth');
-        $ratioHeightRaw = $this->request->getBodyParam('ratioHeight');
-        $ratioSourceDimensionRaw = $this->request->getBodyParam('ratioSourceDimension');
-        $baseVersion = Plugin::getInstance()->getTransformStore()->getCurrentVersion();
+        $operation = CardOperationRequest::fromRequest(
+            $this->request,
+            Plugin::getInstance()->getTransformStore()->getCurrentVersion(),
+        );
 
-        $includeEscapeWidth = Support::parseNullableBool($includeEscapeWidthRaw);
-        $scopeBreakpoint = Support::parseNullablePositiveInt($scopeBreakpointRaw);
-        $value = Support::parseNullablePositiveInt($valueRaw);
-        $width = Support::parseNullablePositiveInt($widthRaw);
-        $height = Support::parseNullablePositiveInt($heightRaw);
-        $widthAuto = Support::parseNullableBool($widthAutoRaw);
-        $heightAuto = Support::parseNullableBool($heightAutoRaw);
-        $forceAll = Support::parseNullableBool($this->request->getBodyParam('forceAll')) === true;
-        $clearAuto = Support::parseNullableBool($this->request->getBodyParam('clearAuto')) === true;
-        $ratioWidth = Support::parseNullablePositiveInt($ratioWidthRaw);
-        $ratioHeight = Support::parseNullablePositiveInt($ratioHeightRaw);
-        $ratioSourceDimension = Support::parseNullableNonEmptyString($ratioSourceDimensionRaw);
-        $enabled = Support::parseNullableBool($this->request->getBodyParam('enabled'));
+        if (!$operation->hasValidOperation) {
+            $events = [
+                new PatchElements($this->renderEditorStatusFragment('error', 'operation is required and must be a supported command.')),
+            ];
 
-        if ($field === 'renderedValues') {
-            $renderedRowsRaw = $this->request->getBodyParam('renderedRows', []);
-            $renderedRows = is_array($renderedRowsRaw) ? $renderedRowsRaw : [];
+            return $this->asDatastarEventStream($events);
+        }
 
+        if ($operation->operation === 'scope.selectAll' || $operation->operation === 'scope.selectBreakpoint') {
+            if ($operation->setName === '') {
+                return $this->asDatastarEventStream([
+                    new PatchElements($this->renderEditorStatusFragment('error', 'setName is required.')),
+                ]);
+            }
+
+            if ($operation->operation === 'scope.selectBreakpoint' && $operation->scopeBreakpoint === null) {
+                return $this->asDatastarEventStream([
+                    new PatchElements($this->renderEditorStatusFragment('error', 'scopeBreakpoint is required when selecting a breakpoint.')),
+                ]);
+            }
+
+            $scopeMode = $operation->operation === 'scope.selectAll' ? 'all' : 'breakpoint';
+            $scopeBreakpoint = $scopeMode === 'breakpoint' ? $operation->scopeBreakpoint : null;
+            $editScopeBySet = $this->buildCardEditScope($operation->setName, $scopeMode, $scopeBreakpoint);
+            $editTabBySet = $this->buildCardRequestedEditTab($operation->setName);
+            $selectedAssetKeyBySet = $this->buildCardSelectedAssetKey($operation->setName);
+            $cardMarkup = $editor->renderCardFragment(
+                $operation->setName,
+                $editScopeBySet,
+                $editTabBySet,
+                $selectedAssetKeyBySet,
+            );
+
+            if ($cardMarkup === '') {
+                return $this->asDatastarEventStream([
+                    new PatchElements($this->renderEditorStatusFragment('error', 'Unable to render selected scope state.')),
+                ]);
+            }
+
+            return $this->asDatastarEventStream([
+                new PatchElements($cardMarkup),
+            ]);
+        }
+
+        if ($operation->operation === 'renderedValues.apply') {
             $operationResult = $editor->applyRenderedValuesOperation(
-                $setName,
-                $renderedRows,
-                $includeEscapeWidth,
-                $clearAuto,
-                $baseVersion,
+                $operation->setName,
+                $operation->renderedRows,
+                $operation->includeEscapeWidth,
+                $operation->clearAuto,
+                $operation->baseVersion,
             );
-        } elseif ($field === 'deleteSet') {
-            $operationResult = $editor->deleteSetOperation($setName, $baseVersion);
-        } elseif ($field === 'dimensions') {
+        } elseif ($operation->operation === 'set.delete') {
+            $operationResult = $editor->deleteSetOperation($operation->setName, $operation->baseVersion);
+        } elseif ($operation->operation === 'dimensions.apply') {
             $operationResult = $editor->applySetDimensionsOperation(
-                $setName,
-                $scopeMode,
-                $scopeBreakpoint,
-                $width,
-                $height,
-                $includeEscapeWidth,
-                $widthAuto,
-                $heightAuto,
-                $forceAll,
-                $baseVersion,
+                $operation->setName,
+                $operation->scopeMode,
+                $operation->scopeBreakpoint,
+                $operation->width,
+                $operation->height,
+                $operation->includeEscapeWidth,
+                $operation->widthAuto,
+                $operation->heightAuto,
+                $operation->forceAll,
+                $operation->baseVersion,
             );
-        } elseif ($field === 'ratio') {
+        } elseif ($operation->operation === 'ratio.apply') {
             $operationResult = $editor->applySetRatioOperation(
-                $setName,
-                $scopeMode,
-                $scopeBreakpoint,
-                $ratioWidth,
-                $ratioHeight,
-                $ratioSourceDimension,
-                $includeEscapeWidth,
-                $baseVersion,
+                $operation->setName,
+                $operation->scopeMode,
+                $operation->scopeBreakpoint,
+                $operation->ratioWidth,
+                $operation->ratioHeight,
+                $operation->ratioSourceDimension,
+                $operation->includeEscapeWidth,
+                $operation->baseVersion,
             );
-        } elseif ($field === 'breakpointEnabled') {
+        } elseif ($operation->operation === 'breakpoint.toggleEnabled') {
             $operationResult = $editor->applySetBreakpointEnabledOperation(
-                $setName,
-                $scopeBreakpoint,
-                $enabled,
-                $includeEscapeWidth,
-                $baseVersion,
+                $operation->setName,
+                $operation->scopeBreakpoint,
+                $operation->enabled,
+                $operation->includeEscapeWidth,
+                $operation->baseVersion,
             );
-        } elseif ($field === 'passHeightWhenRenderedLteSaved') {
+        } elseif ($operation->operation === 'settings.setPassHeightWhenRenderedLteSaved') {
             $operationResult = $editor->applySetPassHeightWhenRenderedLteSavedOperation(
-                $setName,
-                $valueRaw,
-                $includeEscapeWidth,
-                $baseVersion,
+                $operation->setName,
+                $operation->valueRaw,
+                $operation->includeEscapeWidth,
+                $operation->baseVersion,
             );
-        } elseif ($field === 'allowAnyHeight') {
+        } elseif ($operation->operation === 'settings.setAllowAnyHeight') {
             $operationResult = $editor->applySetAllowAnyHeightOperation(
-                $setName,
-                $valueRaw,
-                $includeEscapeWidth,
-                $baseVersion,
+                $operation->setName,
+                $operation->valueRaw,
+                $operation->includeEscapeWidth,
+                $operation->baseVersion,
             );
         } else {
             $operationResult = $editor->applySetDimensionOperation(
-                $setName,
-                $scopeMode,
-                $scopeBreakpoint,
-                $value,
-                $field,
-                $includeEscapeWidth,
-                $baseVersion,
+                $operation->setName,
+                $operation->scopeMode,
+                $operation->scopeBreakpoint,
+                $operation->value,
+                $operation->field,
+                $operation->includeEscapeWidth,
+                $operation->baseVersion,
             );
         }
 
@@ -244,16 +261,31 @@ class TransformsController extends Controller
             : $editor->defaultValidation();
         $persisted = ($operationResult['persisted'] ?? false) === true;
         $conflict = ($operationResult['conflict'] ?? false) === true;
-        $statusMessage = $this->buildOperationStatusMessage($field, $persisted, $conflict, $operationResult);
+        $statusMessage = $this->buildOperationStatusMessage($operation->field, $persisted, $conflict, $operationResult);
         $statusKind = $conflict ? 'conflict' : ($persisted ? 'success' : 'error');
+        $resolvedBaseVersion = trim((string)($operationResult['currentVersion'] ?? ''));
 
         $events = [];
+        if (($persisted || $conflict) && $resolvedBaseVersion !== '') {
+            $events[] = new PatchSignals([
+                'editor' => [
+                    'baseVersion' => $resolvedBaseVersion,
+                ],
+            ]);
+        }
+
         $shouldPatchCard = $persisted || $conflict;
         if ($shouldPatchCard) {
-            $editScopeBySet = $this->buildCardEditScope($setName, $scopeMode, $scopeBreakpoint);
-            $editTabBySet = $this->buildCardEditTab($setName, $field);
-            $cardMarkup = $editor->renderCardFragment($setName, $editScopeBySet, $editTabBySet);
-            $cardId = $this->buildCardDomId($setName);
+            $editScopeBySet = $this->buildCardEditScope($operation->setName, $operation->scopeMode, $operation->scopeBreakpoint);
+            $editTabBySet = $this->buildCardEditTab($operation->setName, $operation->field);
+            $selectedAssetKeyBySet = $this->buildCardSelectedAssetKey($operation->setName);
+            $cardMarkup = $editor->renderCardFragment(
+                $operation->setName,
+                $editScopeBySet,
+                $editTabBySet,
+                $selectedAssetKeyBySet,
+            );
+            $cardId = $this->buildCardDomId($operation->setName);
             if ($cardMarkup !== '') {
                 $events[] = new PatchElements($cardMarkup);
             } elseif ($cardId !== '') {
@@ -264,10 +296,10 @@ class TransformsController extends Controller
             }
         }
 
-        if ($persisted && $setName !== '') {
-            $signalKey = $this->buildCardSignalKey($setName);
+        if ($persisted && $operation->setName !== '') {
+            $signalKey = $this->buildCardSignalKey($operation->setName);
             if ($signalKey !== '') {
-                if ($field === 'deleteSet') {
+                if ($operation->field === 'deleteSet') {
                     $events[] = new PatchElements($this->renderEditorStatusFragment($statusKind, $statusMessage));
 
                     return $this->asDatastarEventStream($events);
@@ -478,6 +510,86 @@ class TransformsController extends Controller
         return [$setName => $tab];
     }
 
+    /**
+     * @return array<string, string>
+     */
+    private function buildCardSelectedAssetKey(string $setName): array
+    {
+        if ($setName === '') {
+            return [];
+        }
+
+        $selectedAssetKey = $this->readRequestedCardSelectedAssetKey($setName);
+        if ($selectedAssetKey === null) {
+            return [];
+        }
+
+        return [$setName => $selectedAssetKey];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function buildCardRequestedEditTab(string $setName): array
+    {
+        if ($setName === '') {
+            return [];
+        }
+
+        $requestedTab = trim((string)$this->readRequestedCardSignalString($setName, 'activeTab'));
+        if ($requestedTab === '') {
+            return [];
+        }
+
+        $normalizedTab = strtolower($requestedTab);
+        if (!in_array($normalizedTab, ['dimensions', 'ratio', 'settings'], true)) {
+            return [];
+        }
+
+        return [$setName => $normalizedTab];
+    }
+
+    private function readRequestedCardSelectedAssetKey(string $setName): ?string
+    {
+        $rawSelectedAssetKey = $this->readRequestedCardSignalString($setName, 'selectedAssetKey');
+        if ($rawSelectedAssetKey === null) {
+            return null;
+        }
+
+        $selectedAssetKey = trim($rawSelectedAssetKey);
+        return $selectedAssetKey !== '' ? $selectedAssetKey : null;
+    }
+
+    private function readRequestedCardSignalString(string $setName, string $key): ?string
+    {
+        if ($setName === '' || $key === '') {
+            return null;
+        }
+
+        $signalKey = $this->buildCardSignalKey($setName);
+        if ($signalKey === '') {
+            return null;
+        }
+
+        $editorSignals = $this->request->getBodyParam('editor');
+        if (!is_array($editorSignals)) {
+            return null;
+        }
+
+        $cards = $editorSignals['cards'] ?? null;
+        if (!is_array($cards)) {
+            return null;
+        }
+
+        $card = $cards[$signalKey] ?? null;
+        if (!is_array($card)) {
+            return null;
+        }
+
+        $rawValue = $card[$key] ?? null;
+        return is_string($rawValue) ? $rawValue : null;
+    }
+
     private function resolveSessionId(): string
     {
         $requestSessionId = trim((string)$this->request->getBodyParam('sessionId', ''));
@@ -521,18 +633,10 @@ class TransformsController extends Controller
         }
     }
 
-    private function normalizeOperationField(string $field): string
-    {
-        return match ($field) {
-            'width', 'height', 'dimensions', 'ratio', 'breakpointEnabled', 'passHeightWhenRenderedLteSaved', 'allowAnyHeight', 'renderedValues', 'deleteSet' => $field,
-            default => 'width',
-        };
-    }
-
     private function buildOperationStatusMessage(string $field, bool $persisted, bool $conflict, array $operationResult = []): string
     {
         if (!$persisted && $conflict) {
-            return 'Draft is out of date. Refresh and retry.';
+            return 'Version is out of date. Refresh and retry.';
         }
 
         if (!$persisted) {

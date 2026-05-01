@@ -96,14 +96,11 @@ final class TransformsControllerTest extends Unit
         $this->assertTrue($controller->postRequestChecked);
     }
 
-    public function testApplyCardOperationUsesWidthFallbackForUnknownFieldAndReportsValidationErrors(): void
+    public function testApplyCardOperationRejectsUnknownOperation(): void
     {
         $controller = $this->controllerWithBody([
             'baseVersion' => 5,
-            'field' => 'unexpected-field',
-            'setName' => '',
-            'scopeMode' => 'all',
-            'value' => 120,
+            'operation' => 'unexpected-operation',
         ]);
         $response = $controller->actionApplyCardOperation();
 
@@ -111,7 +108,7 @@ final class TransformsControllerTest extends Unit
         $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
         $this->assertStringNotContainsString('patch-signals', (string)$response->content);
         $this->assertStringContainsString('data-kind="error"', (string)$response->content);
-        $this->assertStringContainsString('setName is required.', (string)$response->content);
+        $this->assertStringContainsString('operation is required and must be a supported command.', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
     }
@@ -120,7 +117,7 @@ final class TransformsControllerTest extends Unit
     {
         $controller = $this->controllerWithBody([
             'baseVersion' => 6,
-            'field' => 'breakpointEnabled',
+            'operation' => 'breakpoint.toggleEnabled',
             'setName' => '',
             'scopeBreakpoint' => 640,
             'enabled' => false,
@@ -135,6 +132,42 @@ final class TransformsControllerTest extends Unit
         $this->assertTrue($controller->postRequestChecked);
     }
 
+    public function testApplyCardOperationRejectsScopeSelectBreakpointWithoutBreakpoint(): void
+    {
+        $controller = $this->controllerWithBody([
+            'baseVersion' => 6,
+            'operation' => 'scope.selectBreakpoint',
+            'setName' => 'hero',
+        ]);
+        $response = $controller->actionApplyCardOperation();
+
+        $this->assertSame(Response::FORMAT_RAW, $response->format);
+        $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
+        $this->assertStringContainsString('data-kind="error"', (string)$response->content);
+        $this->assertStringContainsString('scopeBreakpoint is required when selecting a breakpoint.', (string)$response->content);
+        $this->assertTrue($controller->cpRequestChecked);
+        $this->assertTrue($controller->postRequestChecked);
+    }
+
+    public function testApplyCardOperationScopeSelectAllReturnsCardPatchWithoutStatus(): void
+    {
+        $controller = $this->controllerWithBody([
+            'baseVersion' => 6,
+            'operation' => 'scope.selectAll',
+            'setName' => 'hero',
+            'editor' => [
+                'cards' => [],
+            ],
+        ]);
+        $response = $controller->actionApplyCardOperation();
+
+        $this->assertSame(Response::FORMAT_RAW, $response->format);
+        $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
+        $this->assertStringNotContainsString('bpts-editor-status', (string)$response->content);
+        $this->assertTrue($controller->cpRequestChecked);
+        $this->assertTrue($controller->postRequestChecked);
+    }
+
     public function testApplyCardOperationRejectsNonBooleanNumericEnabledValue(): void
     {
         $breakpoints = Plugin::getInstance()->getConfigService()->getBreakpoints();
@@ -145,7 +178,7 @@ final class TransformsControllerTest extends Unit
 
         $controller = $this->controllerWithBody([
             'baseVersion' => 7,
-            'field' => 'breakpointEnabled',
+            'operation' => 'breakpoint.toggleEnabled',
             'setName' => 'hero',
             'scopeBreakpoint' => $firstBreakpointValue,
             'enabled' => 2,
@@ -164,7 +197,7 @@ final class TransformsControllerTest extends Unit
     {
         $controller = $this->controllerWithBody([
             'baseVersion' => 8,
-            'field' => 'breakpointEnabled',
+            'operation' => 'breakpoint.toggleEnabled',
             'setName' => 'hero',
             'scopeBreakpoint' => '640.5',
             'enabled' => true,
@@ -183,7 +216,7 @@ final class TransformsControllerTest extends Unit
     {
         $controller = $this->controllerWithBody([
             'baseVersion' => 9,
-            'field' => 'passHeightWhenRenderedLteSaved',
+            'operation' => 'settings.setPassHeightWhenRenderedLteSaved',
             'setName' => '',
             'value' => true,
         ]);
@@ -201,7 +234,7 @@ final class TransformsControllerTest extends Unit
     {
         $controller = $this->controllerWithBody([
             'baseVersion' => 9,
-            'field' => 'allowAnyHeight',
+            'operation' => 'settings.setAllowAnyHeight',
             'setName' => '',
             'value' => true,
         ]);
