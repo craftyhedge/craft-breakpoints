@@ -73,12 +73,12 @@ final class CardOperationRequestTest extends Unit
         $this->assertSame('', $operation->operation);
     }
 
-    public function testFromRequestNormalizesRenderedRowsAndValueRaw(): void
+    public function testFromRequestNormalizesSelectedAssetKeyAndValueRaw(): void
     {
         Craft::$app->getRequest()->setBodyParams([
             'operation' => 'settings.setAllowAnyHeight',
             'value' => 'on',
-            'renderedRows' => 'not-an-array',
+            'selectedAssetKey' => '  asset:hero:100  ',
         ]);
 
         $operation = CardOperationRequest::fromRequest(Craft::$app->getRequest(), 'fallback-version');
@@ -87,7 +87,19 @@ final class CardOperationRequestTest extends Unit
         $this->assertSame('settings.setAllowAnyHeight', $operation->operation);
         $this->assertSame('allowAnyHeight', $operation->field);
         $this->assertSame('on', $operation->valueRaw);
-        $this->assertSame([], $operation->renderedRows);
+        $this->assertSame('asset:hero:100', $operation->selectedAssetKey);
+    }
+
+    public function testFromRequestNormalizesEmptySelectedAssetKeyToNull(): void
+    {
+        Craft::$app->getRequest()->setBodyParams([
+            'operation' => 'renderedValues.apply',
+            'setName' => 'hero',
+        ]);
+
+        $operation = CardOperationRequest::fromRequest(Craft::$app->getRequest(), 'fallback-version');
+
+        $this->assertNull($operation->selectedAssetKey);
     }
 
     public function testFromRequestNormalizesScopeSelectBreakpointOperation(): void
@@ -184,53 +196,16 @@ final class CardOperationRequestTest extends Unit
         $this->assertSame(1.7777, $operation->ratioFloat);
     }
 
-    public function testFromRequestDecodesRenderedRowsFromJsonString(): void
+    public function testFromRequestDecodesSelectedAssetKey(): void
     {
         Craft::$app->getRequest()->setBodyParams([
             'setName' => 'hero',
             'operation' => 'ratio.copyFromRenderedBreakpoint',
-            'renderedRows' => '[{"breakpoint":640,"width":320,"height":180}]',
+            'selectedAssetKey' => 'asset:hero:100',
         ]);
 
         $operation = CardOperationRequest::fromRequest(Craft::$app->getRequest(), 'fallback-version');
 
-        $this->assertCount(1, $operation->renderedRows);
-        $this->assertSame(640, $operation->renderedRows[0]['breakpoint'] ?? null);
-        $this->assertSame(320, $operation->renderedRows[0]['width'] ?? null);
-        $this->assertSame(180, $operation->renderedRows[0]['height'] ?? null);
-        $this->assertFalse($operation->hasMalformedRenderedRows);
-    }
-
-    public function testFromRequestFlagsMalformedRenderedRowsJson(): void
-    {
-        Craft::$app->getRequest()->setBodyParams([
-            'setName' => 'hero',
-            'operation' => 'renderedValues.apply',
-            'renderedRows' => '{not-json}',
-        ]);
-
-        $operation = CardOperationRequest::fromRequest(Craft::$app->getRequest(), 'fallback-version');
-
-        $this->assertSame([], $operation->renderedRows);
-        $this->assertTrue($operation->hasMalformedRenderedRows);
-    }
-
-    public function testFromRequestNormalizesAndFlagsMixedRenderedRowsPayload(): void
-    {
-        Craft::$app->getRequest()->setBodyParams([
-            'setName' => 'hero',
-            'operation' => 'renderedValues.apply',
-            'renderedRows' => [
-                ['breakpoint' => 640, 'width' => 320, 'height' => 180],
-                ['breakpoint' => 'bad', 'width' => 320, 'height' => 180],
-                'invalid-row',
-            ],
-        ]);
-
-        $operation = CardOperationRequest::fromRequest(Craft::$app->getRequest(), 'fallback-version');
-
-        $this->assertCount(1, $operation->renderedRows);
-        $this->assertSame(640, $operation->renderedRows[0]['breakpoint'] ?? null);
-        $this->assertTrue($operation->hasMalformedRenderedRows);
+        $this->assertSame('asset:hero:100', $operation->selectedAssetKey);
     }
 }

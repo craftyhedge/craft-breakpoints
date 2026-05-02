@@ -56,6 +56,7 @@ class TransformEditor extends Component
                 $this->_plugin->getTransformStore(),
                 $this->_plugin->getConfigService(),
                 $this->_plugin->getTelemetry(),
+                $this->_snapshotReader,
             );
             $this->_reviewRenderer = new ReviewRenderer(
                 $this->_plugin,
@@ -208,7 +209,7 @@ class TransformEditor extends Component
         string $scopeMode,
         ?int $scopeBreakpoint,
         ?int $heightValue,
-        array $renderedRows,
+        ?string $assetKey = null,
         ?bool $includeEscapeWidth = null,
         ?string $expectedVersion = null,
     ): array {
@@ -221,7 +222,7 @@ class TransformEditor extends Component
             $scopeMode,
             $scopeBreakpoint,
             $heightValue,
-            $renderedRows,
+            $assetKey,
             $includeEscapeWidth,
             $expectedVersion,
         );
@@ -232,7 +233,7 @@ class TransformEditor extends Component
         string $scopeMode,
         ?int $scopeBreakpoint,
         ?int $widthValue,
-        array $renderedRows,
+        ?string $assetKey = null,
         ?bool $includeEscapeWidth = null,
         ?string $expectedVersion = null,
     ): array {
@@ -245,7 +246,7 @@ class TransformEditor extends Component
             $scopeMode,
             $scopeBreakpoint,
             $widthValue,
-            $renderedRows,
+            $assetKey,
             $includeEscapeWidth,
             $expectedVersion,
         );
@@ -280,13 +281,12 @@ class TransformEditor extends Component
     public function applySetCopyRatioFromRenderedBreakpointOperation(
         string $transformName,
         int $sourceBreakpoint,
-        array $renderedRows,
     ): ?array {
         if ($this->_operationsService === null) {
             return null;
         }
 
-        return $this->_operationsService->resolveRenderedRatioByBreakpoint($transformName, $sourceBreakpoint, $renderedRows);
+        return $this->_operationsService->resolveRenderedRatioByBreakpoint($transformName, $sourceBreakpoint);
     }
 
     public function applySetBreakpointEnabledOperation(
@@ -349,7 +349,7 @@ class TransformEditor extends Component
 
     public function applyRenderedValuesOperation(
         string $transformName,
-        array $renderedRows,
+        ?string $assetKey = null,
         ?bool $includeEscapeWidth = null,
         bool $clearAuto = false,
         ?string $expectedVersion = null,
@@ -360,7 +360,7 @@ class TransformEditor extends Component
 
         return $this->_operationsService->applyRenderedValuesOperation(
             $transformName,
-            $renderedRows,
+            $assetKey,
             $includeEscapeWidth,
             $clearAuto,
             $expectedVersion,

@@ -189,16 +189,10 @@ class TransformsController extends Controller
             ]);
         }
 
-        if ($this->operationRequiresRenderedRows($operation->operation) && $operation->hasMalformedRenderedRows) {
-            return $this->asDatastarEventStream([
-                new PatchElements($this->renderEditorStatusFragment('error', 'renderedRows payload is malformed.')),
-            ]);
-        }
-
         if ($operation->operation === 'renderedValues.apply') {
             $operationResult = $editor->applyRenderedValuesOperation(
                 $operation->setName,
-                $operation->renderedRows,
+                $operation->selectedAssetKey,
                 $operation->includeEscapeWidth,
                 $operation->clearAuto,
                 $operation->baseVersion,
@@ -230,7 +224,7 @@ class TransformsController extends Controller
                 $scopeMode,
                 $scopeBreakpoint,
                 $this->readRequestedCardSignalNullablePositiveInt($operation->setName, 'heightInput') ?? $operation->height,
-                $operation->renderedRows,
+                $operation->selectedAssetKey,
                 $operation->includeEscapeWidth,
                 $operation->baseVersion,
             );
@@ -243,7 +237,7 @@ class TransformsController extends Controller
                 $scopeMode,
                 $scopeBreakpoint,
                 $this->readRequestedCardSignalNullablePositiveInt($operation->setName, 'widthInput') ?? $operation->width,
-                $operation->renderedRows,
+                $operation->selectedAssetKey,
                 $operation->includeEscapeWidth,
                 $operation->baseVersion,
             );
@@ -265,7 +259,6 @@ class TransformsController extends Controller
             $copiedRatio = $editor->applySetCopyRatioFromRenderedBreakpointOperation(
                 $operation->setName,
                 $sourceBreakpoint,
-                $operation->renderedRows,
             );
             if ($copiedRatio === null) {
                 return $this->asDatastarEventStream([
@@ -777,16 +770,6 @@ class TransformsController extends Controller
         }
 
         return Support::parseNullableBool($rawValue);
-    }
-
-    private function operationRequiresRenderedRows(string $operation): bool
-    {
-        return in_array($operation, [
-            'renderedValues.apply',
-            'ratio.copyFromRenderedBreakpoint',
-            'dimensions.toggleAutoWidth',
-            'dimensions.toggleAutoHeight',
-        ], true);
     }
 
     private function resolveSessionId(): string

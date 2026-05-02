@@ -550,13 +550,8 @@ final class ReviewRenderer
                 $columnWidths,
             );
             $breakpointColumns = '';
-            $renderedRowsForTransform = [];
             foreach ($transformBreakpoints as $breakpoint) {
                 $rows = $selectedAssetRowsByBreakpoint[$breakpoint] ?? [];
-                $renderedRowsForTransform = array_merge(
-                    $renderedRowsForTransform,
-                    $this->buildReviewRenderedRowsPayload($rows, $breakpoint),
-                );
                 $breakpointColumns .= $this->renderReviewBreakpointColumn(
                     $transformName,
                     $breakpoint,
@@ -661,11 +656,6 @@ final class ReviewRenderer
                 $observedDataByTransform[$transformName] ?? null,
             );
 
-            $renderedRowsForTransformJson = json_encode($renderedRowsForTransform, JSON_UNESCAPED_SLASHES);
-            if (!is_string($renderedRowsForTransformJson)) {
-                $renderedRowsForTransformJson = '[]';
-            }
-
             $cards[] = $this->renderReviewPartial('_partials/review/transform-card', [
                 'cardId' => $this->escapeReviewHtml('bpts-card-' . $signalKey),
                 'transformNameEscaped' => $this->escapeReviewHtml($transformName),
@@ -678,7 +668,6 @@ final class ReviewRenderer
                     ? '<div class="bpts-transform-card-warnings">' . $cardWarningsWithMismatch . '</div>'
                     : '',
                 'includeEscapeWidth' => $includeEscapeWidth ? '1' : '0',
-                'renderedRowsForTransformJson' => $this->escapeReviewHtml($renderedRowsForTransformJson),
                 'selectedAssetKey' => $this->escapeReviewHtml($selectedAssetKey),
                 'renderedApplyHiddenClass' => $hideRenderedApply ? 'bpts-force-hidden' : '',
                 'breakpointColumns' => $breakpointColumns,
@@ -743,10 +732,6 @@ final class ReviewRenderer
     ): string {
         $summary = $this->summarizeReviewRows($rows);
         $renderedRowsPayload = $this->buildReviewRenderedRowsPayload($rows, $breakpoint);
-        $renderedRowsPayloadJson = json_encode($renderedRowsPayload, JSON_UNESCAPED_SLASHES);
-        if (!is_string($renderedRowsPayloadJson)) {
-            $renderedRowsPayloadJson = '[]';
-        }
 
         $renderedWidth = (int)($summary['renderedWidth'] ?? 0);
         $renderedHeight = (int)($summary['renderedHeight'] ?? 0);
@@ -899,7 +884,6 @@ final class ReviewRenderer
             'breakpointEnableTitle' => $this->escapeReviewHtml(($currentEnabled ? 'Disable' : 'Enable') . ' ' . $breakpoint . 'px breakpoint'),
             'breakpointEnableAriaLabel' => $this->escapeReviewHtml(($currentEnabled ? 'Disable' : 'Enable') . ' ' . $breakpoint . 'px breakpoint'),
             'breakpointEnableAriaChecked' => $currentEnabled ? 'true' : 'false',
-            'renderedRowsPayloadJson' => $this->escapeReviewHtml($renderedRowsPayloadJson),
             'breakpointDisabledAttr' => $renderedRowsPayload === [] ? 'disabled' : '',
             'breakpointRenderedApplyMatchClass' => $renderedApplyNoop ? 'bpts-rendered-apply-single-noop' : '',
             'breakpointRenderedApplyAriaLabel' => $this->escapeReviewHtml(

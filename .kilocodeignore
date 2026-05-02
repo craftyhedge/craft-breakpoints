@@ -1,0 +1,3 @@
+# Allow the .nocommit folder and everything inside it
+!.nocommit/
+!.nocommit/**

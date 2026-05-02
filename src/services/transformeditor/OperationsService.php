@@ -12,6 +12,10 @@ use craftyhedge\craftbreakpoints\services\TransformStore;
  * pass-height / allow-any-height toggles, rendered-values apply, width
  * shortcut, delete). All methods persist through TransformStore and
  * report optimistic-concurrency conflicts via the validation bag.
+ *
+ * Rendered evidence is resolved server-side via SnapshotReader at apply
+ * time. Client-supplied renderedRows are never used as authoritative
+ * mutation inputs.
  */
 final class OperationsService
 {
@@ -19,61 +23,59 @@ final class OperationsService
         private readonly TransformStore $transformStore,
         private readonly ConfigService $configService,
         private readonly TelemetryService $telemetry,
+        private readonly ?SnapshotReader $snapshotReader = null,
     ) {
     }
 
     /**
-     * @param array<int, mixed> $renderedRows
      * @return array{width: int, height: int}|null
      */
-    public function resolveRenderedRatioByBreakpoint(string $transformName, int $breakpoint, array $renderedRows): ?array
+    public function resolveRenderedRatioByBreakpoint(string $transformName, int $breakpoint): ?array
     {
         if ($transformName === '' || $breakpoint <= 0) {
             return null;
         }
 
-        return $this->resolveRenderedRatioByBreakpointInternal($renderedRows, $breakpoint);
-    }
-
-    /**
-     * @param array<int, mixed> $renderedRows
-     * @return array{width: int, height: int}|null
-     */
-    private function resolveRenderedRatioByBreakpointInternal(array $renderedRows, int $breakpoint): ?array
-    {
-        foreach ($renderedRows as $row) {
-            if (!is_array($row)) {
-                continue;
-            }
-
-            $rowBreakpoint = Support::parseNullablePositiveInt($row['breakpoint'] ?? null);
-            if ($rowBreakpoint !== $breakpoint) {
-                continue;
-            }
-
-            $width = $this->normalizeRenderedRatioDimension($row['width'] ?? null);
-            $height = $this->normalizeRenderedRatioDimension($row['height'] ?? null);
-            if ($width === null || $height === null) {
-                return null;
-            }
-
-            return [
-                'width' => $width,
-                'height' => $height,
-            ];
-        }
-
-        return null;
-    }
-
-    private function normalizeRenderedRatioDimension(mixed $raw): ?int
-    {
-        if (!is_numeric($raw)) {
+        $transforms = $this->transformStore->getTransforms();
+        $transformDefinition = isset($transforms[$transformName]) && is_array($transforms[$transformName])
+            ? $transforms[$transformName]
+            : null;
+        if ($transformDefinition === null) {
             return null;
         }
 
-        $rounded = (int)round((float)$raw);
-        return $rounded > 0 ? $rounded : null;
+        $configService = $this->configService;
+        $includeEscapeWidth = ($transformDefinition['includeEscapeWidth'] ?? false) === true;
+        $breakpoints = $this->getBreakpointsForTransform($includeEscapeWidth);
+        $breakpointIndex = array_search($breakpoint, $breakpoints, true);
+        if (!is_int($breakpointIndex)) {
+            return null;
+        }
+
+        $rawEntries = isset($transformDefinition['transforms']) && is_array($transformDefinition['transforms'])
+            ? array_values($transformDefinition['transforms'])
+            : [];
+        $entries = Support::normalizeTransformEntriesForBreakpoints($breakpoints, $rawEntries);
+        $entry = isset($entries[$breakpointIndex]) && is_array($entries[$breakpointIndex])
+            ? $entries[$breakpointIndex]
+            : Support::buildDefaultTransformEntry();
+
+        $ratioLocked = ($entry['ratioLocked'] ?? false) === true;
+        $ratioWidth = Support::normalizeNullablePositiveInt($entry['ratioWidth'] ?? null);
+        $ratioHeight = Support::normalizeNullablePositiveInt($entry['ratioHeight'] ?? null);
+
+        if ($ratioLocked && $ratioWidth !== null && $ratioHeight !== null && $ratioWidth > 0 && $ratioHeight > 0) {
+            return ['width' => $ratioWidth, 'height' => $ratioHeight];
+        }
+
+        $width = Support::normalizeNullablePositiveInt($entry['width'] ?? null);
+        $height = Support::normalizeNullablePositiveInt($entry['height'] ?? null);
+        if ($width !== null && $height !== null && $width > 0 && $height > 0) {
+            $gcd = Support::greatestCommonDivisor($width, $height);
+            return ['width' => (int)round($width / $gcd), 'height' => (int)round($height / $gcd)];
+        }
+
+        return null;
     }
 
     /**
@@ -384,7 +386,6 @@ final class OperationsService
     }
 
     /**
-     * @param array<int, mixed> $renderedRows
      * @return array<string, mixed>
      */
     public function applySetToggleAutoWidthOperation(
@@ -392,7 +393,7 @@ final class OperationsService
         string $scopeMode,
         ?int $scopeBreakpoint,
         ?int $heightValue,
-        array $renderedRows,
+        ?string $assetKey = null,
         ?bool $includeEscapeWidth = null,
         ?string $expectedVersion = null,
     ): array {
@@ -402,14 +403,13 @@ final class OperationsService
             $scopeBreakpoint,
             'width',
             $heightValue,
-            $renderedRows,
+            $assetKey,
             $includeEscapeWidth,
             $expectedVersion,
         );
     }
 
     /**
-     * @param array<int, mixed> $renderedRows
      * @return array<string, mixed>
      */
     public function applySetToggleAutoHeightOperation(
@@ -417,7 +417,7 @@ final class OperationsService
         string $scopeMode,
         ?int $scopeBreakpoint,
         ?int $widthValue,
-        array $renderedRows,
+        ?string $assetKey = null,
         ?bool $includeEscapeWidth = null,
         ?string $expectedVersion = null,
     ): array {
@@ -427,14 +427,13 @@ final class OperationsService
             $scopeBreakpoint,
             'height',
             $widthValue,
-            $renderedRows,
+            $assetKey,
             $includeEscapeWidth,
             $expectedVersion,
         );
     }
 
     /**
-     * @param array<int, mixed> $renderedRows
      * @return array<string, mixed>
      */
     private function applySetToggleAutoDimensionOperation(
@@ -443,7 +442,7 @@ final class OperationsService
         ?int $scopeBreakpoint,
         string $autoDimension,
         ?int $companionValue,
-        array $renderedRows,
+        ?string $assetKey,
         ?bool $includeEscapeWidth,
         ?string $expectedVersion,
     ): array {
@@ -484,14 +483,14 @@ final class OperationsService
             if ($scopeMode === 'all') {
                 return $this->applyRenderedValuesOperation(
                     $transformName,
-                    $renderedRows,
+                    $assetKey,
                     $includeEscapeWidth,
                     true,
                     $expectedVersion,
                 );
             }
 
-            $restoredValue = $this->resolveRenderedDimensionForBreakpoint($renderedRows, (int)$scopeBreakpoint, $autoDimension);
+            $restoredValue = $this->resolveRenderedDimensionFromServer($transformName, (int)$scopeBreakpoint, $autoDimension, $assetKey);
 
             if ($autoDimension === 'width') {
                 return $this->applySetDimensionsOperation(
@@ -582,29 +581,22 @@ final class OperationsService
         return Support::normalizeAutoDimension($entry['autoDimension'] ?? null);
     }
 
-    /**
-     * @param array<int, mixed> $renderedRows
-     */
-    private function resolveRenderedDimensionForBreakpoint(array $renderedRows, int $scopeBreakpoint, string $dimension): ?int
+    private function resolveRenderedDimensionFromServer(string $transformName, int $scopeBreakpoint, string $dimension, ?string $assetKey = null): ?int
     {
-        if ($scopeBreakpoint <= 0) {
+        if ($this->snapshotReader === null) {
             return null;
         }
 
-        foreach ($renderedRows as $row) {
-            if (!is_array($row)) {
-                continue;
-            }
-
-            $rowBreakpoint = Support::parseNullablePositiveInt($row['breakpoint'] ?? null);
-            if ($rowBreakpoint !== $scopeBreakpoint) {
-                continue;
-            }
-
-            return Support::parseNullablePositiveInt($row[$dimension] ?? null);
+        $resolved = $this->snapshotReader->resolveRenderedWidthHeightByBreakpoint($transformName, $scopeBreakpoint, $assetKey);
+        if ($resolved === null) {
+            return null;
         }
 
-        return null;
+        if ($dimension === 'width') {
+            return $resolved['renderedWidth'] > 0 ? $resolved['renderedWidth'] : null;
+        }
+
+        return $resolved['renderedHeight'] > 0 ? $resolved['renderedHeight'] : null;
     }
 
     /**
@@ -1032,12 +1024,11 @@ final class OperationsService
     }
 
     /**
-     * @param array<int, mixed> $renderedRows
      * @return array<string, mixed>
      */
     public function applyRenderedValuesOperation(
         string $transformName,
-        array $renderedRows,
+        ?string $assetKey = null,
         ?bool $includeEscapeWidth = null,
         bool $clearAuto = false,
         ?string $expectedVersion = null,
@@ -1046,6 +1037,17 @@ final class OperationsService
 
         if ($transformName === '') {
             Support::addGlobalError($validation, 'setName is required.');
+
+            return [
+                'persisted' => false,
+                'validation' => $validation,
+            ];
+        }
+
+        $renderedRows = $this->snapshotReader?->resolveRenderedRowsForTransform($transformName, $assetKey) ?? [];
+
+        if ($renderedRows === []) {
+            Support::addGlobalError($validation, 'No rendered evidence found for this breakpoint. If a processing run exists, refresh the review panel.');
 
             return [
                 'persisted' => false,

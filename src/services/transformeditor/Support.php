@@ -299,7 +299,7 @@ final class Support
         ];
     }
 
-    private static function greatestCommonDivisor(int $left, int $right): int
+    public static function greatestCommonDivisor(int $left, int $right): int
     {
         $a = abs($left);
         $b = abs($right);

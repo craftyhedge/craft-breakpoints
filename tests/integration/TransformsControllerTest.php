@@ -313,7 +313,7 @@ final class TransformsControllerTest extends Unit
             'baseVersion' => 6,
             'operation' => 'ratio.copyFromRenderedBreakpoint',
             'setName' => 'hero',
-            'renderedRows' => '[{"breakpoint":640,"width":320,"height":180}]',
+            'selectedAssetKey' => 'asset:hero:100',
         ]);
         $response = $controller->actionApplyCardOperation();
 
@@ -324,14 +324,13 @@ final class TransformsControllerTest extends Unit
         $this->assertTrue($controller->postRequestChecked);
     }
 
-    public function testApplyCardOperationRatioCopyPatchesSignalsFromRenderedRow(): void
+    public function testApplyCardOperationRatioCopyPatchesSignalsFromSavedConfig(): void
     {
         $controller = $this->controllerWithBody([
             'baseVersion' => 6,
             'operation' => 'ratio.copyFromRenderedBreakpoint',
             'setName' => 'hero',
             'ratioSourceBreakpoint' => 640,
-            'renderedRows' => '[{"breakpoint":640,"width":320,"height":180}]',
         ]);
         $response = $controller->actionApplyCardOperation();
 
@@ -344,57 +343,96 @@ final class TransformsControllerTest extends Unit
         $this->assertTrue($controller->postRequestChecked);
     }
 
-    public function testApplyCardOperationRejectsMalformedRenderedRowsForRenderedValuesApply(): void
+    public function testApplyCardOperationRenderedValuesApplyReturnsErrorWhenNoSnapshotExists(): void
     {
-        $controller = $this->controllerWithBody([
-            'baseVersion' => 6,
-            'operation' => 'renderedValues.apply',
-            'setName' => 'hero',
-            'renderedRows' => '{bad-json}',
-        ]);
-        $response = $controller->actionApplyCardOperation();
+        $previousTelemetry = Plugin::getInstance()->getTelemetry();
+        Plugin::getInstance()->set('telemetry', new class() extends TelemetryService {
+            public function canEditTransforms(): bool
+            {
+                return true;
+            }
+            public function getLatestRunSnapshot(): ?array
+            {
+                return null;
+            }
+            public function getPreviewCacheRows(): array
+            {
+                return [];
+            }
+        });
 
-        $this->assertSame(Response::FORMAT_RAW, $response->format);
-        $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
-        $this->assertStringContainsString('data-kind="error"', (string)$response->content);
-        $this->assertStringContainsString('renderedRows payload is malformed.', (string)$response->content);
+        try {
+            $controller = $this->controllerWithBody([
+                'baseVersion' => 6,
+                'operation' => 'renderedValues.apply',
+                'setName' => 'hero',
+            ]);
+            $response = $controller->actionApplyCardOperation();
+
+            $this->assertSame(Response::FORMAT_RAW, $response->format);
+            $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
+            $this->assertStringContainsString('data-kind="error"', (string)$response->content);
+            $this->assertStringContainsString('No rendered evidence found', (string)$response->content);
+        } finally {
+            Plugin::getInstance()->set('telemetry', $previousTelemetry);
+        }
+
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
     }
 
-    public function testApplyCardOperationRejectsMalformedRenderedRowsForRatioCopy(): void
+    public function testApplyCardOperationRatioCopyReturnsErrorWhenNoSnapshotExists(): void
     {
-        $controller = $this->controllerWithBody([
-            'baseVersion' => 6,
-            'operation' => 'ratio.copyFromRenderedBreakpoint',
-            'setName' => 'hero',
-            'ratioSourceBreakpoint' => 640,
-            'renderedRows' => '{bad-json}',
-        ]);
-        $response = $controller->actionApplyCardOperation();
+        $previousTelemetry = Plugin::getInstance()->getTelemetry();
+        Plugin::getInstance()->set('telemetry', new class() extends TelemetryService {
+            public function canEditTransforms(): bool
+            {
+                return true;
+            }
+            public function getLatestRunSnapshot(): ?array
+            {
+                return null;
+            }
+            public function getPreviewCacheRows(): array
+            {
+                return [];
+            }
+        });
 
-        $this->assertSame(Response::FORMAT_RAW, $response->format);
-        $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
-        $this->assertStringContainsString('data-kind="error"', (string)$response->content);
-        $this->assertStringContainsString('renderedRows payload is malformed.', (string)$response->content);
+        try {
+            $controller = $this->controllerWithBody([
+                'baseVersion' => 6,
+                'operation' => 'ratio.copyFromRenderedBreakpoint',
+                'setName' => 'hero',
+                'ratioSourceBreakpoint' => 640,
+            ]);
+            $response = $controller->actionApplyCardOperation();
+
+            $this->assertSame(Response::FORMAT_RAW, $response->format);
+            $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
+            $this->assertStringContainsString('data-kind="error"', (string)$response->content);
+            $this->assertStringContainsString('No rendered ratio source found', (string)$response->content);
+        } finally {
+            Plugin::getInstance()->set('telemetry', $previousTelemetry);
+        }
+
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
     }
 
-    public function testApplyCardOperationRejectsMalformedRenderedRowsForAutoToggle(): void
+    public function testApplyCardOperationAutoToggleReturnsSetNameErrorWhenMissing(): void
     {
         $controller = $this->controllerWithBody([
             'baseVersion' => 6,
             'operation' => 'dimensions.toggleAutoWidth',
-            'setName' => 'hero',
-            'renderedRows' => '{bad-json}',
+            'setName' => '',
         ]);
         $response = $controller->actionApplyCardOperation();
 
         $this->assertSame(Response::FORMAT_RAW, $response->format);
         $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
         $this->assertStringContainsString('data-kind="error"', (string)$response->content);
-        $this->assertStringContainsString('renderedRows payload is malformed.', (string)$response->content);
+        $this->assertStringContainsString('setName is required.', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
     }
@@ -556,8 +594,10 @@ final class TransformsControllerTest extends Unit
         $this->assertStringContainsString('renderedValues.apply', $visualResults);
         $this->assertStringContainsString('ratio.copyFromRenderedBreakpoint', $visualResults);
         $this->assertStringContainsString('ratioSourceBreakpoint: Number($editor.cards.', $visualResults);
+        $this->assertStringContainsString('selectedAssetKey: String(card?.dataset?.selectedAssetKey', $visualResults);
         $this->assertStringContainsString('ratioFloat: Number($editor.cards.', $visualResults);
         $this->assertStringNotContainsString('localStateByBreakpoint', $visualResults);
+        $this->assertStringNotContainsString('renderedRows:', $visualResults);
         $this->assertStringNotContainsString('JSON.parse(', $visualResults);
         $this->assertStringNotContainsString('const maxDen=', $visualResults);
         $this->assertStringNotContainsString('const gcd=', $visualResults);

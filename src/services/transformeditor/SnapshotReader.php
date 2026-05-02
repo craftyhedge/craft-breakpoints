@@ -165,6 +165,195 @@ final class SnapshotReader
     }
 
     /**
+     * Resolve authoritative rendered width and height for a specific transform
+     * and breakpoint from server-side telemetry sources.
+     *
+     * Resolution order:
+     *   1. Match snapshot.rowsPayload by transformHandle + breakpointWidth + assetId
+     *   2. Fall back to previewCacheRows for first-asset evidence
+     *   3. Return null (caller must produce an explicit user-facing error)
+     *
+     * @return array{renderedWidth: int, renderedHeight: int}|null
+     */
+    public function resolveRenderedWidthHeightByBreakpoint(string $transformName, int $breakpointWidth, ?string $assetKey = null): ?array
+    {
+        if ($transformName === '' || $breakpointWidth <= 0) {
+            return null;
+        }
+
+        $rowsByTransformAndBreakpoint = $this->getLatestRunRowsByTransformAndBreakpoint();
+        $snapshot = $this->getLatestRunSnapshot();
+        $perAssetRows = is_array($snapshot) && isset($snapshot['rowsPayload']) && is_array($snapshot['rowsPayload'])
+            ? $snapshot['rowsPayload']
+            : [];
+
+        if ($perAssetRows !== []) {
+            $matchedByAsset = null;
+            $firstForRow = null;
+
+            foreach ($perAssetRows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $rowTransformHandle = trim((string)($row['transformHandle'] ?? ''));
+                $rowBreakpointWidth = isset($row['breakpointWidth']) && is_numeric($row['breakpointWidth'])
+                    ? (int)$row['breakpointWidth']
+                    : 0;
+                if ($rowTransformHandle !== $transformName || $rowBreakpointWidth !== $breakpointWidth) {
+                    continue;
+                }
+
+                if ($firstForRow === null) {
+                    $firstForRow = $row;
+                }
+
+                if ($assetKey !== null && $assetKey !== '') {
+                    $rowAssetId = trim((string)($row['assetId'] ?? ''));
+                    if ($rowAssetId === $assetKey) {
+                        $matchedByAsset = $row;
+                        break;
+                    }
+                }
+            }
+
+            $resolvedRow = $matchedByAsset ?? $firstForRow;
+            if ($resolvedRow !== null) {
+                return $this->extractRenderedDimensionsFromRow($resolvedRow);
+            }
+        }
+
+        $key = $transformName . '|' . $breakpointWidth;
+        $previewRow = $rowsByTransformAndBreakpoint[$key] ?? null;
+        if (is_array($previewRow)) {
+            return $this->extractRenderedDimensionsFromRow($previewRow);
+        }
+
+        $previewCacheRows = $this->getPreviewCacheRowsByTransformAndBreakpoint();
+        $cachedRow = $previewCacheRows[$key] ?? null;
+        if (is_array($cachedRow)) {
+            return $this->extractRenderedDimensionsFromRow($cachedRow);
+        }
+
+        return null;
+    }
+
+    /**
+     * Resolve authoritative rendered rows for all breakpoints of a transform
+     * from server-side telemetry sources. Used by renderedValues.apply and
+     * toggle-auto restore-when-scope-is-all.
+     *
+     * @return array<int, array{breakpoint: int, width: ?int, height: ?int}>
+     */
+    public function resolveRenderedRowsForTransform(string $transformName, ?string $assetKey = null): array
+    {
+        if ($transformName === '') {
+            return [];
+        }
+
+        $snapshot = $this->getLatestRunSnapshot();
+        $perAssetRows = is_array($snapshot) && isset($snapshot['rowsPayload']) && is_array($snapshot['rowsPayload'])
+            ? $snapshot['rowsPayload']
+            : [];
+
+        $rowsByBreakpoint = [];
+
+        if ($perAssetRows !== []) {
+            $firstByBreakpoint = [];
+            $assetMatchByBreakpoint = [];
+
+            foreach ($perAssetRows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $rowTransformHandle = trim((string)($row['transformHandle'] ?? ''));
+                $rowBreakpointWidth = isset($row['breakpointWidth']) && is_numeric($row['breakpointWidth'])
+                    ? (int)$row['breakpointWidth']
+                    : 0;
+                if ($rowTransformHandle !== $transformName || $rowBreakpointWidth <= 0) {
+                    continue;
+                }
+
+                if (!isset($firstByBreakpoint[$rowBreakpointWidth])) {
+                    $firstByBreakpoint[$rowBreakpointWidth] = $row;
+                }
+
+                if ($assetKey !== null && $assetKey !== '') {
+                    $rowAssetId = trim((string)($row['assetId'] ?? ''));
+                    if ($rowAssetId === $assetKey) {
+                        $assetMatchByBreakpoint[$rowBreakpointWidth] = $row;
+                    }
+                }
+            }
+
+            $resolvedByBreakpoint = [];
+            foreach ($firstByBreakpoint as $bp => $row) {
+                $resolvedByBreakpoint[$bp] = $assetMatchByBreakpoint[$bp] ?? $row;
+            }
+
+            foreach ($resolvedByBreakpoint as $bp => $row) {
+                $width = Support::parseNullablePositiveInt($row['renderedWidth'] ?? null);
+                $height = Support::parseNullablePositiveInt($row['renderedHeight'] ?? null);
+                if ($width !== null || $height !== null) {
+                    $rowsByBreakpoint[] = [
+                        'breakpoint' => $bp,
+                        'width' => $width,
+                        'height' => $height,
+                    ];
+                }
+            }
+        }
+
+        if ($rowsByBreakpoint === []) {
+            $previewCacheRows = $this->getPreviewCacheRowsByTransformAndBreakpoint();
+            foreach ($previewCacheRows as $key => $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                $rowTransformHandle = trim((string)($row['transformHandle'] ?? ''));
+                $rowBreakpointWidth = isset($row['breakpointWidth']) && is_numeric($row['breakpointWidth'])
+                    ? (int)$row['breakpointWidth']
+                    : 0;
+                if ($rowTransformHandle !== $transformName || $rowBreakpointWidth <= 0) {
+                    continue;
+                }
+
+                $width = Support::parseNullablePositiveInt($row['renderedWidth'] ?? null);
+                $height = Support::parseNullablePositiveInt($row['renderedHeight'] ?? null);
+                if ($width !== null || $height !== null) {
+                    $rowsByBreakpoint[] = [
+                        'breakpoint' => $rowBreakpointWidth,
+                        'width' => $width,
+                        'height' => $height,
+                    ];
+                }
+            }
+        }
+
+        return $rowsByBreakpoint;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @return array{renderedWidth: int, renderedHeight: int}|null
+     */
+    private function extractRenderedDimensionsFromRow(array $row): ?array
+    {
+        $width = Support::parseNullablePositiveInt($row['renderedWidth'] ?? null);
+        $height = Support::parseNullablePositiveInt($row['renderedHeight'] ?? null);
+
+        if ($width === null && $height === null) {
+            return null;
+        }
+
+        return [
+            'renderedWidth' => $width ?? 0,
+            'renderedHeight' => $height ?? 0,
+        ];
+    }
+
+    /**
      * @return array<string, array<string, mixed>>
      */
     public function resolveObservedDataByTransform(): array
