@@ -19,63 +19,15 @@ use craftyhedge\craftbreakpoints\services\TransformStore;
  */
 final class OperationsService
 {
+    private BreakpointCatalog $breakpointCatalog;
+
     public function __construct(
         private readonly TransformStore $transformStore,
         private readonly ConfigService $configService,
         private readonly TelemetryService $telemetry,
         private readonly ?SnapshotReader $snapshotReader = null,
     ) {
-    }
-
-    /**
-     * @return array{width: int, height: int}|null
-     */
-    public function resolveRenderedRatioByBreakpoint(string $transformName, int $breakpoint): ?array
-    {
-        if ($transformName === '' || $breakpoint <= 0) {
-            return null;
-        }
-
-        $transforms = $this->transformStore->getTransforms();
-        $transformDefinition = isset($transforms[$transformName]) && is_array($transforms[$transformName])
-            ? $transforms[$transformName]
-            : null;
-        if ($transformDefinition === null) {
-            return null;
-        }
-
-        $configService = $this->configService;
-        $includeEscapeWidth = ($transformDefinition['includeEscapeWidth'] ?? false) === true;
-        $breakpoints = $this->getBreakpointsForTransform($includeEscapeWidth);
-        $breakpointIndex = array_search($breakpoint, $breakpoints, true);
-        if (!is_int($breakpointIndex)) {
-            return null;
-        }
-
-        $rawEntries = isset($transformDefinition['transforms']) && is_array($transformDefinition['transforms'])
-            ? array_values($transformDefinition['transforms'])
-            : [];
-        $entries = Support::normalizeTransformEntriesForBreakpoints($breakpoints, $rawEntries);
-        $entry = isset($entries[$breakpointIndex]) && is_array($entries[$breakpointIndex])
-            ? $entries[$breakpointIndex]
-            : Support::buildDefaultTransformEntry();
-
-        $ratioLocked = ($entry['ratioLocked'] ?? false) === true;
-        $ratioWidth = Support::normalizeNullablePositiveInt($entry['ratioWidth'] ?? null);
-        $ratioHeight = Support::normalizeNullablePositiveInt($entry['ratioHeight'] ?? null);
-
-        if ($ratioLocked && $ratioWidth !== null && $ratioHeight !== null && $ratioWidth > 0 && $ratioHeight > 0) {
-            return ['width' => $ratioWidth, 'height' => $ratioHeight];
-        }
-
-        $width = Support::normalizeNullablePositiveInt($entry['width'] ?? null);
-        $height = Support::normalizeNullablePositiveInt($entry['height'] ?? null);
-        if ($width !== null && $height !== null && $width > 0 && $height > 0) {
-            $gcd = Support::greatestCommonDivisor($width, $height);
-            return ['width' => (int)round($width / $gcd), 'height' => (int)round($height / $gcd)];
-        }
-
-        return null;
+        $this->breakpointCatalog = new BreakpointCatalog($configService);
     }
 
     /**
@@ -85,6 +37,7 @@ final class OperationsService
         string $transformName,
         string $scopeMode,
         ?int $scopeBreakpoint,
+        ?string $scopeBreakpointKey,
         ?int $value,
         string $dimension,
         ?bool $includeEscapeWidth = null,
@@ -110,65 +63,63 @@ final class OperationsService
             ];
         }
 
-        $transforms = $this->transformStore->getTransforms();
-        $hasExistingTransform = isset($transforms[$transformName]) && is_array($transforms[$transformName]);
+        $sets = $this->transformStore->getSets();
+        $hasExistingSet = isset($sets[$transformName]) && is_array($sets[$transformName]);
 
-        if ($hasExistingTransform) {
-            $transformDefinition = $transforms[$transformName];
-            $resolvedIncludeEscapeWidth = ($transformDefinition['includeEscapeWidth'] ?? false) === true;
+        if ($hasExistingSet) {
+            $setDefinition = $sets[$transformName];
+            $resolvedIncludeEscapeWidth = ($setDefinition['includeEscapeWidth'] ?? false) === true;
         } else {
             $resolvedIncludeEscapeWidth = $includeEscapeWidth === true;
-            $transformDefinition = [
+            $setDefinition = [
                 'name' => $transformName,
                 'includeEscapeWidth' => $resolvedIncludeEscapeWidth,
-                'transforms' => [],
+                'variants' => [],
                 'config' => [],
             ];
         }
 
-        $breakpoints = $this->getBreakpointsForTransform($resolvedIncludeEscapeWidth);
-        $rawEntries = isset($transformDefinition['transforms']) && is_array($transformDefinition['transforms'])
-            ? array_values($transformDefinition['transforms'])
-            : [];
-
-        $entries = Support::normalizeTransformEntriesForBreakpoints($breakpoints, $rawEntries);
-
-        $preserveAutos = $scopeMode !== 'breakpoint';
-
-        $applyDimensionValue = static function (array $entry) use ($dimension, $value): array {
-            $hasLockedRatio = ($entry['ratioLocked'] ?? false) === true
-                && Support::normalizeNullablePositiveInt($entry['ratioWidth'] ?? null) !== null
-                && Support::normalizeNullablePositiveInt($entry['ratioHeight'] ?? null) !== null;
+        $variants = $setDefinition['variants'] ?? [];
+        $applyDimensionValue = static function (array $currentEntry) use ($dimension, $value): array {
+            $hasLockedRatio = ($currentEntry['ratioLocked'] ?? false) === true
+                && Support::normalizeNullablePositiveInt($currentEntry['ratioWidth'] ?? null) !== null
+                && Support::normalizeNullablePositiveInt($currentEntry['ratioHeight'] ?? null) !== null;
 
             if ($hasLockedRatio) {
-                $ratioSourceDimension = $entry['ratioSourceDimension'] ?? 'width';
+                $ratioSourceDimension = $currentEntry['ratioSourceDimension'] ?? 'width';
                 if ($ratioSourceDimension === $dimension) {
-                    $ratioWidth = (int)$entry['ratioWidth'];
-                    $ratioHeight = (int)$entry['ratioHeight'];
+                    $ratioWidth = (int)$currentEntry['ratioWidth'];
+                    $ratioHeight = (int)$currentEntry['ratioHeight'];
 
                     if ($dimension === 'width' && $value !== null) {
-                        $entry['height'] = max(1, (int)round(($value * $ratioHeight) / $ratioWidth));
+                        $currentEntry['height'] = max(1, (int)round(($value * $ratioHeight) / $ratioWidth));
                     }
 
                     if ($dimension === 'height' && $value !== null) {
-                        $entry['width'] = max(1, (int)round(($value * $ratioWidth) / $ratioHeight));
+                        $currentEntry['width'] = max(1, (int)round(($value * $ratioWidth) / $ratioHeight));
                     }
                 } else {
-                    $entry['ratioLocked'] = false;
+                    $currentEntry['ratioLocked'] = false;
                 }
             }
 
-            $entry[$dimension] = $value;
-            if (($entry['autoDimension'] ?? null) === $dimension) {
-                $entry['autoDimension'] = null;
+            $currentEntry[$dimension] = $value;
+            if (($currentEntry['autoDimension'] ?? null) === $dimension) {
+                $currentEntry['autoDimension'] = null;
             }
 
-            return $entry;
+            return $currentEntry;
         };
 
         if ($scopeMode === 'breakpoint') {
-            if ($scopeBreakpoint === null) {
-                Support::addGlobalError($validation, 'scopeBreakpoint is required when scopeMode is breakpoint.');
+            $targetResolution = $this->breakpointCatalog->resolveOperationTargetOrReject(
+                $scopeBreakpointKey,
+                $scopeBreakpoint,
+                $resolvedIncludeEscapeWidth,
+            );
+
+            if (isset($targetResolution['error'])) {
+                Support::addGlobalError($validation, $targetResolution['error']);
 
                 return [
                     'persisted' => false,
@@ -176,46 +127,35 @@ final class OperationsService
                 ];
             }
 
-            $breakpointIndex = array_search($scopeBreakpoint, $breakpoints, true);
-            if (!is_int($breakpointIndex)) {
-                Support::addGlobalError($validation, 'Selected breakpoint is not valid for the transform.');
-
-                return [
-                    'persisted' => false,
-                    'validation' => $validation,
-                ];
-            }
-
-            $entry = isset($entries[$breakpointIndex]) && is_array($entries[$breakpointIndex])
-                ? $entries[$breakpointIndex]
+            $breakpointKey = $targetResolution['key'];
+            $currentEntry = isset($variants[$breakpointKey]) && is_array($variants[$breakpointKey])
+                ? $variants[$breakpointKey]
                 : Support::buildDefaultTransformEntry();
 
-            $entries[$breakpointIndex] = $applyDimensionValue($entry);
+            $variants[$breakpointKey] = $applyDimensionValue($currentEntry);
         } else {
-            foreach ($breakpoints as $index => $_breakpoint) {
-                $entry = isset($entries[$index]) && is_array($entries[$index])
-                    ? $entries[$index]
+            $definitions = $this->breakpointCatalog->getDefinitionsForIncludeEscapeWidth($resolvedIncludeEscapeWidth);
+            foreach ($definitions as $definition) {
+                $breakpointKey = $definition['key'];
+                $currentEntry = isset($variants[$breakpointKey]) && is_array($variants[$breakpointKey])
+                    ? $variants[$breakpointKey]
                     : Support::buildDefaultTransformEntry();
 
-                if ($preserveAutos && ($entry['autoDimension'] ?? null) === $dimension) {
-                    $entries[$index] = $entry;
+                if (($currentEntry['autoDimension'] ?? null) === $dimension) {
+                    $variants[$breakpointKey] = $currentEntry;
                     continue;
                 }
 
-                $entries[$index] = $applyDimensionValue($entry);
+                $variants[$breakpointKey] = $applyDimensionValue($currentEntry);
             }
         }
 
-        $transforms[$transformName] = array_merge($transformDefinition, [
-            'name' => (string)($transformDefinition['name'] ?? $transformName),
-            'includeEscapeWidth' => $resolvedIncludeEscapeWidth,
-            'transforms' => array_values($entries),
-            'config' => isset($transformDefinition['config']) && is_array($transformDefinition['config'])
-                ? $transformDefinition['config']
-                : [],
-        ]);
+        $setDefinition['variants'] = $variants;
+        $setDefinition['name'] = (string)($setDefinition['name'] ?? $transformName);
 
-        return $this->persistOperationTransforms($transforms, $validation, $expectedVersion);
+        $sets[$transformName] = $setDefinition;
+
+        return $this->persistOperationSets($sets, $validation, $expectedVersion);
     }
 
     /**
@@ -225,6 +165,7 @@ final class OperationsService
         string $transformName,
         string $scopeMode,
         ?int $scopeBreakpoint,
+        ?string $scopeBreakpointKey,
         ?int $widthValue,
         ?int $heightValue,
         ?bool $includeEscapeWidth = null,
@@ -244,145 +185,199 @@ final class OperationsService
             ];
         }
 
-        $transforms = $this->transformStore->getTransforms();
-        $hasExistingTransform = isset($transforms[$transformName]) && is_array($transforms[$transformName]);
+        $sets = $this->transformStore->getSets();
+        $hasExistingSet = isset($sets[$transformName]) && is_array($sets[$transformName]);
 
-        if ($hasExistingTransform) {
-            $transformDefinition = $transforms[$transformName];
-            $resolvedIncludeEscapeWidth = ($transformDefinition['includeEscapeWidth'] ?? false) === true;
+        if ($hasExistingSet) {
+            $setDefinition = $sets[$transformName];
+            $resolvedIncludeEscapeWidth = ($setDefinition['includeEscapeWidth'] ?? false) === true;
         } else {
             $resolvedIncludeEscapeWidth = $includeEscapeWidth === true;
-            $transformDefinition = [
+            $setDefinition = [
                 'name' => $transformName,
                 'includeEscapeWidth' => $resolvedIncludeEscapeWidth,
-                'transforms' => [],
+                'variants' => [],
                 'config' => [],
             ];
         }
 
-        $breakpoints = $this->getBreakpointsForTransform($resolvedIncludeEscapeWidth);
-        $rawEntries = isset($transformDefinition['transforms']) && is_array($transformDefinition['transforms'])
-            ? array_values($transformDefinition['transforms'])
-            : [];
-
-        $entries = Support::normalizeTransformEntriesForBreakpoints($breakpoints, $rawEntries);
-
+        $variants = $setDefinition['variants'] ?? [];
         $resolvedWidthAuto = $widthAuto === true;
         $resolvedHeightAuto = $heightAuto === true && !$resolvedWidthAuto;
-
         $preserveAutos = $scopeMode !== 'breakpoint' && !$forceAll;
 
-        $applyIndex = static function (int $index) use (&$entries, $widthValue, $heightValue, $resolvedWidthAuto, $resolvedHeightAuto, $preserveAutos): void {
-            $entry = isset($entries[$index]) && is_array($entries[$index])
-                ? $entries[$index]
+        if ($scopeMode === 'breakpoint') {
+            $targetResolution = $this->breakpointCatalog->resolveOperationTargetOrReject(
+                $scopeBreakpointKey,
+                $scopeBreakpoint,
+                $resolvedIncludeEscapeWidth,
+            );
+
+            if (isset($targetResolution['error'])) {
+                Support::addGlobalError($validation, $targetResolution['error']);
+
+                return [
+                    'persisted' => false,
+                    'validation' => $validation,
+                ];
+            }
+
+            $breakpointKey = $targetResolution['key'];
+            $currentEntry = isset($variants[$breakpointKey]) && is_array($variants[$breakpointKey])
+                ? $variants[$breakpointKey]
                 : Support::buildDefaultTransformEntry();
 
-            $autoDimension = Support::normalizeAutoDimension($entry['autoDimension'] ?? null);
+            $autoDimension = Support::normalizeAutoDimension($currentEntry['autoDimension'] ?? null);
             $preserveWidth = $preserveAutos && $autoDimension === 'width';
             $preserveHeight = $preserveAutos && $autoDimension === 'height';
 
             if ($resolvedWidthAuto) {
                 if (!$preserveWidth) {
-                    $entry['width'] = null;
-                    $entry['autoDimension'] = 'width';
-                    $entry['ratioLocked'] = false;
+                    $currentEntry['width'] = null;
+                    $currentEntry['autoDimension'] = 'width';
+                    $currentEntry['ratioLocked'] = false;
                 }
             } else {
                 if (!$preserveWidth) {
                     if ($widthValue !== null || !$resolvedHeightAuto) {
-                        $entry['width'] = $widthValue;
+                        $currentEntry['width'] = $widthValue;
                     }
                 }
-                if (($entry['autoDimension'] ?? null) === 'width') {
+                if (($currentEntry['autoDimension'] ?? null) === 'width') {
                     if (!$preserveWidth) {
-                        $entry['autoDimension'] = null;
+                        $currentEntry['autoDimension'] = null;
                     }
                 }
             }
 
             if ($resolvedHeightAuto) {
                 if (!$preserveHeight) {
-                    $entry['height'] = null;
-                    $entry['autoDimension'] = 'height';
-                    $entry['ratioLocked'] = false;
+                    $currentEntry['height'] = null;
+                    $currentEntry['autoDimension'] = 'height';
+                    $currentEntry['ratioLocked'] = false;
                 }
             } else {
                 if (!$preserveHeight) {
                     if ($heightValue !== null || !$resolvedWidthAuto) {
-                        $entry['height'] = $heightValue;
+                        $currentEntry['height'] = $heightValue;
                     }
                 }
-                if (($entry['autoDimension'] ?? null) === 'height') {
+                if (($currentEntry['autoDimension'] ?? null) === 'height') {
                     if (!$preserveHeight) {
-                        $entry['autoDimension'] = null;
+                        $currentEntry['autoDimension'] = null;
                     }
                 }
             }
 
-            $hasLockedRatio = ($entry['ratioLocked'] ?? false) === true
-                && Support::normalizeNullablePositiveInt($entry['ratioWidth'] ?? null) !== null
-                && Support::normalizeNullablePositiveInt($entry['ratioHeight'] ?? null) !== null;
+            $hasLockedRatio = ($currentEntry['ratioLocked'] ?? false) === true
+                && Support::normalizeNullablePositiveInt($currentEntry['ratioWidth'] ?? null) !== null
+                && Support::normalizeNullablePositiveInt($currentEntry['ratioHeight'] ?? null) !== null;
 
             if ($hasLockedRatio && !$resolvedWidthAuto && !$resolvedHeightAuto) {
-                $ratioSourceDimension = $entry['ratioSourceDimension'] ?? 'width';
-                $ratioWidth = (int)$entry['ratioWidth'];
-                $ratioHeight = (int)$entry['ratioHeight'];
+                $ratioSourceDimension = $currentEntry['ratioSourceDimension'] ?? 'width';
+                $ratioWidth = (int)$currentEntry['ratioWidth'];
+                $ratioHeight = (int)$currentEntry['ratioHeight'];
 
                 if ($ratioSourceDimension === 'width') {
                     if ($widthValue !== null) {
-                        $entry['height'] = max(1, (int)round(($widthValue * $ratioHeight) / $ratioWidth));
+                        $currentEntry['height'] = max(1, (int)round(($widthValue * $ratioHeight) / $ratioWidth));
                     } elseif ($heightValue !== null) {
-                        $entry['ratioLocked'] = false;
+                        $currentEntry['ratioLocked'] = false;
                     }
                 } else {
                     if ($heightValue !== null) {
-                        $entry['width'] = max(1, (int)round(($heightValue * $ratioWidth) / $ratioHeight));
+                        $currentEntry['width'] = max(1, (int)round(($heightValue * $ratioWidth) / $ratioHeight));
                     } elseif ($widthValue !== null) {
-                        $entry['ratioLocked'] = false;
+                        $currentEntry['ratioLocked'] = false;
                     }
                 }
             }
 
-            $entries[$index] = $entry;
-        };
-
-        if ($scopeMode === 'breakpoint') {
-            if ($scopeBreakpoint === null) {
-                Support::addGlobalError($validation, 'scopeBreakpoint is required when scopeMode is breakpoint.');
-
-                return [
-                    'persisted' => false,
-                    'validation' => $validation,
-                ];
-            }
-
-            $breakpointIndex = array_search($scopeBreakpoint, $breakpoints, true);
-            if (!is_int($breakpointIndex)) {
-                Support::addGlobalError($validation, 'Selected breakpoint is not valid for the transform.');
-
-                return [
-                    'persisted' => false,
-                    'validation' => $validation,
-                ];
-            }
-
-            $applyIndex($breakpointIndex);
+            $variants[$breakpointKey] = $currentEntry;
         } else {
-            foreach ($breakpoints as $index => $_breakpoint) {
-                $applyIndex($index);
+            $definitions = $this->breakpointCatalog->getDefinitionsForIncludeEscapeWidth($resolvedIncludeEscapeWidth);
+            foreach ($definitions as $definition) {
+                $breakpointKey = $definition['key'];
+                $currentEntry = isset($variants[$breakpointKey]) && is_array($variants[$breakpointKey])
+                    ? $variants[$breakpointKey]
+                    : Support::buildDefaultTransformEntry();
+
+                $autoDimension = Support::normalizeAutoDimension($currentEntry['autoDimension'] ?? null);
+                $preserveWidth = $preserveAutos && $autoDimension === 'width';
+                $preserveHeight = $preserveAutos && $autoDimension === 'height';
+
+                if ($resolvedWidthAuto) {
+                    if (!$preserveWidth) {
+                        $currentEntry['width'] = null;
+                        $currentEntry['autoDimension'] = 'width';
+                        $currentEntry['ratioLocked'] = false;
+                    }
+                } else {
+                    if (!$preserveWidth) {
+                        if ($widthValue !== null || !$resolvedHeightAuto) {
+                            $currentEntry['width'] = $widthValue;
+                        }
+                    }
+                    if (($currentEntry['autoDimension'] ?? null) === 'width') {
+                        if (!$preserveWidth) {
+                            $currentEntry['autoDimension'] = null;
+                        }
+                    }
+                }
+
+                if ($resolvedHeightAuto) {
+                    if (!$preserveHeight) {
+                        $currentEntry['height'] = null;
+                        $currentEntry['autoDimension'] = 'height';
+                        $currentEntry['ratioLocked'] = false;
+                    }
+                } else {
+                    if (!$preserveHeight) {
+                        if ($heightValue !== null || !$resolvedWidthAuto) {
+                            $currentEntry['height'] = $heightValue;
+                        }
+                    }
+                    if (($currentEntry['autoDimension'] ?? null) === 'height') {
+                        if (!$preserveHeight) {
+                            $currentEntry['autoDimension'] = null;
+                        }
+                    }
+                }
+
+                $hasLockedRatio = ($currentEntry['ratioLocked'] ?? false) === true
+                    && Support::normalizeNullablePositiveInt($currentEntry['ratioWidth'] ?? null) !== null
+                    && Support::normalizeNullablePositiveInt($currentEntry['ratioHeight'] ?? null) !== null;
+
+                if ($hasLockedRatio && !$resolvedWidthAuto && !$resolvedHeightAuto) {
+                    $ratioSourceDimension = $currentEntry['ratioSourceDimension'] ?? 'width';
+                    $ratioWidth = (int)$currentEntry['ratioWidth'];
+                    $ratioHeight = (int)$currentEntry['ratioHeight'];
+
+                    if ($ratioSourceDimension === 'width') {
+                        if ($widthValue !== null) {
+                            $currentEntry['height'] = max(1, (int)round(($widthValue * $ratioHeight) / $ratioWidth));
+                        } elseif ($heightValue !== null) {
+                            $currentEntry['ratioLocked'] = false;
+                        }
+                    } else {
+                        if ($heightValue !== null) {
+                            $currentEntry['width'] = max(1, (int)round(($heightValue * $ratioWidth) / $ratioHeight));
+                        } elseif ($widthValue !== null) {
+                            $currentEntry['ratioLocked'] = false;
+                        }
+                    }
+                }
+
+                $variants[$breakpointKey] = $currentEntry;
             }
         }
 
-        $transforms[$transformName] = array_merge($transformDefinition, [
-            'name' => (string)($transformDefinition['name'] ?? $transformName),
-            'includeEscapeWidth' => $resolvedIncludeEscapeWidth,
-            'transforms' => array_values($entries),
-            'config' => isset($transformDefinition['config']) && is_array($transformDefinition['config'])
-                ? $transformDefinition['config']
-                : [],
-        ]);
+        $setDefinition['variants'] = $variants;
+        $setDefinition['name'] = (string)($setDefinition['name'] ?? $transformName);
 
-        return $this->persistOperationTransforms($transforms, $validation, $expectedVersion);
+        $sets[$transformName] = $setDefinition;
+
+        return $this->persistOperationSets($sets, $validation, $expectedVersion);
     }
 
     /**
@@ -392,6 +387,7 @@ final class OperationsService
         string $transformName,
         string $scopeMode,
         ?int $scopeBreakpoint,
+        ?string $scopeBreakpointKey,
         ?int $heightValue,
         ?string $assetKey = null,
         ?bool $includeEscapeWidth = null,
@@ -401,6 +397,7 @@ final class OperationsService
             $transformName,
             $scopeMode,
             $scopeBreakpoint,
+            $scopeBreakpointKey,
             'width',
             $heightValue,
             $assetKey,
@@ -416,6 +413,7 @@ final class OperationsService
         string $transformName,
         string $scopeMode,
         ?int $scopeBreakpoint,
+        ?string $scopeBreakpointKey,
         ?int $widthValue,
         ?string $assetKey = null,
         ?bool $includeEscapeWidth = null,
@@ -425,6 +423,7 @@ final class OperationsService
             $transformName,
             $scopeMode,
             $scopeBreakpoint,
+            $scopeBreakpointKey,
             'height',
             $widthValue,
             $assetKey,
@@ -440,6 +439,7 @@ final class OperationsService
         string $transformName,
         string $scopeMode,
         ?int $scopeBreakpoint,
+        ?string $scopeBreakpointKey,
         string $autoDimension,
         ?int $companionValue,
         ?string $assetKey,
@@ -466,18 +466,49 @@ final class OperationsService
             ];
         }
 
-        if ($scopeMode === 'breakpoint' && $scopeBreakpoint === null) {
-            Support::addGlobalError($validation, 'scopeBreakpoint is required when scopeMode is breakpoint.');
+        $sets = $this->transformStore->getSets();
+        $hasExistingSet = isset($sets[$transformName]) && is_array($sets[$transformName]);
 
-            return [
-                'persisted' => false,
-                'validation' => $validation,
+        if ($hasExistingSet) {
+            $setDefinition = $sets[$transformName];
+            $resolvedIncludeEscapeWidth = ($setDefinition['includeEscapeWidth'] ?? false) === true;
+        } else {
+            $resolvedIncludeEscapeWidth = $includeEscapeWidth === true;
+            $setDefinition = [
+                'name' => $transformName,
+                'includeEscapeWidth' => $resolvedIncludeEscapeWidth,
+                'variants' => [],
+                'config' => [],
             ];
         }
 
-        $isAutoEnabledForScope = $scopeMode === 'breakpoint'
-            && $scopeBreakpoint !== null
-            && $this->resolveBreakpointAutoDimension($transformName, $scopeBreakpoint, $includeEscapeWidth) === $autoDimension;
+        $isAutoEnabledForScope = false;
+        $targetResolution = null;
+        if ($scopeMode === 'breakpoint') {
+            $targetResolution = $this->breakpointCatalog->resolveOperationTargetOrReject(
+                $scopeBreakpointKey,
+                $scopeBreakpoint,
+                $resolvedIncludeEscapeWidth,
+            );
+
+            if (isset($targetResolution['error'])) {
+                Support::addGlobalError($validation, $targetResolution['error']);
+
+                return [
+                    'persisted' => false,
+                    'validation' => $validation,
+                ];
+            }
+
+            if ($targetResolution !== null) {
+                $breakpointKey = $targetResolution['key'];
+                $variants = $setDefinition['variants'] ?? [];
+                $entry = isset($variants[$breakpointKey]) && is_array($variants[$breakpointKey])
+                    ? $variants[$breakpointKey]
+                    : Support::buildDefaultTransformEntry();
+                $isAutoEnabledForScope = Support::normalizeAutoDimension($entry['autoDimension'] ?? null) === $autoDimension;
+            }
+        }
 
         if ($isAutoEnabledForScope) {
             if ($scopeMode === 'all') {
@@ -490,13 +521,17 @@ final class OperationsService
                 );
             }
 
-            $restoredValue = $this->resolveRenderedDimensionFromServer($transformName, (int)$scopeBreakpoint, $autoDimension, $assetKey);
+            $scopeBreakpointWidth = is_array($targetResolution) && isset($targetResolution['width'])
+                ? (int)$targetResolution['width']
+                : (int)$scopeBreakpoint;
+            $restoredValue = $this->resolveRenderedDimensionFromServer($transformName, $scopeBreakpointWidth, $autoDimension, $assetKey);
 
             if ($autoDimension === 'width') {
                 return $this->applySetDimensionsOperation(
                     $transformName,
                     'breakpoint',
-                    $scopeBreakpoint,
+                    $scopeBreakpointWidth,
+                    $scopeBreakpointKey,
                     $restoredValue,
                     $companionValue,
                     $includeEscapeWidth,
@@ -510,7 +545,8 @@ final class OperationsService
             return $this->applySetDimensionsOperation(
                 $transformName,
                 'breakpoint',
-                $scopeBreakpoint,
+                $scopeBreakpointWidth,
+                $scopeBreakpointKey,
                 $companionValue,
                 $restoredValue,
                 $includeEscapeWidth,
@@ -528,6 +564,7 @@ final class OperationsService
                 $transformName,
                 $scopeMode,
                 $scopeBreakpoint,
+                $scopeBreakpointKey,
                 null,
                 $companionValue,
                 $includeEscapeWidth,
@@ -542,6 +579,7 @@ final class OperationsService
             $transformName,
             $scopeMode,
             $scopeBreakpoint,
+            $scopeBreakpointKey,
             $companionValue,
             null,
             $includeEscapeWidth,
@@ -550,35 +588,6 @@ final class OperationsService
             $forceAll,
             $expectedVersion,
         );
-    }
-
-    private function resolveBreakpointAutoDimension(string $transformName, int $scopeBreakpoint, ?bool $includeEscapeWidth): ?string
-    {
-        $transforms = $this->transformStore->getTransforms();
-        $transformDefinition = isset($transforms[$transformName]) && is_array($transforms[$transformName])
-            ? $transforms[$transformName]
-            : null;
-        if ($transformDefinition === null) {
-            return null;
-        }
-
-        $resolvedIncludeEscapeWidth = ($transformDefinition['includeEscapeWidth'] ?? false) === true
-            || ($includeEscapeWidth === true && !isset($transformDefinition['includeEscapeWidth']));
-        $breakpoints = $this->getBreakpointsForTransform($resolvedIncludeEscapeWidth);
-        $breakpointIndex = array_search($scopeBreakpoint, $breakpoints, true);
-        if (!is_int($breakpointIndex)) {
-            return null;
-        }
-
-        $rawEntries = isset($transformDefinition['transforms']) && is_array($transformDefinition['transforms'])
-            ? array_values($transformDefinition['transforms'])
-            : [];
-        $entries = Support::normalizeTransformEntriesForBreakpoints($breakpoints, $rawEntries);
-        $entry = isset($entries[$breakpointIndex]) && is_array($entries[$breakpointIndex])
-            ? $entries[$breakpointIndex]
-            : Support::buildDefaultTransformEntry();
-
-        return Support::normalizeAutoDimension($entry['autoDimension'] ?? null);
     }
 
     private function resolveRenderedDimensionFromServer(string $transformName, int $scopeBreakpoint, string $dimension, ?string $assetKey = null): ?int
@@ -606,6 +615,7 @@ final class OperationsService
         string $transformName,
         string $scopeMode,
         ?int $scopeBreakpoint,
+        ?string $scopeBreakpointKey,
         ?int $ratioWidth,
         ?int $ratioHeight,
         ?string $ratioSourceDimension,
@@ -651,151 +661,175 @@ final class OperationsService
             ];
         }
 
-        $transforms = $this->transformStore->getTransforms();
-        $hasExistingTransform = isset($transforms[$transformName]) && is_array($transforms[$transformName]);
+        $sets = $this->transformStore->getSets();
+        $hasExistingSet = isset($sets[$transformName]) && is_array($sets[$transformName]);
 
-        if ($hasExistingTransform) {
-            $transformDefinition = $transforms[$transformName];
-            $resolvedIncludeEscapeWidth = ($transformDefinition['includeEscapeWidth'] ?? false) === true;
+        if ($hasExistingSet) {
+            $setDefinition = $sets[$transformName];
+            $resolvedIncludeEscapeWidth = ($setDefinition['includeEscapeWidth'] ?? false) === true;
         } else {
             $resolvedIncludeEscapeWidth = $includeEscapeWidth === true;
-            $transformDefinition = [
+            $setDefinition = [
                 'name' => $transformName,
                 'includeEscapeWidth' => $resolvedIncludeEscapeWidth,
-                'transforms' => [],
+                'variants' => [],
                 'config' => [],
             ];
         }
 
-        $breakpoints = $this->getBreakpointsForTransform($resolvedIncludeEscapeWidth);
-        $rawEntries = isset($transformDefinition['transforms']) && is_array($transformDefinition['transforms'])
-            ? array_values($transformDefinition['transforms'])
-            : [];
-
-        $entries = Support::normalizeTransformEntriesForBreakpoints($breakpoints, $rawEntries);
-
+        $variants = $setDefinition['variants'] ?? [];
         $preserveAutos = $scopeMode !== 'breakpoint';
         $appliedBreakpoints = [];
         $skippedBreakpoints = [];
 
-        $applyIndex = static function (int $index) use (&$entries, $breakpoints, $sourceDimension, $ratioWidth, $ratioHeight, $preserveAutos, &$appliedBreakpoints, &$skippedBreakpoints): bool {
-            $entry = isset($entries[$index]) && is_array($entries[$index])
-                ? $entries[$index]
+        if ($scopeMode === 'breakpoint') {
+            $targetResolution = $this->breakpointCatalog->resolveOperationTargetOrReject(
+                $scopeBreakpointKey,
+                $scopeBreakpoint,
+                $resolvedIncludeEscapeWidth,
+            );
+
+            if (isset($targetResolution['error'])) {
+                Support::addGlobalError($validation, $targetResolution['error']);
+
+                return [
+                    'persisted' => false,
+                    'validation' => $validation,
+                ];
+            }
+
+            $breakpointKey = $targetResolution['key'];
+            $breakpointWidth = $targetResolution['width'];
+
+            $currentEntry = isset($variants[$breakpointKey]) && is_array($variants[$breakpointKey])
+                ? $variants[$breakpointKey]
                 : Support::buildDefaultTransformEntry();
 
-            $breakpoint = $breakpoints[$index] ?? null;
-            if (!is_int($breakpoint) || $breakpoint <= 0) {
-                return false;
-            }
+            if (($currentEntry['enabled'] ?? true) !== true) {
+                Support::addGlobalError($validation, 'Selected breakpoint is disabled.');
 
-            if (($entry['enabled'] ?? true) !== true) {
-                $skippedBreakpoints[] = [
-                    'breakpoint' => $breakpoint,
-                    'reason' => 'breakpoint_disabled',
+                return [
+                    'persisted' => false,
+                    'validation' => $validation,
                 ];
-                return false;
             }
 
-            $autoDimension = Support::normalizeAutoDimension($entry['autoDimension'] ?? null);
+            $autoDimension = Support::normalizeAutoDimension($currentEntry['autoDimension'] ?? null);
             if ($preserveAutos && ($autoDimension === 'width' || $autoDimension === 'height')) {
-                $skippedBreakpoints[] = [
-                    'breakpoint' => $breakpoint,
-                    'reason' => 'auto_dimension_active',
+                Support::addGlobalError($validation, 'Ratio cannot be applied while auto dimension is active.');
+
+                return [
+                    'persisted' => false,
+                    'validation' => $validation,
                 ];
-                return false;
             }
 
             if ($sourceDimension === 'width') {
-                $sourceValue = Support::normalizeNullablePositiveInt($entry['width'] ?? null);
+                $sourceValue = Support::normalizeNullablePositiveInt($currentEntry['width'] ?? null);
                 if ($sourceValue === null) {
-                    $skippedBreakpoints[] = [
-                        'breakpoint' => $breakpoint,
-                        'reason' => 'source_dimension_missing',
+                    Support::addGlobalError($validation, 'Source dimension value is missing for the selected breakpoint.');
+
+                    return [
+                        'persisted' => false,
+                        'validation' => $validation,
                     ];
-                    return false;
                 }
 
-                $entry['height'] = max(1, (int)round(($sourceValue * $ratioHeight) / $ratioWidth));
-                if (($entry['autoDimension'] ?? null) === 'height') {
-                    $entry['autoDimension'] = null;
+                $currentEntry['height'] = max(1, (int)round(($sourceValue * $ratioHeight) / $ratioWidth));
+                if (($currentEntry['autoDimension'] ?? null) === 'height') {
+                    $currentEntry['autoDimension'] = null;
                 }
             } else {
-                $sourceValue = Support::normalizeNullablePositiveInt($entry['height'] ?? null);
+                $sourceValue = Support::normalizeNullablePositiveInt($currentEntry['height'] ?? null);
                 if ($sourceValue === null) {
-                    $skippedBreakpoints[] = [
-                        'breakpoint' => $breakpoint,
-                        'reason' => 'source_dimension_missing',
-                    ];
-                    return false;
-                }
-
-                $entry['width'] = max(1, (int)round(($sourceValue * $ratioWidth) / $ratioHeight));
-                if (($entry['autoDimension'] ?? null) === 'width') {
-                    $entry['autoDimension'] = null;
-                }
-            }
-
-            $entry['ratioWidth'] = $ratioWidth;
-            $entry['ratioHeight'] = $ratioHeight;
-            $entry['ratioSourceDimension'] = $sourceDimension;
-            $entry['ratioLocked'] = true;
-
-            $entries[$index] = $entry;
-            $appliedBreakpoints[] = $breakpoint;
-            return true;
-        };
-
-        $appliedCount = 0;
-
-        if ($scopeMode === 'breakpoint') {
-            if ($scopeBreakpoint === null) {
-                Support::addGlobalError($validation, 'scopeBreakpoint is required when scopeMode is breakpoint.');
-
-                return [
-                    'persisted' => false,
-                    'validation' => $validation,
-                ];
-            }
-
-            $breakpointIndex = array_search($scopeBreakpoint, $breakpoints, true);
-            if (!is_int($breakpointIndex)) {
-                Support::addGlobalError($validation, 'Selected breakpoint is not valid for the transform.');
-
-                return [
-                    'persisted' => false,
-                    'validation' => $validation,
-                ];
-            }
-
-            if (!$applyIndex($breakpointIndex)) {
-                $skipReason = $skippedBreakpoints[0]['reason'] ?? 'source_dimension_missing';
-                if ($skipReason === 'breakpoint_disabled') {
-                    Support::addGlobalError($validation, 'Selected breakpoint is disabled.');
-                } elseif ($skipReason === 'auto_dimension_active') {
-                    Support::addGlobalError($validation, 'Ratio cannot be applied while auto dimension is active.');
-                } else {
                     Support::addGlobalError($validation, 'Source dimension value is missing for the selected breakpoint.');
+
+                    return [
+                        'persisted' => false,
+                        'validation' => $validation,
+                    ];
                 }
 
-                return [
-                    'persisted' => false,
-                    'validation' => $validation,
-                    'operationDetails' => [
-                        'appliedBreakpoints' => $appliedBreakpoints,
-                        'skippedBreakpoints' => $skippedBreakpoints,
-                    ],
-                ];
+                $currentEntry['width'] = max(1, (int)round(($sourceValue * $ratioWidth) / $ratioHeight));
+                if (($currentEntry['autoDimension'] ?? null) === 'width') {
+                    $currentEntry['autoDimension'] = null;
+                }
             }
 
-            $appliedCount = 1;
+            $currentEntry['ratioWidth'] = $ratioWidth;
+            $currentEntry['ratioHeight'] = $ratioHeight;
+            $currentEntry['ratioSourceDimension'] = $sourceDimension;
+            $currentEntry['ratioLocked'] = true;
+
+            $variants[$breakpointKey] = $currentEntry;
+            $appliedBreakpoints[] = $breakpointWidth;
         } else {
-            foreach ($breakpoints as $index => $_breakpoint) {
-                if ($applyIndex($index)) {
-                    $appliedCount += 1;
+            $definitions = $this->breakpointCatalog->getDefinitionsForIncludeEscapeWidth($resolvedIncludeEscapeWidth);
+            foreach ($definitions as $definition) {
+                $breakpointKey = $definition['key'];
+                $breakpointWidth = $definition['width'];
+
+                $currentEntry = isset($variants[$breakpointKey]) && is_array($variants[$breakpointKey])
+                    ? $variants[$breakpointKey]
+                    : Support::buildDefaultTransformEntry();
+
+                if (($currentEntry['enabled'] ?? true) !== true) {
+                    $skippedBreakpoints[] = [
+                        'breakpoint' => $breakpointWidth,
+                        'reason' => 'breakpoint_disabled',
+                    ];
+                    continue;
                 }
+
+                $autoDimension = Support::normalizeAutoDimension($currentEntry['autoDimension'] ?? null);
+                if ($preserveAutos && ($autoDimension === 'width' || $autoDimension === 'height')) {
+                    $skippedBreakpoints[] = [
+                        'breakpoint' => $breakpointWidth,
+                        'reason' => 'auto_dimension_active',
+                    ];
+                    continue;
+                }
+
+                if ($sourceDimension === 'width') {
+                    $sourceValue = Support::normalizeNullablePositiveInt($currentEntry['width'] ?? null);
+                    if ($sourceValue === null) {
+                        $skippedBreakpoints[] = [
+                            'breakpoint' => $breakpointWidth,
+                            'reason' => 'source_dimension_missing',
+                        ];
+                        continue;
+                    }
+
+                    $currentEntry['height'] = max(1, (int)round(($sourceValue * $ratioHeight) / $ratioWidth));
+                    if (($currentEntry['autoDimension'] ?? null) === 'height') {
+                        $currentEntry['autoDimension'] = null;
+                    }
+                } else {
+                    $sourceValue = Support::normalizeNullablePositiveInt($currentEntry['height'] ?? null);
+                    if ($sourceValue === null) {
+                        $skippedBreakpoints[] = [
+                            'breakpoint' => $breakpointWidth,
+                            'reason' => 'source_dimension_missing',
+                        ];
+                        continue;
+                    }
+
+                    $currentEntry['width'] = max(1, (int)round(($sourceValue * $ratioWidth) / $ratioHeight));
+                    if (($currentEntry['autoDimension'] ?? null) === 'width') {
+                        $currentEntry['autoDimension'] = null;
+                    }
+                }
+
+                $currentEntry['ratioWidth'] = $ratioWidth;
+                $currentEntry['ratioHeight'] = $ratioHeight;
+                $currentEntry['ratioSourceDimension'] = $sourceDimension;
+                $currentEntry['ratioLocked'] = true;
+
+                $variants[$breakpointKey] = $currentEntry;
+                $appliedBreakpoints[] = $breakpointWidth;
             }
 
-            if ($appliedCount < 1) {
+            if (count($appliedBreakpoints) < 1) {
                 return [
                     'persisted' => true,
                     'conflict' => false,
@@ -809,16 +843,12 @@ final class OperationsService
             }
         }
 
-        $transforms[$transformName] = array_merge($transformDefinition, [
-            'name' => (string)($transformDefinition['name'] ?? $transformName),
-            'includeEscapeWidth' => $resolvedIncludeEscapeWidth,
-            'transforms' => array_values($entries),
-            'config' => isset($transformDefinition['config']) && is_array($transformDefinition['config'])
-                ? $transformDefinition['config']
-                : [],
-        ]);
+        $setDefinition['variants'] = $variants;
+        $setDefinition['name'] = (string)($setDefinition['name'] ?? $transformName);
 
-        $persistResult = $this->persistOperationTransforms($transforms, $validation, $expectedVersion);
+        $sets[$transformName] = $setDefinition;
+
+        $persistResult = $this->persistOperationSets($sets, $validation, $expectedVersion);
         $persistResult['operationDetails'] = [
             'appliedBreakpoints' => $appliedBreakpoints,
             'skippedBreakpoints' => $skippedBreakpoints,
@@ -833,6 +863,7 @@ final class OperationsService
     public function applySetBreakpointEnabledOperation(
         string $transformName,
         ?int $scopeBreakpoint,
+        ?string $scopeBreakpointKey,
         ?bool $enabled,
         ?bool $includeEscapeWidth = null,
         ?string $expectedVersion = null,
@@ -849,15 +880,6 @@ final class OperationsService
             ];
         }
 
-        if ($scopeBreakpoint === null) {
-            Support::addGlobalError($validation, 'scopeBreakpoint is required when updating breakpoint state.');
-
-            return [
-                'persisted' => false,
-                'validation' => $validation,
-            ];
-        }
-
         if ($enabledProvided && $enabled === null) {
             Support::addGlobalError($validation, 'enabled must be a boolean value.');
 
@@ -867,26 +889,30 @@ final class OperationsService
             ];
         }
 
-        $transforms = $this->transformStore->getTransforms();
-        $hasExistingTransform = isset($transforms[$transformName]) && is_array($transforms[$transformName]);
+        $sets = $this->transformStore->getSets();
+        $hasExistingSet = isset($sets[$transformName]) && is_array($sets[$transformName]);
 
-        if ($hasExistingTransform) {
-            $transformDefinition = $transforms[$transformName];
-            $resolvedIncludeEscapeWidth = ($transformDefinition['includeEscapeWidth'] ?? false) === true;
+        if ($hasExistingSet) {
+            $setDefinition = $sets[$transformName];
+            $resolvedIncludeEscapeWidth = ($setDefinition['includeEscapeWidth'] ?? false) === true;
         } else {
             $resolvedIncludeEscapeWidth = $includeEscapeWidth === true;
-            $transformDefinition = [
+            $setDefinition = [
                 'name' => $transformName,
                 'includeEscapeWidth' => $resolvedIncludeEscapeWidth,
-                'transforms' => [],
+                'variants' => [],
                 'config' => [],
             ];
         }
 
-        $breakpoints = $this->getBreakpointsForTransform($resolvedIncludeEscapeWidth);
-        $breakpointIndex = array_search($scopeBreakpoint, $breakpoints, true);
-        if (!is_int($breakpointIndex)) {
-            Support::addGlobalError($validation, 'Selected breakpoint is not valid for the transform.');
+        $targetResolution = $this->breakpointCatalog->resolveOperationTargetOrReject(
+            $scopeBreakpointKey,
+            $scopeBreakpoint,
+            $resolvedIncludeEscapeWidth,
+        );
+
+        if (isset($targetResolution['error'])) {
+            Support::addGlobalError($validation, $targetResolution['error']);
 
             return [
                 'persisted' => false,
@@ -894,33 +920,26 @@ final class OperationsService
             ];
         }
 
-        $rawEntries = isset($transformDefinition['transforms']) && is_array($transformDefinition['transforms'])
-            ? array_values($transformDefinition['transforms'])
-            : [];
+        $breakpointKey = $targetResolution['key'];
+        $variants = $setDefinition['variants'] ?? [];
 
-        $entries = Support::normalizeTransformEntriesForBreakpoints($breakpoints, $rawEntries);
-
-        $entry = isset($entries[$breakpointIndex]) && is_array($entries[$breakpointIndex])
-            ? $entries[$breakpointIndex]
+        $currentEntry = isset($variants[$breakpointKey]) && is_array($variants[$breakpointKey])
+            ? $variants[$breakpointKey]
             : Support::buildDefaultTransformEntry();
 
         if (!$enabledProvided) {
-            $enabled = (($entry['enabled'] ?? true) === true) ? false : true;
+            $enabled = (($currentEntry['enabled'] ?? true) === true) ? false : true;
         }
 
-        $entry['enabled'] = $enabled;
-        $entries[$breakpointIndex] = $entry;
+        $currentEntry['enabled'] = $enabled;
+        $variants[$breakpointKey] = $currentEntry;
 
-        $transforms[$transformName] = array_merge($transformDefinition, [
-            'name' => (string)($transformDefinition['name'] ?? $transformName),
-            'includeEscapeWidth' => $resolvedIncludeEscapeWidth,
-            'transforms' => array_values($entries),
-            'config' => isset($transformDefinition['config']) && is_array($transformDefinition['config'])
-                ? $transformDefinition['config']
-                : [],
-        ]);
+        $setDefinition['variants'] = $variants;
+        $setDefinition['name'] = (string)($setDefinition['name'] ?? $transformName);
 
-        return $this->persistOperationTransforms($transforms, $validation, $expectedVersion);
+        $sets[$transformName] = $setDefinition;
+
+        return $this->persistOperationSets($sets, $validation, $expectedVersion);
     }
 
     /**
@@ -983,44 +1002,45 @@ final class OperationsService
             ];
         }
 
-        $transforms = $this->transformStore->getTransforms();
-        $hasExistingTransform = isset($transforms[$transformName]) && is_array($transforms[$transformName]);
+        $sets = $this->transformStore->getSets();
+        $hasExistingSet = isset($sets[$transformName]) && is_array($sets[$transformName]);
 
-        if ($hasExistingTransform) {
-            $transformDefinition = $transforms[$transformName];
-            $resolvedIncludeEscapeWidth = ($transformDefinition['includeEscapeWidth'] ?? false) === true;
+        if ($hasExistingSet) {
+            $setDefinition = $sets[$transformName];
+            $resolvedIncludeEscapeWidth = ($setDefinition['includeEscapeWidth'] ?? false) === true;
         } else {
             $resolvedIncludeEscapeWidth = $includeEscapeWidth === true;
-            $transformDefinition = [
+            $setDefinition = [
                 'name' => $transformName,
                 'includeEscapeWidth' => $resolvedIncludeEscapeWidth,
-                'transforms' => [],
+                'variants' => [],
                 'config' => [],
             ];
         }
 
-        $breakpoints = $this->getBreakpointsForTransform($resolvedIncludeEscapeWidth);
-        $rawEntries = isset($transformDefinition['transforms']) && is_array($transformDefinition['transforms'])
-            ? array_values($transformDefinition['transforms'])
-            : [];
-        $entries = Support::normalizeTransformEntriesForBreakpoints($breakpoints, $rawEntries);
+        $definitions = $this->breakpointCatalog->getDefinitionsForIncludeEscapeWidth($resolvedIncludeEscapeWidth);
+        $variants = $setDefinition['variants'] ?? [];
 
-        $config = isset($transformDefinition['config']) && is_array($transformDefinition['config'])
-            ? $transformDefinition['config']
-            : [];
+        foreach ($definitions as $definition) {
+            $breakpointKey = $definition['key'];
+            if (!isset($variants[$breakpointKey])) {
+                $variants[$breakpointKey] = Support::buildDefaultTransformEntry();
+            }
+        }
+
+        $config = $setDefinition['config'] ?? [];
         $config[$flag] = $value;
         if ($value === true) {
             $config[$mutuallyExclusiveFlag] = false;
         }
 
-        $transforms[$transformName] = array_merge($transformDefinition, [
-            'name' => (string)($transformDefinition['name'] ?? $transformName),
-            'includeEscapeWidth' => $resolvedIncludeEscapeWidth,
-            'transforms' => array_values($entries),
-            'config' => $config,
-        ]);
+        $setDefinition['variants'] = $variants;
+        $setDefinition['config'] = $config;
+        $setDefinition['name'] = (string)($setDefinition['name'] ?? $transformName);
 
-        return $this->persistOperationTransforms($transforms, $validation, $expectedVersion);
+        $sets[$transformName] = $setDefinition;
+
+        return $this->persistOperationSets($sets, $validation, $expectedVersion);
     }
 
     /**
@@ -1055,76 +1075,85 @@ final class OperationsService
             ];
         }
 
-        $transforms = $this->transformStore->getTransforms();
-        $hasExistingTransform = isset($transforms[$transformName]) && is_array($transforms[$transformName]);
+        $sets = $this->transformStore->getSets();
+        $hasExistingSet = isset($sets[$transformName]) && is_array($sets[$transformName]);
 
-        if ($hasExistingTransform) {
-            $transformDefinition = $transforms[$transformName];
-            $resolvedIncludeEscapeWidth = ($transformDefinition['includeEscapeWidth'] ?? false) === true;
+        if ($hasExistingSet) {
+            $setDefinition = $sets[$transformName];
+            $resolvedIncludeEscapeWidth = ($setDefinition['includeEscapeWidth'] ?? false) === true;
         } else {
             $resolvedIncludeEscapeWidth = $includeEscapeWidth === true;
-            $transformDefinition = [
+            $setDefinition = [
                 'name' => $transformName,
                 'includeEscapeWidth' => $resolvedIncludeEscapeWidth,
-                'transforms' => [],
+                'variants' => [],
                 'config' => [],
             ];
         }
 
-        $breakpoints = $this->getBreakpointsForTransform($resolvedIncludeEscapeWidth);
-        $rawEntries = isset($transformDefinition['transforms']) && is_array($transformDefinition['transforms'])
-            ? array_values($transformDefinition['transforms'])
-            : [];
+        $variants = $setDefinition['variants'] ?? [];
+        $definitions = $this->breakpointCatalog->getDefinitionsForIncludeEscapeWidth($resolvedIncludeEscapeWidth);
 
-        $entries = Support::normalizeTransformEntriesForBreakpoints($breakpoints, $rawEntries);
+        if ($this->hasDuplicateDefinitionWidths($definitions)) {
+            Support::addGlobalError($validation, 'Ambiguous breakpoint: multiple breakpoints have the same width.');
 
-        $breakpointIndexes = [];
-        foreach ($breakpoints as $index => $breakpoint) {
-            $breakpointIndexes[(string)$breakpoint] = $index;
+            return [
+                'persisted' => false,
+                'validation' => $validation,
+            ];
+        }
+
+        $breakpointKeyByWidth = [];
+        foreach ($definitions as $definition) {
+            $breakpointKeyByWidth[(string)$definition['width']] = $definition['key'];
         }
 
         if ($clearAuto) {
-            $renderedRowsByBreakpoint = [];
+            $renderedRowsByWidth = [];
             foreach ($renderedRows as $renderedRow) {
                 if (!is_array($renderedRow)) {
                     continue;
                 }
                 $bp = Support::normalizeNullablePositiveInt($renderedRow['breakpoint'] ?? null);
                 if ($bp !== null) {
-                    $renderedRowsByBreakpoint[(string)$bp] = $renderedRow;
+                    $renderedRowsByWidth[(string)$bp] = $renderedRow;
                 }
             }
 
             $appliedCount = 0;
-            foreach ($breakpoints as $index => $breakpoint) {
-                $entry = isset($entries[$index]) && is_array($entries[$index])
-                    ? $entries[$index]
+            foreach ($definitions as $definition) {
+                $breakpointKey = $definition['key'];
+                $breakpointWidth = $definition['width'];
+
+                $currentEntry = isset($variants[$breakpointKey]) && is_array($variants[$breakpointKey])
+                    ? $variants[$breakpointKey]
                     : Support::buildDefaultTransformEntry();
-                $autoDimension = Support::normalizeAutoDimension($entry['autoDimension'] ?? null);
+
+                $autoDimension = Support::normalizeAutoDimension($currentEntry['autoDimension'] ?? null);
                 if ($autoDimension === null) {
                     continue;
                 }
 
-                $renderedRow = $renderedRowsByBreakpoint[(string)$breakpoint] ?? null;
+                $renderedRow = $renderedRowsByWidth[(string)$breakpointWidth] ?? null;
 
                 if ($autoDimension === 'width') {
                     $rendered = $renderedRow !== null
                         ? Support::normalizeNullablePositiveInt($renderedRow['width'] ?? null)
                         : null;
                     if ($rendered !== null) {
-                        $entry['width'] = $rendered;
+                        $currentEntry['width'] = $rendered;
                     }
                 } elseif ($autoDimension === 'height') {
                     $rendered = $renderedRow !== null
                         ? Support::normalizeNullablePositiveInt($renderedRow['height'] ?? null)
                         : null;
                     if ($rendered !== null) {
-                        $entry['height'] = $rendered;
+                        $currentEntry['height'] = $rendered;
                     }
                 }
 
-                $entry['autoDimension'] = null;
-                $entries[$index] = $entry;
+                $currentEntry['autoDimension'] = null;
+                $variants[$breakpointKey] = $currentEntry;
                 $appliedCount += 1;
             }
 
@@ -1145,20 +1174,21 @@ final class OperationsService
                     continue;
                 }
 
-                $breakpoint = Support::normalizeNullablePositiveInt($renderedRow['breakpoint'] ?? null);
-                if ($breakpoint === null) {
+                $breakpointWidth = Support::normalizeNullablePositiveInt($renderedRow['breakpoint'] ?? null);
+                if ($breakpointWidth === null) {
                     continue;
                 }
 
-                $index = $breakpointIndexes[(string)$breakpoint] ?? null;
-                if (!is_int($index)) {
+                $breakpointKey = $breakpointKeyByWidth[(string)$breakpointWidth] ?? null;
+                if ($breakpointKey === null) {
                     continue;
                 }
 
-                $entry = isset($entries[$index]) && is_array($entries[$index])
-                    ? $entries[$index]
+                $currentEntry = isset($variants[$breakpointKey]) && is_array($variants[$breakpointKey])
+                    ? $variants[$breakpointKey]
                     : Support::buildDefaultTransformEntry();
-                $autoDimension = Support::normalizeAutoDimension($entry['autoDimension'] ?? null);
+
+                $autoDimension = Support::normalizeAutoDimension($currentEntry['autoDimension'] ?? null);
 
                 $updated = false;
 
@@ -1169,7 +1199,7 @@ final class OperationsService
                     if ($autoDimension === 'width') {
                         $autoSkippedDimensionCount += 1;
                     } else {
-                        $entry['width'] = $width;
+                        $currentEntry['width'] = $width;
                         $updated = true;
                     }
                 }
@@ -1181,13 +1211,13 @@ final class OperationsService
                     if ($autoDimension === 'height') {
                         $autoSkippedDimensionCount += 1;
                     } else {
-                        $entry['height'] = $height;
+                        $currentEntry['height'] = $height;
                         $updated = true;
                     }
                 }
 
                 if ($updated) {
-                    $entries[$index] = $entry;
+                    $variants[$breakpointKey] = $currentEntry;
                     $appliedCount += 1;
                 }
             }
@@ -1211,16 +1241,12 @@ final class OperationsService
             }
         }
 
-        $transforms[$transformName] = array_merge($transformDefinition, [
-            'name' => (string)($transformDefinition['name'] ?? $transformName),
-            'includeEscapeWidth' => $resolvedIncludeEscapeWidth,
-            'transforms' => array_values($entries),
-            'config' => isset($transformDefinition['config']) && is_array($transformDefinition['config'])
-                ? $transformDefinition['config']
-                : [],
-        ]);
+        $setDefinition['variants'] = $variants;
+        $setDefinition['name'] = (string)($setDefinition['name'] ?? $transformName);
 
-        return $this->persistOperationTransforms($transforms, $validation, $expectedVersion);
+        $sets[$transformName] = $setDefinition;
+
+        return $this->persistOperationSets($sets, $validation, $expectedVersion);
     }
 
     /**
@@ -1230,6 +1256,7 @@ final class OperationsService
         string $transformName,
         string $scopeMode,
         ?int $scopeBreakpoint,
+        ?string $scopeBreakpointKey,
         ?int $value,
         ?string $expectedVersion = null,
     ): array {
@@ -1237,6 +1264,7 @@ final class OperationsService
             $transformName,
             $scopeMode,
             $scopeBreakpoint,
+            $scopeBreakpointKey,
             $value,
             'width',
             null,
@@ -1260,8 +1288,8 @@ final class OperationsService
             ];
         }
 
-        $transforms = $this->transformStore->getTransforms();
-        if (!isset($transforms[$transformName]) || !is_array($transforms[$transformName])) {
+        $sets = $this->transformStore->getSets();
+        if (!isset($sets[$transformName]) || !is_array($sets[$transformName])) {
             return [
                 'persisted' => true,
                 'conflict' => false,
@@ -1270,8 +1298,8 @@ final class OperationsService
             ];
         }
 
-        unset($transforms[$transformName]);
-        $result = $this->persistOperationTransforms($transforms, $validation, $expectedVersion);
+        unset($sets[$transformName]);
+        $result = $this->persistOperationSets($sets, $validation, $expectedVersion);
 
         if (($result['persisted'] ?? false) === true) {
             $this->telemetry->deletePreviewCacheByTransformHandle($transformName);
@@ -1281,14 +1309,14 @@ final class OperationsService
     }
 
     /**
-     * @param array<string, mixed> $transforms
+     * @param array<string, mixed> $sets
      * @param array<string, mixed> $validation
      * @return array<string, mixed>
      */
-    private function persistOperationTransforms(array $transforms, array $validation, ?string $expectedVersion): array
+    private function persistOperationSets(array $sets, array $validation, ?string $expectedVersion): array
     {
         $resolvedExpectedVersion = $expectedVersion ?? $this->transformStore->getCurrentVersion();
-        $persistResult = $this->transformStore->persistTransforms($transforms, $resolvedExpectedVersion);
+        $persistResult = $this->transformStore->persistSets($sets, $resolvedExpectedVersion);
         $conflict = ($persistResult['conflict'] ?? false) === true;
 
         if ($conflict) {
@@ -1304,17 +1332,99 @@ final class OperationsService
     }
 
     /**
-     * @return int[]
+     * @param array<int, array{key: string, width: int, isEscape: bool}> $definitions
      */
-    private function getBreakpointsForTransform(bool $includeEscapeWidth): array
+    private function hasDuplicateDefinitionWidths(array $definitions): bool
     {
-        $breakpoints = $this->configService->getBreakpoints();
-
-        if (!$includeEscapeWidth) {
-            unset($breakpoints['escape']);
+        $widthCounts = [];
+        foreach ($definitions as $definition) {
+            $width = (string)$definition['width'];
+            $widthCounts[$width] = ($widthCounts[$width] ?? 0) + 1;
+            if ($widthCounts[$width] > 1) {
+                return true;
+            }
         }
 
-        return array_values(array_map(static fn(mixed $value): int => (int)$value, $breakpoints));
+        return false;
+    }
+
+    private function resolveBreakpointAutoDimension(string $transformName, int $scopeBreakpoint, ?bool $includeEscapeWidth): ?string
+    {
+        $sets = $this->transformStore->getSets();
+        $setDefinition = isset($sets[$transformName]) && is_array($sets[$transformName])
+            ? $sets[$transformName]
+            : null;
+        if ($setDefinition === null) {
+            return null;
+        }
+
+        $resolvedIncludeEscapeWidth = ($setDefinition['includeEscapeWidth'] ?? false) === true
+            || ($includeEscapeWidth === true && !isset($setDefinition['includeEscapeWidth']));
+
+        $targetResolution = $this->breakpointCatalog->resolveOperationTarget(
+            null,
+            $scopeBreakpoint,
+            $resolvedIncludeEscapeWidth,
+        );
+
+        if ($targetResolution === null) {
+            return null;
+        }
+
+        $breakpointKey = $targetResolution['key'];
+        $variants = $setDefinition['variants'] ?? [];
+        $entry = isset($variants[$breakpointKey]) && is_array($variants[$breakpointKey])
+            ? $variants[$breakpointKey]
+            : Support::buildDefaultTransformEntry();
+
+        return Support::normalizeAutoDimension($entry['autoDimension'] ?? null);
+    }
+
+    /**
+     * @return array{width: int, height: int}|null
+     */
+    public function resolveRenderedRatioByBreakpoint(string $transformName, int $breakpoint): ?array
+    {
+        if ($transformName === '' || $breakpoint <= 0) {
+            return null;
+        }
+
+        $sets = $this->transformStore->getSets();
+        $setDefinition = isset($sets[$transformName]) && is_array($sets[$transformName])
+            ? $sets[$transformName]
+            : null;
+        if ($setDefinition === null) {
+            return null;
+        }
+
+        $includeEscapeWidth = ($setDefinition['includeEscapeWidth'] ?? false) === true;
+        $targetResolution = $this->breakpointCatalog->resolveOperationTarget(null, $breakpoint, $includeEscapeWidth);
+        if ($targetResolution === null) {
+            return null;
+        }
+
+        $breakpointKey = $targetResolution['key'];
+        $variants = $setDefinition['variants'] ?? [];
+        $entry = isset($variants[$breakpointKey]) && is_array($variants[$breakpointKey])
+            ? $variants[$breakpointKey]
+            : Support::buildDefaultTransformEntry();
+
+        $ratioLocked = ($entry['ratioLocked'] ?? false) === true;
+        $ratioWidth = Support::normalizeNullablePositiveInt($entry['ratioWidth'] ?? null);
+        $ratioHeight = Support::normalizeNullablePositiveInt($entry['ratioHeight'] ?? null);
+
+        if ($ratioLocked && $ratioWidth !== null && $ratioHeight !== null && $ratioWidth > 0 && $ratioHeight > 0) {
+            return ['width' => $ratioWidth, 'height' => $ratioHeight];
+        }
+
+        $width = Support::normalizeNullablePositiveInt($entry['width'] ?? null);
+        $height = Support::normalizeNullablePositiveInt($entry['height'] ?? null);
+        if ($width !== null && $height !== null && $width > 0 && $height > 0) {
+            $gcd = Support::greatestCommonDivisor($width, $height);
+            return ['width' => (int)round($width / $gcd), 'height' => (int)round($height / $gcd)];
+        }
+
+        return null;
     }
 
 }

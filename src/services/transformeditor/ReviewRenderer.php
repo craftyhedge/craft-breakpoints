@@ -297,15 +297,140 @@ final class ReviewRenderer
             return '';
         }
 
+        $result = $this->buildResultFromLatestSnapshot($normalizedSetName);
+
         $rendered = $this->renderInitialStoredReview(
             $editScopeBySet,
             $editTabBySet,
             $selectedAssetKeyBySet,
             [$normalizedSetName],
             $normalizedSetName,
+            $result,
         );
 
         return (string)($rendered['visualResultsHtml'] ?? '');
+    }
+
+    /**
+     * Build scope values for a specific breakpoint when it becomes the selected scope.
+     * Used by the scope.selectBreakpoint operation to update reactive signals.
+     *
+     * @return array<string, string>
+     */
+    public function buildScopeValuesForBreakpoint(string $setName, int $breakpoint, ?bool $includeEscapeWidth = null): array
+    {
+        $storedTransforms = $this->getReviewStoredTransforms();
+        $transformConfig = $storedTransforms[$setName] ?? null;
+        if ($transformConfig === null) {
+            return $this->emptyScopeValues();
+        }
+
+        if ($includeEscapeWidth === null) {
+            $includeEscapeWidth = ($transformConfig['includeEscapeWidth'] ?? false) === true;
+        }
+        $transformBreakpoints = $this->getBreakpointsForTransform($includeEscapeWidth);
+        if ($transformBreakpoints === []) {
+            return $this->emptyScopeValues();
+        }
+
+        if (!in_array($breakpoint, $transformBreakpoints, true)) {
+            return $this->emptyScopeValues();
+        }
+
+        $currentRows = $this->buildReviewCurrentRowsForTransform($transformConfig, $transformBreakpoints);
+        $cardState = $this->cardStateBuilder->build(
+            $currentRows,
+            $transformBreakpoints,
+            ['mode' => 'breakpoint', 'breakpoint' => $breakpoint],
+            null,
+        );
+
+        return $cardState['scopeValues'];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function emptyScopeValues(): array
+    {
+        return [
+            'widthInput' => '',
+            'heightInput' => '',
+            'widthAuto' => '0',
+            'heightAuto' => '0',
+            'ratioLocked' => '0',
+            'ratioWidthInput' => '',
+            'ratioHeightInput' => '',
+            'ratioFloatInput' => '',
+            'ratioSourceDimension' => 'width',
+        ];
+    }
+
+    /**
+     * Build result array from latest persisted snapshot for a specific transform.
+     *
+     * @return array{breakpoints: int[], rowsByBreakpoint: array<int, array<string, mixed>>}
+     */
+    private function buildResultFromLatestSnapshot(string $transformName): array
+    {
+        $snapshot = $this->snapshotReader->getLatestRunSnapshot();
+        if ($snapshot === null) {
+            return ['breakpoints' => [], 'rowsByBreakpoint' => []];
+        }
+
+        $perAssetRows = $snapshot['rowsPayload'] ?? [];
+        if ($perAssetRows === []) {
+            return ['breakpoints' => [], 'rowsByBreakpoint' => []];
+        }
+
+        $rowsByBreakpoint = [];
+        $breakpoints = [];
+
+        foreach ($perAssetRows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $transformHandle = trim((string)($row['transformHandle'] ?? ''));
+            $breakpointWidth = isset($row['breakpointWidth']) && is_numeric($row['breakpointWidth'])
+                ? (int)$row['breakpointWidth']
+                : 0;
+
+            if ($transformHandle !== $transformName || $breakpointWidth <= 0) {
+                continue;
+            }
+
+            if (!isset($rowsByBreakpoint[$breakpointWidth])) {
+                $rowsByBreakpoint[$breakpointWidth] = [];
+                $breakpoints[] = $breakpointWidth;
+            }
+
+            $rowsByBreakpoint[$breakpointWidth][] = [
+                'transform' => $transformHandle,
+                'assetId' => trim((string)($row['assetId'] ?? '')),
+                'title' => $transformHandle . ' ' . $breakpointWidth . 'px',
+                'enabled' => true,
+                'isVisible' => true,
+                'loaded' => ($row['rowStatus'] ?? '') === 'loaded',
+                'broken' => ($row['rowStatus'] ?? '') === 'broken',
+                'unresolved' => ($row['rowStatus'] ?? '') === 'unresolved',
+                'sourceUsed' => $row['displayAssetUrl'] ?? null,
+                'src' => $row['displayAssetUrl'] ?? null,
+                'rendered' => [
+                    'width' => max(0, (int)($row['renderedWidth'] ?? 0)),
+                    'height' => max(0, (int)($row['renderedHeight'] ?? 0)),
+                ],
+                'intrinsic' => [
+                    'width' => max(0, (int)($row['renderedWidth'] ?? 0)),
+                    'height' => max(0, (int)($row['renderedHeight'] ?? 0)),
+                ],
+                'autoDimension' => $row['autoDimension'] ?? null,
+            ];
+        }
+
+        sort($breakpoints, SORT_NUMERIC);
+
+        return ['breakpoints' => $breakpoints, 'rowsByBreakpoint' => $rowsByBreakpoint];
     }
 
     private function renderReviewWarningsMarkup(array $warnings, bool $showEmptyState = true, string $reviewMode = self::REVIEW_MODE_PROCESSED): string
@@ -525,6 +650,7 @@ final class ReviewRenderer
                             'initSeedAppliedAny' => ($cardState['initSeedAppliedAny'] ?? false) === true,
                             'passHeightWhenRenderedLteSaved' => $passHeightWhenRenderedLteSaved,
                             'allowAnyHeight' => $allowAnyHeight,
+                            'includeEscapeWidth' => $includeEscapeWidth ? '1' : '0',
                         ],
                     ],
                 ],
@@ -550,11 +676,13 @@ final class ReviewRenderer
                 $columnWidths,
             );
             $breakpointColumns = '';
+            $breakpointKeysByWidth = $this->getBreakpointKeysByWidth($includeEscapeWidth);
             foreach ($transformBreakpoints as $breakpoint) {
                 $rows = $selectedAssetRowsByBreakpoint[$breakpoint] ?? [];
                 $breakpointColumns .= $this->renderReviewBreakpointColumn(
                     $transformName,
                     $breakpoint,
+                    $breakpointKeysByWidth[(string)$breakpoint] ?? '',
                     $rows,
                     $currentRows[$breakpoint] ?? $this->buildDefaultTransformEntry(),
                     $columnWidths,
@@ -715,6 +843,7 @@ final class ReviewRenderer
     private function renderReviewBreakpointColumn(
         string $transformName,
         int $breakpoint,
+        string $breakpointKey,
         array $rows,
         array $currentRow,
         array $breakpointColumnWidths,
@@ -866,6 +995,7 @@ final class ReviewRenderer
             'breakpointColumnMismatchClass' => $hasBreakpointMismatch ? 'bpts-breakpoint-column-mismatch' : '',
             'breakpointColumnDisabledClass' => !$currentEnabled ? 'bpts-breakpoint-column-disabled' : '',
             'breakpoint' => (string)$breakpoint,
+            'breakpointKey' => $this->escapeReviewHtml($breakpointKey),
             'breakpointColumnWidth' => (string)$breakpointColumnWidth,
             'previewLockHeight' => (string)$previewLockHeight,
             'signalKey' => $this->escapeReviewHtml($signalKey),
@@ -1144,6 +1274,33 @@ final class ReviewRenderer
         sort($values, SORT_NUMERIC);
 
         return $values;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function getBreakpointKeysByWidth(bool $includeEscapeWidth): array
+    {
+        if ($this->plugin === null) {
+            return [];
+        }
+
+        $breakpoints = $this->plugin->getConfigService()->getBreakpoints();
+        if (!$includeEscapeWidth) {
+            unset($breakpoints['escape']);
+        }
+
+        $keysByWidth = [];
+        foreach ($breakpoints as $key => $width) {
+            $normalizedWidth = $this->normalizeNullablePositiveInt($width);
+            if ($normalizedWidth === null) {
+                continue;
+            }
+
+            $keysByWidth[(string)$normalizedWidth] = (string)$key;
+        }
+
+        return $keysByWidth;
     }
 
     private function getReviewStoredTransforms(): array

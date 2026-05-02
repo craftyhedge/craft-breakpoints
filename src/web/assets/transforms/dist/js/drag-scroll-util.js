@@ -129,13 +129,6 @@ export function bindHorizontalDragScroll(options = {}) {
         state.startY = event.clientY;
         state.startScrollLeft = grid.scrollLeft;
 
-        if (state.grid.setPointerCapture) {
-            try {
-                state.grid.setPointerCapture(event.pointerId);
-            } catch (_error) {
-                // Ignore pointer capture errors.
-            }
-        }
     }
 
     function onPointerMove(event) {
@@ -161,6 +154,14 @@ export function bindHorizontalDragScroll(options = {}) {
             state.moved = true;
             state.suppressClick = true;
             state.grid.classList.add('bpts-drag-scrolling');
+
+            if (state.grid.setPointerCapture) {
+                try {
+                    state.grid.setPointerCapture(event.pointerId);
+                } catch (_error) {
+                    // Ignore pointer capture errors.
+                }
+            }
         }
 
         event.preventDefault();

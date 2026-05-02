@@ -158,6 +158,7 @@ class TransformEditor extends Component
         string $dimension,
         ?bool $includeEscapeWidth = null,
         ?string $expectedVersion = null,
+        ?string $scopeBreakpointKey = null,
     ): array {
         if ($this->_operationsService === null) {
             return ['persisted' => false, 'validation' => $this->defaultValidation()];
@@ -167,6 +168,7 @@ class TransformEditor extends Component
             $transformName,
             $scopeMode,
             $scopeBreakpoint,
+            $scopeBreakpointKey,
             $value,
             $dimension,
             $includeEscapeWidth,
@@ -185,6 +187,7 @@ class TransformEditor extends Component
         ?bool $heightAuto = null,
         bool $forceAll = false,
         ?string $expectedVersion = null,
+        ?string $scopeBreakpointKey = null,
     ): array {
         if ($this->_operationsService === null) {
             return ['persisted' => false, 'validation' => $this->defaultValidation()];
@@ -194,6 +197,7 @@ class TransformEditor extends Component
             $transformName,
             $scopeMode,
             $scopeBreakpoint,
+            $scopeBreakpointKey,
             $widthValue,
             $heightValue,
             $includeEscapeWidth,
@@ -212,6 +216,7 @@ class TransformEditor extends Component
         ?string $assetKey = null,
         ?bool $includeEscapeWidth = null,
         ?string $expectedVersion = null,
+        ?string $scopeBreakpointKey = null,
     ): array {
         if ($this->_operationsService === null) {
             return ['persisted' => false, 'validation' => $this->defaultValidation()];
@@ -221,6 +226,7 @@ class TransformEditor extends Component
             $transformName,
             $scopeMode,
             $scopeBreakpoint,
+            $scopeBreakpointKey,
             $heightValue,
             $assetKey,
             $includeEscapeWidth,
@@ -236,6 +242,7 @@ class TransformEditor extends Component
         ?string $assetKey = null,
         ?bool $includeEscapeWidth = null,
         ?string $expectedVersion = null,
+        ?string $scopeBreakpointKey = null,
     ): array {
         if ($this->_operationsService === null) {
             return ['persisted' => false, 'validation' => $this->defaultValidation()];
@@ -245,6 +252,7 @@ class TransformEditor extends Component
             $transformName,
             $scopeMode,
             $scopeBreakpoint,
+            $scopeBreakpointKey,
             $widthValue,
             $assetKey,
             $includeEscapeWidth,
@@ -261,6 +269,7 @@ class TransformEditor extends Component
         ?string $ratioSourceDimension,
         ?bool $includeEscapeWidth = null,
         ?string $expectedVersion = null,
+        ?string $scopeBreakpointKey = null,
     ): array {
         if ($this->_operationsService === null) {
             return ['persisted' => false, 'validation' => $this->defaultValidation()];
@@ -270,6 +279,7 @@ class TransformEditor extends Component
             $transformName,
             $scopeMode,
             $scopeBreakpoint,
+            $scopeBreakpointKey,
             $ratioWidth,
             $ratioHeight,
             $ratioSourceDimension,
@@ -296,6 +306,7 @@ class TransformEditor extends Component
         ?bool $includeEscapeWidth = null,
         ?string $expectedVersion = null,
         bool $enabledProvided = true,
+        ?string $scopeBreakpointKey = null,
     ): array {
         if ($this->_operationsService === null) {
             return ['persisted' => false, 'validation' => $this->defaultValidation()];
@@ -304,6 +315,7 @@ class TransformEditor extends Component
         return $this->_operationsService->applySetBreakpointEnabledOperation(
             $transformName,
             $scopeBreakpoint,
+            $scopeBreakpointKey,
             $enabled,
             $includeEscapeWidth,
             $expectedVersion,
@@ -373,6 +385,7 @@ class TransformEditor extends Component
         ?int $scopeBreakpoint,
         ?int $value,
         ?string $expectedVersion = null,
+        ?string $scopeBreakpointKey = null,
     ): array {
         if ($this->_operationsService === null) {
             return ['persisted' => false, 'validation' => $this->defaultValidation()];
@@ -382,6 +395,7 @@ class TransformEditor extends Component
             $transformName,
             $scopeMode,
             $scopeBreakpoint,
+            $scopeBreakpointKey,
             $value,
             $expectedVersion,
         );
@@ -503,6 +517,31 @@ class TransformEditor extends Component
             $editTabBySet,
             $selectedAssetKeyBySet,
         );
+    }
+
+    /**
+     * Build scope values for a specific breakpoint when it becomes the selected scope.
+     * Used by the scope.selectBreakpoint operation to update reactive signals.
+     *
+     * @return array<string, string>
+     */
+    public function buildScopeValuesForBreakpoint(string $setName, int $breakpoint, ?bool $includeEscapeWidth = null): array
+    {
+        if ($this->_reviewRenderer === null) {
+            return [
+                'widthInput' => '',
+                'heightInput' => '',
+                'widthAuto' => '0',
+                'heightAuto' => '0',
+                'ratioLocked' => '0',
+                'ratioWidthInput' => '',
+                'ratioHeightInput' => '',
+                'ratioFloatInput' => '',
+                'ratioSourceDimension' => 'width',
+            ];
+        }
+
+        return $this->_reviewRenderer->buildScopeValuesForBreakpoint($setName, $breakpoint, $includeEscapeWidth);
     }
 
     // ---- Health / Saved dimensions (delegated) ----

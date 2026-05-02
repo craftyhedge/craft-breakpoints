@@ -10,6 +10,7 @@
       - breakpointColumnMismatchClass
       - breakpointColumnDisabledClass
       - breakpoint
+      - breakpointKey
       - breakpointColumnWidth
       - previewLockHeight
       - signalKey
@@ -48,10 +49,10 @@
       - currentHeightDerivedClass
 #}
 {% autoescape false %}
-{%- set breakpointEnableToggleBody -%}@post($_applyCardOperationUrl, {contentType: 'json', headers: {'X-CSRF-Token': $_csrfToken}, payload: {setName: String($editor.cards.{{ signalKey }}.setName || ''), operation: 'breakpoint.toggleEnabled', includeEscapeWidth: String($editor.cards.{{ signalKey }}.includeEscapeWidth || '0') === '1', scopeBreakpoint: Number({{ breakpoint }}) || null, baseVersion: String($editor.baseVersion || '')}}){%- endset -%}
-<div class="bpts-breakpoint-column {{ breakpointColumnSelectedClass }} {{ breakpointColumnMismatchClass }} {{ breakpointColumnDisabledClass }}" data-breakpoint="{{ breakpoint }}" style="--bpts-breakpoint-column-width:{{ breakpointColumnWidth }}px; --bpts-preview-lock-height:{{ previewLockHeight }}px;"
+{%- set breakpointEnableToggleBody -%}@post($_applyCardOperationUrl, {contentType: 'json', headers: {'X-CSRF-Token': $_csrfToken}, payload: {setName: String($editor.cards.{{ signalKey }}.setName || ''), operation: 'breakpoint.toggleEnabled', includeEscapeWidth: String($editor.cards.{{ signalKey }}.includeEscapeWidth || '0') === '1', scopeBreakpoint: Number({{ breakpoint }}) || null, scopeBreakpointKey: '{{ breakpointKey }}', baseVersion: String($editor.baseVersion || '')}}){%- endset -%}
+<div class="bpts-breakpoint-column {{ breakpointColumnSelectedClass }} {{ breakpointColumnMismatchClass }} {{ breakpointColumnDisabledClass }}" data-breakpoint="{{ breakpoint }}" data-breakpoint-key="{{ breakpointKey }}" data-breakpoint-width="{{ breakpoint }}" style="--bpts-breakpoint-column-width:{{ breakpointColumnWidth }}px; --bpts-preview-lock-height:{{ previewLockHeight }}px;"
         data-class:bpts-breakpoint-column-selected="$editor.cards.{{ signalKey }}.scopeMode === 'all' || ($editor.cards.{{ signalKey }}.scopeMode === 'breakpoint' && Number($editor.cards.{{ signalKey }}.scopeBreakpoint || 0) === {{ breakpoint }})"
-    data-on:click="if(evt&&evt.target&&evt.target.closest('.bpts-rendered-apply-single, .bpts-breakpoint-enable-toggle-wrap')){return;} @post($_applyCardOperationUrl, {contentType: 'json', headers: {'X-CSRF-Token': $_csrfToken}, payload: {setName: String($editor.cards.{{ signalKey }}.setName || ''), operation: 'scope.selectBreakpoint', scopeBreakpoint: Number({{ breakpoint }}) || null, baseVersion: String($editor.baseVersion || '')}})">
+    data-on:click="if(evt&&evt.target&&evt.target.closest('.bpts-rendered-apply-single, .bpts-breakpoint-enable-toggle-wrap')){return;} const card=el.closest('.bpts-transform-card'); @post($_applyCardOperationUrl, {contentType: 'json', headers: {'X-CSRF-Token': $_csrfToken}, payload: {setName: String($editor.cards.{{ signalKey }}.setName || ''), operation: 'scope.selectBreakpoint', scopeBreakpoint: Number({{ breakpoint }}) || null, scopeBreakpointKey: '{{ breakpointKey }}', selectedAssetKey: String(card?.dataset?.selectedAssetKey || ''), includeEscapeWidth: String($editor.cards.{{ signalKey }}.includeEscapeWidth || '0') === '1', baseVersion: String($editor.baseVersion || '')}})">
         <div class="bpi_breakpoint-size-heading">
             <span>{{ breakpoint }}px</span>
             {{ escapeBadge }}

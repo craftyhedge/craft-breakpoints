@@ -85,7 +85,7 @@ final class TransformEditorServiceTest extends Unit
 
         $this->assertFalse($result['persisted'] ?? true);
         $this->assertContains(
-            'scopeBreakpoint is required when scopeMode is breakpoint.',
+            'Either breakpoint key or width is required.',
             $result['validation']['global'] ?? []
         );
     }
@@ -98,7 +98,7 @@ final class TransformEditorServiceTest extends Unit
             'hero',
             640,
             null,
-            false,
+            true,
         );
 
         $this->assertFalse($result['persisted'] ?? true);
@@ -132,7 +132,9 @@ final class TransformEditorServiceTest extends Unit
                 'hero',
                 $firstBreakpointValue,
                 false,
-                false,
+                null,
+                null,
+                true,
             );
 
             $this->assertTrue(($result['persisted'] ?? false) === true);
@@ -182,6 +184,102 @@ final class TransformEditorServiceTest extends Unit
         );
 
         $this->assertSame($viaSetDimension, $viaWidthOperation);
+    }
+
+    public function testApplySetDimensionOperationAppliesAllScopeByConfiguredKeys(): void
+    {
+        $plugin = Plugin::getInstance();
+        $editor = $plugin->getTransformEditor();
+        $breakpoints = $plugin->getConfigService()->getBreakpoints();
+        unset($breakpoints['escape']);
+
+        $breakpointNames = array_values(array_map('strval', array_keys($breakpoints)));
+        $this->assertGreaterThanOrEqual(2, count($breakpointNames));
+
+        $variants = [];
+        foreach ($breakpointNames as $breakpointName) {
+            $variants[$breakpointName] = [
+                'width' => null,
+                'height' => null,
+                'enabled' => true,
+                'autoDimension' => null,
+            ];
+        }
+
+        $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => $variants,
+                'config' => [],
+            ],
+        ], function () use ($editor, $breakpointNames): void {
+            $result = $editor->applySetDimensionOperation(
+                'hero',
+                'all',
+                null,
+                321,
+                'width',
+                false,
+            );
+
+            $this->assertTrue(($result['persisted'] ?? false) === true);
+
+            $sets = Plugin::getInstance()->getTransformStore()->getSets();
+            foreach ($breakpointNames as $breakpointName) {
+                $this->assertSame(321, $sets['hero']['variants'][$breakpointName]['width'] ?? null);
+            }
+        });
+    }
+
+    public function testBreakpointMutationsAcceptKeyOnlyTargets(): void
+    {
+        $plugin = Plugin::getInstance();
+        $editor = $plugin->getTransformEditor();
+        $breakpoints = $plugin->getConfigService()->getBreakpoints();
+        unset($breakpoints['escape']);
+
+        $firstBreakpointName = (string)array_key_first($breakpoints);
+        $this->assertNotSame('', $firstBreakpointName);
+
+        $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    $firstBreakpointName => ['width' => 640, 'height' => 360, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => [],
+            ],
+        ], function () use ($editor, $firstBreakpointName): void {
+            $toggleResult = $editor->applySetToggleAutoWidthOperation(
+                'hero',
+                'breakpoint',
+                null,
+                360,
+                null,
+                false,
+                null,
+                $firstBreakpointName,
+            );
+            $enabledResult = $editor->applySetBreakpointEnabledOperation(
+                'hero',
+                null,
+                false,
+                false,
+                null,
+                true,
+                $firstBreakpointName,
+            );
+
+            $this->assertTrue(($toggleResult['persisted'] ?? false) === true);
+            $this->assertTrue(($enabledResult['persisted'] ?? false) === true);
+
+            $sets = Plugin::getInstance()->getTransformStore()->getSets();
+            $variant = $sets['hero']['variants'][$firstBreakpointName] ?? [];
+            $this->assertSame('width', $variant['autoDimension'] ?? null);
+            $this->assertFalse(($variant['enabled'] ?? true) === true);
+        });
     }
 
     public function testApplySetDimensionsOperationPersistsWhenOtherEnabledBreakpointsAreEmpty(): void
