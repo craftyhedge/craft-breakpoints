@@ -49,9 +49,12 @@
       - currentHeightDerivedClass
 #}
 {% autoescape false %}
-{%- set breakpointEnableToggleBody -%}@post($_applyCardOperationUrl, {contentType: 'json', headers: {'X-CSRF-Token': $_csrfToken}, payload: {setName: String($editor.cards.{{ signalKey }}.setName || ''), operation: 'breakpoint.toggleEnabled', includeEscapeWidth: String($editor.cards.{{ signalKey }}.includeEscapeWidth || '0') === '1', scopeBreakpoint: Number({{ breakpoint }}) || null, scopeBreakpointKey: '{{ breakpointKey }}', baseVersion: String($editor.baseVersion || '')}}){%- endset -%}
-<div class="bpts-breakpoint-column {{ breakpointColumnSelectedClass }} {{ breakpointColumnMismatchClass }} {{ breakpointColumnDisabledClass }}" data-breakpoint="{{ breakpoint }}" data-breakpoint-key="{{ breakpointKey }}" data-breakpoint-width="{{ breakpoint }}" style="--bpts-breakpoint-column-width:{{ breakpointColumnWidth }}px; --bpts-preview-lock-height:{{ previewLockHeight }}px;"
+{%- set cardModePayload -%}hideRenderedApply: String($editor.cards.{{ signalKey }}.hideRenderedApply || '0') === '1', reviewMode: String($editor.cards.{{ signalKey }}.reviewMode || 'processed'), {%- endset -%}
+{%- set breakpointEnableToggleBody -%}@post($_applyCardOperationUrl, {contentType: 'json', headers: {'X-CSRF-Token': $_csrfToken}, payload: {setName: String($editor.cards.{{ signalKey }}.setName || ''), operation: 'breakpoint.toggleEnabled', includeEscapeWidth: String($editor.cards.{{ signalKey }}.includeEscapeWidth || '0') === '1', scopeBreakpoint: Number({{ breakpoint }}) || null, scopeBreakpointKey: '{{ breakpointKey }}', {{ cardModePayload }} baseVersion: String($editor.baseVersion || '')}}){%- endset -%}
+<div class="bpts-breakpoint-column {{ breakpointColumnSelectedClass }}" data-breakpoint="{{ breakpoint }}" data-breakpoint-key="{{ breakpointKey }}" data-breakpoint-width="{{ breakpoint }}" style="--bpts-breakpoint-column-width:{{ breakpointColumnWidth }}px; --bpts-preview-lock-height:{{ previewLockHeight }}px;"
         data-class:bpts-breakpoint-column-selected="$editor.cards.{{ signalKey }}.scopeMode === 'all' || ($editor.cards.{{ signalKey }}.scopeMode === 'breakpoint' && Number($editor.cards.{{ signalKey }}.scopeBreakpoint || 0) === {{ breakpoint }})"
+        data-class:bpts-breakpoint-column-mismatch="String(($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].breakpointColumnMismatchClass || '0') : '0') === '1'"
+        data-class:bpts-breakpoint-column-disabled="String(($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].breakpointColumnDisabledClass || '0') : '0') === '1'"
     data-on:click="if(evt&&evt.target&&evt.target.closest('.bpts-rendered-apply-single, .bpts-breakpoint-enable-toggle-wrap')){return;} const card=el.closest('.bpts-transform-card'); @post($_applyCardOperationUrl, {contentType: 'json', headers: {'X-CSRF-Token': $_csrfToken}, payload: {setName: String($editor.cards.{{ signalKey }}.setName || ''), operation: 'scope.selectBreakpoint', scopeBreakpoint: Number({{ breakpoint }}) || null, scopeBreakpointKey: '{{ breakpointKey }}', selectedAssetKey: String(card?.dataset?.selectedAssetKey || ''), includeEscapeWidth: String($editor.cards.{{ signalKey }}.includeEscapeWidth || '0') === '1', baseVersion: String($editor.baseVersion || '')}})">
         <div class="bpi_breakpoint-size-heading">
             <span>{{ breakpoint }}px</span>
@@ -59,8 +62,11 @@
             {{ hiddenBadge }}
             {{ unloadedBadge }}
             <div class="bpts-breakpoint-column-actions">
-                <div class="lightswitch small bpts-breakpoint-enable-toggle-wrap {{ breakpointEnableOnClass }}" data-bpts-action="breakpointEnabled" title="{{ breakpointEnableTitle }}" role="switch" tabindex="0" aria-label="{{ breakpointEnableAriaLabel }}" aria-checked="{{ breakpointEnableAriaChecked }}"
+                <div class="lightswitch small bpts-breakpoint-enable-toggle-wrap" data-bpts-action="breakpointEnabled" role="switch" tabindex="0"
                     data-class:on="String(($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].enabled ? '1' : '0') : '1') === '1'"
+                    data-attr:title="($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].breakpointEnableTitle || '') : ''"
+                    data-attr:aria-label="($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].breakpointEnableAriaLabel || '') : ''"
+                    data-attr:aria-checked="($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].breakpointEnableAriaChecked || 'false') : 'false'"
                     data-on:click__throttle.300ms="{{ breakpointEnableToggleBody }}"
                     data-on:keydown="if(!evt|| (evt.key!=='Enter' && evt.key!==' ')){return;} evt.preventDefault(); {{ breakpointEnableToggleBody }}">
                     <div class="lightswitch-container">
@@ -72,7 +78,8 @@
         <div class="bpi_image-display-section">
             <div class="bpi_breakpoint-result-wrapper">
                 <div class="bpi_breakpoint-result">
-                    <div class="bpi_image-outer" style="--bpts-relative-width:{{ relativeWidth }}%;">
+                    <div class="bpi_image-outer" style="--bpts-relative-width:{{ relativeWidth }}%;"
+                        data-class:bpts-force-hidden="String(($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].previewMediaHidden || '0') : '0') === '1'">
                         {{ previewMedia }}
                     </div>
                 </div>
@@ -83,7 +90,8 @@
         </div>
         <div class="bpts-dimension-table-wrap">
             <div class="bpts-dimension-matrix" role="table" aria-label="Rendered and current dimensions">
-                <div class="bpts-dimension-row {{ breakpointRenderedRowHiddenClass }}" role="row">
+                <div class="bpts-dimension-row" role="row"
+                    data-class:bpts-force-hidden="String(($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].breakpointRenderedRowHiddenClass || '0') : '0') === '1'">
                     <span class="bpts-dimension-icon bpts-dimension-icon-rendered" role="rowheader" title="Rendered" aria-label="Rendered">
                         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
                             <rect x="2.5" y="3" width="11" height="8.5" rx="1.5"></rect>
@@ -91,16 +99,26 @@
                             <path d="M3.5 10.8l3.1-2.8 2.2 2 2-1.6 2.2 2.4"></path>
                         </svg>
                     </span>
-                    <span class="bpi_rendered-dimension {{ widthClass }}" role="cell">{{ renderedWidth }}</span>
-                    <span class="bpi_rendered-dimension {{ heightClass }}" role="cell">{{ renderedHeight }}</span>
+                    <span class="bpi_rendered-dimension {{ widthClass }}" role="cell"
+                        data-class:bpi_dimension-auto="String(($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].widthClass || '') : '') === 'bpi_dimension-auto'"
+                        data-class:bpi_dimension-no-transform="String(($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].widthClass || '') : '') === 'bpi_dimension-no-transform'"
+                        data-class:bpi_dimension-match="String(($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].widthClass || '') : '') === 'bpi_dimension-match'"
+                        data-class:bpi_dimension-mismatch="String(($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].widthClass || '') : '') === 'bpi_dimension-mismatch'">{{ renderedWidth }}</span>
+                    <span class="bpi_rendered-dimension {{ heightClass }}" role="cell"
+                        data-class:bpi_dimension-auto="String(($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].heightClass || '') : '') === 'bpi_dimension-auto'"
+                        data-class:bpi_dimension-no-transform="String(($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].heightClass || '') : '') === 'bpi_dimension-no-transform'"
+                        data-class:bpi_dimension-match="String(($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].heightClass || '') : '') === 'bpi_dimension-match'"
+                        data-class:bpi_dimension-mismatch="String(($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].heightClass || '') : '') === 'bpi_dimension-mismatch'">{{ renderedHeight }}</span>
                 </div>
-                <button type="button" class="btn bpts-rendered-apply-single {{ breakpointRenderedApplyMatchClass }} {{ breakpointRenderedApplyHiddenClass }}"
+                <button type="button" class="btn bpts-rendered-apply-single"
                     data-bpts-action="renderedValues"
-                    aria-label="{{ breakpointRenderedApplyAriaLabel }}"
-                    title="{{ breakpointRenderedApplyTitle }}"
-                    {{ breakpointDisabledAttr }}
-                    data-on:click__throttle.300ms="@post($_applyCardOperationUrl, {contentType: 'json', headers: {'X-CSRF-Token': $_csrfToken}, payload: {setName: String($editor.cards.{{ signalKey }}.setName || ''), operation: 'renderedValues.apply', includeEscapeWidth: String($editor.cards.{{ signalKey }}.includeEscapeWidth || '0') === '1', selectedAssetKey: String(el.closest('.bpts-transform-card')?.dataset?.selectedAssetKey || ''), baseVersion: String($editor.baseVersion || '')}})">
-                    <span class="icon bpts-rendered-apply-icon" data-icon="{{ breakpointRenderedApplyIconName }}" aria-hidden="true"></span>
+                    data-class:bpts-rendered-apply-single-noop="String(($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].breakpointRenderedApplyMatchClass || '0') : '0') === '1'"
+                    data-class:bpts-force-hidden="String(($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].breakpointRenderedApplyHiddenClass || '0') : '0') === '1'"
+                    data-attr:aria-label="($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].breakpointRenderedApplyAriaLabel || '') : ''"
+                    data-attr:title="($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].breakpointRenderedApplyTitle || '') : ''"
+                    data-attr:disabled="String(($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].breakpointDisabledAttr || '0') : '0') === '1' ? 'disabled' : null"
+                    data-on:click__throttle.300ms="@post($_applyCardOperationUrl, {contentType: 'json', headers: {'X-CSRF-Token': $_csrfToken}, payload: {setName: String($editor.cards.{{ signalKey }}.setName || ''), operation: 'renderedValues.apply', includeEscapeWidth: String($editor.cards.{{ signalKey }}.includeEscapeWidth || '0') === '1', selectedAssetKey: String(el.closest('.bpts-transform-card')?.dataset?.selectedAssetKey || ''), {{ cardModePayload }} baseVersion: String($editor.baseVersion || '')}})">
+                    <span class="icon bpts-rendered-apply-icon" data-attr:data-icon="($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].breakpointRenderedApplyIconName || 'arrow-down') : 'arrow-down'" aria-hidden="true"></span>
                 </button>
                 <div class="bpts-dimension-row" role="row">
                     <span class="bpts-dimension-icon bpts-dimension-icon-current" role="rowheader" title="Current" aria-label="Current">
@@ -113,8 +131,8 @@
                             <circle cx="7.5" cy="12" r="1.2"></circle>
                         </svg>
                     </span>
-                    <span class="bpi_current-dimension {{ currentWidthDerivedClass }}" data-dimension="width" role="cell" data-text="String(($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].currentWidthDisplay || '-') : '-')" data-class:bpts-init-value="($editor.cards.{{ signalKey }}.rowsByBreakpoint && $editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].initSeedApplied === true) : false">{{ currentWidth }}</span>
-                    <span class="bpi_current-dimension {{ currentHeightDerivedClass }}" data-dimension="height" role="cell" data-text="String(($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].currentHeightDisplay || '-') : '-')" data-class:bpts-init-value="($editor.cards.{{ signalKey }}.rowsByBreakpoint && $editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].initSeedApplied === true) : false">{{ currentHeight }}</span>
+                    <span class="bpi_current-dimension" data-dimension="width" role="cell" data-text="String(($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].currentWidthDisplay || '-') : '-')" data-class:bpi_current-dimension-derived="String(($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].currentWidthDerivedClass || '0') : '0') === '1'" data-class:bpts-init-value="($editor.cards.{{ signalKey }}.rowsByBreakpoint && $editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].initSeedApplied === true) : false">{{ currentWidth }}</span>
+                    <span class="bpi_current-dimension" data-dimension="height" role="cell" data-text="String(($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].currentHeightDisplay || '-') : '-')" data-class:bpi_current-dimension-derived="String(($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].currentHeightDerivedClass || '0') : '0') === '1'" data-class:bpts-init-value="($editor.cards.{{ signalKey }}.rowsByBreakpoint && $editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].initSeedApplied === true) : false">{{ currentHeight }}</span>
                 </div>
             </div>
         </div>

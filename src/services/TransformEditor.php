@@ -501,22 +501,24 @@ class TransformEditor extends Component
         );
     }
 
-    public function renderCardFragment(
+    /**
+     * Compute the current signal deltas for all breakpoints of a transform.
+     * Used after operations to send PatchSignals instead of re-rendering the card.
+     *
+     * @return array{signalKey: string, rowsByBreakpoint: array<string, array<string, mixed>>}
+     */
+    public function buildSignalDeltasForTransform(
         string $setName,
-        array $editScopeBySet = [],
-        array $editTabBySet = [],
-        array $selectedAssetKeyBySet = [],
-    ): string {
+        ?string $selectedAssetKey = null,
+        bool $hideRenderedApply = false,
+        string $reviewMode = self::REVIEW_MODE_PROCESSED,
+    ): array
+    {
         if ($this->_reviewRenderer === null) {
-            return '';
+            return ['signalKey' => '', 'rowsByBreakpoint' => []];
         }
 
-        return $this->_reviewRenderer->renderCardFragment(
-            $setName,
-            $editScopeBySet,
-            $editTabBySet,
-            $selectedAssetKeyBySet,
-        );
+        return $this->_reviewRenderer->buildSignalDeltasForTransform($setName, $selectedAssetKey, $hideRenderedApply, $reviewMode);
     }
 
     /**

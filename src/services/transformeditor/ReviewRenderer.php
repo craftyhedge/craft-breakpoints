@@ -286,31 +286,6 @@ final class ReviewRenderer
         ];
     }
 
-    public function renderCardFragment(
-        string $setName,
-        array $editScopeBySet = [],
-        array $editTabBySet = [],
-        array $selectedAssetKeyBySet = [],
-    ): string {
-        $normalizedSetName = trim($setName);
-        if ($normalizedSetName === '') {
-            return '';
-        }
-
-        $result = $this->buildResultFromLatestSnapshot($normalizedSetName);
-
-        $rendered = $this->renderInitialStoredReview(
-            $editScopeBySet,
-            $editTabBySet,
-            $selectedAssetKeyBySet,
-            [$normalizedSetName],
-            $normalizedSetName,
-            $result,
-        );
-
-        return (string)($rendered['visualResultsHtml'] ?? '');
-    }
-
     /**
      * Build scope values for a specific breakpoint when it becomes the selected scope.
      * Used by the scope.selectBreakpoint operation to update reactive signals.
@@ -366,8 +341,167 @@ final class ReviewRenderer
         ];
     }
 
+    public function buildSignalDeltasForTransform(
+        string $setName,
+        ?string $selectedAssetKey = null,
+        bool $hideRenderedApply = false,
+        string $reviewMode = self::REVIEW_MODE_PROCESSED,
+    ): array
+    {
+        $reviewMode = $this->normalizeReviewMode($reviewMode);
+        $normalized = trim($setName);
+        if ($normalized === '') {
+            return ['signalKey' => '', 'rowsByBreakpoint' => []];
+        }
+
+        $signalKey = $this->getReviewTransformSignalKey($normalized);
+        if ($signalKey === '') {
+            return ['signalKey' => '', 'rowsByBreakpoint' => []];
+        }
+
+        $storedTransforms = $this->getReviewStoredTransforms();
+        $transformConfig = $this->getReviewTransformConfig($storedTransforms, $normalized);
+        if ($transformConfig === null) {
+            return ['signalKey' => $signalKey, 'rowsByBreakpoint' => []];
+        }
+
+        $configuredBreakpoints = $this->getReviewConfiguredBreakpoints();
+        $includeEscapeWidth = ($transformConfig['includeEscapeWidth'] ?? false) === true;
+        $transformBreakpoints = $this->getReviewBreakpointsForTransformConfig($includeEscapeWidth, $configuredBreakpoints);
+        if ($transformBreakpoints === []) {
+            return ['signalKey' => $signalKey, 'rowsByBreakpoint' => []];
+        }
+
+        $result = $this->buildResultFromLatestSnapshot($normalized);
+        $resultRowsByBreakpoint = $this->normalizeReviewRowsByBreakpoint($result['rowsByBreakpoint'] ?? []);
+        $assetCollection = $this->buildReviewAssetCollectionForTransform(
+            $resultRowsByBreakpoint,
+            $normalized,
+            $transformBreakpoints,
+        );
+        $selectedAssetKey = $this->normalizeReviewSelectedAssetKey($selectedAssetKey, $assetCollection['assetKeys']);
+        $selectedAssetRowsByBreakpoint = $this->buildReviewSelectedAssetRowsByBreakpoint(
+            $assetCollection['rowsByAssetByBreakpoint'],
+            $selectedAssetKey,
+            $transformBreakpoints,
+        );
+
+        $currentRows = $this->buildReviewCurrentRowsForTransform($transformConfig, $transformBreakpoints);
+        $cardState = $this->cardStateBuilder->build($currentRows, $transformBreakpoints, ['mode' => 'all'], null);
+        $coreRows = $cardState['rowsByBreakpoint'];
+        $passHeightWhenRenderedLteSaved = $this->isPassHeightWhenRenderedLteSavedEnabled($transformConfig);
+        $allowAnyHeight = $this->isAllowAnyHeightEnabled($transformConfig);
+        $storedSavedWidthsByTransform = $this->buildStoredSavedWidthsByTransformAndBreakpoint();
+        $storedSavedHeightsByTransform = $this->buildStoredSavedHeightsByTransformAndBreakpoint();
+
+        $rowsByBreakpoint = [];
+        foreach ($transformBreakpoints as $breakpoint) {
+            $breakpointKey = (string)$breakpoint;
+            $currentRow = $currentRows[$breakpoint] ?? $this->buildDefaultTransformEntry();
+            $ui = $this->buildBreakpointUiState(
+                $normalized,
+                $breakpoint,
+                $selectedAssetRowsByBreakpoint[$breakpoint] ?? [],
+                $currentRow,
+                $passHeightWhenRenderedLteSaved,
+                $storedSavedWidthsByTransform[$normalized][$breakpoint] ?? null,
+                $storedSavedHeightsByTransform[$normalized][$breakpoint] ?? null,
+                $allowAnyHeight,
+                $hideRenderedApply,
+                $reviewMode,
+            );
+            $rowsByBreakpoint[$breakpointKey] = array_merge($coreRows[$breakpointKey] ?? [], $ui);
+        }
+
+        return ['signalKey' => $signalKey, 'rowsByBreakpoint' => $rowsByBreakpoint];
+    }
+
+    /**
+     * Build the UI-only signal fields for one breakpoint (mismatch, apply button state, classes, etc.).
+     * Replicates the logic that used to live inside renderReviewBreakpointColumn.
+     */
+    private function buildBreakpointUiState(
+        string $transformName,
+        int $breakpoint,
+        array $rows,
+        array $currentRow,
+        bool $passHeightWhenRenderedLteSaved,
+        ?int $savedWidth,
+        ?int $savedHeight,
+        bool $allowAnyHeight,
+        bool $hideRenderedApply,
+        string $reviewMode
+    ): array {
+        $summary = $this->summarizeReviewRows($rows);
+        $renderedRowsPayload = $this->buildReviewRenderedRowsPayload($rows, $breakpoint);
+        $renderedWidth = (int)($summary['renderedWidth'] ?? 0);
+        $renderedHeight = (int)($summary['renderedHeight'] ?? 0);
+
+        $previewRow = $this->pickReviewPreviewRow($rows);
+        $previewSrc = is_array($previewRow) ? (string)($previewRow['src'] ?? '') : '';
+
+        $currentWidth = $this->normalizeNullablePositiveInt($currentRow['width'] ?? null);
+        $currentHeight = $this->normalizeNullablePositiveInt($currentRow['height'] ?? null);
+        $autoDimension = $this->normalizeAutoDimension($currentRow['autoDimension'] ?? null);
+        $currentRatioWidth = $this->normalizeNullablePositiveInt($currentRow['ratioWidth'] ?? null);
+        $currentRatioHeight = $this->normalizeNullablePositiveInt($currentRow['ratioHeight'] ?? null);
+        $currentRatioSourceDimension = $this->normalizeRatioSourceDimension($currentRow['ratioSourceDimension'] ?? null) ?? 'width';
+        $currentRatioLocked = ($currentRow['ratioLocked'] ?? false) === true
+            && $currentRatioWidth !== null
+            && $currentRatioHeight !== null;
+        $ratioIsDrivingDimensions = $currentRatioLocked && $autoDimension === null;
+        $currentWidthDerivedClass = $ratioIsDrivingDimensions && $currentRatioSourceDimension === 'height';
+        $currentHeightDerivedClass = $ratioIsDrivingDimensions && $currentRatioSourceDimension === 'width';
+
+        $widthClass = $this->getReviewRenderedDimensionClass($renderedWidth, $currentWidth, $autoDimension, 'width');
+        $heightClass = $this->getReviewRenderedDimensionClass($renderedHeight, $currentHeight, $autoDimension, 'height');
+
+        $renderedApplyNoop = $this->isReviewRenderedApplyNoop($renderedRowsPayload, $currentWidth, $currentHeight, $autoDimension);
+
+        $currentEnabled = ($currentRow['enabled'] ?? true) === true;
+
+        $hasBreakpointMismatch = false;
+        if ($reviewMode === self::REVIEW_MODE_PROCESSED && $currentEnabled) {
+            $columnEvaluation = $this->evaluateBreakpointMatch(
+                $renderedWidth,
+                $renderedHeight,
+                $savedWidth,
+                $savedHeight,
+                $autoDimension,
+                $passHeightWhenRenderedLteSaved,
+                $allowAnyHeight,
+            );
+            $hasBreakpointMismatch = $columnEvaluation['isBreakpointMismatch'];
+        }
+
+        return [
+            'breakpointColumnMismatchClass' => $hasBreakpointMismatch ? '1' : '0',
+            'breakpointColumnDisabledClass' => $currentEnabled ? '0' : '1',
+            'breakpointEnableTitle' => $currentEnabled ? "Disable {$breakpoint}px breakpoint" : "Enable {$breakpoint}px breakpoint",
+            'breakpointEnableAriaLabel' => $currentEnabled ? "Disable {$breakpoint}px breakpoint" : "Enable {$breakpoint}px breakpoint",
+            'breakpointEnableAriaChecked' => $currentEnabled ? 'true' : 'false',
+            'breakpointDisabledAttr' => $renderedRowsPayload === [] ? '1' : '0',
+            'breakpointRenderedApplyMatchClass' => $renderedApplyNoop ? '1' : '0',
+            'breakpointRenderedApplyAriaLabel' => $renderedApplyNoop
+                ? "Rendered values already match for {$breakpoint}px"
+                : "Apply rendered values for {$breakpoint}px",
+            'breakpointRenderedApplyTitle' => $renderedApplyNoop
+                ? "Rendered values already match for {$breakpoint}px"
+                : "Apply rendered values for {$breakpoint}px",
+            'breakpointRenderedApplyIconName' => $renderedApplyNoop ? 'check' : 'arrow-down',
+            'breakpointRenderedApplyHiddenClass' => $hideRenderedApply ? '1' : '0',
+            'breakpointRenderedRowHiddenClass' => $hideRenderedApply ? '1' : '0',
+            'widthClass' => $widthClass,
+            'heightClass' => $heightClass,
+            'currentWidthDerivedClass' => $currentWidthDerivedClass ? '1' : '0',
+            'currentHeightDerivedClass' => $currentHeightDerivedClass ? '1' : '0',
+            'previewMediaHidden' => $currentEnabled ? '0' : '1',
+        ];
+    }
+
     /**
      * Build result array from latest persisted snapshot for a specific transform.
+     * Used by the signal delta path to reuse the same normalized evidence shape as rendering.
      *
      * @return array{breakpoints: int[], rowsByBreakpoint: array<int, array<string, mixed>>}
      */
@@ -651,6 +785,8 @@ final class ReviewRenderer
                             'passHeightWhenRenderedLteSaved' => $passHeightWhenRenderedLteSaved,
                             'allowAnyHeight' => $allowAnyHeight,
                             'includeEscapeWidth' => $includeEscapeWidth ? '1' : '0',
+                            'hideRenderedApply' => $hideRenderedApply ? '1' : '0',
+                            'reviewMode' => $reviewMode,
                         ],
                     ],
                 ],
@@ -664,17 +800,37 @@ final class ReviewRenderer
             $cardSignalsStructural['editor']['cards'][$signalKey]['ratioHeightInput'] = $scopeValues['ratioHeightInput'];
             $cardSignalsStructural['editor']['cards'][$signalKey]['ratioFloatInput'] = $scopeValues['ratioFloatInput'];
 
-            $cardSignalsStructuralJson = json_encode($cardSignalsStructural, JSON_UNESCAPED_SLASHES);
-            if (!is_string($cardSignalsStructuralJson)) {
-                $cardSignalsStructuralJson = '{"editor":{"cards":{}}}';
-            }
-
             $columnWidths = $this->calculateReviewBreakpointColumnWidths($transformBreakpoints);
             $previewLockHeightsByBreakpoint = $this->calculateReviewBreakpointPreviewLockHeights(
                 $assetCollection['rowsByAssetByBreakpoint'],
                 $transformBreakpoints,
                 $columnWidths,
             );
+            foreach ($transformBreakpoints as $breakpoint) {
+                $breakpointKey = (string)$breakpoint;
+                $rowsByBreakpointSignal[$breakpointKey] = array_merge(
+                    $rowsByBreakpointSignal[$breakpointKey] ?? [],
+                    $this->buildBreakpointUiState(
+                        $transformName,
+                        $breakpoint,
+                        $selectedAssetRowsByBreakpoint[$breakpoint] ?? [],
+                        $currentRows[$breakpoint] ?? $this->buildDefaultTransformEntry(),
+                        $passHeightWhenRenderedLteSaved,
+                        $storedSavedWidthsByTransform[$transformName][$breakpoint] ?? null,
+                        $storedSavedHeightsByTransform[$transformName][$breakpoint] ?? null,
+                        $allowAnyHeight,
+                        $hideRenderedApply,
+                        $reviewMode,
+                    )
+                );
+            }
+
+            $cardSignalsStructural['editor']['cards'][$signalKey]['rowsByBreakpoint'] = $rowsByBreakpointSignal;
+            $cardSignalsStructuralJson = json_encode($cardSignalsStructural, JSON_UNESCAPED_SLASHES);
+            if (!is_string($cardSignalsStructuralJson)) {
+                $cardSignalsStructuralJson = '{"editor":{"cards":{}}}';
+            }
+
             $breakpointColumns = '';
             $breakpointKeysByWidth = $this->getBreakpointKeysByWidth($includeEscapeWidth);
             foreach ($transformBreakpoints as $breakpoint) {
@@ -944,19 +1100,17 @@ final class ReviewRenderer
         );
 
         $currentEnabled = ($currentRow['enabled'] ?? true) === true;
-        $previewMedia = $currentEnabled
-            ? ($previewSrc !== ''
-                ? sprintf(
-                    '<img src="%s" alt="%s" class="bpi_breakpoint-result-image" draggable="false" style="--bpts-aspect-ratio:%s;">',
-                    $this->escapeReviewHtml($previewSrc),
-                    $this->escapeReviewHtml('Preview ' . $transformName . ' ' . $breakpoint . 'px'),
-                    $this->escapeReviewHtml($aspectRatio),
-                )
-                : sprintf(
-                    '<div class="bpi_breakpoint-result-image" style="--bpts-aspect-ratio:%s;"></div>',
-                    $this->escapeReviewHtml($aspectRatio),
-                ))
-            : '';
+        $previewMedia = $previewSrc !== ''
+            ? sprintf(
+                '<img src="%s" alt="%s" class="bpi_breakpoint-result-image" draggable="false" style="--bpts-aspect-ratio:%s;">',
+                $this->escapeReviewHtml($previewSrc),
+                $this->escapeReviewHtml('Preview ' . $transformName . ' ' . $breakpoint . 'px'),
+                $this->escapeReviewHtml($aspectRatio),
+            )
+            : sprintf(
+                '<div class="bpi_breakpoint-result-image" style="--bpts-aspect-ratio:%s;"></div>',
+                $this->escapeReviewHtml($aspectRatio),
+            );
 
         $hiddenCount = (int)($summary['hiddenCount'] ?? 0);
         $unloadedCount = (int)($summary['unloadedCount'] ?? 0);

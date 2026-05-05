@@ -421,40 +421,41 @@ class TransformsController extends Controller
             ]);
         }
 
-        $shouldPatchCard = $persisted || $conflict;
-        if ($shouldPatchCard) {
-            [$resolvedScopeMode, $resolvedScopeBreakpoint] = $this->resolveCardEditScopeForOperation(
-                $operation->setName,
-                $operation->scopeMode,
-                $operation->scopeBreakpoint,
-            );
-            $editScopeBySet = $this->buildCardEditScope($operation->setName, $resolvedScopeMode, $resolvedScopeBreakpoint);
-            $editTabBySet = $this->buildCardEditTab($operation->setName, $operation->field);
-            $selectedAssetKeyBySet = $this->buildCardSelectedAssetKey($operation->setName);
-            $cardMarkup = $editor->renderCardFragment(
-                $operation->setName,
-                $editScopeBySet,
-                $editTabBySet,
-                $selectedAssetKeyBySet,
-            );
-            $cardId = $this->buildCardDomId($operation->setName);
-            if ($cardMarkup !== '') {
-                $events[] = new PatchElements($cardMarkup);
-            } elseif ($cardId !== '') {
-                $events[] = new PatchElements('', [
-                    'selector' => '#' . $cardId,
-                    'mode' => 'remove',
-                ]);
-            }
-        }
-
         if ($persisted && $operation->setName !== '') {
             $signalKey = $this->buildCardSignalKey($operation->setName);
             if ($signalKey !== '') {
                 if ($operation->field === 'deleteSet') {
+                    $cardId = $this->buildCardDomId($operation->setName);
+                    if ($cardId !== '') {
+                        $events[] = new PatchElements('', [
+                            'selector' => '#' . $cardId,
+                            'mode' => 'remove',
+                        ]);
+                    }
                     $events[] = new PatchElements($this->renderEditorStatusFragment($statusKind, $statusMessage));
 
                     return $this->asDatastarEventStream($events);
+                }
+
+                // Non-delete operations: send PatchSignals for the card rows instead of full re-render
+                $selectedAssetKeyBySet = $this->buildCardSelectedAssetKey($operation->setName);
+                $selectedAssetKey = $selectedAssetKeyBySet[$operation->setName] ?? null;
+                $hideRenderedApply = Support::parseNullableBool($this->request->getBodyParam('hideRenderedApply')) === true;
+                $requestedReviewMode = strtolower(trim((string)$this->request->getBodyParam('reviewMode', '')));
+                $reviewMode = in_array($requestedReviewMode, ['processed', 'saved'], true)
+                    ? $requestedReviewMode
+                    : ($hideRenderedApply ? 'saved' : 'processed');
+                $deltas = $editor->buildSignalDeltasForTransform($operation->setName, $selectedAssetKey, $hideRenderedApply, $reviewMode);
+                if (!empty($deltas['rowsByBreakpoint'])) {
+                    $events[] = new PatchSignals([
+                        'editor' => [
+                            'cards' => [
+                                $signalKey => [
+                                    'rowsByBreakpoint' => $deltas['rowsByBreakpoint'],
+                                ],
+                            ],
+                        ],
+                    ]);
                 }
             }
         }
