@@ -56,6 +56,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         resultsHeading: document.getElementById('bpts-results-heading'),
         uiShowWarningOrderSignalBridge: document.getElementById('bpts-ui-show-warning-order-signal-bridge'),
         uiResultsOrderingNoteLabelSignalBridge: document.getElementById('bpts-ui-results-ordering-note-label-signal-bridge'),
+        sidebarSavedSetNamesSignalBridge: document.getElementById('bpts-sidebar-saved-set-names-signal-bridge'),
         transformSetsSidebar: document.getElementById('bpts-transform-sets-sidebar'),
         transformSetsList: document.getElementById('bpts-transform-sets-list'),
         sourceEntry: document.getElementById('bpts-source-entry'),
@@ -482,6 +483,41 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         labelBridge.dispatchEvent(new Event('input', { bubbles: true }));
         labelBridge.dispatchEvent(new Event('change', { bubbles: true }));
     }
+
+    function getSidebarSavedSetNamesSignalValue() {
+        const bridge = elements.sidebarSavedSetNamesSignalBridge;
+        if (!(bridge instanceof HTMLInputElement)) {
+            return [];
+        }
+
+        const raw = String(bridge.value || '').trim();
+        if (raw === '') {
+            return [];
+        }
+
+        try {
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed)
+                ? parsed.filter((name) => typeof name === 'string' && name.trim() !== '')
+                : [];
+        } catch (_error) {
+            return [];
+        }
+    }
+
+    function syncPostPatchReviewState() {
+        const savedSetNames = getSidebarSavedSetNamesSignalValue();
+        if (savedSetNames.length > 0) {
+            syncSidebarObservedUnsavedFromSavedNames(savedSetNames);
+        }
+
+        syncSidebarTransformOrderToCards();
+        scheduleBreakpointPreviewHeightSync();
+        window.setTimeout(scheduleBreakpointPreviewHeightSync, 120);
+        updateResultsOrderingNote();
+    }
+
+    window.bptsSyncPostPatchReviewState = syncPostPatchReviewState;
 
     function getVisualResultCardOrder() {
         if (!elements.visualResults) {
@@ -1920,11 +1956,6 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
             displayCpNotice(status?.message);
 
-            void refreshReviewCardsAfterSuccessfulUpdate()
-                .catch((error) => {
-                    console.error(error);
-                });
-
             return;
         }
 
@@ -1965,11 +1996,6 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             scheduleTransformTerminalStatus(transformName, 'Updated', 'success', CARD_UPDATE_STATUS_CLEAR_DELAY_MS, runId);
 
             displayCpNotice(status?.message);
-
-            void refreshReviewCardsAfterSuccessfulUpdate()
-                .catch((error) => {
-                    console.error(error);
-                });
             return;
         }
 
@@ -2786,7 +2812,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         }
 
         try {
-            await loadPreviewForSelectedEntry('Entry loaded.');
+            await loadPreviewForSelectedEntry('Entry ready to process.');
         } catch (error) {
             setStatus(`Error: ${error.message}`);
         }

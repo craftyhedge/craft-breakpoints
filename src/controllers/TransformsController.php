@@ -402,6 +402,25 @@ class TransformsController extends Controller
             ]);
         }
 
+        if ($persisted || $conflict) {
+            $savedSetNames = array_values(array_filter(
+                array_map(
+                    static fn(array $row): string => trim((string)($row['name'] ?? '')),
+                    array_filter(
+                        $editor->buildSidebarTransformRows(),
+                        static fn(mixed $row): bool => is_array($row) && (($row['isObservedUnsaved'] ?? false) !== true),
+                    ),
+                ),
+                static fn(string $name): bool => $name !== '',
+            ));
+
+            $events[] = new PatchSignals([
+                'sidebar' => [
+                    'savedSetNamesJson' => json_encode($savedSetNames, JSON_UNESCAPED_SLASHES) ?: '[]',
+                ],
+            ]);
+        }
+
         $shouldPatchCard = $persisted || $conflict;
         if ($shouldPatchCard) {
             [$resolvedScopeMode, $resolvedScopeBreakpoint] = $this->resolveCardEditScopeForOperation(

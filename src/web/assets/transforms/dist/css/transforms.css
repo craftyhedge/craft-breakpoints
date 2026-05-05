@@ -828,8 +828,15 @@
     max-width: 100%;
     min-width: 0;
     overflow-x: auto;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
     touch-action: pan-y;
     padding: 0px 24px;
+}
+
+.bpts-breakpoint-grid::-webkit-scrollbar {
+    width: 0;
+    height: 0;
 }
 
 .bpts-breakpoint-grid-actions {
@@ -918,13 +925,6 @@ input.bpts-init-value::placeholder {
 
 .bpts-breakpoint-grid.bpts-drag-scrollable {
     cursor: grab;
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-}
-
-.bpts-breakpoint-grid.bpts-drag-scrollable::-webkit-scrollbar {
-    width: 0;
-    height: 0;
 }
 
 .bpts-breakpoint-grid.bpts-scroll-fade-active {
