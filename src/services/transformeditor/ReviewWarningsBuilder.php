@@ -33,7 +33,6 @@ final class ReviewWarningsBuilder
         $observedTransformNames = self::collectTransformNames($rowsByBreakpoint);
         $observedTransformSet = array_fill_keys($observedTransformNames, true);
         $configTransformNames = array_keys($storedTransforms);
-        sort($configTransformNames, SORT_STRING);
 
         foreach ($storedTransforms as $transformName => $transformDefinition) {
             if (!is_string($transformName) || $transformName === '' || !is_array($transformDefinition)) {
@@ -188,15 +187,12 @@ final class ReviewWarningsBuilder
 
         $emptyBreakpoints = [];
         foreach ($breakpoints as $index => $breakpoint) {
-            $entry = isset($entries[$index]) && is_array($entries[$index])
-                ? $entries[$index]
-                : Support::buildDefaultTransformEntry();
+            $entry = $entries[$index];
 
             if (($entry['enabled'] ?? true) !== true) {
                 continue;
             }
 
-            $autoDimension = $entry['autoDimension'] ?? null;
             $width = $entry['width'] ?? null;
             $height = $entry['height'] ?? null;
 

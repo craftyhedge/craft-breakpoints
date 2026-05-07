@@ -71,15 +71,13 @@ final class SnapshotReader
                 continue;
             }
 
-            $transformHandle = trim((string)($row['transformHandle'] ?? ''));
-            $breakpointWidth = isset($row['breakpointWidth']) && is_numeric($row['breakpointWidth'])
-                ? (int)$row['breakpointWidth']
-                : 0;
+            $transformHandle = $this->extractTransformHandleFromRow($row);
+            $breakpointWidth = $this->extractBreakpointWidthFromRow($row);
             if ($transformHandle === '' || $breakpointWidth <= 0) {
                 continue;
             }
 
-            $indexed[$transformHandle . '|' . $breakpointWidth] = $row;
+            $indexed[$this->buildTransformBreakpointKey($transformHandle, $breakpointWidth)] = $row;
         }
 
         return $this->latestRunRowsByTransformAndBreakpoint = $indexed;
@@ -196,10 +194,8 @@ final class SnapshotReader
                     continue;
                 }
 
-                $rowTransformHandle = trim((string)($row['transformHandle'] ?? ''));
-                $rowBreakpointWidth = isset($row['breakpointWidth']) && is_numeric($row['breakpointWidth'])
-                    ? (int)$row['breakpointWidth']
-                    : 0;
+                $rowTransformHandle = $this->extractTransformHandleFromRow($row);
+                $rowBreakpointWidth = $this->extractBreakpointWidthFromRow($row);
                 if ($rowTransformHandle !== $transformName || $rowBreakpointWidth !== $breakpointWidth) {
                     continue;
                 }
@@ -209,7 +205,7 @@ final class SnapshotReader
                 }
 
                 if ($assetKey !== null && $assetKey !== '') {
-                    $rowAssetId = trim((string)($row['assetId'] ?? ''));
+                    $rowAssetId = $this->extractAssetIdFromRow($row);
                     if ($rowAssetId === $assetKey) {
                         $matchedByAsset = $row;
                         break;
@@ -223,7 +219,7 @@ final class SnapshotReader
             }
         }
 
-        $key = $transformName . '|' . $breakpointWidth;
+        $key = $this->buildTransformBreakpointKey($transformName, $breakpointWidth);
         $previewRow = $rowsByTransformAndBreakpoint[$key] ?? null;
         if (is_array($previewRow)) {
             return $this->extractRenderedDimensionsFromRow($previewRow);
@@ -267,10 +263,8 @@ final class SnapshotReader
                     continue;
                 }
 
-                $rowTransformHandle = trim((string)($row['transformHandle'] ?? ''));
-                $rowBreakpointWidth = isset($row['breakpointWidth']) && is_numeric($row['breakpointWidth'])
-                    ? (int)$row['breakpointWidth']
-                    : 0;
+                $rowTransformHandle = $this->extractTransformHandleFromRow($row);
+                $rowBreakpointWidth = $this->extractBreakpointWidthFromRow($row);
                 if ($rowTransformHandle !== $transformName || $rowBreakpointWidth <= 0) {
                     continue;
                 }
@@ -280,7 +274,7 @@ final class SnapshotReader
                 }
 
                 if ($assetKey !== null && $assetKey !== '') {
-                    $rowAssetId = trim((string)($row['assetId'] ?? ''));
+                    $rowAssetId = $this->extractAssetIdFromRow($row);
                     if ($rowAssetId === $assetKey) {
                         $assetMatchByBreakpoint[$rowBreakpointWidth] = $row;
                     }
@@ -293,13 +287,12 @@ final class SnapshotReader
             }
 
             foreach ($resolvedByBreakpoint as $bp => $row) {
-                $width = Support::parseNullablePositiveInt($row['renderedWidth'] ?? null);
-                $height = Support::parseNullablePositiveInt($row['renderedHeight'] ?? null);
-                if ($width !== null || $height !== null) {
+                $dimensions = $this->extractNullableDimensionsFromRow($row);
+                if ($dimensions !== null) {
                     $rowsByBreakpoint[] = [
                         'breakpoint' => $bp,
-                        'width' => $width,
-                        'height' => $height,
+                        'width' => $dimensions['width'],
+                        'height' => $dimensions['height'],
                     ];
                 }
             }
@@ -307,25 +300,22 @@ final class SnapshotReader
 
         if ($rowsByBreakpoint === []) {
             $previewCacheRows = $this->getPreviewCacheRowsByTransformAndBreakpoint();
-            foreach ($previewCacheRows as $key => $row) {
+            foreach ($previewCacheRows as $row) {
                 if (!is_array($row)) {
                     continue;
                 }
-                $rowTransformHandle = trim((string)($row['transformHandle'] ?? ''));
-                $rowBreakpointWidth = isset($row['breakpointWidth']) && is_numeric($row['breakpointWidth'])
-                    ? (int)$row['breakpointWidth']
-                    : 0;
+                $rowTransformHandle = $this->extractTransformHandleFromRow($row);
+                $rowBreakpointWidth = $this->extractBreakpointWidthFromRow($row);
                 if ($rowTransformHandle !== $transformName || $rowBreakpointWidth <= 0) {
                     continue;
                 }
 
-                $width = Support::parseNullablePositiveInt($row['renderedWidth'] ?? null);
-                $height = Support::parseNullablePositiveInt($row['renderedHeight'] ?? null);
-                if ($width !== null || $height !== null) {
+                $dimensions = $this->extractNullableDimensionsFromRow($row);
+                if ($dimensions !== null) {
                     $rowsByBreakpoint[] = [
                         'breakpoint' => $rowBreakpointWidth,
-                        'width' => $width,
-                        'height' => $height,
+                        'width' => $dimensions['width'],
+                        'height' => $dimensions['height'],
                     ];
                 }
             }
@@ -340,6 +330,23 @@ final class SnapshotReader
      */
     private function extractRenderedDimensionsFromRow(array $row): ?array
     {
+        $dimensions = $this->extractNullableDimensionsFromRow($row);
+        if ($dimensions === null) {
+            return null;
+        }
+
+        return [
+            'renderedWidth' => $dimensions['width'] ?? 0,
+            'renderedHeight' => $dimensions['height'] ?? 0,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @return array{width: ?int, height: ?int}|null
+     */
+    private function extractNullableDimensionsFromRow(array $row): ?array
+    {
         $width = Support::parseNullablePositiveInt($row['renderedWidth'] ?? null);
         $height = Support::parseNullablePositiveInt($row['renderedHeight'] ?? null);
 
@@ -348,8 +355,8 @@ final class SnapshotReader
         }
 
         return [
-            'renderedWidth' => $width ?? 0,
-            'renderedHeight' => $height ?? 0,
+            'width' => $width,
+            'height' => $height,
         ];
     }
 
@@ -399,13 +406,7 @@ final class SnapshotReader
                 ->all();
 
             foreach ($currentSiteEntries as $id => $entry) {
-                $entriesById[(int)$id] = [
-                    'id' => $entry->id,
-                    'title' => (string)$entry->title,
-                    'cpEditUrl' => $entry->cpEditUrl ?? '#',
-                    'siteId' => $entry->siteId,
-                    'availableInCurrentSite' => true,
-                ];
+                $entriesById[(int)$id] = $this->mapObservedEntryData($entry, true);
             }
 
             $remainingIds = array_values(array_diff($entryIds, array_keys($entriesById)));
@@ -417,13 +418,7 @@ final class SnapshotReader
                     ->indexBy('id')
                     ->all();
                 foreach ($otherSiteEntries as $id => $entry) {
-                    $entriesById[(int)$id] = [
-                        'id' => $entry->id,
-                        'title' => (string)$entry->title,
-                        'cpEditUrl' => $entry->cpEditUrl ?? '#',
-                        'siteId' => $entry->siteId,
-                        'availableInCurrentSite' => false,
-                    ];
+                    $entriesById[(int)$id] = $this->mapObservedEntryData($entry, false);
                 }
             }
         }
@@ -437,5 +432,50 @@ final class SnapshotReader
         unset($data);
 
         return $this->observedDataByTransform = $byTransform;
+    }
+
+    private function buildTransformBreakpointKey(string $transformHandle, int $breakpointWidth): string
+    {
+        return $transformHandle . '|' . $breakpointWidth;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function extractTransformHandleFromRow(array $row): string
+    {
+        return trim((string)($row['transformHandle'] ?? ''));
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function extractBreakpointWidthFromRow(array $row): int
+    {
+        return isset($row['breakpointWidth']) && is_numeric($row['breakpointWidth'])
+            ? (int)$row['breakpointWidth']
+            : 0;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function extractAssetIdFromRow(array $row): string
+    {
+        return trim((string)($row['assetId'] ?? ''));
+    }
+
+    /**
+     * @return array{id: int, title: string, cpEditUrl: string, siteId: int, availableInCurrentSite: bool}
+     */
+    private function mapObservedEntryData(Entry $entry, bool $availableInCurrentSite): array
+    {
+        return [
+            'id' => $entry->id,
+            'title' => (string)$entry->title,
+            'cpEditUrl' => $entry->cpEditUrl ?? '#',
+            'siteId' => $entry->siteId,
+            'availableInCurrentSite' => $availableInCurrentSite,
+        ];
     }
 }
