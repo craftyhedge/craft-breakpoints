@@ -18,14 +18,7 @@ final class ReviewRenderer
     private const REVIEW_MODE_SAVED = 'saved';
     private readonly CardStateBuilder $cardStateBuilder;
     private readonly ReviewBreakpointStateBuilder $breakpointStateBuilder;
-
-    /**
-     * Per-render cache of telemetry init options keyed by transform handle.
-     * Reset on each public render entry point.
-     *
-     * @var array<string, array{handle: string, entryId: ?int, sourceUrl: ?string, lastSeenAt: string, initWidth: ?int, initHeight: ?int, initRatio: ?string, initWidthAuto: ?bool, initHeightAuto: ?bool}>|null
-     */
-    private ?array $telemetryInitByHandleCache = null;
+    private readonly InitialStoredReviewBuilder $initialStoredReviewBuilder;
 
     public function __construct(
         private readonly Plugin $plugin,
@@ -35,6 +28,7 @@ final class ReviewRenderer
     ) {
         $this->cardStateBuilder = new CardStateBuilder();
         $this->breakpointStateBuilder = new ReviewBreakpointStateBuilder($healthAnalyzer);
+        $this->initialStoredReviewBuilder = new InitialStoredReviewBuilder($plugin, $snapshotReader);
     }
 
     public function renderResultReview(
@@ -49,7 +43,7 @@ final class ReviewRenderer
         ?string $onlyTransformName = null,
     ): array {
         $normalizedReviewMode = $this->normalizeReviewMode($reviewMode);
-        $this->telemetryInitByHandleCache = null;
+        $this->initialStoredReviewBuilder->resetTelemetryInitCache();
         $rowsByBreakpoint = $this->normalizeReviewRowsByBreakpoint($result['rowsByBreakpoint'] ?? []);
         $breakpoints = $this->normalizeReviewBreakpoints($result['breakpoints'] ?? []);
         if ($breakpoints === []) {
@@ -78,151 +72,10 @@ final class ReviewRenderer
         ?string $onlyTransformName = null,
         array $result = [],
     ): array {
-        $this->telemetryInitByHandleCache = null;
-        $storedTransforms = $this->getReviewStoredTransforms();
-        $previewCacheByTransformAndBreakpoint = $this->getPreviewCacheRowsByTransformAndBreakpoint();
-        $syntheticRowsByBreakpoint = [];
-
-        foreach ($storedTransforms as $setName => $transformDefinition) {
-            if (!is_string($setName) || $setName === '' || !is_array($transformDefinition)) {
-                continue;
-            }
-
-            $includeEscapeWidth = ($transformDefinition['includeEscapeWidth'] ?? false) === true;
-            $breakpoints = $this->getBreakpointsForTransform($includeEscapeWidth);
-            $entries = isset($transformDefinition['transforms']) && is_array($transformDefinition['transforms'])
-                ? array_values($transformDefinition['transforms'])
-                : [];
-
-            foreach ($breakpoints as $index => $breakpoint) {
-                if (!is_int($breakpoint) || $breakpoint <= 0) {
-                    continue;
-                }
-
-                $entry = isset($entries[$index]) && is_array($entries[$index])
-                    ? $entries[$index]
-                    : [];
-
-                $autoDimension = $this->normalizeAutoDimension($entry['autoDimension'] ?? null);
-                $width = $this->normalizeNullablePositiveInt($entry['width'] ?? null);
-                $height = $this->normalizeNullablePositiveInt($entry['height'] ?? null);
-
-                if ($autoDimension === 'width') {
-                    $width = null;
-                }
-
-                if ($autoDimension === 'height') {
-                    $height = null;
-                }
-
-                $placeholderSrc = $this->buildInitialReviewPlaceholderDataUri(
-                    $width,
-                    $height,
-                    $autoDimension,
-                );
-
-                $snapshotRow = $previewCacheByTransformAndBreakpoint[$setName . '|' . $breakpoint] ?? null;
-                $savedDisplayAssetUrl = is_array($snapshotRow)
-                    ? trim((string)($snapshotRow['displayAssetUrl'] ?? ''))
-                    : '';
-                $snapshotRenderedWidth = is_array($snapshotRow) && isset($snapshotRow['renderedWidth'])
-                    ? max(0, (int)$snapshotRow['renderedWidth'])
-                    : 0;
-                $snapshotRenderedHeight = is_array($snapshotRow) && isset($snapshotRow['renderedHeight'])
-                    ? max(0, (int)$snapshotRow['renderedHeight'])
-                    : 0;
-                $previewSrc = $savedDisplayAssetUrl !== '' ? $savedDisplayAssetUrl : $placeholderSrc;
-                $rowStatus = is_array($snapshotRow)
-                    ? trim((string)($snapshotRow['rowStatus'] ?? 'unprocessed'))
-                    : 'unprocessed';
-                $enabled = $rowStatus !== 'disabled';
-                $loaded = $rowStatus === 'loaded' || $rowStatus === 'disabled';
-                $broken = $rowStatus === 'broken';
-                $unresolved = $rowStatus === 'unresolved';
-
-                $syntheticRowsByBreakpoint[$breakpoint][] = [
-                    'transform' => $setName,
-                    'assetId' => '',
-                    'title' => $setName . ' ' . $breakpoint . 'px placeholder',
-                    'enabled' => $enabled,
-                    'isVisible' => true,
-                    'loaded' => $loaded,
-                    'broken' => $broken,
-                    'unresolved' => $unresolved,
-                    'sourceUsed' => $previewSrc,
-                    'src' => $previewSrc,
-                    'rendered' => [
-                        'width' => $snapshotRenderedWidth,
-                        'height' => $snapshotRenderedHeight,
-                    ],
-                    'intrinsic' => [
-                        'width' => $snapshotRenderedWidth,
-                        'height' => $snapshotRenderedHeight,
-                    ],
-                    'transformDimensions' => [
-                        'width' => $width,
-                        'height' => $height,
-                        'autoDimension' => $autoDimension,
-                    ],
-                ];
-            }
-        }
-
-        if ($this->plugin !== null) {
-            $configuredNames = array_values(array_filter(
-                array_keys($storedTransforms),
-                static fn($name): bool => is_string($name) && $name !== '',
-            ));
-            $observedUnsaved = $this->plugin->getTelemetry()->getObservedUnsavedHandles($configuredNames);
-            $observedBreakpoints = $this->getBreakpointsForTransform(false);
-            foreach ($observedUnsaved as $observedEntry) {
-                $handle = (string)$observedEntry['handle'];
-                if ($handle === '') {
-                    continue;
-                }
-
-                $placeholderSrc = $this->buildInitialReviewPlaceholderDataUri(null, null, null);
-                foreach ($observedBreakpoints as $breakpoint) {
-                    if (!is_int($breakpoint) || $breakpoint <= 0) {
-                        continue;
-                    }
-
-                    $syntheticRowsByBreakpoint[$breakpoint][] = [
-                        'transform' => $handle,
-                        'assetId' => '',
-                        'title' => $handle . ' ' . $breakpoint . 'px placeholder',
-                        'enabled' => true,
-                        'isVisible' => true,
-                        'loaded' => false,
-                        'broken' => false,
-                        'unresolved' => false,
-                        'sourceUsed' => $placeholderSrc,
-                        'src' => $placeholderSrc,
-                        'rendered' => ['width' => 0, 'height' => 0],
-                        'intrinsic' => ['width' => 0, 'height' => 0],
-                        'transformDimensions' => [
-                            'width' => null,
-                            'height' => null,
-                            'autoDimension' => null,
-                        ],
-                    ];
-                }
-            }
-        }
-
+        $this->initialStoredReviewBuilder->resetTelemetryInitCache();
         $resultRowsByBreakpoint = $this->normalizeReviewRowsByBreakpoint($result['rowsByBreakpoint'] ?? []);
         $resultBreakpoints = $this->normalizeReviewBreakpoints($result['breakpoints'] ?? []);
-
-        $mergedRowsByBreakpoint = $syntheticRowsByBreakpoint;
-        foreach ($resultRowsByBreakpoint as $breakpoint => $rows) {
-            if (!isset($mergedRowsByBreakpoint[$breakpoint]) || !is_array($mergedRowsByBreakpoint[$breakpoint])) {
-                $mergedRowsByBreakpoint[$breakpoint] = $rows;
-                continue;
-            }
-
-            // Keep source-observed rows first so init seed state can be applied in saved mode.
-            $mergedRowsByBreakpoint[$breakpoint] = array_values(array_merge($rows, $mergedRowsByBreakpoint[$breakpoint]));
-        }
+        $mergedRowsByBreakpoint = $this->initialStoredReviewBuilder->buildRowsByBreakpoint($resultRowsByBreakpoint);
 
         return $this->renderReview(
             $this->normalizeReviewRowsByBreakpoint($mergedRowsByBreakpoint),
@@ -376,13 +229,13 @@ final class ReviewRenderer
 
         $result = $this->buildResultFromLatestSnapshot($normalized);
         $resultRowsByBreakpoint = $this->normalizeReviewRowsByBreakpoint($result['rowsByBreakpoint'] ?? []);
-        $assetCollection = $this->buildReviewAssetCollectionForTransform(
+        $assetCollection = ReviewAssetCollector::buildAssetCollectionForTransform(
             $resultRowsByBreakpoint,
             $normalized,
             $transformBreakpoints,
         );
-        $selectedAssetKey = $this->normalizeReviewSelectedAssetKey($selectedAssetKey, $assetCollection['assetKeys']);
-        $selectedAssetRowsByBreakpoint = $this->buildReviewSelectedAssetRowsByBreakpoint(
+        $selectedAssetKey = ReviewAssetCollector::normalizeSelectedAssetKey($selectedAssetKey, $assetCollection['assetKeys']);
+        $selectedAssetRowsByBreakpoint = ReviewAssetCollector::buildSelectedAssetRowsByBreakpoint(
             $assetCollection['rowsByAssetByBreakpoint'],
             $selectedAssetKey,
             $transformBreakpoints,
@@ -399,7 +252,7 @@ final class ReviewRenderer
         $rowsByBreakpoint = [];
         foreach ($transformBreakpoints as $breakpoint) {
             $breakpointKey = (string)$breakpoint;
-            $currentRow = $currentRows[$breakpoint] ?? $this->buildDefaultTransformEntry();
+            $currentRow = $currentRows[$breakpoint] ?? Support::buildDefaultTransformEntry();
             $ui = $this->buildBreakpointUiState(
                 $normalized,
                 $breakpoint,
@@ -668,18 +521,18 @@ final class ReviewRenderer
 
             $hasSavedSet = $storedTransformConfig !== null;
 
-            $assetCollection = $this->buildReviewAssetCollectionForTransform(
+            $assetCollection = ReviewAssetCollector::buildAssetCollectionForTransform(
                 $rowsByBreakpoint,
                 $transformName,
                 $transformBreakpoints,
             );
             $assetKeys = $assetCollection['assetKeys'];
-            $selectedAssetKey = $this->normalizeReviewSelectedAssetKey(
+            $selectedAssetKey = ReviewAssetCollector::normalizeSelectedAssetKey(
                 $selectedAssetKeyBySet[$transformName] ?? null,
                 $assetKeys,
             );
             $normalizedSelectedAssetKeyBySet[$transformName] = $selectedAssetKey;
-            $selectedAssetRowsByBreakpoint = $this->buildReviewSelectedAssetRowsByBreakpoint(
+            $selectedAssetRowsByBreakpoint = ReviewAssetCollector::buildSelectedAssetRowsByBreakpoint(
                 $assetCollection['rowsByAssetByBreakpoint'],
                 $selectedAssetKey,
                 $transformBreakpoints,
@@ -689,13 +542,13 @@ final class ReviewRenderer
                 $storedTransformConfig,
                 $transformBreakpoints,
             );
-            $initSeedState = $this->buildInitSeedStateByBreakpoint(
+            $initSeedState = $this->initialStoredReviewBuilder->buildInitSeedStateByBreakpoint(
                 $transformName,
                 $transformBreakpoints,
                 !$hasSavedSet,
             );
             if (($initSeedState['seedRows'] ?? []) !== []) {
-                $currentRows = $this->applyInitSeedRowsToCurrentRows(
+                $currentRows = $this->initialStoredReviewBuilder->applyInitSeedRowsToCurrentRows(
                     $currentRows,
                     $initSeedState['seedRows'],
                 );
@@ -777,8 +630,8 @@ final class ReviewRenderer
             $cardSignalsStructural['editor']['cards'][$signalKey]['ratioHeightInput'] = $scopeValues['ratioHeightInput'];
             $cardSignalsStructural['editor']['cards'][$signalKey]['ratioFloatInput'] = $scopeValues['ratioFloatInput'];
 
-            $columnWidths = $this->calculateReviewBreakpointColumnWidths($transformBreakpoints);
-            $previewLockHeightsByBreakpoint = $this->calculateReviewBreakpointPreviewLockHeights(
+            $columnWidths = ReviewLayoutCalculator::calculateBreakpointColumnWidths($transformBreakpoints);
+            $previewLockHeightsByBreakpoint = ReviewLayoutCalculator::calculateBreakpointPreviewLockHeights(
                 $assetCollection['rowsByAssetByBreakpoint'],
                 $transformBreakpoints,
                 $columnWidths,
@@ -791,7 +644,7 @@ final class ReviewRenderer
                         $transformName,
                         $breakpoint,
                         $selectedAssetRowsByBreakpoint[$breakpoint] ?? [],
-                        $currentRows[$breakpoint] ?? $this->buildDefaultTransformEntry(),
+                        $currentRows[$breakpoint] ?? Support::buildDefaultTransformEntry(),
                         $passHeightWhenRenderedLteSaved,
                         $storedSavedWidthsByTransform[$transformName][$breakpoint] ?? null,
                         $storedSavedHeightsByTransform[$transformName][$breakpoint] ?? null,
@@ -817,7 +670,7 @@ final class ReviewRenderer
                     $breakpoint,
                     $breakpointKeysByWidth[(string)$breakpoint] ?? '',
                     $rows,
-                    $currentRows[$breakpoint] ?? $this->buildDefaultTransformEntry(),
+                    $currentRows[$breakpoint] ?? Support::buildDefaultTransformEntry(),
                     $columnWidths,
                     $previewLockHeightsByBreakpoint,
                     $signalKey,
@@ -851,7 +704,7 @@ final class ReviewRenderer
                 $hideAssetPagination,
             );
 
-            $slug = $this->slugifyReviewTransformName($transformName);
+            $slug = Support::slugifyTransformName($transformName);
             $editPanelId = 'bpts-edit-panel-' . $slug;
             $activeDimensions = $tab === 'dimensions';
             $activeRatio = $tab === 'ratio';
@@ -1121,7 +974,7 @@ final class ReviewRenderer
 
         $normalized = [];
         foreach ($rawRowsByBreakpoint as $breakpointKey => $rows) {
-            $breakpoint = $this->normalizeNullablePositiveInt($breakpointKey);
+            $breakpoint = Support::normalizeNullablePositiveInt($breakpointKey);
             if ($breakpoint === null || !is_array($rows)) {
                 continue;
             }
@@ -1165,16 +1018,16 @@ final class ReviewRenderer
                     'sourceUsed' => $sourceUsed,
                     'src' => $src,
                     'rendered' => [
-                        'width' => $this->toNonNegativeInt($row['rendered']['width'] ?? 0),
-                        'height' => $this->toNonNegativeInt($row['rendered']['height'] ?? 0),
+                        'width' => Support::toNonNegativeInt($row['rendered']['width'] ?? 0),
+                        'height' => Support::toNonNegativeInt($row['rendered']['height'] ?? 0),
                     ],
                     'intrinsic' => [
-                        'width' => $this->toNonNegativeInt($row['intrinsic']['width'] ?? 0),
-                        'height' => $this->toNonNegativeInt($row['intrinsic']['height'] ?? 0),
+                        'width' => Support::toNonNegativeInt($row['intrinsic']['width'] ?? 0),
+                        'height' => Support::toNonNegativeInt($row['intrinsic']['height'] ?? 0),
                     ],
                     'transformDimensions' => [
-                        'width' => $this->normalizeNullablePositiveInt($row['transformDimensions']['width'] ?? null),
-                        'height' => $this->normalizeNullablePositiveInt($row['transformDimensions']['height'] ?? null),
+                        'width' => Support::normalizeNullablePositiveInt($row['transformDimensions']['width'] ?? null),
+                        'height' => Support::normalizeNullablePositiveInt($row['transformDimensions']['height'] ?? null),
                         'autoDimension' => (string)($row['transformDimensions']['autoDimension'] ?? ''),
                     ],
                 ];
@@ -1195,7 +1048,7 @@ final class ReviewRenderer
 
         $normalized = [];
         foreach ($rawBreakpoints as $rawBreakpoint) {
-            $breakpoint = $this->normalizeNullablePositiveInt($rawBreakpoint);
+            $breakpoint = Support::normalizeNullablePositiveInt($rawBreakpoint);
             if ($breakpoint !== null) {
                 $normalized[] = $breakpoint;
             }
@@ -1318,7 +1171,7 @@ final class ReviewRenderer
             return null;
         }
 
-        return $this->normalizeNullablePositiveInt($breakpoints['escape']);
+        return Support::normalizeNullablePositiveInt($breakpoints['escape']);
     }
 
     private function getReviewConfiguredBreakpoints(): array
@@ -1334,7 +1187,7 @@ final class ReviewRenderer
 
         $values = [];
         foreach ($breakpoints as $value) {
-            $normalized = $this->normalizeNullablePositiveInt($value);
+            $normalized = Support::normalizeNullablePositiveInt($value);
             if ($normalized !== null) {
                 $values[] = $normalized;
             }
@@ -1362,7 +1215,7 @@ final class ReviewRenderer
 
         $keysByWidth = [];
         foreach ($breakpoints as $key => $width) {
-            $normalizedWidth = $this->normalizeNullablePositiveInt($width);
+            $normalizedWidth = Support::normalizeNullablePositiveInt($width);
             if ($normalizedWidth === null) {
                 continue;
             }
@@ -1654,45 +1507,6 @@ final class ReviewRenderer
         return ReviewAssetCollector::buildAssetKey($transformName, $assetId, $sourceUsed, $src, $title);
     }
 
-    /**
-     * @param array<int, array<int, array<string, mixed>>> $rowsByBreakpoint
-     * @param array<int, int> $transformBreakpoints
-     * @return array{assetKeys: array<int, string>, rowsByAssetByBreakpoint: array<string, array<int, array<int, array<string, mixed>>>>, assetLabelsByKey: array<string, string>}
-     */
-    private function buildReviewAssetCollectionForTransform(
-        array $rowsByBreakpoint,
-        string $transformName,
-        array $transformBreakpoints,
-    ): array {
-        return ReviewAssetCollector::buildAssetCollectionForTransform(
-            $rowsByBreakpoint,
-            $transformName,
-            $transformBreakpoints,
-        );
-    }
-
-    private function normalizeReviewSelectedAssetKey(mixed $rawSelectedAssetKey, array $assetKeys): string
-    {
-        return ReviewAssetCollector::normalizeSelectedAssetKey($rawSelectedAssetKey, $assetKeys);
-    }
-
-    /**
-     * @param array<string, array<int, array<int, array<string, mixed>>>> $rowsByAssetByBreakpoint
-     * @param array<int, int> $transformBreakpoints
-     * @return array<int, array<int, array<string, mixed>>>
-     */
-    private function buildReviewSelectedAssetRowsByBreakpoint(
-        array $rowsByAssetByBreakpoint,
-        string $selectedAssetKey,
-        array $transformBreakpoints,
-    ): array {
-        return ReviewAssetCollector::buildSelectedAssetRowsByBreakpoint(
-            $rowsByAssetByBreakpoint,
-            $selectedAssetKey,
-            $transformBreakpoints,
-        );
-    }
-
     private function buildReviewAssetPaginationMarkup(
         array $assetKeys,
         array $assetLabelsByKey,
@@ -1908,64 +1722,6 @@ final class ReviewRenderer
         return $this->healthAnalyzer->evaluateDimensionMatch($renderedValue, $savedValue, $isAuto);
     }
 
-    /**
-     * @param array<int, array<string, mixed>> $rows
-     * @return array{renderedWidth: int, renderedHeight: int, hiddenCount: int, unloadedCount: int}
-     */
-    private function summarizeReviewRows(array $rows): array
-    {
-        return ReviewLayoutCalculator::summarizeRows($rows);
-    }
-
-    private function buildReviewRenderedRowsPayload(array $rows, int $breakpoint): array
-    {
-        return ReviewLayoutCalculator::buildRenderedRowsPayload($rows, $breakpoint);
-    }
-
-    private function pickReviewPreviewRow(array $rows): ?array
-    {
-        return ReviewLayoutCalculator::pickPreviewRow($rows);
-    }
-
-    private function calculateReviewBreakpointColumnWidths(array $breakpoints): array
-    {
-        return ReviewLayoutCalculator::calculateBreakpointColumnWidths($breakpoints);
-    }
-
-    private function calculateReviewBreakpointPreviewLockHeights(
-        array $rowsByAssetByBreakpoint,
-        array $transformBreakpoints,
-        array $breakpointColumnWidths,
-    ): array {
-        return ReviewLayoutCalculator::calculateBreakpointPreviewLockHeights(
-            $rowsByAssetByBreakpoint,
-            $transformBreakpoints,
-            $breakpointColumnWidths,
-        );
-    }
-
-    private function getReviewRenderedDimensionClass(
-        int $renderedValue,
-        ?int $transformValue,
-        ?string $autoDimension,
-        string $dimension,
-    ): string {
-        $status = $this->evaluateDimensionMatch(
-            max(0, $renderedValue),
-            $transformValue,
-            $autoDimension === $dimension,
-            true,
-        );
-
-        return match ($status) {
-            'auto' => 'bpi_dimension-auto',
-            'no-transform', 'missing' => 'bpi_dimension-no-transform',
-            'match' => 'bpi_dimension-match',
-            'mismatch' => 'bpi_dimension-mismatch',
-            default => '',
-        };
-    }
-
     private function getReviewCurrentDimensionDisplay(?int $value, ?string $autoDimension, string $dimension): string
     {
         if ($autoDimension === $dimension) {
@@ -1978,55 +1734,9 @@ final class ReviewRenderer
 
         return (string)$value;
     }
-
-    /**
-     * @param array<int, array<string, mixed>> $renderedRowsPayload
-     */
-    private function isReviewRenderedApplyNoop(
-        array $renderedRowsPayload,
-        ?int $currentWidth,
-        ?int $currentHeight,
-        ?string $autoDimension,
-    ): bool {
-        if ($renderedRowsPayload === []) {
-            return false;
-        }
-
-        $candidateDimensionCount = 0;
-        $hasComparedChange = false;
-
-        foreach ($renderedRowsPayload as $renderedRow) {
-            if (!is_array($renderedRow)) {
-                continue;
-            }
-
-            $renderedWidth = $this->normalizeNullablePositiveInt($renderedRow['width'] ?? null);
-            if ($renderedWidth !== null) {
-                $candidateDimensionCount += 1;
-                if ($autoDimension !== 'width' && $currentWidth !== $renderedWidth) {
-                    $hasComparedChange = true;
-                }
-            }
-
-            $renderedHeight = $this->normalizeNullablePositiveInt($renderedRow['height'] ?? null);
-            if ($renderedHeight !== null) {
-                $candidateDimensionCount += 1;
-                if ($autoDimension !== 'height' && $currentHeight !== $renderedHeight) {
-                    $hasComparedChange = true;
-                }
-            }
-        }
-
-        if ($candidateDimensionCount < 1) {
-            return false;
-        }
-
-        return $hasComparedChange === false;
-    }
-
     private function getReviewTransformSignalKey(string $transformName): string
     {
-        $base = str_replace('-', '_', $this->slugifyReviewTransformName($transformName));
+        $base = str_replace('-', '_', Support::slugifyTransformName($transformName));
         return 't_' . $base . '_' . substr(sha1($transformName), 0, 8);
     }
 
@@ -2056,7 +1766,7 @@ final class ReviewRenderer
         }
 
         if ($mode === 'breakpoint') {
-            $breakpoint = $this->normalizeNullablePositiveInt($rawScope['breakpoint'] ?? null);
+            $breakpoint = Support::normalizeNullablePositiveInt($rawScope['breakpoint'] ?? null);
             if ($breakpoint !== null && in_array($breakpoint, $transformBreakpoints, true)) {
                 return ['mode' => 'breakpoint', 'breakpoint' => $breakpoint];
             }
@@ -2086,7 +1796,7 @@ final class ReviewRenderer
             ];
         }
 
-        $breakpoint = $this->normalizeNullablePositiveInt($scope['breakpoint'] ?? null);
+        $breakpoint = Support::normalizeNullablePositiveInt($scope['breakpoint'] ?? null);
         if ($breakpoint === null || !isset($currentRowsByBreakpoint[$breakpoint])) {
             return [
                 'widthInput' => '',
@@ -2102,12 +1812,12 @@ final class ReviewRenderer
         }
 
         $entry = $currentRowsByBreakpoint[$breakpoint];
-        $autoDimension = $this->normalizeAutoDimension($entry['autoDimension'] ?? null);
-        $widthValue = $this->normalizeNullablePositiveInt($entry['width'] ?? null);
-        $heightValue = $this->normalizeNullablePositiveInt($entry['height'] ?? null);
-        $ratioWidthValue = $this->normalizeNullablePositiveInt($entry['ratioWidth'] ?? null);
-        $ratioHeightValue = $this->normalizeNullablePositiveInt($entry['ratioHeight'] ?? null);
-        $ratioSourceDimension = $this->normalizeRatioSourceDimension($entry['ratioSourceDimension'] ?? null) ?? 'width';
+        $autoDimension = Support::normalizeAutoDimension($entry['autoDimension'] ?? null);
+        $widthValue = Support::normalizeNullablePositiveInt($entry['width'] ?? null);
+        $heightValue = Support::normalizeNullablePositiveInt($entry['height'] ?? null);
+        $ratioWidthValue = Support::normalizeNullablePositiveInt($entry['ratioWidth'] ?? null);
+        $ratioHeightValue = Support::normalizeNullablePositiveInt($entry['ratioHeight'] ?? null);
+        $ratioSourceDimension = Support::normalizeRatioSourceDimension($entry['ratioSourceDimension'] ?? null) ?? 'width';
         $ratioLocked = ($entry['ratioLocked'] ?? false) === true
             && $ratioWidthValue !== null
             && $ratioHeightValue !== null;
@@ -2127,232 +1837,12 @@ final class ReviewRenderer
             'ratioLocked' => $ratioLocked ? '1' : '0',
             'ratioWidthInput' => $resolvedRatioWidth,
             'ratioHeightInput' => $resolvedRatioHeight,
-            'ratioFloatInput' => $this->formatRatioFloatInput(
-                $this->normalizeNullablePositiveInt($resolvedRatioWidth),
-                $this->normalizeNullablePositiveInt($resolvedRatioHeight),
+            'ratioFloatInput' => Support::formatRatioFloatInput(
+                Support::normalizeNullablePositiveInt($resolvedRatioWidth),
+                Support::normalizeNullablePositiveInt($resolvedRatioHeight),
             ),
             'ratioSourceDimension' => $ratioLocked ? $ratioSourceDimension : 'width',
         ];
-    }
-
-    /**
-     * @param array<int, array<int, array<string, mixed>>> $selectedAssetRowsByBreakpoint
-     * @param array<int, int> $transformBreakpoints
-    * @return array{seedRows: array<int, array<string, mixed>>}
-     */
-    /**
-     * Build per-breakpoint init seed rows from persisted telemetry init options
-     * for the given handle. No DOM relay; canonical source is the telemetry
-     * row written on every front-end `bpi_image()` invocation.
-     *
-     * @param array<int, int> $transformBreakpoints
-     * @return array{seedRows: array<int, array<string, mixed>>}
-     */
-    private function buildInitSeedStateByBreakpoint(
-        string $transformName,
-        array $transformBreakpoints,
-        bool $allowInitSeed,
-    ): array {
-        if (!$allowInitSeed || trim($transformName) === '') {
-            return ['seedRows' => []];
-        }
-
-        $row = $this->getTelemetryInitByHandle()[$transformName] ?? null;
-        if (!is_array($row)) {
-            return ['seedRows' => []];
-        }
-
-        $seedWidth = $this->normalizeNullablePositiveInt($row['initWidth'] ?? null);
-        $seedHeight = $this->normalizeNullablePositiveInt($row['initHeight'] ?? null);
-        $widthAuto = ($row['initWidthAuto'] ?? null) === true;
-        $heightAuto = ($row['initHeightAuto'] ?? null) === true && !$widthAuto;
-        $seedAutoDimension = $widthAuto ? 'width' : ($heightAuto ? 'height' : null);
-
-        $ratioRaw = $row['initRatio'] ?? null;
-        $ratioRawString = is_string($ratioRaw) ? trim($ratioRaw) : null;
-        $ratio = is_string($ratioRaw) && is_numeric(trim($ratioRaw))
-            ? (float)trim($ratioRaw)
-            : (is_numeric($ratioRaw) ? (float)$ratioRaw : null);
-        if ($ratio !== null && (!is_finite($ratio) || $ratio <= 0)) {
-            $ratio = null;
-        }
-
-        // Prefer the original "x:y" pair the user supplied so values aren't reduced.
-        $ratioPair = $this->buildRatioPairFromRawString($ratioRawString);
-        if ($ratioPair['width'] !== null && $ratioPair['height'] !== null) {
-            $ratio = $ratioPair['width'] / $ratioPair['height'];
-        } elseif ($ratio !== null) {
-            $ratioPair = $this->buildRatioPairFromFloat($ratio);
-        }
-
-        if ($seedWidth !== null && $seedHeight !== null) {
-            $ratio = null;
-            $ratioPair = ['width' => null, 'height' => null];
-        }
-
-        $ratioWidth = $ratioPair['width'];
-        $ratioHeight = $ratioPair['height'];
-
-        $hasRatioSeed = $ratioWidth !== null && $ratioHeight !== null;
-        $hasDimensionSeed = $seedWidth !== null || $seedHeight !== null || $seedAutoDimension !== null;
-        if (!$hasRatioSeed && !$hasDimensionSeed) {
-            return ['seedRows' => []];
-        }
-
-        $seedRow = [
-            'width' => $seedWidth,
-            'height' => $seedHeight,
-            'autoDimension' => $seedAutoDimension,
-            'ratioWidth' => $ratioWidth,
-            'ratioHeight' => $ratioHeight,
-            'ratioSourceDimension' => 'width',
-            'ratioLocked' => $hasRatioSeed,
-            'initSeedApplied' => true,
-        ];
-
-        $seedRows = [];
-        foreach ($transformBreakpoints as $breakpoint) {
-            if (!is_int($breakpoint) || $breakpoint <= 0) {
-                continue;
-            }
-            $seedRows[$breakpoint] = $seedRow;
-        }
-
-        return ['seedRows' => $seedRows];
-    }
-
-    /**
-     * @return array<string, array{handle: string, entryId: ?int, sourceUrl: ?string, lastSeenAt: string, initWidth: ?int, initHeight: ?int, initRatio: ?string, initWidthAuto: ?bool, initHeightAuto: ?bool}>
-     */
-    private function getTelemetryInitByHandle(): array
-    {
-        if ($this->telemetryInitByHandleCache !== null) {
-            return $this->telemetryInitByHandleCache;
-        }
-
-        $telemetry = $this->plugin?->getTelemetry();
-        $this->telemetryInitByHandleCache = $telemetry !== null
-            ? $telemetry->getMostRecentByHandle()
-            : [];
-
-        return $this->telemetryInitByHandleCache;
-    }
-
-    /**
-     * @param array<int, array<string, mixed>> $currentRowsByBreakpoint
-     * @param array<int, array<string, mixed>> $seedRowsByBreakpoint
-     * @return array<int, array<string, mixed>>
-     */
-    private function applyInitSeedRowsToCurrentRows(array $currentRowsByBreakpoint, array $seedRowsByBreakpoint): array
-    {
-        foreach ($seedRowsByBreakpoint as $breakpoint => $seedRow) {
-            if (!is_int($breakpoint) || !isset($currentRowsByBreakpoint[$breakpoint]) || !is_array($seedRow)) {
-                continue;
-            }
-
-            $currentRowsByBreakpoint[$breakpoint] = array_merge(
-                $currentRowsByBreakpoint[$breakpoint],
-                [
-                    'width' => $seedRow['width'] ?? null,
-                    'height' => $seedRow['height'] ?? null,
-                    'autoDimension' => $seedRow['autoDimension'] ?? null,
-                    'ratioWidth' => $seedRow['ratioWidth'] ?? null,
-                    'ratioHeight' => $seedRow['ratioHeight'] ?? null,
-                    'ratioSourceDimension' => $seedRow['ratioSourceDimension'] ?? 'width',
-                    'ratioLocked' => ($seedRow['ratioLocked'] ?? false) === true,
-                    'initSeedApplied' => ($seedRow['initSeedApplied'] ?? false) === true,
-                ],
-            );
-        }
-
-        return $currentRowsByBreakpoint;
-    }
-
-    /**
-     * Parse a stored "x:y" ratio string into an integer pair without reducing.
-     * Returns the user-supplied dimensions verbatim when both are positive whole numbers.
-     *
-     * @return array{width: ?int, height: ?int}
-     */
-    private function buildRatioPairFromRawString(?string $raw): array
-    {
-        if ($raw === null) {
-            return ['width' => null, 'height' => null];
-        }
-
-        $trimmed = trim($raw);
-        if ($trimmed === '' || strpos($trimmed, ':') === false) {
-            return ['width' => null, 'height' => null];
-        }
-
-        $parts = explode(':', $trimmed, 2);
-        if (count($parts) !== 2 || !is_numeric($parts[0]) || !is_numeric($parts[1])) {
-            return ['width' => null, 'height' => null];
-        }
-
-        $left = (float)$parts[0];
-        $right = (float)$parts[1];
-        if (!is_finite($left) || !is_finite($right) || $left <= 0 || $right <= 0) {
-            return ['width' => null, 'height' => null];
-        }
-
-        $width = (int)round($left);
-        $height = (int)round($right);
-        if ($width <= 0 || $height <= 0) {
-            return ['width' => null, 'height' => null];
-        }
-
-        return ['width' => $width, 'height' => $height];
-    }
-
-    /**
-     * @return array{width: ?int, height: ?int}
-     */
-    private function buildRatioPairFromFloat(?float $ratio): array
-    {
-        if ($ratio === null || !is_finite($ratio) || $ratio <= 0) {
-            return ['width' => null, 'height' => null];
-        }
-
-        $maxDenominator = 1000;
-        $bestNum = 1;
-        $bestDen = 1;
-        $bestError = abs($ratio - 1.0);
-
-        for ($den = 1; $den <= $maxDenominator; $den++) {
-            $num = max(1, (int)round($ratio * $den));
-            $value = $num / $den;
-            $error = abs($ratio - $value);
-            if ($error < $bestError) {
-                $bestError = $error;
-                $bestNum = $num;
-                $bestDen = $den;
-                if ($error === 0.0) {
-                    break;
-                }
-            }
-        }
-
-        $gcd = $this->greatestCommonDivisor($bestNum, $bestDen);
-
-        return [
-            'width' => (int)max(1, (int)round($bestNum / $gcd)),
-            'height' => (int)max(1, (int)round($bestDen / $gcd)),
-        ];
-    }
-
-    private function greatestCommonDivisor(int $left, int $right): int
-    {
-        $a = abs($left);
-        $b = abs($right);
-
-        while ($b !== 0) {
-            $temp = $a % $b;
-            $a = $b;
-            $b = $temp;
-        }
-
-        return $a > 0 ? $a : 1;
     }
 
     private function buildReviewWarningsByTransform(array $rowsByBreakpoint): array
@@ -2386,22 +1876,6 @@ final class ReviewRenderer
         );
     }
 
-    private function buildInitialReviewPlaceholderDataUri(
-        ?int $width,
-        ?int $height,
-        ?string $autoDimension,
-    ): string {
-        return ReviewLayoutCalculator::buildInitialPlaceholderDataUri($width, $height, $autoDimension);
-    }
-
-    /**
-     * @return array{0:int,1:int}
-     */
-    private function resolveInitialPreviewBoxDimensions(?int $width, ?int $height, ?string $autoDimension): array
-    {
-        return ReviewLayoutCalculator::resolveInitialPreviewBoxDimensions($width, $height, $autoDimension);
-    }
-
     private function countReviewWarningsByTransform(array $warningsByTransform): int
     {
         return ReviewWarningsBuilder::countWarningsByTransform($warningsByTransform);
@@ -2419,7 +1893,7 @@ final class ReviewRenderer
                 ? $entries[$index]
                 : [];
 
-            $rows[$breakpoint] = $this->normalizeTransformEntry($entry);
+            $rows[$breakpoint] = Support::normalizeTransformEntry($entry);
         }
 
         return $rows;
@@ -2443,63 +1917,4 @@ final class ReviewRenderer
         return array_values(array_map(static fn(mixed $value): int => (int)$value, $breakpoints));
     }
 
-    private function normalizeNullablePositiveInt(mixed $value): ?int
-    {
-        return Support::normalizeNullablePositiveInt($value);
-    }
-
-    private function normalizeAutoDimension(mixed $value): ?string
-    {
-        return Support::normalizeAutoDimension($value);
-    }
-
-    private function normalizeRatioSourceDimension(mixed $value): ?string
-    {
-        return Support::normalizeRatioSourceDimension($value);
-    }
-
-    private function normalizeTransformEntry(mixed $entry): array
-    {
-        return Support::normalizeTransformEntry($entry);
-    }
-
-    private function normalizeTransformEntriesForBreakpoints(array $breakpoints, array $rawEntries): array
-    {
-        return Support::normalizeTransformEntriesForBreakpoints($breakpoints, $rawEntries);
-    }
-
-    private function buildDefaultTransformEntry(): array
-    {
-        return Support::buildDefaultTransformEntry();
-    }
-
-    private function toNonNegativeInt(mixed $value): int
-    {
-        return Support::toNonNegativeInt($value);
-    }
-
-    private function truncateUrl(string $url, int $maxLength): string
-    {
-        return Support::truncateUrl($url, $maxLength);
-    }
-
-    private function formatRatioFloatInput(?int $ratioWidth, ?int $ratioHeight): string
-    {
-        return Support::formatRatioFloatInput($ratioWidth, $ratioHeight);
-    }
-
-    private function slugifyReviewTransformName(string $transformName): string
-    {
-        return Support::slugifyTransformName($transformName);
-    }
-
-    private function addGlobalError(array &$validation, string $message): void
-    {
-        Support::addGlobalError($validation, $message);
-    }
-
-    private function addFieldError(array &$validation, string $fieldPath, string $message): void
-    {
-        Support::addFieldError($validation, $fieldPath, $message);
-    }
 }
