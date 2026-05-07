@@ -1100,17 +1100,20 @@ final class ReviewRenderer
         );
 
         $currentEnabled = ($currentRow['enabled'] ?? true) === true;
-        $previewMedia = $previewSrc !== ''
-            ? sprintf(
-                '<img src="%s" alt="%s" class="bpi_breakpoint-result-image" draggable="false" style="--bpts-aspect-ratio:%s;">',
-                $this->escapeReviewHtml($previewSrc),
-                $this->escapeReviewHtml('Preview ' . $transformName . ' ' . $breakpoint . 'px'),
-                $this->escapeReviewHtml($aspectRatio),
-            )
-            : sprintf(
-                '<div class="bpi_breakpoint-result-image" style="--bpts-aspect-ratio:%s;"></div>',
-                $this->escapeReviewHtml($aspectRatio),
-            );
+        $previewMedia = '';
+        if ($currentEnabled) {
+            $previewMedia = $previewSrc !== ''
+                ? sprintf(
+                    '<img src="%s" alt="%s" class="bpi_breakpoint-result-image" draggable="false" style="--bpts-aspect-ratio:%s;">',
+                    $this->escapeReviewHtml($previewSrc),
+                    $this->escapeReviewHtml('Preview ' . $transformName . ' ' . $breakpoint . 'px'),
+                    $this->escapeReviewHtml($aspectRatio),
+                )
+                : sprintf(
+                    '<div class="bpi_breakpoint-result-image" style="--bpts-aspect-ratio:%s;"></div>',
+                    $this->escapeReviewHtml($aspectRatio),
+                );
+        }
 
         $hiddenCount = (int)($summary['hiddenCount'] ?? 0);
         $unloadedCount = (int)($summary['unloadedCount'] ?? 0);

@@ -5,13 +5,11 @@ namespace craftyhedge\craftbreakpoints;
 use Craft;
 use craft\base\Model;
 use craft\base\Plugin as BasePlugin;
-use craft\events\PluginEvent;
 use craft\events\RegisterTemplateRootsEvent;
 use craft\events\RegisterUrlRulesEvent;
 use craft\helpers\App;
 use craft\helpers\UrlHelper;
 use craft\log\MonologTarget;
-use craft\services\Plugins;
 use craft\web\UrlManager;
 use craft\web\View;
 use craft\web\twig\variables\CraftVariable;
@@ -75,8 +73,6 @@ class Plugin extends BasePlugin
         $this->registerTwigExtension();
         $this->registerTemplateRoots();
         $this->registerTwigVariable();
-        $this->registerInstallEventHandlers();
-
         $this->getTransformStore()->initialize();
 
         Event::on(
@@ -258,21 +254,6 @@ class Plugin extends BasePlugin
             static function(Event $event): void {
                 $variable = $event->sender;
                 $variable->set('images', Images::class);
-            }
-        );
-    }
-
-    private function registerInstallEventHandlers(): void
-    {
-        Event::on(
-            Plugins::class,
-            Plugins::EVENT_AFTER_INSTALL_PLUGIN,
-            function(PluginEvent $event): void {
-                if ($event->plugin !== $this) {
-                    return;
-                }
-
-                $this->getTransformStore()->initialize();
             }
         );
     }

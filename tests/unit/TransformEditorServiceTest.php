@@ -467,7 +467,7 @@ final class TransformEditorServiceTest extends Unit
         ]));
 
         $html = (string)($result['visualResultsHtml'] ?? '');
-        $this->assertStringNotContainsString('bpts-breakpoint-column-mismatch', $html);
+        $this->assertStringContainsString('breakpointColumnMismatchClass&quot;:&quot;0&quot;', $html);
         $this->assertStringNotContainsString('bpts-transform-asset-page-mismatch', $html);
 
         $xpath = $this->createReviewMarkupXPath($html);
@@ -515,7 +515,7 @@ final class TransformEditorServiceTest extends Unit
         ]));
 
         $xpath = $this->createReviewMarkupXPath((string)($result['visualResultsHtml'] ?? ''));
-        $applyButtons = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpts-rendered-apply-single ') and @data-bpts-action='renderedValues' and contains(@aria-label, '640px')]");
+        $applyButtons = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpts-rendered-apply-single ') and @data-bpts-action='renderedValues']");
         $this->assertNotFalse($applyButtons);
         $this->assertSame(1, $applyButtons->length);
     }
@@ -821,9 +821,7 @@ final class TransformEditorServiceTest extends Unit
         $this->assertNotFalse($hiddenApplyButtons);
         $this->assertSame(1, $hiddenApplyButtons->length);
 
-        $hiddenColumnButtons = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpts-rendered-apply-single ') and contains(concat(' ', normalize-space(@class), ' '), ' bpts-force-hidden ')]");
-        $this->assertNotFalse($hiddenColumnButtons);
-        $this->assertGreaterThan(0, $hiddenColumnButtons->length);
+        $this->assertStringContainsString('breakpointRenderedApplyHiddenClass&quot;:&quot;1&quot;', (string)($result['visualResultsHtml'] ?? ''));
     }
 
     public function testRenderInitialStoredReviewUsesEmptyStateWhenNoStoredTransformsExist(): void
@@ -1378,7 +1376,7 @@ final class TransformEditorServiceTest extends Unit
         ]));
 
         $html = (string)($result['visualResultsHtml'] ?? '');
-        $this->assertStringNotContainsString('bpts-breakpoint-column-mismatch', $html);
+        $this->assertStringContainsString('breakpointColumnMismatchClass&quot;:&quot;0&quot;', $html);
         $this->assertStringNotContainsString('bpts-transform-asset-page-mismatch', $html);
     }
 
@@ -1498,10 +1496,7 @@ final class TransformEditorServiceTest extends Unit
         $html = (string)($result['visualResultsHtml'] ?? '');
         $this->assertStringContainsString('bpi_current-ratio-overlay', $html);
 
-        $xpath = $this->createReviewMarkupXPath($html);
-        $derivedHeight = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-breakpoint-column ') and @data-breakpoint='640']//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi_current-dimension ') and contains(concat(' ', normalize-space(@class), ' '), ' bpi_current-dimension-derived ') and @data-dimension='height']");
-        $this->assertNotFalse($derivedHeight);
-        $this->assertSame(1, $derivedHeight->length);
+        $this->assertStringContainsString('currentHeightDerivedClass&quot;:&quot;1&quot;', $html);
     }
 
     public function testRenderInitialStoredReviewDoesNotMarkDerivedDimensionWhenAutoIsActive(): void

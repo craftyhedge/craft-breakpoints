@@ -52,13 +52,25 @@ class ImageTransforms extends Component
             : null;
         $autoDimension = $this->resolveAutoDimension($variant, $initOptions);
 
+        $setName = $this->resolveSetName($config);
+
+        $transformedPrimary = $this->getTransformedImages($image, $setName, 'primary', $config);
+        $transformedSecondary = $this->getTransformedImages($image, $setName, 'secondary', $config);
+
         if ($this->_plugin->getBreakpointPolicy()->isBreakpointDisabled($breakpointName, $config)) {
             $sourceMediaQuery = $this->getDisabledMediaQuery($breakpoint);
+            $disabledPrimary = $transformedPrimary[$loopIndex] ?? null;
+            $disabledWidth = is_array($disabledPrimary) && isset($disabledPrimary['width']) ? (int)$disabledPrimary['width'] : 1;
+            $disabledHeight = is_array($disabledPrimary) && isset($disabledPrimary['height']) ? (int)$disabledPrimary['height'] : 1;
+            $disabledUrl = is_array($disabledPrimary) && isset($disabledPrimary['url'])
+                ? (string)$disabledPrimary['url']
+                : self::TRANSPARENT_PIXEL_DATA_URI;
+
             $primarySourceAttributes = array_merge([
-                'srcset' => self::TRANSPARENT_PIXEL_DATA_URI,
-                'type' => 'image/gif',
-                'width' => 1,
-                'height' => 1,
+                'srcset' => $disabledUrl,
+                'type' => 'image/svg+xml',
+                'width' => $disabledWidth,
+                'height' => $disabledHeight,
             ], $this->buildSourceDataAttributes(
                 $breakpoint,
                 false,
@@ -75,11 +87,18 @@ class ImageTransforms extends Component
             $secondarySourceAttributes = [];
             $secondaryFormat = null;
             if ($this->isSecondaryFormatEnabled(['secondaryFormat' => $effectiveSecondaryFormat])) {
+                $disabledSecondary = $transformedSecondary[$loopIndex] ?? null;
+                $disabledSecondaryWidth = is_array($disabledSecondary) && isset($disabledSecondary['width']) ? (int)$disabledSecondary['width'] : $disabledWidth;
+                $disabledSecondaryHeight = is_array($disabledSecondary) && isset($disabledSecondary['height']) ? (int)$disabledSecondary['height'] : $disabledHeight;
+                $disabledSecondaryUrl = is_array($disabledSecondary) && isset($disabledSecondary['url'])
+                    ? (string)$disabledSecondary['url']
+                    : $disabledUrl;
+
                 $secondarySourceAttributes = array_merge([
-                    'srcset' => self::TRANSPARENT_PIXEL_DATA_URI,
-                    'type' => 'image/gif',
-                    'width' => 1,
-                    'height' => 1,
+                    'srcset' => $disabledSecondaryUrl,
+                    'type' => 'image/svg+xml',
+                    'width' => $disabledSecondaryWidth,
+                    'height' => $disabledSecondaryHeight,
                 ], $this->buildSourceDataAttributes(
                     $breakpoint,
                     false,
@@ -93,13 +112,13 @@ class ImageTransforms extends Component
                     $secondarySourceAttributes['media'] = $sourceMediaQuery;
                 }
 
-                $secondaryFormat = ['disabled' => true, 'format' => 'gif'];
+                $secondaryFormat = ['disabled' => true, 'format' => 'svg'];
             }
 
             $result = [
                 'primarySourceAttributes' => $primarySourceAttributes,
                 'secondarySourceAttributes' => $secondarySourceAttributes,
-                'primaryFormat' => ['disabled' => true, 'format' => 'gif', 'url' => self::TRANSPARENT_PIXEL_DATA_URI],
+                'primaryFormat' => ['disabled' => true, 'format' => 'svg', 'url' => $disabledUrl],
                 'secondaryFormat' => $secondaryFormat,
                 'disabled' => true,
             ];
@@ -108,11 +127,6 @@ class ImageTransforms extends Component
 
             return $result;
         }
-
-        $setName = $this->resolveSetName($config);
-
-        $transformedPrimary = $this->getTransformedImages($image, $setName, 'primary', $config);
-        $transformedSecondary = $this->getTransformedImages($image, $setName, 'secondary', $config);
 
         $primary = $transformedPrimary[$loopIndex] ?? null;
         $secondary = $transformedSecondary[$loopIndex] ?? null;
@@ -322,12 +336,7 @@ class ImageTransforms extends Component
 
         $index = 0;
         foreach ($breakpoints as $breakpointName => $breakpointWidth) {
-            if ($this->_plugin->getBreakpointPolicy()->isBreakpointDisabled((string)$breakpointName, $config)) {
-                $transformed[$index] = $this->getPlaceholderTransform((int)$image->id);
-                $index++;
-                continue;
-            }
-
+            $isDisabled = $this->_plugin->getBreakpointPolicy()->isBreakpointDisabled((string)$breakpointName, $config);
             $namedSetVariant = $this->getVariantByBreakpointName($namedSet, (string)$breakpointName);
 
             $targetWidth = (int)$breakpointWidth;
@@ -392,6 +401,19 @@ class ImageTransforms extends Component
 
             if ($computedHeight === null || $computedHeight <= 0) {
                 $computedHeight = $sourceHeight;
+            }
+
+            if ($isDisabled) {
+                $transformed[$index] = [
+                    'url' => $this->buildSizedPlaceholderUrl($computedWidth, $computedHeight),
+                    'width' => $computedWidth,
+                    'height' => $computedHeight,
+                    'format' => 'svg',
+                    'id' => $image->id,
+                    'disabled' => true,
+                ];
+                $index++;
+                continue;
             }
 
             $transformConfig = [
@@ -504,18 +526,6 @@ class ImageTransforms extends Component
         }
 
         return self::PROCESSING_MEDIA_OVERSIZE_PX;
-    }
-
-    private function getPlaceholderTransform(?int $assetId = null): array
-    {
-        return [
-            'url' => self::TRANSPARENT_PIXEL_DATA_URI,
-            'width' => 1,
-            'height' => 1,
-            'format' => 'gif',
-            'id' => $assetId,
-            'disabled' => true,
-        ];
     }
 
     private function isSecondaryFormatEnabled(array $config): bool
@@ -764,7 +774,19 @@ class ImageTransforms extends Component
             'webp' => 'image/webp',
             'avif' => 'image/avif',
             'gif' => 'image/gif',
+            'svg' => 'image/svg+xml',
             default => 'image/jpeg',
         };
+    }
+
+    private function buildSizedPlaceholderUrl(int $width, int $height): string
+    {
+        if ($width <= 0 || $height <= 0) {
+            return self::TRANSPARENT_PIXEL_DATA_URI;
+        }
+
+        $svg = sprintf('<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d"/>', $width, $height);
+
+        return 'data:image/svg+xml;base64,' . base64_encode($svg);
     }
 }

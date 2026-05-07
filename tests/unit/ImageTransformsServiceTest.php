@@ -121,11 +121,11 @@ final class ImageTransformsServiceTest extends Unit
 
         $this->assertTrue($breakpointData['disabled']);
         $this->assertSame('false', $breakpointData['primarySourceAttributes']['data-bp-enabled']);
-        $this->assertSame('data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', $breakpointData['primarySourceAttributes']['srcset']);
-        $this->assertSame('image/gif', $breakpointData['primarySourceAttributes']['type']);
-        $this->assertSame('gif', $breakpointData['primaryFormat']['format']);
+        $this->assertSame('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0ODAiIGhlaWdodD0iMjcwIi8+', $breakpointData['primarySourceAttributes']['srcset']);
+        $this->assertSame('image/svg+xml', $breakpointData['primarySourceAttributes']['type']);
+        $this->assertSame('svg', $breakpointData['primaryFormat']['format']);
         $this->assertSame('(max-width: 29.9375rem)', $breakpointData['primarySourceAttributes']['media']);
-        $this->assertSame('image/gif', $breakpointData['secondarySourceAttributes']['type']);
+        $this->assertSame('image/svg+xml', $breakpointData['secondarySourceAttributes']['type']);
     }
 
     public function testDprSrcsetContainsHigherDensityCandidate(): void
