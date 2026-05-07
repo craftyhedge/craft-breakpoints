@@ -17,6 +17,7 @@ final class ReviewRenderer
     private const REVIEW_MODE_PROCESSED = 'processed';
     private const REVIEW_MODE_SAVED = 'saved';
     private readonly CardStateBuilder $cardStateBuilder;
+    private readonly ReviewBreakpointStateBuilder $breakpointStateBuilder;
 
     /**
      * Per-render cache of telemetry init options keyed by transform handle.
@@ -33,6 +34,7 @@ final class ReviewRenderer
         private readonly ReviewWarningsBuilder $warningsBuilder,
     ) {
         $this->cardStateBuilder = new CardStateBuilder();
+        $this->breakpointStateBuilder = new ReviewBreakpointStateBuilder($healthAnalyzer);
     }
 
     public function renderResultReview(
@@ -432,50 +434,25 @@ final class ReviewRenderer
         bool $hideRenderedApply,
         string $reviewMode
     ): array {
-        $summary = $this->summarizeReviewRows($rows);
-        $renderedRowsPayload = $this->buildReviewRenderedRowsPayload($rows, $breakpoint);
-        $renderedWidth = (int)($summary['renderedWidth'] ?? 0);
-        $renderedHeight = (int)($summary['renderedHeight'] ?? 0);
+        $state = $this->breakpointStateBuilder->build(
+            $transformName,
+            $breakpoint,
+            $rows,
+            $currentRow,
+            $passHeightWhenRenderedLteSaved,
+            $savedWidth,
+            $savedHeight,
+            $allowAnyHeight,
+            $hideRenderedApply,
+            $reviewMode,
+        );
 
-        $previewRow = $this->pickReviewPreviewRow($rows);
-        $previewSrc = is_array($previewRow) ? (string)($previewRow['src'] ?? '') : '';
-
-        $currentWidth = $this->normalizeNullablePositiveInt($currentRow['width'] ?? null);
-        $currentHeight = $this->normalizeNullablePositiveInt($currentRow['height'] ?? null);
-        $autoDimension = $this->normalizeAutoDimension($currentRow['autoDimension'] ?? null);
-        $currentRatioWidth = $this->normalizeNullablePositiveInt($currentRow['ratioWidth'] ?? null);
-        $currentRatioHeight = $this->normalizeNullablePositiveInt($currentRow['ratioHeight'] ?? null);
-        $currentRatioSourceDimension = $this->normalizeRatioSourceDimension($currentRow['ratioSourceDimension'] ?? null) ?? 'width';
-        $currentRatioLocked = ($currentRow['ratioLocked'] ?? false) === true
-            && $currentRatioWidth !== null
-            && $currentRatioHeight !== null;
-        $ratioIsDrivingDimensions = $currentRatioLocked && $autoDimension === null;
-        $currentWidthDerivedClass = $ratioIsDrivingDimensions && $currentRatioSourceDimension === 'height';
-        $currentHeightDerivedClass = $ratioIsDrivingDimensions && $currentRatioSourceDimension === 'width';
-
-        $widthClass = $this->getReviewRenderedDimensionClass($renderedWidth, $currentWidth, $autoDimension, 'width');
-        $heightClass = $this->getReviewRenderedDimensionClass($renderedHeight, $currentHeight, $autoDimension, 'height');
-
-        $renderedApplyNoop = $this->isReviewRenderedApplyNoop($renderedRowsPayload, $currentWidth, $currentHeight, $autoDimension);
-
-        $currentEnabled = ($currentRow['enabled'] ?? true) === true;
-
-        $hasBreakpointMismatch = false;
-        if ($reviewMode === self::REVIEW_MODE_PROCESSED && $currentEnabled) {
-            $columnEvaluation = $this->evaluateBreakpointMatch(
-                $renderedWidth,
-                $renderedHeight,
-                $savedWidth,
-                $savedHeight,
-                $autoDimension,
-                $passHeightWhenRenderedLteSaved,
-                $allowAnyHeight,
-            );
-            $hasBreakpointMismatch = $columnEvaluation['isBreakpointMismatch'];
-        }
+        $renderedRowsPayload = $state['renderedRowsPayload'];
+        $renderedApplyNoop = ($state['renderedApplyNoop'] ?? false) === true;
+        $currentEnabled = ($state['currentEnabled'] ?? true) === true;
 
         return [
-            'breakpointColumnMismatchClass' => $hasBreakpointMismatch ? '1' : '0',
+            'breakpointColumnMismatchClass' => ($state['hasBreakpointMismatch'] ?? false) === true ? '1' : '0',
             'breakpointColumnDisabledClass' => $currentEnabled ? '0' : '1',
             'breakpointEnableTitle' => $currentEnabled ? "Disable {$breakpoint}px breakpoint" : "Enable {$breakpoint}px breakpoint",
             'breakpointEnableAriaLabel' => $currentEnabled ? "Disable {$breakpoint}px breakpoint" : "Enable {$breakpoint}px breakpoint",
@@ -491,10 +468,10 @@ final class ReviewRenderer
             'breakpointRenderedApplyIconName' => $renderedApplyNoop ? 'check' : 'arrow-down',
             'breakpointRenderedApplyHiddenClass' => $hideRenderedApply ? '1' : '0',
             'breakpointRenderedRowHiddenClass' => $hideRenderedApply ? '1' : '0',
-            'widthClass' => $widthClass,
-            'heightClass' => $heightClass,
-            'currentWidthDerivedClass' => $currentWidthDerivedClass ? '1' : '0',
-            'currentHeightDerivedClass' => $currentHeightDerivedClass ? '1' : '0',
+            'widthClass' => (string)($state['widthClass'] ?? ''),
+            'heightClass' => (string)($state['heightClass'] ?? ''),
+            'currentWidthDerivedClass' => (string)($state['currentWidthDerivedClass'] ?? '') !== '' ? '1' : '0',
+            'currentHeightDerivedClass' => (string)($state['currentHeightDerivedClass'] ?? '') !== '' ? '1' : '0',
             'previewMediaHidden' => $currentEnabled ? '0' : '1',
         ];
     }
@@ -1015,91 +992,40 @@ final class ReviewRenderer
         ?int $savedHeight = null,
         bool $allowAnyHeight = false,
     ): string {
-        $summary = $this->summarizeReviewRows($rows);
-        $renderedRowsPayload = $this->buildReviewRenderedRowsPayload($rows, $breakpoint);
-
-        $renderedWidth = (int)($summary['renderedWidth'] ?? 0);
-        $renderedHeight = (int)($summary['renderedHeight'] ?? 0);
-        $previewRow = $this->pickReviewPreviewRow($rows);
-        $previewSrc = is_array($previewRow) ? (string)($previewRow['src'] ?? '') : '';
-        $currentWidth = $this->normalizeNullablePositiveInt($currentRow['width'] ?? null);
-        $currentHeight = $this->normalizeNullablePositiveInt($currentRow['height'] ?? null);
-        $autoDimension = $this->normalizeAutoDimension($currentRow['autoDimension'] ?? null);
-        $currentRatioWidth = $this->normalizeNullablePositiveInt($currentRow['ratioWidth'] ?? null);
-        $currentRatioHeight = $this->normalizeNullablePositiveInt($currentRow['ratioHeight'] ?? null);
-        $currentRatioSourceDimension = $this->normalizeRatioSourceDimension($currentRow['ratioSourceDimension'] ?? null) ?? 'width';
-        $currentRatioLocked = ($currentRow['ratioLocked'] ?? false) === true
-            && $currentRatioWidth !== null
-            && $currentRatioHeight !== null;
-        $currentRatioFloatValue = $currentRatioLocked
-            ? $this->formatRatioFloatInput($currentRatioWidth, $currentRatioHeight)
-            : '';
-        $ratioIsDrivingDimensions = $currentRatioLocked && $autoDimension === null;
-        $currentWidthDerivedClass = $ratioIsDrivingDimensions && $currentRatioSourceDimension === 'height'
-            ? 'bpi_current-dimension-derived'
-            : '';
-        $currentHeightDerivedClass = $ratioIsDrivingDimensions && $currentRatioSourceDimension === 'width'
-            ? 'bpi_current-dimension-derived'
-            : '';
-
-        $displayWidth = $renderedWidth;
-        $displayHeight = $renderedHeight;
-        if (is_array($previewRow)) {
-            $previewRenderedWidth = $this->toNonNegativeInt($previewRow['rendered']['width'] ?? 0);
-            $previewRenderedHeight = $this->toNonNegativeInt($previewRow['rendered']['height'] ?? 0);
-            if ($previewRenderedWidth > 0 && $previewRenderedHeight > 0) {
-                $displayWidth = $previewRenderedWidth;
-                $displayHeight = $previewRenderedHeight;
-            }
-
-            if ($displayWidth < 1 || $displayHeight < 1) {
-                $previewTransformDimensions = is_array($previewRow['transformDimensions'] ?? null)
-                    ? $previewRow['transformDimensions']
-                    : [];
-                [$fallbackWidth, $fallbackHeight] = $this->resolveInitialPreviewBoxDimensions(
-                    $this->normalizeNullablePositiveInt($previewTransformDimensions['width'] ?? null),
-                    $this->normalizeNullablePositiveInt($previewTransformDimensions['height'] ?? null),
-                    $this->normalizeAutoDimension($previewTransformDimensions['autoDimension'] ?? null),
-                );
-
-                if ($fallbackWidth > 0 && $fallbackHeight > 0) {
-                    $displayWidth = $fallbackWidth;
-                    $displayHeight = $fallbackHeight;
-                }
-            }
-        }
-
-        if ($displayWidth < 1 || $displayHeight < 1) {
-            if ($previewSrc !== '' && $breakpoint > 0) {
-                // Keep unknown preview dimensions bounded to breakpoint box to avoid oversizing.
-                $displayWidth = $breakpoint;
-                $displayHeight = $breakpoint;
-            } else {
-                [$displayWidth, $displayHeight] = $this->resolveInitialPreviewBoxDimensions(
-                    $currentWidth,
-                    $currentHeight,
-                    $autoDimension,
-                );
-            }
-        }
-
-        $aspectRatio = $displayWidth > 0 && $displayHeight > 0
-            ? $displayWidth . ' / ' . $displayHeight
-            : '1 / 1';
-        $relativeWidth = $breakpoint > 0
-            ? max(0.0, min(100.0, ($displayWidth / $breakpoint) * 100))
-            : 0.0;
-
-        $widthClass = $this->getReviewRenderedDimensionClass($renderedWidth, $currentWidth, $autoDimension, 'width');
-        $heightClass = $this->getReviewRenderedDimensionClass($renderedHeight, $currentHeight, $autoDimension, 'height');
-        $renderedApplyNoop = $this->isReviewRenderedApplyNoop(
-            $renderedRowsPayload,
-            $currentWidth,
-            $currentHeight,
-            $autoDimension,
+        $state = $this->breakpointStateBuilder->build(
+            $transformName,
+            $breakpoint,
+            $rows,
+            $currentRow,
+            $passHeightWhenRenderedLteSaved,
+            $savedWidth,
+            $savedHeight,
+            $allowAnyHeight,
+            $hideRenderedApply,
+            $reviewMode,
         );
 
-        $currentEnabled = ($currentRow['enabled'] ?? true) === true;
+        $summary = $state['summary'];
+        $renderedRowsPayload = $state['renderedRowsPayload'];
+        $renderedWidth = (int)($state['renderedWidth'] ?? 0);
+        $renderedHeight = (int)($state['renderedHeight'] ?? 0);
+        $previewSrc = (string)($state['previewSrc'] ?? '');
+        $currentWidth = $state['currentWidth'] ?? null;
+        $currentHeight = $state['currentHeight'] ?? null;
+        $currentRatioWidth = $state['currentRatioWidth'] ?? null;
+        $currentRatioHeight = $state['currentRatioHeight'] ?? null;
+        $currentRatioFloatValue = (string)($state['currentRatioFloatValue'] ?? '');
+        $currentRatioSourceDimension = (string)($state['currentRatioSourceDimension'] ?? 'width');
+        $currentRatioLocked = ($state['currentRatioLocked'] ?? false) === true;
+        $autoDimension = $state['autoDimension'] ?? null;
+        $aspectRatio = (string)($state['aspectRatio'] ?? '1 / 1');
+        $relativeWidth = (float)($state['relativeWidth'] ?? 0.0);
+        $widthClass = (string)($state['widthClass'] ?? '');
+        $heightClass = (string)($state['heightClass'] ?? '');
+        $renderedApplyNoop = ($state['renderedApplyNoop'] ?? false) === true;
+        $currentEnabled = ($state['currentEnabled'] ?? true) === true;
+        $currentWidthDerivedClass = (string)($state['currentWidthDerivedClass'] ?? '');
+        $currentHeightDerivedClass = (string)($state['currentHeightDerivedClass'] ?? '');
         $previewMedia = '';
         if ($currentEnabled) {
             $previewMedia = $previewSrc !== ''
@@ -1126,19 +1052,7 @@ final class ReviewRenderer
         $escapeBadge = $escapeBreakpoint !== null && $escapeBreakpoint === $breakpoint
             ? '<span class="bpi_escaped-notice">ESC</span>'
             : '';
-        $hasBreakpointMismatch = false;
-        if ($reviewMode === self::REVIEW_MODE_PROCESSED && $currentEnabled) {
-            $columnEvaluation = $this->evaluateBreakpointMatch(
-                $renderedWidth,
-                $renderedHeight,
-                $savedWidth,
-                $savedHeight,
-                $autoDimension,
-                $passHeightWhenRenderedLteSaved,
-                $allowAnyHeight,
-            );
-            $hasBreakpointMismatch = $columnEvaluation['isBreakpointMismatch'];
-        }
+        $hasBreakpointMismatch = ($state['hasBreakpointMismatch'] ?? false) === true;
 
         $isSelected = $allSelected || ($selectedBreakpoint !== null && $selectedBreakpoint === $breakpoint);
         $breakpointColumnWidth = (float)($breakpointColumnWidths[(string)$breakpoint] ?? 1.0);
@@ -1241,7 +1155,6 @@ final class ReviewRenderer
                 $normalizedRows[] = [
                     'assetId' => $assetId,
                     'assetKey' => $this->buildReviewAssetKey($transformName, $assetId, $sourceUsed, $src, $title),
-                    'rowKey' => $this->buildReviewRowKey($breakpoint, $transformName, $assetId, $sourceUsed, $src, $title),
                     'transform' => $transformName,
                     'title' => $title,
                     'enabled' => ($row['enabled'] ?? true) === true,
@@ -1741,22 +1654,6 @@ final class ReviewRenderer
         return ReviewAssetCollector::buildAssetKey($transformName, $assetId, $sourceUsed, $src, $title);
     }
 
-    private function buildReviewRowKey(
-        int $breakpoint,
-        string $transformName,
-        string $assetId,
-        string $sourceUsed,
-        string $src,
-        string $title,
-    ): string {
-        return ReviewAssetCollector::buildRowKey($breakpoint, $transformName, $assetId, $sourceUsed, $src, $title);
-    }
-
-    private function normalizeReviewSourceSignature(string $sourceUsed, string $src, string $title): string
-    {
-        return ReviewAssetCollector::normalizeSourceSignature($sourceUsed, $src, $title);
-    }
-
     /**
      * @param array<int, array<int, array<string, mixed>>> $rowsByBreakpoint
      * @param array<int, int> $transformBreakpoints
@@ -1794,11 +1691,6 @@ final class ReviewRenderer
             $selectedAssetKey,
             $transformBreakpoints,
         );
-    }
-
-    private function buildReviewAssetLabel(array $row, int $fallbackIndex): string
-    {
-        return ReviewAssetCollector::buildAssetLabel($row, $fallbackIndex);
     }
 
     private function buildReviewAssetPaginationMarkup(

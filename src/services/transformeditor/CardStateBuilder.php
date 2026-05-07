@@ -2,6 +2,17 @@
 
 namespace craftyhedge\craftbreakpoints\services\transformeditor;
 
+/**
+ * Assembles the full UI state array for a transform editor card.
+ *
+ * Takes raw persisted rows keyed by breakpoint width, the ordered list of active
+ * breakpoints, and raw scope/tab values from the client, then produces a normalised
+ * state snapshot consumed by the card template. Responsibilities include: validating
+ * and defaulting the scope (all vs. single breakpoint), resolving the active tab
+ * (falling back from ratio when auto-dimension is set), computing per-breakpoint row
+ * state (inputs, auto flags, ratio lock, display strings), and extracting the
+ * scope-specific values surfaced in the editor controls.
+ */
 final class CardStateBuilder
 {
     /**

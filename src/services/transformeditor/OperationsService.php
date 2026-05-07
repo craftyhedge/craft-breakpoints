@@ -63,21 +63,8 @@ final class OperationsService
             ];
         }
 
-        $sets = $this->transformStore->getSets();
-        $hasExistingSet = isset($sets[$transformName]) && is_array($sets[$transformName]);
-
-        if ($hasExistingSet) {
-            $setDefinition = $sets[$transformName];
-            $resolvedIncludeEscapeWidth = ($setDefinition['includeEscapeWidth'] ?? false) === true;
-        } else {
-            $resolvedIncludeEscapeWidth = $includeEscapeWidth === true;
-            $setDefinition = [
-                'name' => $transformName,
-                'includeEscapeWidth' => $resolvedIncludeEscapeWidth,
-                'variants' => [],
-                'config' => [],
-            ];
-        }
+        ['sets' => $sets, 'set' => $setDefinition, 'includeEscapeWidth' => $resolvedIncludeEscapeWidth] =
+            $this->loadOrInitSet($transformName, $includeEscapeWidth);
 
         $variants = $setDefinition['variants'] ?? [];
         $applyDimensionValue = static function (array $currentEntry) use ($dimension, $value): array {
@@ -128,18 +115,12 @@ final class OperationsService
             }
 
             $breakpointKey = $targetResolution['key'];
-            $currentEntry = isset($variants[$breakpointKey]) && is_array($variants[$breakpointKey])
-                ? $variants[$breakpointKey]
-                : Support::buildDefaultTransformEntry();
-
-            $variants[$breakpointKey] = $applyDimensionValue($currentEntry);
+            $variants[$breakpointKey] = $applyDimensionValue(self::getOrInitVariant($variants, $breakpointKey));
         } else {
             $definitions = $this->breakpointCatalog->getDefinitionsForIncludeEscapeWidth($resolvedIncludeEscapeWidth);
             foreach ($definitions as $definition) {
                 $breakpointKey = $definition['key'];
-                $currentEntry = isset($variants[$breakpointKey]) && is_array($variants[$breakpointKey])
-                    ? $variants[$breakpointKey]
-                    : Support::buildDefaultTransformEntry();
+                $currentEntry = self::getOrInitVariant($variants, $breakpointKey);
 
                 if (($currentEntry['autoDimension'] ?? null) === $dimension) {
                     $variants[$breakpointKey] = $currentEntry;
@@ -185,21 +166,8 @@ final class OperationsService
             ];
         }
 
-        $sets = $this->transformStore->getSets();
-        $hasExistingSet = isset($sets[$transformName]) && is_array($sets[$transformName]);
-
-        if ($hasExistingSet) {
-            $setDefinition = $sets[$transformName];
-            $resolvedIncludeEscapeWidth = ($setDefinition['includeEscapeWidth'] ?? false) === true;
-        } else {
-            $resolvedIncludeEscapeWidth = $includeEscapeWidth === true;
-            $setDefinition = [
-                'name' => $transformName,
-                'includeEscapeWidth' => $resolvedIncludeEscapeWidth,
-                'variants' => [],
-                'config' => [],
-            ];
-        }
+        ['sets' => $sets, 'set' => $setDefinition, 'includeEscapeWidth' => $resolvedIncludeEscapeWidth] =
+            $this->loadOrInitSet($transformName, $includeEscapeWidth);
 
         $variants = $setDefinition['variants'] ?? [];
         $resolvedWidthAuto = $widthAuto === true;
@@ -223,9 +191,7 @@ final class OperationsService
             }
 
             $breakpointKey = $targetResolution['key'];
-            $currentEntry = isset($variants[$breakpointKey]) && is_array($variants[$breakpointKey])
-                ? $variants[$breakpointKey]
-                : Support::buildDefaultTransformEntry();
+            $currentEntry = self::getOrInitVariant($variants, $breakpointKey);
 
             $autoDimension = Support::normalizeAutoDimension($currentEntry['autoDimension'] ?? null);
             $preserveWidth = $preserveAutos && $autoDimension === 'width';
@@ -298,9 +264,7 @@ final class OperationsService
             $definitions = $this->breakpointCatalog->getDefinitionsForIncludeEscapeWidth($resolvedIncludeEscapeWidth);
             foreach ($definitions as $definition) {
                 $breakpointKey = $definition['key'];
-                $currentEntry = isset($variants[$breakpointKey]) && is_array($variants[$breakpointKey])
-                    ? $variants[$breakpointKey]
-                    : Support::buildDefaultTransformEntry();
+                $currentEntry = self::getOrInitVariant($variants, $breakpointKey);
 
                 $autoDimension = Support::normalizeAutoDimension($currentEntry['autoDimension'] ?? null);
                 $preserveWidth = $preserveAutos && $autoDimension === 'width';
@@ -466,21 +430,8 @@ final class OperationsService
             ];
         }
 
-        $sets = $this->transformStore->getSets();
-        $hasExistingSet = isset($sets[$transformName]) && is_array($sets[$transformName]);
-
-        if ($hasExistingSet) {
-            $setDefinition = $sets[$transformName];
-            $resolvedIncludeEscapeWidth = ($setDefinition['includeEscapeWidth'] ?? false) === true;
-        } else {
-            $resolvedIncludeEscapeWidth = $includeEscapeWidth === true;
-            $setDefinition = [
-                'name' => $transformName,
-                'includeEscapeWidth' => $resolvedIncludeEscapeWidth,
-                'variants' => [],
-                'config' => [],
-            ];
-        }
+        ['set' => $setDefinition, 'includeEscapeWidth' => $resolvedIncludeEscapeWidth] =
+            $this->loadOrInitSet($transformName, $includeEscapeWidth);
 
         $isAutoEnabledForScope = false;
         $targetResolution = null;
@@ -503,9 +454,7 @@ final class OperationsService
             if ($targetResolution !== null) {
                 $breakpointKey = $targetResolution['key'];
                 $variants = $setDefinition['variants'] ?? [];
-                $entry = isset($variants[$breakpointKey]) && is_array($variants[$breakpointKey])
-                    ? $variants[$breakpointKey]
-                    : Support::buildDefaultTransformEntry();
+                $entry = self::getOrInitVariant($variants, $breakpointKey);
                 $isAutoEnabledForScope = Support::normalizeAutoDimension($entry['autoDimension'] ?? null) === $autoDimension;
             }
         }
@@ -661,21 +610,8 @@ final class OperationsService
             ];
         }
 
-        $sets = $this->transformStore->getSets();
-        $hasExistingSet = isset($sets[$transformName]) && is_array($sets[$transformName]);
-
-        if ($hasExistingSet) {
-            $setDefinition = $sets[$transformName];
-            $resolvedIncludeEscapeWidth = ($setDefinition['includeEscapeWidth'] ?? false) === true;
-        } else {
-            $resolvedIncludeEscapeWidth = $includeEscapeWidth === true;
-            $setDefinition = [
-                'name' => $transformName,
-                'includeEscapeWidth' => $resolvedIncludeEscapeWidth,
-                'variants' => [],
-                'config' => [],
-            ];
-        }
+        ['sets' => $sets, 'set' => $setDefinition, 'includeEscapeWidth' => $resolvedIncludeEscapeWidth] =
+            $this->loadOrInitSet($transformName, $includeEscapeWidth);
 
         $variants = $setDefinition['variants'] ?? [];
         $preserveAutos = $scopeMode !== 'breakpoint';
@@ -701,9 +637,7 @@ final class OperationsService
             $breakpointKey = $targetResolution['key'];
             $breakpointWidth = $targetResolution['width'];
 
-            $currentEntry = isset($variants[$breakpointKey]) && is_array($variants[$breakpointKey])
-                ? $variants[$breakpointKey]
-                : Support::buildDefaultTransformEntry();
+            $currentEntry = self::getOrInitVariant($variants, $breakpointKey);
 
             if (($currentEntry['enabled'] ?? true) !== true) {
                 Support::addGlobalError($validation, 'Selected breakpoint is disabled.');
@@ -769,9 +703,7 @@ final class OperationsService
                 $breakpointKey = $definition['key'];
                 $breakpointWidth = $definition['width'];
 
-                $currentEntry = isset($variants[$breakpointKey]) && is_array($variants[$breakpointKey])
-                    ? $variants[$breakpointKey]
-                    : Support::buildDefaultTransformEntry();
+                $currentEntry = self::getOrInitVariant($variants, $breakpointKey);
 
                 if (($currentEntry['enabled'] ?? true) !== true) {
                     $skippedBreakpoints[] = [
@@ -889,21 +821,8 @@ final class OperationsService
             ];
         }
 
-        $sets = $this->transformStore->getSets();
-        $hasExistingSet = isset($sets[$transformName]) && is_array($sets[$transformName]);
-
-        if ($hasExistingSet) {
-            $setDefinition = $sets[$transformName];
-            $resolvedIncludeEscapeWidth = ($setDefinition['includeEscapeWidth'] ?? false) === true;
-        } else {
-            $resolvedIncludeEscapeWidth = $includeEscapeWidth === true;
-            $setDefinition = [
-                'name' => $transformName,
-                'includeEscapeWidth' => $resolvedIncludeEscapeWidth,
-                'variants' => [],
-                'config' => [],
-            ];
-        }
+        ['sets' => $sets, 'set' => $setDefinition, 'includeEscapeWidth' => $resolvedIncludeEscapeWidth] =
+            $this->loadOrInitSet($transformName, $includeEscapeWidth);
 
         $targetResolution = $this->breakpointCatalog->resolveOperationTargetOrReject(
             $scopeBreakpointKey,
@@ -923,9 +842,7 @@ final class OperationsService
         $breakpointKey = $targetResolution['key'];
         $variants = $setDefinition['variants'] ?? [];
 
-        $currentEntry = isset($variants[$breakpointKey]) && is_array($variants[$breakpointKey])
-            ? $variants[$breakpointKey]
-            : Support::buildDefaultTransformEntry();
+        $currentEntry = self::getOrInitVariant($variants, $breakpointKey);
 
         if (!$enabledProvided) {
             $enabled = (($currentEntry['enabled'] ?? true) === true) ? false : true;
@@ -1002,21 +919,8 @@ final class OperationsService
             ];
         }
 
-        $sets = $this->transformStore->getSets();
-        $hasExistingSet = isset($sets[$transformName]) && is_array($sets[$transformName]);
-
-        if ($hasExistingSet) {
-            $setDefinition = $sets[$transformName];
-            $resolvedIncludeEscapeWidth = ($setDefinition['includeEscapeWidth'] ?? false) === true;
-        } else {
-            $resolvedIncludeEscapeWidth = $includeEscapeWidth === true;
-            $setDefinition = [
-                'name' => $transformName,
-                'includeEscapeWidth' => $resolvedIncludeEscapeWidth,
-                'variants' => [],
-                'config' => [],
-            ];
-        }
+        ['sets' => $sets, 'set' => $setDefinition, 'includeEscapeWidth' => $resolvedIncludeEscapeWidth] =
+            $this->loadOrInitSet($transformName, $includeEscapeWidth);
 
         $definitions = $this->breakpointCatalog->getDefinitionsForIncludeEscapeWidth($resolvedIncludeEscapeWidth);
         $variants = $setDefinition['variants'] ?? [];
@@ -1024,7 +928,7 @@ final class OperationsService
         foreach ($definitions as $definition) {
             $breakpointKey = $definition['key'];
             if (!isset($variants[$breakpointKey])) {
-                $variants[$breakpointKey] = Support::buildDefaultTransformEntry();
+                $variants[$breakpointKey] = self::getOrInitVariant($variants, $breakpointKey);
             }
         }
 
@@ -1075,21 +979,8 @@ final class OperationsService
             ];
         }
 
-        $sets = $this->transformStore->getSets();
-        $hasExistingSet = isset($sets[$transformName]) && is_array($sets[$transformName]);
-
-        if ($hasExistingSet) {
-            $setDefinition = $sets[$transformName];
-            $resolvedIncludeEscapeWidth = ($setDefinition['includeEscapeWidth'] ?? false) === true;
-        } else {
-            $resolvedIncludeEscapeWidth = $includeEscapeWidth === true;
-            $setDefinition = [
-                'name' => $transformName,
-                'includeEscapeWidth' => $resolvedIncludeEscapeWidth,
-                'variants' => [],
-                'config' => [],
-            ];
-        }
+        ['sets' => $sets, 'set' => $setDefinition, 'includeEscapeWidth' => $resolvedIncludeEscapeWidth] =
+            $this->loadOrInitSet($transformName, $includeEscapeWidth);
 
         $variants = $setDefinition['variants'] ?? [];
         $definitions = $this->breakpointCatalog->getDefinitionsForIncludeEscapeWidth($resolvedIncludeEscapeWidth);
@@ -1125,9 +1016,7 @@ final class OperationsService
                 $breakpointKey = $definition['key'];
                 $breakpointWidth = $definition['width'];
 
-                $currentEntry = isset($variants[$breakpointKey]) && is_array($variants[$breakpointKey])
-                    ? $variants[$breakpointKey]
-                    : Support::buildDefaultTransformEntry();
+                $currentEntry = self::getOrInitVariant($variants, $breakpointKey);
 
                 $autoDimension = Support::normalizeAutoDimension($currentEntry['autoDimension'] ?? null);
                 if ($autoDimension === null) {
@@ -1184,9 +1073,7 @@ final class OperationsService
                     continue;
                 }
 
-                $currentEntry = isset($variants[$breakpointKey]) && is_array($variants[$breakpointKey])
-                    ? $variants[$breakpointKey]
-                    : Support::buildDefaultTransformEntry();
+                $currentEntry = self::getOrInitVariant($variants, $breakpointKey);
 
                 $autoDimension = Support::normalizeAutoDimension($currentEntry['autoDimension'] ?? null);
 
@@ -1309,6 +1196,35 @@ final class OperationsService
     }
 
     /**
+     * @return array{sets: array<string, mixed>, set: array<string, mixed>, includeEscapeWidth: bool}
+     */
+    private function loadOrInitSet(string $transformName, ?bool $includeEscapeWidth): array
+    {
+        $sets = $this->transformStore->getSets();
+        if (isset($sets[$transformName]) && is_array($sets[$transformName])) {
+            $set = $sets[$transformName];
+            $resolved = ($set['includeEscapeWidth'] ?? false) === true;
+        } else {
+            $resolved = $includeEscapeWidth === true;
+            $set = [
+                'name' => $transformName,
+                'includeEscapeWidth' => $resolved,
+                'variants' => [],
+                'config' => [],
+            ];
+        }
+
+        return ['sets' => $sets, 'set' => $set, 'includeEscapeWidth' => $resolved];
+    }
+
+    private static function getOrInitVariant(array $variants, string $key): array
+    {
+        return isset($variants[$key]) && is_array($variants[$key])
+            ? $variants[$key]
+            : Support::buildDefaultTransformEntry();
+    }
+
+    /**
      * @param array<string, mixed> $sets
      * @param array<string, mixed> $validation
      * @return array<string, mixed>
@@ -1348,38 +1264,6 @@ final class OperationsService
         return false;
     }
 
-    private function resolveBreakpointAutoDimension(string $transformName, int $scopeBreakpoint, ?bool $includeEscapeWidth): ?string
-    {
-        $sets = $this->transformStore->getSets();
-        $setDefinition = isset($sets[$transformName]) && is_array($sets[$transformName])
-            ? $sets[$transformName]
-            : null;
-        if ($setDefinition === null) {
-            return null;
-        }
-
-        $resolvedIncludeEscapeWidth = ($setDefinition['includeEscapeWidth'] ?? false) === true
-            || ($includeEscapeWidth === true && !isset($setDefinition['includeEscapeWidth']));
-
-        $targetResolution = $this->breakpointCatalog->resolveOperationTarget(
-            null,
-            $scopeBreakpoint,
-            $resolvedIncludeEscapeWidth,
-        );
-
-        if ($targetResolution === null) {
-            return null;
-        }
-
-        $breakpointKey = $targetResolution['key'];
-        $variants = $setDefinition['variants'] ?? [];
-        $entry = isset($variants[$breakpointKey]) && is_array($variants[$breakpointKey])
-            ? $variants[$breakpointKey]
-            : Support::buildDefaultTransformEntry();
-
-        return Support::normalizeAutoDimension($entry['autoDimension'] ?? null);
-    }
-
     /**
      * @return array{width: int, height: int}|null
      */
@@ -1405,9 +1289,7 @@ final class OperationsService
 
         $breakpointKey = $targetResolution['key'];
         $variants = $setDefinition['variants'] ?? [];
-        $entry = isset($variants[$breakpointKey]) && is_array($variants[$breakpointKey])
-            ? $variants[$breakpointKey]
-            : Support::buildDefaultTransformEntry();
+        $entry = self::getOrInitVariant($variants, $breakpointKey);
 
         $ratioLocked = ($entry['ratioLocked'] ?? false) === true;
         $ratioWidth = Support::normalizeNullablePositiveInt($entry['ratioWidth'] ?? null);

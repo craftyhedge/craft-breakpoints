@@ -72,28 +72,100 @@ final class ReviewLayoutCalculator
             return null;
         }
 
-        $filters = [
-            static fn(array $row): bool => ($row['loaded'] ?? false) === true
-                && ($row['isVisible'] ?? false) === true
-                && ($row['enabled'] ?? false) === true
-                && (string)($row['src'] ?? '') !== '',
-            static fn(array $row): bool => ($row['loaded'] ?? false) === true
-                && ($row['enabled'] ?? false) === true
-                && (string)($row['src'] ?? '') !== '',
-            static fn(array $row): bool => ($row['loaded'] ?? false) === true
-                && (string)($row['src'] ?? '') !== '',
-            static fn(array $row): bool => (string)($row['src'] ?? '') !== '',
-        ];
+        $bestRow = null;
+        $bestScore = -1;
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
 
-        foreach ($filters as $filter) {
-            foreach ($rows as $row) {
-                if ($filter($row)) {
-                    return $row;
+            $src = (string)($row['src'] ?? '');
+            if ($src === '') {
+                continue;
+            }
+
+            $score = 1;
+            if (($row['loaded'] ?? false) === true) {
+                $score = 2;
+            }
+
+            if (($row['loaded'] ?? false) === true && ($row['enabled'] ?? false) === true) {
+                $score = 3;
+            }
+
+            if (
+                ($row['loaded'] ?? false) === true
+                && ($row['enabled'] ?? false) === true
+                && ($row['isVisible'] ?? false) === true
+            ) {
+                $score = 4;
+            }
+
+            if ($score > $bestScore) {
+                $bestRow = $row;
+                $bestScore = $score;
+                if ($bestScore === 4) {
+                    break;
                 }
             }
         }
 
+        if (is_array($bestRow)) {
+            return $bestRow;
+        }
+
         return $rows[0] ?? null;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array{width:int,height:int,previewRow:array<string,mixed>|null}
+     */
+    public static function resolvePreviewDisplayDimensions(array $rows, int $breakpoint): array
+    {
+        $summary = self::summarizeRows($rows);
+        $displayWidth = max(0, (int)($summary['renderedWidth'] ?? 0));
+        $displayHeight = max(0, (int)($summary['renderedHeight'] ?? 0));
+        $previewRow = self::pickPreviewRow($rows);
+
+        if (is_array($previewRow)) {
+            $previewRenderedWidth = Support::toNonNegativeInt($previewRow['rendered']['width'] ?? 0);
+            $previewRenderedHeight = Support::toNonNegativeInt($previewRow['rendered']['height'] ?? 0);
+            if ($previewRenderedWidth > 0 && $previewRenderedHeight > 0) {
+                $displayWidth = $previewRenderedWidth;
+                $displayHeight = $previewRenderedHeight;
+            }
+
+            if ($displayWidth < 1 || $displayHeight < 1) {
+                $previewTransformDimensions = is_array($previewRow['transformDimensions'] ?? null)
+                    ? $previewRow['transformDimensions']
+                    : [];
+                [$fallbackWidth, $fallbackHeight] = self::resolveInitialPreviewBoxDimensions(
+                    Support::normalizeNullablePositiveInt($previewTransformDimensions['width'] ?? null),
+                    Support::normalizeNullablePositiveInt($previewTransformDimensions['height'] ?? null),
+                    Support::normalizeAutoDimension($previewTransformDimensions['autoDimension'] ?? null),
+                );
+
+                if ($fallbackWidth > 0 && $fallbackHeight > 0) {
+                    $displayWidth = $fallbackWidth;
+                    $displayHeight = $fallbackHeight;
+                }
+            }
+        }
+
+        if (($displayWidth < 1 || $displayHeight < 1) && is_array($previewRow) && $breakpoint > 0) {
+            $previewSrc = (string)($previewRow['src'] ?? '');
+            if ($previewSrc !== '') {
+                $displayWidth = $breakpoint;
+                $displayHeight = $breakpoint;
+            }
+        }
+
+        return [
+            'width' => $displayWidth,
+            'height' => $displayHeight,
+            'previewRow' => $previewRow,
+        ];
     }
 
     /**
@@ -142,43 +214,9 @@ final class ReviewLayoutCalculator
                     continue;
                 }
 
-                $summary = self::summarizeRows($rows);
-                $displayWidth = max(0, (int)($summary['renderedWidth'] ?? 0));
-                $displayHeight = max(0, (int)($summary['renderedHeight'] ?? 0));
-                $previewRow = self::pickPreviewRow($rows);
-
-                if (is_array($previewRow)) {
-                    $previewRenderedWidth = Support::toNonNegativeInt($previewRow['rendered']['width'] ?? 0);
-                    $previewRenderedHeight = Support::toNonNegativeInt($previewRow['rendered']['height'] ?? 0);
-                    if ($previewRenderedWidth > 0 && $previewRenderedHeight > 0) {
-                        $displayWidth = $previewRenderedWidth;
-                        $displayHeight = $previewRenderedHeight;
-                    }
-
-                    if ($displayWidth < 1 || $displayHeight < 1) {
-                        $previewTransformDimensions = is_array($previewRow['transformDimensions'] ?? null)
-                            ? $previewRow['transformDimensions']
-                            : [];
-                        [$fallbackWidth, $fallbackHeight] = self::resolveInitialPreviewBoxDimensions(
-                            Support::normalizeNullablePositiveInt($previewTransformDimensions['width'] ?? null),
-                            Support::normalizeNullablePositiveInt($previewTransformDimensions['height'] ?? null),
-                            Support::normalizeAutoDimension($previewTransformDimensions['autoDimension'] ?? null),
-                        );
-
-                        if ($fallbackWidth > 0 && $fallbackHeight > 0) {
-                            $displayWidth = $fallbackWidth;
-                            $displayHeight = $fallbackHeight;
-                        }
-                    }
-                }
-
-                if (($displayWidth < 1 || $displayHeight < 1) && is_array($previewRow) && $breakpoint > 0) {
-                    $previewSrc = (string)($previewRow['src'] ?? '');
-                    if ($previewSrc !== '') {
-                        $displayWidth = $breakpoint;
-                        $displayHeight = $breakpoint;
-                    }
-                }
+                $display = self::resolvePreviewDisplayDimensions($rows, $breakpoint);
+                $displayWidth = $display['width'];
+                $displayHeight = $display['height'];
 
                 if ($displayWidth < 1 || $displayHeight < 1 || $breakpoint < 1) {
                     continue;

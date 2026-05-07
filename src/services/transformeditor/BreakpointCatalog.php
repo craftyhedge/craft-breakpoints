@@ -4,6 +4,14 @@ namespace craftyhedge\craftbreakpoints\services\transformeditor;
 
 use craftyhedge\craftbreakpoints\services\ConfigService;
 
+/**
+ * Provides lookup and resolution of breakpoint definitions from config.
+ *
+ * Breakpoints are named pixel-width thresholds (e.g. "sm" => 640). This catalog
+ * exposes methods to list all definitions, find one by key or width, and resolve
+ * an operation target from either identifier — returning an error descriptor
+ * instead of null when a match is required.
+ */
 final class BreakpointCatalog
 {
     public function __construct(

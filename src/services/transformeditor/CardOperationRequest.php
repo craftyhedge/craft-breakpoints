@@ -4,6 +4,16 @@ namespace craftyhedge\craftbreakpoints\services\transformeditor;
 
 use yii\web\Request;
 
+/**
+ * Parsed and validated representation of an incoming card operation HTTP request.
+ *
+ * Accepts a raw Yii request, validates the operation string against the known
+ * operation-to-field map, and sanitises all body params into typed readonly
+ * properties. Operations cover dimension edits, ratio application, breakpoint
+ * toggling, rendered-value syncing, set deletion, and scope selection.
+ * An unrecognised operation results in an empty operation string and
+ * hasValidOperation === false rather than an exception.
+ */
 final class CardOperationRequest
 {
     private const FIELD_WIDTH = 'width';

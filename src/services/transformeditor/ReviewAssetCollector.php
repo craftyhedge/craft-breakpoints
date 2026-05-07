@@ -29,18 +29,6 @@ final class ReviewAssetCollector
         return 'asset:' . $normalizedTransform . ':sig-' . substr(sha1($sourceSignature), 0, 16);
     }
 
-    public static function buildRowKey(
-        int $breakpoint,
-        string $transformName,
-        string $assetId,
-        string $sourceUsed,
-        string $src,
-        string $title,
-    ): string {
-        return self::buildAssetKey($transformName, $assetId, $sourceUsed, $src, $title)
-            . ':bp-' . (string)$breakpoint;
-    }
-
     public static function normalizeSourceSignature(string $sourceUsed, string $src, string $title): string
     {
         $candidates = [

@@ -551,38 +551,9 @@ final class HealthAnalyzer
      */
     public function buildStoredAutoDimensionsByTransformAndBreakpoint(): array
     {
-        $storedTransforms = $this->snapshotReader->getStoredTransforms();
-        if ($storedTransforms === []) {
-            return [];
-        }
-
-        $autoDimensionsByTransform = [];
-
-        foreach ($storedTransforms as $transformName => $transformDefinition) {
-            if (!is_string($transformName) || $transformName === '' || !is_array($transformDefinition)) {
-                continue;
-            }
-
-            $includeEscapeWidth = ($transformDefinition['includeEscapeWidth'] ?? false) === true;
-            $breakpoints = $this->getBreakpointsForTransform($includeEscapeWidth);
-            $entries = isset($transformDefinition['transforms']) && is_array($transformDefinition['transforms'])
-                ? array_values($transformDefinition['transforms'])
-                : [];
-
-            foreach ($breakpoints as $index => $breakpoint) {
-                if (!is_int($breakpoint) || $breakpoint <= 0) {
-                    continue;
-                }
-
-                $entry = isset($entries[$index]) && is_array($entries[$index])
-                    ? $entries[$index]
-                    : [];
-
-                $autoDimensionsByTransform[$transformName][$breakpoint] = Support::normalizeAutoDimension($entry['autoDimension'] ?? null);
-            }
-        }
-
-        return $autoDimensionsByTransform;
+        return $this->buildStoredTransformMap(
+            fn(array $entry) => Support::normalizeAutoDimension($entry['autoDimension'] ?? null),
+        );
     }
 
     /**
@@ -590,46 +561,13 @@ final class HealthAnalyzer
      */
     public function buildStoredSavedHeightsByTransformAndBreakpoint(): array
     {
-        $storedTransforms = $this->snapshotReader->getStoredTransforms();
-        if ($storedTransforms === []) {
-            return [];
-        }
-
-        $savedHeightsByTransform = [];
-
-        foreach ($storedTransforms as $transformName => $transformDefinition) {
-            if (!is_string($transformName) || $transformName === '' || !is_array($transformDefinition)) {
-                continue;
+        return $this->buildStoredTransformMap(function (array $entry): ?int {
+            $autoDimension = Support::normalizeAutoDimension($entry['autoDimension'] ?? null);
+            if ($autoDimension === 'height') {
+                return null;
             }
-
-            $includeEscapeWidth = ($transformDefinition['includeEscapeWidth'] ?? false) === true;
-            $breakpoints = $this->getBreakpointsForTransform($includeEscapeWidth);
-            $entries = isset($transformDefinition['transforms']) && is_array($transformDefinition['transforms'])
-                ? array_values($transformDefinition['transforms'])
-                : [];
-
-            foreach ($breakpoints as $index => $breakpoint) {
-                if (!is_int($breakpoint) || $breakpoint <= 0) {
-                    continue;
-                }
-
-                $entry = isset($entries[$index]) && is_array($entries[$index])
-                    ? $entries[$index]
-                    : [];
-
-                $autoDimension = Support::normalizeAutoDimension($entry['autoDimension'] ?? null);
-                if ($autoDimension === 'height') {
-                    $savedHeightsByTransform[$transformName][$breakpoint] = null;
-                    continue;
-                }
-
-                $savedHeightsByTransform[$transformName][$breakpoint] = Support::normalizeNullablePositiveInt(
-                    $entry['height'] ?? null,
-                );
-            }
-        }
-
-        return $savedHeightsByTransform;
+            return Support::normalizeNullablePositiveInt($entry['height'] ?? null);
+        });
     }
 
     /**
@@ -637,12 +575,27 @@ final class HealthAnalyzer
      */
     public function buildStoredSavedWidthsByTransformAndBreakpoint(): array
     {
+        return $this->buildStoredTransformMap(function (array $entry): ?int {
+            $autoDimension = Support::normalizeAutoDimension($entry['autoDimension'] ?? null);
+            if ($autoDimension === 'width') {
+                return null;
+            }
+            return Support::normalizeNullablePositiveInt($entry['width'] ?? null);
+        });
+    }
+
+    /**
+     * @param callable(array<string, mixed>): mixed $extractValue
+     * @return array<string, array<int, mixed>>
+     */
+    private function buildStoredTransformMap(callable $extractValue): array
+    {
         $storedTransforms = $this->snapshotReader->getStoredTransforms();
         if ($storedTransforms === []) {
             return [];
         }
 
-        $savedWidthsByTransform = [];
+        $result = [];
 
         foreach ($storedTransforms as $transformName => $transformDefinition) {
             if (!is_string($transformName) || $transformName === '' || !is_array($transformDefinition)) {
@@ -664,19 +617,11 @@ final class HealthAnalyzer
                     ? $entries[$index]
                     : [];
 
-                $autoDimension = Support::normalizeAutoDimension($entry['autoDimension'] ?? null);
-                if ($autoDimension === 'width') {
-                    $savedWidthsByTransform[$transformName][$breakpoint] = null;
-                    continue;
-                }
-
-                $savedWidthsByTransform[$transformName][$breakpoint] = Support::normalizeNullablePositiveInt(
-                    $entry['width'] ?? null,
-                );
+                $result[$transformName][$breakpoint] = $extractValue($entry);
             }
         }
 
-        return $savedWidthsByTransform;
+        return $result;
     }
 
     /**
