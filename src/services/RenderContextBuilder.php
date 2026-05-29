@@ -3,6 +3,7 @@
 namespace craftyhedge\craftbreakpoints\services;
 
 use craft\elements\Asset;
+use craftyhedge\craftbreakpoints\helpers\ProcessingRequest;
 use craftyhedge\craftbreakpoints\Plugin;
 use yii\base\Component;
 
@@ -42,13 +43,27 @@ class RenderContextBuilder extends Component
 
     public function getPictureAttributes(array $config): array
     {
+        $attributes = [
+            'class' => (string)($config['pictureClass'] ?? ''),
+        ];
+
+        // The data-* markers exist only for the client-side processing pipeline
+        // (the __bpiProcessing preview iframe). Keep them out of normal output.
+        if (!ProcessingRequest::isActive()) {
+            return $attributes;
+        }
+
+        return array_merge($attributes, $this->composePictureMarkers($config));
+    }
+
+    private function composePictureMarkers(array $config): array
+    {
         $setName = $this->resolveSetName($config);
         $assetId = isset($config['imageId']) ? (string)$config['imageId'] : 'unknown';
         $pictureId = $this->buildPictureId($setName, $assetId, $config);
         $set = $this->_plugin?->getTransformSets()->getSet($setName);
 
         return [
-            'class' => (string)($config['pictureClass'] ?? ''),
             'data-set' => $setName,
             'data-set-exists' => $set !== null ? 'true' : 'false',
             'data-picture-id' => $pictureId,
@@ -97,12 +112,17 @@ class RenderContextBuilder extends Component
             'class' => (string)($config['imgClass'] ?? ''),
             'decoding' => (string)($config['decoding'] ?? 'async'),
             'alt' => (string)($config['alt'] ?? $image->title ?? ''),
-            'data-asset-id' => (string)$image->id,
-            'data-uid' => $this->buildPictureId($setName, (string)$image->id, $config) . '-img',
         ];
 
         if ((bool)($config['nativeLazyLoadingEnabled'] ?? true)) {
             $attributes['loading'] = (string)($config['loading'] ?? 'lazy');
+        }
+
+        // Processing-only markers (see getPictureAttributes): emitted only inside
+        // the __bpiProcessing preview iframe, never on normal front-end output.
+        if (ProcessingRequest::isActive()) {
+            $attributes['data-asset-id'] = (string)$image->id;
+            $attributes['data-uid'] = $this->buildPictureId($setName, (string)$image->id, $config) . '-img';
         }
 
         return $attributes;

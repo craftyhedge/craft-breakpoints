@@ -36,12 +36,10 @@ final class ImageRendererServiceTest extends Unit
             ],
         ]);
 
-        $this->assertArrayHasKey('data-breakpoint-states', $attributes);
-        $states = json_decode((string)$attributes['data-breakpoint-states'], true);
-
-        $this->assertIsArray($states);
-        $this->assertSame('enabled', $states['xs'] ?? null);
-        $this->assertSame('disabled', $states['md'] ?? null);
+        // Normal (non-processing) render: the breakpoint-states marker is gated
+        // out. Its content is covered by RenderContextBuilderTest via the
+        // composePictureMarkers reflection test.
+        $this->assertArrayNotHasKey('data-breakpoint-states', $attributes);
     }
 
     public function testRenderUsesImgFallbackWithComputedAttributesWhenTemplateFails(): void
@@ -68,10 +66,11 @@ final class ImageRendererServiceTest extends Unit
         $this->assertStringContainsString('loading="eager"', $html);
         $this->assertStringContainsString('decoding="sync"', $html);
         $this->assertStringContainsString('alt="Fallback alt"', $html);
-        $this->assertStringContainsString('data-asset-id="123"', $html);
         $this->assertStringContainsString('width="480"', $html);
         $this->assertStringContainsString('height="270"', $html);
-        $this->assertMatchesRegularExpression('/data-uid="default-123-[a-f0-9]{8}-img"/', $html);
+        // Normal (non-processing) render: no internal processing markers on <img>.
+        $this->assertStringNotContainsString('data-asset-id=', $html);
+        $this->assertStringNotContainsString('data-uid=', $html);
     }
 
     public function testRenderUsesSvgTemplatePathForSvgAssets(): void

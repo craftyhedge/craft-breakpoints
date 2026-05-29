@@ -42,7 +42,9 @@ final class RenderContextBuilderTest extends Unit
         $this->assertArrayHasKey('imgAttributes', $context);
         $this->assertArrayHasKey('breakpoints', $context);
 
-        $this->assertSame('default', $context['pictureAttributes']['data-set'] ?? null);
+        // Normal (non-processing) render: no internal processing markers leak out.
+        $this->assertArrayNotHasKey('data-set', $context['pictureAttributes']);
+        $this->assertArrayNotHasKey('data-picture-id', $context['pictureAttributes']);
     }
 
     public function testGetImageAttributesUsesTransparentPixelWhenFirstImageIsDisabled(): void
@@ -61,6 +63,9 @@ final class RenderContextBuilderTest extends Unit
         $this->assertSame(self::TRANSPARENT_PIXEL_DATA_URI, $attributes['src'] ?? null);
         $this->assertSame(1, $attributes['width'] ?? null);
         $this->assertSame(1, $attributes['height'] ?? null);
+        // Normal (non-processing) render: no internal processing markers on <img>.
+        $this->assertArrayNotHasKey('data-asset-id', $attributes);
+        $this->assertArrayNotHasKey('data-uid', $attributes);
     }
 
     public function testGetPictureAttributesIncludesTransformExistenceFlag(): void
@@ -77,12 +82,16 @@ final class RenderContextBuilderTest extends Unit
                 'config' => [],
             ],
         ], function () use ($builder): void {
-            $exists = $builder->getPictureAttributes([
+            // The marker payload is processing-only and gated in
+            // getPictureAttributes; test the composition logic directly.
+            $compose = new \ReflectionMethod($builder, 'composePictureMarkers');
+
+            $exists = $compose->invoke($builder, [
                 'setName' => 'hero',
                 'imageId' => 123,
                 'breakpoints' => ['xs' => 480],
             ]);
-            $missing = $builder->getPictureAttributes([
+            $missing = $compose->invoke($builder, [
                 'setName' => 'missing-set-name',
                 'imageId' => 123,
                 'breakpoints' => ['xs' => 480],
@@ -152,7 +161,10 @@ final class RenderContextBuilderTest extends Unit
     {
         $builder = Plugin::getInstance()->getRenderContextBuilder();
 
-        $attributes = $builder->getPictureAttributes([
+        // data-breakpoint-states is a processing-only marker gated in
+        // getPictureAttributes; test the composition logic directly.
+        $compose = new \ReflectionMethod($builder, 'composePictureMarkers');
+        $attributes = $compose->invoke($builder, [
             'setName' => 'default',
             'imageId' => 123,
             'breakpoints' => [
