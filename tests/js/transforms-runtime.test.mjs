@@ -382,7 +382,7 @@ describe('transforms runtime helper logic', () => {
         const frameDocument = document.implementation.createHTMLDocument('preview');
         frameDocument.body.innerHTML = `
             <picture data-set="hero" data-asset-id="asset-hero">
-                <source class="bpi_first-source-set" data-bp-size="480" data-bp-enabled="true" data-srcset="https://example.test/hero-480.webp 1x" data-sizes="100vw" />
+                <source data-bp-source="primary" data-bp-size="480" data-bp-enabled="true" data-srcset="https://example.test/hero-480.webp 1x" data-sizes="100vw" />
                 <img data-src="https://example.test/hero.jpg" data-srcset="https://example.test/hero@2x.jpg 2x" data-sizes="100vw" src="data:image/gif;base64,AAAA" class="lazyload" />
             </picture>
         `;
@@ -408,19 +408,19 @@ describe('transforms runtime helper logic', () => {
         const frameDocument = document.implementation.createHTMLDocument('preview');
         frameDocument.body.innerHTML = `
             <picture data-set="alpha" data-picture-id="pic-1" data-asset-id="asset-1">
-                <source class="bpi_first-source-set" data-bp-size="480" data-bp-enabled="true" srcset="https://example.test/alpha.webp 1x" />
+                <source data-bp-source="primary" data-bp-size="480" data-bp-enabled="true" srcset="https://example.test/alpha.webp 1x" />
                 <img data-asset-id="asset-1" src="https://example.test/alpha.jpg" />
             </picture>
             <picture data-set="beta" data-picture-id="pic-2" data-asset-id="asset-2">
-                <source class="bpi_first-source-set" data-bp-size="480" data-bp-enabled="true" srcset="https://example.test/beta.webp 1x" />
+                <source data-bp-source="primary" data-bp-size="480" data-bp-enabled="true" srcset="https://example.test/beta.webp 1x" />
                 <img data-asset-id="asset-2" src="https://example.test/beta.jpg" />
             </picture>
             <picture data-set="gamma" data-picture-id="pic-3" data-asset-id="asset-3">
-                <source class="bpi_first-source-set" data-bp-size="480" data-bp-enabled="true" srcset="https://example.test/gamma.webp 1x" />
+                <source data-bp-source="primary" data-bp-size="480" data-bp-enabled="true" srcset="https://example.test/gamma.webp 1x" />
                 <img data-asset-id="asset-3" src="https://example.test/gamma.jpg" />
             </picture>
             <picture data-set="delta" data-picture-id="pic-4" data-asset-id="asset-4">
-                <source class="bpi_first-source-set" data-bp-size="480" data-bp-enabled="false" srcset="https://example.test/delta.webp 1x" />
+                <source data-bp-source="primary" data-bp-size="480" data-bp-enabled="false" srcset="https://example.test/delta.webp 1x" />
                 <img data-asset-id="asset-4" src="https://example.test/delta.jpg" />
             </picture>
         `;
@@ -474,39 +474,39 @@ describe('transforms runtime helper logic', () => {
         const frameDocument = document.implementation.createHTMLDocument('preview');
         frameDocument.body.innerHTML = `
             <picture data-set="disabled" data-picture-id="disabled">
-                <source class="bpi_first-source-set" data-bp-size="480" data-bp-enabled="false" srcset="https://example.test/disabled.webp 1x" />
+                <source data-bp-source="primary" data-bp-size="480" data-bp-enabled="false" srcset="https://example.test/disabled.webp 1x" />
                 <img src="https://example.test/disabled.jpg" />
             </picture>
             <picture data-set="transparent" data-picture-id="transparent">
-                <source class="bpi_first-source-set" data-bp-size="480" srcset="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" />
+                <source data-bp-source="primary" data-bp-size="480" srcset="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" />
                 <img src="https://example.test/transparent.jpg" />
             </picture>
             <picture data-set="preload" data-picture-id="preload">
-                <source class="bpi_first-source-set" data-bp-size="480" srcset="https://example.test/preload.webp 1x" />
+                <source data-bp-source="primary" data-bp-size="480" srcset="https://example.test/preload.webp 1x" />
                 <img src="https://example.test/preload.jpg" />
             </picture>
             <picture data-set="unsupported" data-picture-id="unsupported">
-                <source class="bpi_first-source-set" data-bp-size="480"></source>
+                <source data-bp-source="primary" data-bp-size="480"></source>
                 <img />
             </picture>
             <picture data-set="complete-loaded" data-picture-id="complete-loaded">
-                <source class="bpi_first-source-set" data-bp-size="480" srcset="https://example.test/complete-loaded.webp 1x" />
+                <source data-bp-source="primary" data-bp-size="480" srcset="https://example.test/complete-loaded.webp 1x" />
                 <img src="https://example.test/complete-loaded.jpg" />
             </picture>
             <picture data-set="complete-broken" data-picture-id="complete-broken">
-                <source class="bpi_first-source-set" data-bp-size="480" srcset="https://example.test/complete-broken.webp 1x" />
+                <source data-bp-source="primary" data-bp-size="480" srcset="https://example.test/complete-broken.webp 1x" />
                 <img src="https://example.test/complete-broken.jpg" />
             </picture>
             <picture data-set="decode" data-picture-id="decode">
-                <source class="bpi_first-source-set" data-bp-size="480" srcset="https://example.test/decode.webp 1x" />
+                <source data-bp-source="primary" data-bp-size="480" srcset="https://example.test/decode.webp 1x" />
                 <img src="https://example.test/decode.jpg" />
             </picture>
             <picture data-set="load" data-picture-id="load">
-                <source class="bpi_first-source-set" data-bp-size="480" srcset="https://example.test/load.webp 1x" />
+                <source data-bp-source="primary" data-bp-size="480" srcset="https://example.test/load.webp 1x" />
                 <img src="https://example.test/load.jpg" />
             </picture>
             <picture data-set="error" data-picture-id="error">
-                <source class="bpi_first-source-set" data-bp-size="480" srcset="https://example.test/error.webp 1x" />
+                <source data-bp-source="primary" data-bp-size="480" srcset="https://example.test/error.webp 1x" />
                 <img src="https://example.test/error.jpg" />
             </picture>
         `;
@@ -570,7 +570,7 @@ describe('transforms runtime helper logic', () => {
         const frameDocument = document.implementation.createHTMLDocument('preview');
         frameDocument.body.innerHTML = `
             <picture data-set="other" data-picture-id="other">
-                <source class="bpi_first-source-set" data-bp-size="999" srcset="https://example.test/other.webp 1x" />
+                <source data-bp-source="primary" data-bp-size="999" srcset="https://example.test/other.webp 1x" />
                 <img src="https://example.test/other.jpg" />
             </picture>
         `;
@@ -586,27 +586,27 @@ describe('transforms runtime helper logic', () => {
         const frameDocument = document.implementation.createHTMLDocument('preview');
         frameDocument.body.innerHTML = `
             <picture data-set="missing" data-picture-id="missing">
-                <source class="bpi_first-source-set" data-bp-size="999" srcset="https://example.test/missing.webp 1x" />
+                <source data-bp-source="primary" data-bp-size="999" srcset="https://example.test/missing.webp 1x" />
                 <img />
             </picture>
             <picture data-set="disabled" data-picture-id="disabled">
-                <source class="bpi_first-source-set" data-bp-size="480" data-bp-enabled="false" srcset="https://example.test/disabled.webp 1x" />
+                <source data-bp-source="primary" data-bp-size="480" data-bp-enabled="false" srcset="https://example.test/disabled.webp 1x" />
                 <img />
             </picture>
             <picture data-set="transparent" data-picture-id="transparent">
-                <source class="bpi_first-source-set" data-bp-size="480" srcset="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" />
+                <source data-bp-source="primary" data-bp-size="480" srcset="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" />
                 <img />
             </picture>
             <picture data-set="empty" data-picture-id="empty">
-                <source class="bpi_first-source-set" data-bp-size="480" srcset="" />
+                <source data-bp-source="primary" data-bp-size="480" srcset="" />
                 <img />
             </picture>
             <picture data-set="ok" data-picture-id="ok">
-                <source class="bpi_first-source-set" data-bp-size="480" srcset="https://example.test/ok.webp 1x" sizes="100vw" />
+                <source data-bp-source="primary" data-bp-size="480" srcset="https://example.test/ok.webp 1x" sizes="100vw" />
                 <img />
             </picture>
             <picture data-set="error" data-picture-id="error">
-                <source class="bpi_first-source-set" data-bp-size="480" srcset="https://example.test/error.webp 1x" />
+                <source data-bp-source="primary" data-bp-size="480" srcset="https://example.test/error.webp 1x" />
                 <img />
             </picture>
         `;

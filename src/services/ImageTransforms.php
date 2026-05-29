@@ -2,8 +2,8 @@
 
 namespace craftyhedge\craftbreakpoints\services;
 
-use Craft;
 use craft\elements\Asset;
+use craftyhedge\craftbreakpoints\helpers\ProcessingRequest;
 use craftyhedge\craftbreakpoints\Plugin;
 use yii\base\Component;
 
@@ -11,7 +11,6 @@ class ImageTransforms extends Component
 {
     private const TRANSPARENT_PIXEL_DATA_URI = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
     private const PROCESSING_MEDIA_OVERSIZE_PX = 20;
-    private const PROCESSING_QUERY_PARAM = '__bpiProcessing';
 
     private ?Plugin $_plugin = null;
     private array $_transformedImagesCache = [];
@@ -77,7 +76,7 @@ class ImageTransforms extends Component
                 $variant,
                 null,
                 $autoDimension,
-                'bpi_first-source-set',
+                'primary',
             ));
 
             if ($sourceMediaQuery !== '') {
@@ -105,7 +104,7 @@ class ImageTransforms extends Component
                     $variant,
                     null,
                     $autoDimension,
-                    'bpi_secondary-source-set',
+                    'secondary',
                 ));
 
                 if ($sourceMediaQuery !== '') {
@@ -161,7 +160,7 @@ class ImageTransforms extends Component
             $variant,
             $primary,
             $autoDimension,
-            'bpi_first-source-set',
+            'primary',
         ));
 
         if ($mediaQuery !== '') {
@@ -181,7 +180,7 @@ class ImageTransforms extends Component
                 $variant,
                 $secondary,
                 $autoDimension,
-                'bpi_secondary-source-set',
+                'secondary',
             ));
 
             if ($mediaQuery !== '') {
@@ -506,26 +505,7 @@ class ImageTransforms extends Component
 
     private function getProcessingMediaOversizePx(): int
     {
-        $request = Craft::$app->getRequest();
-        if ($request->getIsConsoleRequest()) {
-            return 0;
-        }
-
-        $rawFlag = $request->getQueryParam(self::PROCESSING_QUERY_PARAM);
-        if ($rawFlag === null) {
-            return 0;
-        }
-
-        if (is_bool($rawFlag)) {
-            return $rawFlag ? self::PROCESSING_MEDIA_OVERSIZE_PX : 0;
-        }
-
-        $normalized = strtolower(trim((string)$rawFlag));
-        if ($normalized === '' || $normalized === '0' || $normalized === 'false' || $normalized === 'no' || $normalized === 'off') {
-            return 0;
-        }
-
-        return self::PROCESSING_MEDIA_OVERSIZE_PX;
+        return ProcessingRequest::isActive() ? self::PROCESSING_MEDIA_OVERSIZE_PX : 0;
     }
 
     private function isSecondaryFormatEnabled(array $config): bool
@@ -646,7 +626,32 @@ class ImageTransforms extends Component
         ?array $variant,
         ?array $fallbackTransform,
         ?string $autoDimension,
-        string $className,
+        string $sourceRole,
+    ): array {
+        // These markers exist solely for the client-side processing pipeline,
+        // which only ever runs inside the processing preview iframe. Keep them
+        // out of normal front-end output so production HTML stays clean.
+        if (!ProcessingRequest::isActive()) {
+            return [];
+        }
+
+        return $this->composeSourceDataAttributes(
+            $breakpoint,
+            $enabled,
+            $variant,
+            $fallbackTransform,
+            $autoDimension,
+            $sourceRole,
+        );
+    }
+
+    private function composeSourceDataAttributes(
+        int $breakpoint,
+        bool $enabled,
+        ?array $variant,
+        ?array $fallbackTransform,
+        ?string $autoDimension,
+        string $sourceRole,
     ): array {
         $explicitWidth = isset($variant['width']) && is_numeric($variant['width'])
             ? (int)$variant['width']
@@ -672,7 +677,7 @@ class ImageTransforms extends Component
         }
 
         $attributes = [
-            'class' => $className,
+            'data-bp-source' => $sourceRole,
             'data-bp-size' => $breakpoint,
             'data-bp-enabled' => $enabled ? 'true' : 'false',
             'data-set-width' => $transformWidth,

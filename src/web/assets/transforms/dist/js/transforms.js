@@ -1241,7 +1241,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     }
 
     function getPrimarySourceForBreakpoint(picture, breakpoint) {
-        return picture?.querySelector(`source.bpi_first-source-set[data-bp-size="${breakpoint}"]`)
+        return picture?.querySelector(`source[data-bp-source="primary"][data-bp-size="${breakpoint}"]`)
             || picture?.querySelector(`source[data-bp-size="${breakpoint}"]`)
             || null;
     }

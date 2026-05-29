@@ -6,12 +6,12 @@ use Craft;
 use craft\db\Query;
 use craft\helpers\Db;
 use craft\web\Application as WebApplication;
+use craftyhedge\craftbreakpoints\helpers\ProcessingRequest;
 use craftyhedge\craftbreakpoints\Plugin;
 use yii\base\Component;
 
 class TelemetryService extends Component
 {
-    private const PROCESSING_QUERY_PARAM = '__bpiProcessing';
     private const RUN_STATUS_COMPLETED = 'completed';
     private const RUN_STATUS_FAILED = 'failed';
     private const RUN_STATUS_CANCELLED = 'cancelled';
@@ -85,7 +85,7 @@ class TelemetryService extends Component
         $sourceUrl = null;
 
         if (Craft::$app instanceof WebApplication) {
-            if ($this->isProcessingIframeRequest()) {
+            if (ProcessingRequest::isActive()) {
                 return;
             }
 
@@ -110,33 +110,6 @@ class TelemetryService extends Component
 
         // Queue/console runtimes have no web request lifecycle; write immediately.
         $this->upsertUsage($handle, $sourceElementId, $sourceUrl, $initOptions);
-    }
-
-    private function isProcessingIframeRequest(): bool
-    {
-        if (!(Craft::$app instanceof WebApplication)) {
-            return false;
-        }
-
-        $rawFlag = Craft::$app->request->getQueryParam(self::PROCESSING_QUERY_PARAM);
-        if ($rawFlag === null) {
-            return false;
-        }
-
-        if (is_bool($rawFlag)) {
-            return $rawFlag;
-        }
-
-        if (is_numeric($rawFlag)) {
-            return ((int)$rawFlag) !== 0;
-        }
-
-        $normalized = strtolower(trim((string)$rawFlag));
-        if ($normalized === '' || $normalized === '0' || $normalized === 'false' || $normalized === 'no' || $normalized === 'off') {
-            return false;
-        }
-
-        return true;
     }
 
     public function flushPendingUsage(): void

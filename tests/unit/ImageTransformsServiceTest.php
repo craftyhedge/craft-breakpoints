@@ -120,7 +120,9 @@ final class ImageTransformsServiceTest extends Unit
         ], $asset);
 
         $this->assertTrue($breakpointData['disabled']);
-        $this->assertSame('false', $breakpointData['primarySourceAttributes']['data-bp-enabled']);
+        // Normal (non-processing) render: no internal processing markers leak out.
+        $this->assertArrayNotHasKey('data-bp-enabled', $breakpointData['primarySourceAttributes']);
+        $this->assertArrayNotHasKey('data-bp-source', $breakpointData['primarySourceAttributes']);
         $this->assertSame('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0ODAiIGhlaWdodD0iMjcwIi8+', $breakpointData['primarySourceAttributes']['srcset']);
         $this->assertSame('image/svg+xml', $breakpointData['primarySourceAttributes']['type']);
         $this->assertSame('svg', $breakpointData['primaryFormat']['format']);
@@ -431,6 +433,70 @@ final class ImageTransformsServiceTest extends Unit
         } finally {
             $store->replaceTransformsForRuntime($previousTransforms);
         }
+    }
+
+    public function testNormalRenderOmitsInternalProcessingMarkers(): void
+    {
+        $service = Plugin::getInstance()->getImageTransforms();
+        $asset = $this->createMockAsset();
+
+        $breakpointData = $service->getBreakpointData(0, 480, [
+            'transformName' => 'default',
+            'breakpoints' => [
+                'xs' => 480,
+            ],
+            'escapeWidth' => 0,
+            'format' => 'jpg',
+            'secondaryFormat' => 'webp',
+        ], $asset);
+
+        foreach (['data-bp-source', 'data-bp-size', 'data-bp-enabled', 'data-set-width', 'data-set-height', 'data-auto-dimension'] as $marker) {
+            $this->assertArrayNotHasKey($marker, $breakpointData['primarySourceAttributes']);
+            $this->assertArrayNotHasKey($marker, $breakpointData['secondarySourceAttributes']);
+        }
+    }
+
+    public function testComposeSourceDataAttributesBuildsFullMarkerSet(): void
+    {
+        // The processing gate (buildSourceDataAttributes) is request-driven and
+        // suppresses everything in normal/console context; the absence tests
+        // above lock that down. Here we verify the marker payload itself, which
+        // is what the processing iframe receives.
+        $service = Plugin::getInstance()->getImageTransforms();
+        $method = new \ReflectionMethod($service, 'composeSourceDataAttributes');
+
+        $primary = $method->invoke(
+            $service,
+            480,
+            true,
+            ['width' => 480, 'height' => 270],
+            null,
+            null,
+            'primary',
+        );
+
+        $this->assertSame('primary', $primary['data-bp-source']);
+        $this->assertSame(480, $primary['data-bp-size']);
+        $this->assertSame('true', $primary['data-bp-enabled']);
+        $this->assertSame(480, $primary['data-set-width']);
+        $this->assertSame(270, $primary['data-set-height']);
+        $this->assertArrayNotHasKey('data-auto-dimension', $primary);
+
+        $secondaryAuto = $method->invoke(
+            $service,
+            768,
+            false,
+            ['width' => 768, 'height' => 432],
+            null,
+            'height',
+            'secondary',
+        );
+
+        $this->assertSame('secondary', $secondaryAuto['data-bp-source']);
+        $this->assertSame('false', $secondaryAuto['data-bp-enabled']);
+        // auto height drops the computed height and records the auto dimension.
+        $this->assertNull($secondaryAuto['data-set-height']);
+        $this->assertSame('height', $secondaryAuto['data-auto-dimension']);
     }
 
     private function createMockAsset(): Asset

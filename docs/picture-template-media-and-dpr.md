@@ -53,6 +53,21 @@ The user-facing settings relevant to this behavior are:
 
 The default breakpoint map includes values such as `xs`, `sm`, `md`, `lg`, `xl`, and `2xl`.
 
+## Processing-Only Markers
+
+During a processing run, each generated `<source>` carries internal `data-bp-*` attributes (for example `data-bp-source`, `data-bp-size`, `data-bp-enabled`) used by the client-side processing pipeline.
+
+These markers are emitted **only** when the request is a processing run (the preview iframe, identified by the `__bpiProcessing` query parameter). Normal front-end rendering produces clean `<source>` elements with none of these attributes.
+
+This means you cannot rely on `data-bp-*` attributes in your own templates or styles — they are an internal processing detail and are absent from production output.
+
+## Caching During Processing
+
+The plugin is intended to run locally for development. A processing run depends on the `<picture>` markup being rendered fresh so the internal `data-bp-*` markers are present in the preview iframe.
+
+- **Craft `{% cache %}` tags** are handled automatically: template caching is disabled for the duration of a processing request, so cached picture blocks re-render with the required markers.
+- **Full-page caches** (for example Blitz or a static page cache) cannot be controlled by the plugin. Do **not** serve cached pages while processing locally — a page served from a full-page cache will not contain the processing markers, and the run will not see your breakpoints. Disable full-page caching in your local environment when processing.
+
 ## Standards Alignment
 
 This implementation uses standard responsive image behavior based on `picture/source/img` and `srcset` density descriptors.

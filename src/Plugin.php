@@ -13,6 +13,7 @@ use craft\log\MonologTarget;
 use craft\web\UrlManager;
 use craft\web\View;
 use craft\web\twig\variables\CraftVariable;
+use craftyhedge\craftbreakpoints\helpers\ProcessingRequest;
 use craftyhedge\craftbreakpoints\models\Settings;
 use craftyhedge\craftbreakpoints\services\BreakpointPolicy;
 use craftyhedge\craftbreakpoints\services\ConfigService;
@@ -68,6 +69,14 @@ class Plugin extends BasePlugin
         parent::init();
         self::$plugin = $this;
         $this->name = Craft::t('breakpoints', 'Breakpoints');
+
+        // During a processing run the preview iframe must always see freshly
+        // rendered picture markup (with the internal data-bp-* attributes), so
+        // suppress Craft's {% cache %} tags for that request only. Full-page
+        // caches (Blitz/static) can't be controlled here — see docs.
+        if (ProcessingRequest::isActive()) {
+            Craft::$app->getConfig()->getGeneral()->enableTemplateCaching = false;
+        }
 
         $this->registerLogTarget();
         $this->registerTwigExtension();
