@@ -12,6 +12,7 @@
       - breakpoint
       - breakpointKey
       - breakpointColumnWidth
+      - breakpointRangeLabel
       - previewLockHeight
       - signalKey
       - currentWidthValue
@@ -57,7 +58,7 @@
         data-class:bpts-breakpoint-column-disabled="String(($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].breakpointColumnDisabledClass || '0') : '0') === '1'"
     data-on:click="if(evt&&evt.target&&evt.target.closest('.bpts-rendered-apply-single, .bpts-breakpoint-enable-toggle-wrap')){return;} const card=el.closest('.bpts-transform-card'); @post($_applyCardOperationUrl, {contentType: 'json', headers: {'X-CSRF-Token': $_csrfToken}, payload: {setName: String($editor.cards.{{ signalKey }}.setName || ''), operation: 'scope.selectBreakpoint', scopeBreakpoint: Number({{ breakpoint }}) || null, scopeBreakpointKey: '{{ breakpointKey }}', selectedAssetKey: String(card?.dataset?.selectedAssetKey || ''), includeEscapeWidth: String($editor.cards.{{ signalKey }}.includeEscapeWidth || '0') === '1', baseVersion: String($editor.baseVersion || '')}})">
         <div class="bpi_breakpoint-size-heading">
-            <span>{{ breakpoint }}px</span>
+            <span>{{ breakpointRangeLabel }}</span>
             {{ escapeBadge }}
             {{ hiddenBadge }}
             {{ unloadedBadge }}

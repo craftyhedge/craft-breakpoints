@@ -46,8 +46,12 @@ class ImageTransforms extends Component
         $breakpointName = $breakpointNames[$loopIndex] ?? null;
         $namedSet = $this->getNamedSet($config);
         $initOptions = InitOptions::fromConfig($config, $namedSet !== null);
-        $variant = $breakpointName !== null
-            ? $this->getVariantByBreakpointName($namedSet, (string)$breakpointName)
+        $variantName = $breakpointName;
+        if ($breakpointName === 'escape' && !$this->isEscapeWidthIncluded($config, $namedSet)) {
+            $variantName = $breakpointNames[$loopIndex - 1] ?? $breakpointName;
+        }
+        $variant = $variantName !== null
+            ? $this->getVariantByBreakpointName($namedSet, (string)$variantName)
             : null;
         $autoDimension = $this->resolveAutoDimension($variant, $initOptions);
 
@@ -337,6 +341,12 @@ class ImageTransforms extends Component
         foreach ($breakpoints as $breakpointName => $breakpointWidth) {
             $isDisabled = $this->_plugin->getBreakpointPolicy()->isBreakpointDisabled((string)$breakpointName, $config);
             $namedSetVariant = $this->getVariantByBreakpointName($namedSet, (string)$breakpointName);
+
+            if ($breakpointName === 'escape' && !$this->isEscapeWidthIncluded($config, $namedSet) && isset($transformed[$index - 1])) {
+                $transformed[$index] = $transformed[$index - 1];
+                $index++;
+                continue;
+            }
 
             $targetWidth = (int)$breakpointWidth;
             if ($targetWidth <= 0) {
@@ -730,6 +740,17 @@ class ImageTransforms extends Component
         }
 
         return $set['config'];
+    }
+
+    private function isEscapeWidthIncluded(array $config, ?array $set): bool
+    {
+        if (array_key_exists('includeEscapeWidth', $config)) {
+            return (bool)$config['includeEscapeWidth'] === true;
+        }
+
+        return $set !== null
+            && array_key_exists('includeEscapeWidth', $set)
+            && $set['includeEscapeWidth'] === true;
     }
 
     private function resolveEffectiveSecondaryFormat(array $config, array $mergedConfig): string

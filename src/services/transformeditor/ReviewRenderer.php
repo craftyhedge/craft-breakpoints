@@ -678,12 +678,14 @@ final class ReviewRenderer
 
             $breakpointColumns = '';
             $breakpointKeysByWidth = $this->getBreakpointKeysByWidth($includeEscapeWidth);
+            $previousBreakpoint = null;
             foreach ($transformBreakpoints as $breakpoint) {
                 $rows = $selectedAssetRowsByBreakpoint[$breakpoint] ?? [];
                 $breakpointColumns .= $this->renderReviewBreakpointColumn(
                     $transformName,
                     $breakpoint,
                     $breakpointKeysByWidth[(string)$breakpoint] ?? '',
+                    $this->buildBreakpointRangeLabel($breakpoint, $previousBreakpoint, $escapeBreakpoint),
                     $rows,
                     $currentRows[$breakpoint] ?? Support::buildDefaultTransformEntry(),
                     $columnWidths,
@@ -699,6 +701,7 @@ final class ReviewRenderer
                     $storedSavedHeightsByTransform[$transformName][$breakpoint] ?? null,
                     $allowAnyHeight,
                 );
+                $previousBreakpoint = $breakpoint;
             }
             $assetMismatchByKey = ($isProcessedReview && !$hideAssetPagination)
                 ? $this->buildReviewAssetMismatchByKey(
@@ -895,6 +898,7 @@ final class ReviewRenderer
         string $transformName,
         int $breakpoint,
         string $breakpointKey,
+        string $breakpointRangeLabel,
         array $rows,
         array $currentRow,
         array $breakpointColumnWidths,
@@ -985,6 +989,7 @@ final class ReviewRenderer
             'breakpointColumnDisabledClass' => !$currentEnabled ? 'bpts-breakpoint-column-disabled' : '',
             'breakpoint' => (string)$breakpoint,
             'breakpointKey' => $this->escapeReviewHtml($breakpointKey),
+            'breakpointRangeLabel' => $this->escapeReviewHtml($breakpointRangeLabel),
             'breakpointColumnWidth' => (string)$breakpointColumnWidth,
             'previewLockHeight' => (string)$previewLockHeight,
             'signalKey' => $this->escapeReviewHtml($signalKey),
@@ -1029,6 +1034,18 @@ final class ReviewRenderer
             'currentWidthDerivedClass' => $currentWidthDerivedClass,
             'currentHeightDerivedClass' => $currentHeightDerivedClass,
         ]);
+    }
+
+    private function buildBreakpointRangeLabel(int $breakpoint, ?int $previousBreakpoint, ?int $escapeBreakpoint): string
+    {
+        if ($escapeBreakpoint !== null && $breakpoint === $escapeBreakpoint && $previousBreakpoint !== null) {
+            return $previousBreakpoint . 'px+';
+        }
+
+        $start = $previousBreakpoint ?? 0;
+        $end = max($breakpoint - 1, 0);
+
+        return $start . ' - ' . $end . 'px';
     }
 
     private function normalizeReviewRowsByBreakpoint(mixed $rawRowsByBreakpoint): array

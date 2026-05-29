@@ -21,12 +21,7 @@ class BreakpointPolicy extends Component
             return [];
         }
 
-        $breakpoints = $this->_plugin->getConfigService()->getBreakpoints($mergedConfig);
-        if (!$this->shouldIncludeEscapeWidth($config)) {
-            unset($breakpoints['escape']);
-        }
-
-        return $breakpoints;
+        return $this->_plugin->getConfigService()->getBreakpoints($mergedConfig);
     }
 
     public function getBreakpointStates(array $config = []): array
@@ -65,10 +60,6 @@ class BreakpointPolicy extends Component
     {
         if ($breakpointName === null || $breakpointName === '') {
             return false;
-        }
-
-        if ($breakpointName === 'escape' && !$this->shouldIncludeEscapeWidth($config)) {
-            return true;
         }
 
         $namedSet = $this->getNamedSet($config);
