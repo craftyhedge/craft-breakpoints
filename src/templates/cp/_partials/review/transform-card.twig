@@ -6,7 +6,7 @@
     token-substitution template (transform-card-template.twig).
 
     Expected variables (all strings unless noted; see renderResultReview() for producers):
-      - cardWarningStateClass, transformNameEscaped, signalKey
+      - cardWarningStateClass, cardWarningDangerExpr, transformNameEscaped, signalKey
             - cardId
       - renderedRowsForTransformJson: removed; server resolves rendered evidence
              - selectedAssetKey
@@ -33,6 +33,7 @@
 {%- set ratioRecompute -%}const rwInput=document.getElementById('{{ ratioWidthInputId }}'); const rhInput=document.getElementById('{{ ratioHeightInputId }}'); const rfInput=document.getElementById('{{ ratioFloatInputId }}'); const rw=Number(rwInput?.value||0); const rh=Number(rhInput?.value||0); if(rw>0&&rh>0){ const raw=rw/rh; if(rfInput){ rfInput.value=raw.toFixed(4).replace(/\.0+$/,'').replace(/(\.\d*?)0+$/,'$1'); } } else if(rfInput){ rfInput.value=''; } $editor.cards.{{ signalKey }}.ratioWidthInput=String(rwInput?.value||''); $editor.cards.{{ signalKey }}.ratioHeightInput=String(rhInput?.value||''); $editor.cards.{{ signalKey }}.ratioFloatInput=String(rfInput?.value||''); $editor.cards.{{ signalKey }}.ratioLocked='0';{%- endset -%}
 <section class="bpts-transform-card {{ cardWarningStateClass }}"
     id="{{ cardId }}"
+        data-class:bpts-transform-card-warning="{{ cardWarningDangerExpr }}"
         data-set="{{ transformNameEscaped }}"
         data-signal-key="{{ signalKey }}"
         data-selected-asset-key="{{ selectedAssetKey }}"

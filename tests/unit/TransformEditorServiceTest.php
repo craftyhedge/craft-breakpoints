@@ -1723,18 +1723,50 @@ final class TransformEditorServiceTest extends Unit
     {
         $xpath = $this->createReviewMarkupXPath($html);
 
+        // The missing-set warning is rendered as a reactive pair: a visible danger item
+        // and a hidden neutral "Process Again" notice that the setReviewState signal swaps
+        // to after "Set to rendered". Both items live in the DOM at all times.
         $warningItems = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-card-warnings ')]//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-warning-item ')]");
         $this->assertNotFalse($warningItems);
-        $this->assertSame(1, $warningItems->length);
+        $this->assertSame(2, $warningItems->length);
 
-        $warningHeading = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-warning-heading ')]");
-        $this->assertNotFalse($warningHeading);
-        $this->assertSame($expectedHeading, trim((string)($warningHeading->item(0)?->textContent ?? '')));
+        $missingItem = $this->assertReactiveWarningItem($xpath, 'missing-set', false);
+        $missingHeading = $xpath->query(".//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-warning-heading ')]", $missingItem);
+        $this->assertNotFalse($missingHeading);
+        $this->assertSame($expectedHeading, trim((string)($missingHeading->item(0)?->textContent ?? '')));
+
+        $processAgainItem = $this->assertReactiveWarningItem($xpath, 'process-again', true);
+        $this->assertStringContainsString(
+            'Process again to double check application.',
+            (string)($processAgainItem->textContent ?? ''),
+        );
 
         $applyButtons = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpts-warning-apply-rendered ')]");
         $this->assertNotFalse($applyButtons);
         $this->assertSame(1, $applyButtons->length);
         $this->assertSame('Set to rendered', trim((string)($applyButtons->item(0)?->textContent ?? '')));
+    }
+
+    /**
+     * Asserts a single reactive warning item exists with the expected initial hidden state.
+     */
+    private function assertReactiveWarningItem(\DOMXPath $xpath, string $marker, bool $expectHidden): \DOMElement
+    {
+        $items = $xpath->query("//*[@data-bpts-warning='" . $marker . "']");
+        $this->assertNotFalse($items);
+        $this->assertSame(1, $items->length, "Expected exactly one '{$marker}' warning item.");
+
+        $item = $items->item(0);
+        $this->assertInstanceOf(\DOMElement::class, $item);
+
+        $class = ' ' . preg_replace('/\s+/', ' ', trim((string)$item->getAttribute('class'))) . ' ';
+        if ($expectHidden) {
+            $this->assertStringContainsString(' bpts-force-hidden ', $class, "'{$marker}' should start hidden.");
+        } else {
+            $this->assertStringNotContainsString(' bpts-force-hidden ', $class, "'{$marker}' should start visible.");
+        }
+
+        return $item;
     }
 
     /**

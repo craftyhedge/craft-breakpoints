@@ -1,0 +1,23 @@
+{#
+    Reactive missing-set / process-again notice (processed mode, editable only).
+
+    Both items are always present in the DOM; visibility is driven entirely by the
+    per-card `setReviewState` signal so the banner swaps without re-rendering the card
+    (matching the rest of the reactive card UI). The server seeds the initial hidden
+    state via `bpts-force-hidden` and keeps it in sync with `data-class:bpts-force-hidden`.
+
+    Markup is pre-escaped by ReviewRenderer (auto-escape disabled for output parity).
+
+    Variables:
+      - signalKey            (string) escaped card signal key
+      - setReviewState       (string) 'missing' | 'awaitingReprocess' | 'ok' (initial)
+      - missingMessage       (string) detail copy for the missing-set warning
+      - processAgainMessage  (string) detail copy for the process-again notice
+      - applyButtonHtml      (string) pre-rendered "Set to rendered" action markup
+#}
+{% autoescape false %}
+{%- set missingHiddenClass = setReviewState == 'missing' ? '' : 'bpts-force-hidden' -%}
+{%- set reprocessHiddenClass = setReviewState == 'awaitingReprocess' ? '' : 'bpts-force-hidden' -%}
+<div class="bpts-warning-item bpts-warning-item-danger {{ missingHiddenClass }}" data-bpts-warning="missing-set" data-class:bpts-force-hidden="String($editor.cards.{{ signalKey }}.setReviewState || '') !== 'missing'"><div class="bpts-warning-copy"><h3 class="bpts-warning-heading">Transform Set Missing</h3></div><div class="bpts-warning-detail"><p>{{ missingMessage }}</p></div>{{ applyButtonHtml }}</div>
+<div class="bpts-warning-item bpts-warning-item-neutral {{ reprocessHiddenClass }}" data-bpts-warning="process-again" data-class:bpts-force-hidden="String($editor.cards.{{ signalKey }}.setReviewState || '') !== 'awaitingReprocess'"><div class="bpts-warning-copy"><h3 class="bpts-warning-heading">Process Again</h3></div><div class="bpts-warning-detail"><p>{{ processAgainMessage }}</p></div></div>
+{% endautoescape %}

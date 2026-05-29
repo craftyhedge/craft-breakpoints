@@ -455,6 +455,7 @@ final class ReviewRenderer
         $latestRunSnapshot = $this->getLatestRunSnapshotForReview();
         $latestRunSummariesByTransform = $this->buildLatestRunSummaryByTransform($latestRunSnapshot);
         $editedTransforms = $this->buildEditedTransformsMap($latestRunSnapshot, $isProcessedReview);
+        $canEditTransforms = $this->plugin !== null && $this->plugin->getTelemetry()->canEditTransforms();
 
         $breakpointMismatchTransformNames = [];
         $assetMismatchTransformNames = [];
@@ -505,7 +506,6 @@ final class ReviewRenderer
 
             $storedTransformConfig = $this->getReviewTransformConfig($storedTransforms, $transformName);
             $cardWarnings = $warningsByTransform[$transformName] ?? [];
-            $cardWarningsMarkup = $this->renderReviewWarningsMarkup($cardWarnings, false, $reviewMode);
             $includeEscapeWidth = ($storedTransformConfig['includeEscapeWidth'] ?? false) === true;
             if ($storedTransformConfig === null) {
                 $includeEscapeWidth = $escapeBreakpoint !== null && in_array($escapeBreakpoint, $observedBreakpoints, true);
@@ -520,6 +520,20 @@ final class ReviewRenderer
             }
 
             $hasSavedSet = $storedTransformConfig !== null;
+
+            // Reactive missing-set / process-again state (processed mode only):
+            //   'missing'           -> no saved definition (danger banner + "Set to rendered")
+            //   'awaitingReprocess' -> saved since the last process run, not yet re-verified
+            //   'ok'                -> saved and verified; no reactive banner
+            $editedSinceProcess = ($editedTransforms[$transformName] ?? false) === true;
+            $setReviewState = 'ok';
+            if ($isProcessedReview) {
+                if (!$hasSavedSet) {
+                    $setReviewState = 'missing';
+                } elseif ($editedSinceProcess) {
+                    $setReviewState = 'awaitingReprocess';
+                }
+            }
 
             $assetCollection = ReviewAssetCollector::buildAssetCollectionForTransform(
                 $rowsByBreakpoint,
@@ -617,6 +631,7 @@ final class ReviewRenderer
                             'includeEscapeWidth' => $includeEscapeWidth ? '1' : '0',
                             'hideRenderedApply' => $hideRenderedApply ? '1' : '0',
                             'reviewMode' => $reviewMode,
+                            'setReviewState' => $setReviewState,
                         ],
                     ],
                 ],
@@ -739,7 +754,41 @@ final class ReviewRenderer
 
             $suppressMismatchBanners = $hasMissingSetWarning || $hasEmptyBreakpointsWarning;
 
-            $editedSinceProcess = ($editedTransforms[$transformName] ?? false) === true;
+            $reactiveWarningsEnabled = $isProcessedReview && $canEditTransforms;
+
+            // The reactive block owns the missing-set warning; drop it from the static
+            // list so it is not rendered twice.
+            $staticCardWarnings = $reactiveWarningsEnabled
+                ? array_values(array_filter(
+                    $cardWarnings,
+                    static fn($w): bool => !is_array($w) || (string)($w['code'] ?? '') !== 'missing-set-definitions',
+                ))
+                : $cardWarnings;
+            $staticWarningsMarkup = $this->renderReviewWarningsMarkup($staticCardWarnings, false, $reviewMode);
+
+            $missingSetMessage = 'No transforms are saved for this set. Process the observed entry to capture rendered dimensions, or edit the transforms.';
+            foreach ($cardWarnings as $w) {
+                if (is_array($w)
+                    && (string)($w['code'] ?? '') === 'missing-set-definitions'
+                    && trim((string)($w['message'] ?? '')) !== '') {
+                    $missingSetMessage = (string)$w['message'];
+                    break;
+                }
+            }
+
+            $reactiveWarningsMarkup = $reactiveWarningsEnabled
+                ? $this->renderReviewPartial('_partials/review/missing-set-reactive', [
+                    'signalKey' => $this->escapeReviewHtml($signalKey),
+                    'setReviewState' => $setReviewState,
+                    'missingMessage' => $missingSetMessage,
+                    'processAgainMessage' => 'Process again to double check application.',
+                    'applyButtonHtml' => $this->buildReviewWarningActionsMarkup(
+                        ['code' => 'missing-set-definitions'],
+                        self::REVIEW_MODE_PROCESSED,
+                    ),
+                ])
+                : '';
+
             $breakpointMismatchWarningMarkup = ($hasBreakpointMismatchWarning && !$suppressMismatchBanners)
                 ? '<div class="bpts-warning-item bpts-warning-item-neutral">'
                     . '<div class="bpts-warning-copy"><h3 class="bpts-warning-heading">' . ($editedSinceProcess ? 'Saved Values Changed' : 'Breakpoint Mismatch') . '</h3></div>'
@@ -758,9 +807,24 @@ final class ReviewRenderer
                     . '</div>'
                 : '';
 
-            $cardWarningsWithMismatch = $cardWarningsMarkup
+            $cardWarningsWithMismatch = $reactiveWarningsMarkup
+                . $staticWarningsMarkup
                 . $breakpointMismatchWarningMarkup
                 . $assetMismatchWarningMarkup;
+
+            // The card's red border tracks danger-level warnings. Static/mismatch warnings
+            // are fixed per render; the missing-set danger toggles reactively via signal,
+            // while the neutral "process again" notice must NOT make the card red.
+            $staticWarningPresent = $staticWarningsMarkup !== ''
+                || $breakpointMismatchWarningMarkup !== ''
+                || $assetMismatchWarningMarkup !== '';
+            $cardWarningDangerExpr = $staticWarningPresent
+                ? 'true'
+                : ($reactiveWarningsEnabled
+                    ? "String(\$editor.cards.{$signalKey}.setReviewState || '') === 'missing'"
+                    : 'false');
+            $cardWarningSeedDanger = $staticWarningPresent
+                || ($reactiveWarningsEnabled && $setReviewState === 'missing');
 
             $lastProcessPanelHtml = $this->buildLastProcessPanelMarkup(
                 $latestRunSnapshot,
@@ -775,9 +839,10 @@ final class ReviewRenderer
                 'transformNameEscaped' => $this->escapeReviewHtml($transformName),
                 'signalKey' => $this->escapeReviewHtml($signalKey),
                 'cardSignalsStructural' => $this->escapeReviewHtml($cardSignalsStructuralJson),
-                'cardWarningStateClass' => $cardWarningsWithMismatch !== ''
+                'cardWarningStateClass' => $cardWarningSeedDanger
                     ? 'bpts-transform-card-warning'
                     : '',
+                'cardWarningDangerExpr' => $cardWarningDangerExpr,
                 'cardWarningsHtml' => $cardWarningsWithMismatch !== ''
                     ? '<div class="bpts-transform-card-warnings">' . $cardWarningsWithMismatch . '</div>'
                     : '',

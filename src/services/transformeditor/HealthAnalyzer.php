@@ -226,13 +226,15 @@ final class HealthAnalyzer
         }
 
         $snapshotDimensions = $latestRunSnapshot['savedDimensionsByTransform'] ?? null;
-        if (!is_array($snapshotDimensions) || $snapshotDimensions === []) {
-            return [];
+        if (!is_array($snapshotDimensions)) {
+            $snapshotDimensions = [];
         }
 
         $currentDimensions = $this->buildSavedDimensionsByTransformAndBreakpoint();
 
         $edited = [];
+
+        // Sets that were saved at process time but whose dimensions have since changed.
         foreach ($snapshotDimensions as $transformName => $snapshotByBreakpoint) {
             if (!is_string($transformName) || $transformName === '' || !is_array($snapshotByBreakpoint)) {
                 continue;
@@ -240,6 +242,23 @@ final class HealthAnalyzer
 
             $currentByBreakpoint = $currentDimensions[$transformName] ?? [];
             if ($this->savedDimensionsDiffer($snapshotByBreakpoint, $currentByBreakpoint)) {
+                $edited[$transformName] = true;
+            }
+        }
+
+        // Sets that did not exist in the process snapshot but have since been saved
+        // (e.g. created via "Set to rendered"). These have never been verified against
+        // a render, so they count as edited-since-process until re-processed.
+        foreach ($currentDimensions as $transformName => $currentByBreakpoint) {
+            if (!is_string($transformName) || $transformName === '' || isset($edited[$transformName])) {
+                continue;
+            }
+
+            if (array_key_exists($transformName, $snapshotDimensions)) {
+                continue;
+            }
+
+            if ($this->savedDimensionsDiffer($currentByBreakpoint, [])) {
                 $edited[$transformName] = true;
             }
         }
