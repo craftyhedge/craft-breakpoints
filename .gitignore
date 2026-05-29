@@ -1,5 +1,6 @@
 /vendor/
 /composer.lock
+/CLAUDE.local.md
 /.idea/
 /.vscode/
 .github/skills

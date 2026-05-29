@@ -1,0 +1,15 @@
+# Keep local/dev tooling in the repo, but exclude it from the distributed
+# Composer package (git archive / dist tarballs).
+/.ddev            export-ignore
+/.github          export-ignore
+/.vscode          export-ignore
+/.nocommit        export-ignore
+/tests            export-ignore
+/.gitattributes   export-ignore
+/.gitignore       export-ignore
+/codeception.yml  export-ignore
+/phpstan.neon      export-ignore
+/vitest.config.mjs export-ignore
+/package.json      export-ignore
+/package-lock.json export-ignore
+/TESTING.md        export-ignore
