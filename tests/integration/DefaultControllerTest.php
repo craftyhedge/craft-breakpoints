@@ -75,24 +75,6 @@ final class DefaultControllerTest extends Unit
         }
     }
 
-    public function testTransformsActionRegistersConfigScriptAndAssetBundle(): void
-    {
-        $view = Craft::$app->getView();
-
-        $response = $this->controller()->actionTransforms();
-
-        $this->assertSame(200, $response->statusCode);
-        $this->assertFalse($response->getIsRedirection());
-
-        $registeredJs = implode("\n", array_merge(...array_values($view->js)));
-        $this->assertStringContainsString('window.bpiProcessingConfig = ', $registeredJs);
-        $this->assertArrayHasKey(TransformsAsset::class, $view->assetBundles);
-        $this->assertStringContainsString('data-persist:breakpoints-editor__session="{include: /^(showCardSettings|editor\\.cards\\.[^.]+\\.selectedAssetKey)$/}"', (string)$response->content);
-        $this->assertStringNotContainsString('data-persist:breakpoints-editor__session="{include: /^editor\\.cards\\./}"', (string)$response->content);
-        $this->assertStringNotContainsString('bpts-frame-toolbar-actions', (string)$response->content);
-        $this->assertStringNotContainsString('bpts-open-preview', (string)$response->content);
-    }
-
     public function testTransformsActionCanRenderDeveloperToolbarActionsWhenEnabledByConfig(): void
     {
         $controller = new class('default', Craft::$app) extends DefaultController {

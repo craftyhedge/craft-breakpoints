@@ -162,7 +162,10 @@ final class TransformsControllerTest extends Unit
         $response = $controller->actionApplyCardOperation();
 
         $this->assertSame(Response::FORMAT_RAW, $response->format);
-        $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
+        // Scope selection is a pure reactive signal update: it patches scope signals only,
+        // with no card re-render and no editor status fragment.
+        $this->assertStringContainsString('datastar-patch-signals', (string)$response->content);
+        $this->assertStringContainsString('"scopeMode":"all"', (string)$response->content);
         $this->assertStringNotContainsString('bpts-editor-status', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
@@ -242,9 +245,11 @@ final class TransformsControllerTest extends Unit
         $response = $controller->actionApplyCardOperation();
 
         $this->assertSame(Response::FORMAT_RAW, $response->format);
-        $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
-        $this->assertStringNotContainsString('scopeMode&quot;:&quot;all&quot;', (string)$response->content);
-        $this->assertStringContainsString('scopeMode&quot;:&quot;breakpoint&quot;', (string)$response->content);
+        // Toggling a breakpoint persists the enabled flag and patches row signals; it must
+        // not emit scopeMode, leaving the user's selected breakpoint scope untouched client-side.
+        $this->assertStringContainsString('datastar-patch-signals', (string)$response->content);
+        $this->assertStringContainsString('Breakpoint state updated.', (string)$response->content);
+        $this->assertStringNotContainsString('scopeMode', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
     }
@@ -266,9 +271,11 @@ final class TransformsControllerTest extends Unit
         $response = $controller->actionApplyCardOperation();
 
         $this->assertSame(Response::FORMAT_RAW, $response->format);
-        $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
-        $this->assertStringContainsString('scopeMode&quot;:&quot;breakpoint&quot;', (string)$response->content);
-        $this->assertStringNotContainsString('scopeMode&quot;:&quot;all&quot;', (string)$response->content);
+        // Without editor signals the breakpoint scope comes from the scopeBreakpoint param;
+        // the toggle still persists and must not emit scopeMode (no reset to "all").
+        $this->assertStringContainsString('datastar-patch-signals', (string)$response->content);
+        $this->assertStringContainsString('Breakpoint state updated.', (string)$response->content);
+        $this->assertStringNotContainsString('scopeMode', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
     }
@@ -336,9 +343,9 @@ final class TransformsControllerTest extends Unit
 
         $this->assertSame(Response::FORMAT_RAW, $response->format);
         $this->assertStringContainsString('patch-signals', (string)$response->content);
-        $this->assertStringContainsString('ratioWidthInput', (string)$response->content);
-        $this->assertStringContainsString('320', (string)$response->content);
-        $this->assertStringContainsString('180', (string)$response->content);
+        // hero's 640px breakpoint is saved as 640x340; the copied ratio is reduced by GCD to 32:17.
+        $this->assertStringContainsString('"ratioWidthInput":"32"', (string)$response->content);
+        $this->assertStringContainsString('"ratioHeightInput":"17"', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
     }
@@ -381,41 +388,22 @@ final class TransformsControllerTest extends Unit
         $this->assertTrue($controller->postRequestChecked);
     }
 
-    public function testApplyCardOperationRatioCopyReturnsErrorWhenNoSnapshotExists(): void
+    public function testApplyCardOperationRatioCopyReturnsErrorWhenBreakpointHasNoRatioSource(): void
     {
-        $previousTelemetry = Plugin::getInstance()->getTelemetry();
-        Plugin::getInstance()->set('telemetry', new class() extends TelemetryService {
-            public function canEditTransforms(): bool
-            {
-                return true;
-            }
-            public function getLatestRunSnapshot(): ?array
-            {
-                return null;
-            }
-            public function getPreviewCacheRows(): array
-            {
-                return [];
-            }
-        });
+        // The ratio is copied from the saved set definition (not a run snapshot). hero's
+        // 480px breakpoint has no saved width/height, so there is no ratio source to copy.
+        $controller = $this->controllerWithBody([
+            'baseVersion' => 6,
+            'operation' => 'ratio.copyFromRenderedBreakpoint',
+            'setName' => 'hero',
+            'ratioSourceBreakpoint' => 480,
+        ]);
+        $response = $controller->actionApplyCardOperation();
 
-        try {
-            $controller = $this->controllerWithBody([
-                'baseVersion' => 6,
-                'operation' => 'ratio.copyFromRenderedBreakpoint',
-                'setName' => 'hero',
-                'ratioSourceBreakpoint' => 640,
-            ]);
-            $response = $controller->actionApplyCardOperation();
-
-            $this->assertSame(Response::FORMAT_RAW, $response->format);
-            $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
-            $this->assertStringContainsString('data-kind="error"', (string)$response->content);
-            $this->assertStringContainsString('No rendered ratio source found', (string)$response->content);
-        } finally {
-            Plugin::getInstance()->set('telemetry', $previousTelemetry);
-        }
-
+        $this->assertSame(Response::FORMAT_RAW, $response->format);
+        $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
+        $this->assertStringContainsString('data-kind="error"', (string)$response->content);
+        $this->assertStringContainsString('No rendered ratio source found', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
     }
@@ -451,7 +439,9 @@ final class TransformsControllerTest extends Unit
         $this->assertSame(Response::FORMAT_RAW, $response->format);
         $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
         $this->assertStringContainsString('data-kind="error"', (string)$response->content);
-        $this->assertStringContainsString('scopeBreakpoint is required when updating breakpoint state.', (string)$response->content);
+        // A fractional breakpoint normalizes to neither a valid breakpoint key nor a width,
+        // so BreakpointCatalog rejects it with its centralized validation message.
+        $this->assertStringContainsString('Either breakpoint key or width is required.', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
     }

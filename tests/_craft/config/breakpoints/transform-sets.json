@@ -1,76 +1,52 @@
 {
-    "version": "2026-05-29T14:10:36.088028Z",
+    "version": "2026-05-29T14:52:27.117660Z",
     "sets": {
         "hero": {
             "name": "hero",
             "includeEscapeWidth": false,
             "variants": {
-                "xs": {
-                    "width": null,
-                    "height": null,
-                    "enabled": true,
-                    "autoDimension": null,
-                    "ratioWidth": null,
-                    "ratioHeight": null,
-                    "ratioSourceDimension": "width",
-                    "ratioLocked": false
-                },
                 "sm": {
                     "width": 640,
                     "height": 340,
                     "enabled": true,
-                    "autoDimension": null,
-                    "ratioWidth": null,
-                    "ratioHeight": null,
-                    "ratioSourceDimension": "width",
-                    "ratioLocked": false
+                    "autoDimension": null
+                },
+                "xs": {
+                    "width": null,
+                    "height": null,
+                    "enabled": false,
+                    "autoDimension": null
                 },
                 "md": {
                     "width": null,
                     "height": null,
                     "enabled": false,
-                    "autoDimension": null,
-                    "ratioWidth": null,
-                    "ratioHeight": null,
-                    "ratioSourceDimension": "width",
-                    "ratioLocked": false
+                    "autoDimension": null
                 },
                 "lg": {
                     "width": null,
                     "height": null,
                     "enabled": false,
-                    "autoDimension": null,
-                    "ratioWidth": null,
-                    "ratioHeight": null,
-                    "ratioSourceDimension": "width",
-                    "ratioLocked": false
+                    "autoDimension": null
                 },
                 "xl": {
                     "width": null,
                     "height": null,
                     "enabled": false,
-                    "autoDimension": null,
-                    "ratioWidth": null,
-                    "ratioHeight": null,
-                    "ratioSourceDimension": "width",
-                    "ratioLocked": false
+                    "autoDimension": null
                 },
                 "2xl": {
                     "width": null,
                     "height": null,
                     "enabled": false,
-                    "autoDimension": null,
-                    "ratioWidth": null,
-                    "ratioHeight": null,
-                    "ratioSourceDimension": "width",
-                    "ratioLocked": false
+                    "autoDimension": null
                 }
             },
             "config": {
                 "passHeightWhenRenderedLteSaved": true,
                 "allowAnyHeight": false
             },
-            "lastUpdatedAt": "2026-05-29T14:10:36+00:00"
+            "lastUpdatedAt": null
         }
     }
 }

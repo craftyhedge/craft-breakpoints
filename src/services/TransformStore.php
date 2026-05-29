@@ -17,6 +17,14 @@ class TransformStore extends Component
     private ?array $_sets = null;
     private string $_version = '';
 
+    /**
+     * Overrides the base directory used to resolve the sets config file.
+     * Null (production default) resolves to Craft's config path. Used by the
+     * test suite to redirect the file-backed store to an ephemeral location so
+     * tests never persist into the tracked config file.
+     */
+    public ?string $configBasePath = null;
+
     public function init(): void
     {
         parent::init();
@@ -346,7 +354,9 @@ class TransformStore extends Component
 
     private function getSetsConfigPath(): string
     {
-        return Craft::$app->getPath()->getConfigPath() . self::SETS_CONFIG_PATH;
+        $basePath = $this->configBasePath ?? Craft::$app->getPath()->getConfigPath();
+
+        return $basePath . self::SETS_CONFIG_PATH;
     }
 
     private function buildDefaultSets(): array

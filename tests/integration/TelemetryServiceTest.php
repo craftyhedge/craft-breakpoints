@@ -38,8 +38,8 @@ final class TelemetryServiceTest extends Unit
         $row = $byHandle['hero'];
         $this->assertSame(320, $row['initWidth']);
         $this->assertNull($row['initHeight']);
-        $this->assertNotNull($row['initRatio']);
-        $this->assertEqualsWithDelta(16 / 9, (float)$row['initRatio'], 1e-6);
+        // initRatio round-trips in its preserved raw form, not as a computed float.
+        $this->assertSame('16:9', $row['initRatio']);
         $this->assertFalse($row['initWidthAuto']);
         $this->assertFalse($row['initHeightAuto']);
     }
