@@ -1,128 +1,91 @@
 # Testing
 
-This plugin uses Craft's standard Codeception test harness.
+This plugin uses Craft's standard Codeception harness for PHP and Vitest for JS.
+PHP tests need PHP 8.2 + MySQL, which we run via [ddev](https://ddev.com/).
 
-## Prerequisites
+> This file is for local development only — it is excluded from the released
+> package via `.gitattributes` (`export-ignore`).
 
-- PHP 8.2+
-- Composer
-- Docker
-- PDO MySQL extension enabled in PHP (`pdo_mysql`)
+## PHP tests (ddev)
 
-## 1. Install dependencies
-
-```sh
-composer install
-```
-
-## 2. Start a local test database in Docker
-
-Use your own credentials and keep them in sync with `tests/.env`.
+### One-time setup
 
 ```sh
-docker run -d --name craft-breakpoints-test-db \
-  -p 3308:3306 \
-  -e MYSQL_ROOT_PASSWORD=replace-root-password \
-  -e MYSQL_USER=replace-user \
-  -e MYSQL_PASSWORD=replace-password \
-  -e MYSQL_DATABASE=replace-database \
-  mysql:8.0
+ddev start
+ddev composer install
 ```
 
-## 3. Configure test environment
-
-Copy and edit the test env file:
-
-```sh
-cp tests/.env.example tests/.env
-```
-
-Example MySQL settings for `tests/.env`:
+The ddev config (`.ddev/config.yaml`) provides PHP 8.2 and MySQL 8.0. The test
+harness reads DB credentials from `tests/.env`, which is already pointed at the
+ddev database (host `db`, user/password/database all `db`):
 
 ```env
 APP_ID=craft-test
 SECURITY_KEY=test-security-key
-DB_DSN=mysql:host=127.0.0.1;port=3308;dbname=replace-database
+DB_DSN=mysql:host=db;port=3306;dbname=db
 DB_DRIVER=mysql
-DB_SERVER=127.0.0.1
-DB_PORT=3308
-DB_DATABASE=replace-database
-DB_USER=replace-user
-DB_PASSWORD=replace-password
+DB_SERVER=db
+DB_PORT=3306
+DB_DATABASE=db
+DB_USER=db
+DB_PASSWORD=db
 DB_SCHEMA=
 DB_TABLE_PREFIX=
 ```
 
-## 4. Run tests
+`tests/.env` is gitignored; copy from `tests/.env.example` if it is missing.
+
+### Running
 
 ```sh
-composer test
+ddev exec vendor/bin/codecept run unit          # unit suite
+ddev exec vendor/bin/codecept run integration   # integration suite
+ddev exec vendor/bin/codecept run               # all suites
 ```
 
-This runs the unit suite:
+The harness uses `dbSetup.clean: true`, so it always operates on a dedicated
+test database — the ddev `db` database is safe to wipe.
+
+## JS tests (Vitest)
+
+Use the locally installed binary, **not** `npx` — the host Node version pulls a
+too-new Vitest that fails to start.
 
 ```sh
-vendor/bin/codecept run unit
+npm install                                          # one-time
+node_modules/.bin/vitest run                         # all JS tests
+node_modules/.bin/vitest run tests/js/transforms-runtime.test.mjs
 ```
 
-Run integration tests:
+With coverage for the split transforms runtime modules:
 
 ```sh
-composer test:integration
+node_modules/.bin/vitest run \
+  --coverage --coverage.provider=istanbul --coverage.reporter=text \
+  --coverage.include='src/web/assets/transforms/dist/js/transforms*.js' \
+  --coverage.exclude='**/vendor/**' --coverage.exclude='coverage/**'
 ```
 
-Run all suites:
+### JS runtime test scope
 
-```sh
-composer test:all
-```
+The runtime suite (`tests/js/transforms-runtime.test.mjs`) prioritizes
+processing correctness and payload contracts:
 
-Run JavaScript unit tests:
-
-```sh
-npm run test:js
-```
-
-Run JavaScript tests with coverage:
-
-```sh
-npm run test:js -- --coverage --coverage.reporter=text-summary
-```
-
-The JS runtime suite in `tests/js/transforms-runtime.test.mjs` covers processing report normalization, lazy-loader activation helpers, wait/cancel readiness behavior, and report event publication across the split runtime modules.
-
-### JS Runtime Test Scope
-
-Prioritize tests for processing correctness and payload contracts:
-
-- run report totals/status/failure metadata
+- run report totals / status / failure metadata
 - readiness classification and cancel outcomes
 - lazy-loader activation and source normalization
 - structured output rows and summary counts
 
-Keep Craft CP presentation wiring at smoke level unless there is a known regression:
-
-- status text/class toggles
-- drag-scroll visual behavior
-- modal ignore and Datastar patch wiring
-
-Run focused coverage for the split transforms runtime modules:
-
-```sh
-npm run test:js -- --coverage --coverage.provider=istanbul --coverage.reporter=text --coverage.include=src/web/assets/transforms/dist/js/transforms*.js --coverage.exclude=**/vendor/** --coverage.exclude=coverage/**
-```
-
-## 5. Stop and remove the test database
-
-```sh
-docker stop craft-breakpoints-test-db
-docker rm craft-breakpoints-test-db
-```
+Keep Craft CP presentation wiring (status text/class toggles, drag-scroll,
+Datastar patch wiring) at smoke level unless there is a known regression.
 
 ## Troubleshooting
 
-- If you see `could not find driver`, enable/install PHP `pdo_mysql`.
-- If connection fails, confirm Docker container is running and `tests/.env` credentials match container env vars.
-- If port `3308` is busy, map a different local port (for example `-p 3309:3306`) and update `DB_PORT` and `DB_DSN`.
-- The test harness uses `dbSetup.clean: true`, so always use a dedicated test database.
-- JS coverage attribution depends on loading runtime code through the module pipeline. The runtime hooks test intentionally imports the runtime module directly rather than eval-loading source text.
+- `could not find driver`: handled inside ddev (the web container has
+  `pdo_mysql`); make sure you run codecept via `ddev exec`, not on the host.
+- DB connection failures: confirm `ddev describe` shows the project running and
+  that `tests/.env` matches the ddev credentials above.
+- JS startup crash under `npx`: use `node_modules/.bin/vitest` instead.
+- JS coverage attribution depends on loading runtime code through the module
+  pipeline; the runtime hooks test imports the runtime module directly rather
+  than eval-loading source text.
