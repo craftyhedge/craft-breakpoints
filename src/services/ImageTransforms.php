@@ -49,6 +49,9 @@ class ImageTransforms extends Component
         $variant = $this->getVariantByIndex($namedSet, $loopIndex);
         $autoDimension = $this->resolveAutoDimension($variant, $initOptions);
 
+        $slotDefs = $this->_plugin->getConfigService()->getBreakpointSlotDefinitions($this->isEscapeWidthIncluded($config, $namedSet));
+        $isFinalSlot = !empty($slotDefs) && $loopIndex === count($slotDefs) - 1;
+
         $setName = $this->resolveSetName($config);
 
         $transformedPrimary = $this->getTransformedImages($image, $setName, 'primary', $config);
@@ -148,7 +151,7 @@ class ImageTransforms extends Component
             : null;
 
         $lastEnabledBreakpointName = array_key_last($enabledBreakpoints);
-        $isLastLoop = $breakpointName !== null && $breakpointName === $lastEnabledBreakpointName;
+        $isLastLoop = $isFinalSlot || ($breakpointName !== null && $breakpointName === $lastEnabledBreakpointName);
         $mediaQuery = $this->sourceMediaQuery($breakpoint, $secondLastBreakpoint, $isLastLoop);
 
         $primarySourceAttributes = array_merge([

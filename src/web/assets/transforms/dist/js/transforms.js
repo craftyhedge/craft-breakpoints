@@ -2581,7 +2581,9 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
                 state.waitSoftLimitReached = false;
                 setStopButtonVisibility(false);
-                const measurementWidth = getMeasurementWidthForBreakpoint(slot.mediaWidth);
+                const measurementWidth = (slot.isFinal && slot.measureWidth !== slot.mediaWidth)
+                    ? getMeasurementWidthForBreakpoint(slot.measureWidth)
+                    : getMeasurementWidthForBreakpoint(slot.mediaWidth);
                 setStatus(`Processing ${slot.key} (${slot.mediaWidth}px)...`);
 
                 failureStage = 'set-breakpoint-width';
