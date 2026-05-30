@@ -20,6 +20,7 @@ class Install extends Migration
                 'initRatio' => $this->string(32)->null()->defaultValue(null),
                 'initWidthAuto' => $this->boolean()->null()->defaultValue(null),
                 'initHeightAuto' => $this->boolean()->null()->defaultValue(null),
+                'includeEscapeWidth' => $this->boolean()->null()->defaultValue(null),
                 'dateCreated' => $this->dateTime()->notNull(),
                 'dateUpdated' => $this->dateTime()->notNull(),
             ]);
@@ -51,7 +52,10 @@ class Install extends Migration
                 'id' => $this->primaryKey(),
                 'snapshotId' => $this->integer()->notNull(),
                 'transformHandle' => $this->string()->notNull(),
+                'slotKey' => $this->string(64)->notNull(),
+                'slotIndex' => $this->integer()->notNull(),
                 'breakpointWidth' => $this->integer()->notNull(),
+                'measureWidth' => $this->integer()->notNull(),
                 'assetId' => $this->string(255)->null()->defaultValue(null),
                 'displayAssetUrl' => $this->string(1024)->null()->defaultValue(null),
                 'rowStatus' => $this->string(24)->notNull()->defaultValue('unprocessed'),
@@ -68,6 +72,7 @@ class Install extends Migration
                 ['snapshotId', 'transformHandle', 'breakpointWidth'],
                 false
             );
+            $this->createIndex(null, '{{%bpi_processing_run_snapshot_breakpoints}}', ['snapshotId', 'transformHandle', 'slotKey'], false);
             $this->createIndex(null, '{{%bpi_processing_run_snapshot_breakpoints}}', ['transformHandle'], false);
             $this->createIndex(null, '{{%bpi_processing_run_snapshot_breakpoints}}', ['breakpointWidth'], false);
 
@@ -87,7 +92,10 @@ class Install extends Migration
                 'id' => $this->primaryKey(),
                 'snapshotId' => $this->integer()->notNull(),
                 'transformHandle' => $this->string()->notNull(),
+                'slotKey' => $this->string(64)->notNull(),
+                'slotIndex' => $this->integer()->notNull(),
                 'breakpointWidth' => $this->integer()->notNull(),
+                'measureWidth' => $this->integer()->notNull(),
                 'savedWidth' => $this->integer()->null()->defaultValue(null),
                 'savedHeight' => $this->integer()->null()->defaultValue(null),
                 'dateCreated' => $this->dateTime()->notNull(),
@@ -98,8 +106,9 @@ class Install extends Migration
                 null,
                 '{{%bpi_processing_run_snapshot_dimensions}}',
                 ['snapshotId', 'transformHandle', 'breakpointWidth'],
-                true
+                false
             );
+            $this->createIndex(null, '{{%bpi_processing_run_snapshot_dimensions}}', ['snapshotId', 'transformHandle', 'slotKey'], true);
 
             $this->addForeignKey(
                 null,
@@ -116,7 +125,10 @@ class Install extends Migration
             $this->createTable('{{%bpi_preview_cache}}', [
                 'id' => $this->primaryKey(),
                 'transformHandle' => $this->string()->notNull(),
+                'slotKey' => $this->string(64)->notNull(),
+                'slotIndex' => $this->integer()->notNull(),
                 'breakpointWidth' => $this->integer()->notNull(),
+                'measureWidth' => $this->integer()->notNull(),
                 'displayAssetUrl' => $this->string(1024)->null()->defaultValue(null),
                 'rowStatus' => $this->string(24)->notNull()->defaultValue('unprocessed'),
                 'renderedWidth' => $this->integer()->null()->defaultValue(null),
@@ -129,7 +141,8 @@ class Install extends Migration
                 'dateUpdated' => $this->dateTime()->notNull(),
             ]);
 
-            $this->createIndex(null, '{{%bpi_preview_cache}}', ['transformHandle', 'breakpointWidth'], true);
+            $this->createIndex(null, '{{%bpi_preview_cache}}', ['transformHandle', 'breakpointWidth'], false);
+            $this->createIndex(null, '{{%bpi_preview_cache}}', ['transformHandle', 'slotKey'], true);
             $this->createIndex(null, '{{%bpi_preview_cache}}', ['transformHandle'], false);
         }
 

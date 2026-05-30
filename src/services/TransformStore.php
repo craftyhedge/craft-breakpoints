@@ -277,6 +277,12 @@ class TransformStore extends Component
                 $normalizedVariants[$breakpointName] = $variant;
             }
 
+            $canonicalVariants = [];
+            foreach ($this->getBreakpointNamesForSetDefinition($setDefinition) as $breakpointName) {
+                $variant = $normalizedVariants[$breakpointName] ?? null;
+                $canonicalVariants[$breakpointName] = is_array($variant) ? $variant : [];
+            }
+
             $config = $setDefinition['config'] ?? [];
             if (!is_array($config)) {
                 throw new InvalidArgumentException('Set config must be an array when provided.');
@@ -286,7 +292,7 @@ class TransformStore extends Component
 
             $normalized[$setName] = array_merge($setDefinition, [
                 'name' => (string)($setDefinition['name'] ?? $setName),
-                'variants' => $normalizedVariants,
+                'variants' => $canonicalVariants,
                 'includeEscapeWidth' => ($setDefinition['includeEscapeWidth'] ?? false) === true,
                 'config' => $config,
                 'lastUpdatedAt' => $lastUpdatedAt,

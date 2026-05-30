@@ -985,25 +985,21 @@ final class OperationsService
         $variants = $setDefinition['variants'] ?? [];
         $definitions = $this->breakpointCatalog->getDefinitionsForIncludeEscapeWidth($resolvedIncludeEscapeWidth);
 
-        if ($this->hasDuplicateDefinitionWidths($definitions)) {
-            Support::addGlobalError($validation, 'Ambiguous breakpoint: multiple breakpoints have the same width.');
-
-            return [
-                'persisted' => false,
-                'validation' => $validation,
-            ];
-        }
-
-        $breakpointKeyByWidth = [];
+        $breakpointKeysByWidth = [];
         foreach ($definitions as $definition) {
-            $breakpointKeyByWidth[(string)$definition['width']] = $definition['key'];
+            $breakpointKeysByWidth[(string)$definition['width']][] = $definition['key'];
         }
 
         if ($clearAuto) {
+            $renderedRowsByKey = [];
             $renderedRowsByWidth = [];
             foreach ($renderedRows as $renderedRow) {
                 if (!is_array($renderedRow)) {
                     continue;
+                }
+                $slotKey = Support::parseNullableNonEmptyString($renderedRow['slotKey'] ?? null);
+                if ($slotKey !== null) {
+                    $renderedRowsByKey[$slotKey] = $renderedRow;
                 }
                 $bp = Support::normalizeNullablePositiveInt($renderedRow['breakpoint'] ?? null);
                 if ($bp !== null) {
@@ -1023,7 +1019,7 @@ final class OperationsService
                     continue;
                 }
 
-                $renderedRow = $renderedRowsByWidth[(string)$breakpointWidth] ?? null;
+                $renderedRow = $renderedRowsByKey[(string)$breakpointKey] ?? ($renderedRowsByWidth[(string)$breakpointWidth] ?? null);
 
                 if ($autoDimension === 'width') {
                     $rendered = $renderedRow !== null
@@ -1063,49 +1059,54 @@ final class OperationsService
                     continue;
                 }
 
+                $renderedSlotKey = Support::parseNullableNonEmptyString($renderedRow['slotKey'] ?? null);
                 $breakpointWidth = Support::normalizeNullablePositiveInt($renderedRow['breakpoint'] ?? null);
-                if ($breakpointWidth === null) {
+                if ($renderedSlotKey === null && $breakpointWidth === null) {
                     continue;
                 }
 
-                $breakpointKey = $breakpointKeyByWidth[(string)$breakpointWidth] ?? null;
-                if ($breakpointKey === null) {
+                $breakpointKeys = $renderedSlotKey !== null
+                    ? [$renderedSlotKey]
+                    : ($breakpointKeysByWidth[(string)$breakpointWidth] ?? []);
+                if ($breakpointKeys === []) {
                     continue;
                 }
 
-                $currentEntry = self::getOrInitVariant($variants, $breakpointKey);
+                foreach ($breakpointKeys as $breakpointKey) {
+                    $currentEntry = self::getOrInitVariant($variants, (string)$breakpointKey);
 
-                $autoDimension = Support::normalizeAutoDimension($currentEntry['autoDimension'] ?? null);
+                    $autoDimension = Support::normalizeAutoDimension($currentEntry['autoDimension'] ?? null);
 
-                $updated = false;
+                    $updated = false;
 
-                $width = Support::normalizeNullablePositiveInt($renderedRow['width'] ?? null);
-                if ($width !== null) {
-                    $candidateDimensionCount += 1;
+                    $width = Support::normalizeNullablePositiveInt($renderedRow['width'] ?? null);
+                    if ($width !== null) {
+                        $candidateDimensionCount += 1;
 
-                    if ($autoDimension === 'width') {
-                        $autoSkippedDimensionCount += 1;
-                    } else {
-                        $currentEntry['width'] = $width;
-                        $updated = true;
+                        if ($autoDimension === 'width') {
+                            $autoSkippedDimensionCount += 1;
+                        } else {
+                            $currentEntry['width'] = $width;
+                            $updated = true;
+                        }
                     }
-                }
 
-                $height = Support::normalizeNullablePositiveInt($renderedRow['height'] ?? null);
-                if ($height !== null) {
-                    $candidateDimensionCount += 1;
+                    $height = Support::normalizeNullablePositiveInt($renderedRow['height'] ?? null);
+                    if ($height !== null) {
+                        $candidateDimensionCount += 1;
 
-                    if ($autoDimension === 'height') {
-                        $autoSkippedDimensionCount += 1;
-                    } else {
-                        $currentEntry['height'] = $height;
-                        $updated = true;
+                        if ($autoDimension === 'height') {
+                            $autoSkippedDimensionCount += 1;
+                        } else {
+                            $currentEntry['height'] = $height;
+                            $updated = true;
+                        }
                     }
-                }
 
-                if ($updated) {
-                    $variants[$breakpointKey] = $currentEntry;
-                    $appliedCount += 1;
+                    if ($updated) {
+                        $variants[(string)$breakpointKey] = $currentEntry;
+                        $appliedCount += 1;
+                    }
                 }
             }
 
@@ -1231,6 +1232,7 @@ final class OperationsService
      */
     private function persistOperationSets(array $sets, array $validation, ?string $expectedVersion): array
     {
+        $sets = $this->normalizeCanonicalVariantsForSets($sets);
         $resolvedExpectedVersion = $expectedVersion ?? $this->transformStore->getCurrentVersion();
         $persistResult = $this->transformStore->persistSets($sets, $resolvedExpectedVersion);
         $conflict = ($persistResult['conflict'] ?? false) === true;
@@ -1248,20 +1250,38 @@ final class OperationsService
     }
 
     /**
-     * @param array<int, array{key: string, width: int, isEscape: bool}> $definitions
+     * Ensure persisted sets keep exactly the canonical variant shape: `base`
+     * plus every configured breakpoint name.
+     *
+     * @param array<string, mixed> $sets
+     * @return array<string, mixed>
      */
-    private function hasDuplicateDefinitionWidths(array $definitions): bool
+    private function normalizeCanonicalVariantsForSets(array $sets): array
     {
-        $widthCounts = [];
-        foreach ($definitions as $definition) {
-            $width = (string)$definition['width'];
-            $widthCounts[$width] = ($widthCounts[$width] ?? 0) + 1;
-            if ($widthCounts[$width] > 1) {
-                return true;
+        foreach ($sets as $setName => $setDefinition) {
+            if (!is_string($setName) || !is_array($setDefinition)) {
+                continue;
             }
+
+            $includeEscapeWidth = ($setDefinition['includeEscapeWidth'] ?? false) === true;
+            $existingVariants = isset($setDefinition['variants']) && is_array($setDefinition['variants'])
+                ? $setDefinition['variants']
+                : [];
+            $canonicalVariants = [];
+
+            foreach ($this->breakpointCatalog->getDefinitionsForIncludeEscapeWidth($includeEscapeWidth) as $definition) {
+                $key = (string)$definition['key'];
+                $variant = $existingVariants[$key] ?? null;
+                $canonicalVariants[$key] = is_array($variant)
+                    ? $variant
+                    : Support::buildDefaultTransformEntry();
+            }
+
+            $setDefinition['variants'] = $canonicalVariants;
+            $sets[$setName] = $setDefinition;
         }
 
-        return false;
+        return $sets;
     }
 
     /**

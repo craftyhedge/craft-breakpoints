@@ -75,38 +75,68 @@ class ConfigService extends Component
     }
 
     /**
-     * Breakpoints map (`name => width`) with `escape` dropped unless opted in.
-     *
-     * Shared base for the drop-escape consumers: callers that need key+width
-     * pairs use this directly; key-only and width-only callers use the helpers
-     * below. Keeps the `unset('escape')` rule in one place.
+     * Configured breakpoint map (`name => media width`) with stable canonical
+     * slot keys. The synthetic `escape` key is never returned.
      *
      * @return array<string, int>
      */
     public function getBreakpointMap(bool $includeEscapeWidth): array
     {
-        $breakpoints = $this->getBreakpoints();
-
-        if (!$includeEscapeWidth) {
-            unset($breakpoints['escape']);
+        $map = [];
+        $plugin = Plugin::getInstance();
+        if ($plugin === null) {
+            return $map;
         }
 
-        $map = [];
-        foreach ($breakpoints as $key => $width) {
-            $map[(string)$key] = (int)$width;
+        foreach ($plugin->getBreakpointSlots()->getSlots($includeEscapeWidth) as $slot) {
+            $map[$slot['key']] = (int)$slot['mediaWidth'];
         }
 
         return $map;
     }
 
     /**
-     * Ordered widths for a set, escape dropped unless opted in.
+     * Ordered canonical media widths. Stable count; includeEscapeWidth does not
+     * change media boundaries.
      *
      * @return int[]
      */
     public function getBreakpointWidths(bool $includeEscapeWidth): array
     {
-        return array_values($this->getBreakpointMap($includeEscapeWidth));
+        return array_map(
+            static fn(array $definition): int => (int)$definition['width'],
+            $this->getBreakpointSlotDefinitions($includeEscapeWidth),
+        );
+    }
+
+    /**
+     * Canonical saved/editor slots: a synthetic `base` slot followed by every
+     * configured breakpoint name. `includeEscapeWidth` only changes the final
+     * slot's width; it never changes the slot count or keys.
+     *
+     * @return array<int, array{key: string, width: int, mediaWidth: int, measureWidth: int, isBase: bool, isFinal: bool}>
+     */
+    public function getBreakpointSlotDefinitions(bool $includeEscapeWidth): array
+    {
+        $plugin = Plugin::getInstance();
+        if ($plugin === null) {
+            return [];
+        }
+
+        $definitions = [];
+        foreach ($plugin->getBreakpointSlots()->getSlots($includeEscapeWidth) as $slot) {
+            $definitions[] = [
+                'key' => $slot['key'],
+                'index' => (int)$slot['index'],
+                'width' => (int)$slot['mediaWidth'],
+                'mediaWidth' => (int)$slot['mediaWidth'],
+                'measureWidth' => (int)$slot['measureWidth'],
+                'isBase' => (bool)$slot['isBase'],
+                'isFinal' => (bool)$slot['isFinal'],
+            ];
+        }
+
+        return $definitions;
     }
 
     /**
@@ -123,10 +153,7 @@ class ConfigService extends Component
      */
     public function getBreakpointKeys(bool $includeEscapeWidth): array
     {
-        $configuredNames = array_keys($this->getBreakpointMap(false));
-        $slotCount = count($this->getBreakpointMap($includeEscapeWidth));
-
-        return array_slice(['base', ...$configuredNames], 0, $slotCount);
+        return array_keys($this->getBreakpointMap(false));
     }
 
     public function getPictureTemplatePath(array $overrides = []): string

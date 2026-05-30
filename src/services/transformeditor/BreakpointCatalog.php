@@ -20,7 +20,7 @@ final class BreakpointCatalog
     }
 
     /**
-     * @return array<int, array{key: string, width: int, isEscape: bool}>
+     * @return array<int, array{key: string, width: int, mediaWidth: int, measureWidth: int, isEscape: bool}>
      */
     public function getDefinitionsForSet(array $setDefinition): array
     {
@@ -29,26 +29,20 @@ final class BreakpointCatalog
     }
 
     /**
-     * @return array<int, array{key: string, width: int, isEscape: bool}>
+     * @return array<int, array{key: string, width: int, mediaWidth: int, measureWidth: int, isEscape: bool}>
      */
     public function getDefinitionsForIncludeEscapeWidth(bool $includeEscapeWidth): array
     {
-        // Variant key labels: the first slot is `base`, then the configured
-        // breakpoint names shifted down by one. There is no `escape` key — when
-        // the escape width is included it occupies the final slot under the last
-        // configured breakpoint name. Widths stay paired to slots by position.
-        $configuredNames = array_keys($this->configService->getBreakpointMap(false));
-        $labels = ['base', ...$configuredNames];
-
         $definitions = [];
-        $index = 0;
-        foreach ($this->configService->getBreakpointMap($includeEscapeWidth) as $width) {
+        foreach ($this->configService->getBreakpointSlotDefinitions($includeEscapeWidth) as $definition) {
             $definitions[] = [
-                'key' => (string)($labels[$index] ?? $configuredNames[count($configuredNames) - 1] ?? 'base'),
-                'width' => (int)$width,
+                'key' => $definition['key'],
+                'index' => $definition['index'] ?? null,
+                'width' => $definition['mediaWidth'],
+                'mediaWidth' => $definition['mediaWidth'],
+                'measureWidth' => $definition['measureWidth'],
                 'isEscape' => false,
             ];
-            $index++;
         }
 
         return $definitions;

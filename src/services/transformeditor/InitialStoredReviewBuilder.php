@@ -12,7 +12,7 @@ final class InitialStoredReviewBuilder
     /**
      * Per-render cache of telemetry init options keyed by transform handle.
      *
-     * @var array<string, array{handle: string, entryId: ?int, sourceUrl: ?string, lastSeenAt: string, initWidth: ?int, initHeight: ?int, initRatio: ?string, initWidthAuto: ?bool, initHeightAuto: ?bool}>|null
+     * @var array<string, array{handle: string, entryId: ?int, sourceUrl: ?string, lastSeenAt: string, initWidth: ?int, initHeight: ?int, initRatio: ?string, initWidthAuto: ?bool, initHeightAuto: ?bool, includeEscapeWidth: ?bool}>|null
      */
     private ?array $telemetryInitByHandleCache = null;
 
@@ -287,7 +287,7 @@ final class InitialStoredReviewBuilder
     }
 
     /**
-     * @return array<string, array{handle: string, entryId: ?int, sourceUrl: ?string, lastSeenAt: string, initWidth: ?int, initHeight: ?int, initRatio: ?string, initWidthAuto: ?bool, initHeightAuto: ?bool}>
+     * @return array<string, array{handle: string, entryId: ?int, sourceUrl: ?string, lastSeenAt: string, initWidth: ?int, initHeight: ?int, initRatio: ?string, initWidthAuto: ?bool, initHeightAuto: ?bool, includeEscapeWidth: ?bool}>
      */
     private function getTelemetryInitByHandle(): array
     {

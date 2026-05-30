@@ -18,6 +18,7 @@ final class ReviewBreakpointStateBuilder
     /**
      * @param array<int, array<string, mixed>> $rows
      * @param array<string, mixed> $currentRow
+     * @param int|null $referenceWidth media px for relativeWidth + square fallback (falls back to $breakpoint if null)
      * @return array<string, mixed>
      */
     public function build(
@@ -31,7 +32,10 @@ final class ReviewBreakpointStateBuilder
         bool $allowAnyHeight,
         bool $hideRenderedApply,
         string $reviewMode,
+        ?int $referenceWidth = null,
     ): array {
+        $ref = ($referenceWidth !== null && $referenceWidth > 0) ? $referenceWidth : $breakpoint;
+
         $summary = ReviewLayoutCalculator::summarizeRows($rows);
         $renderedRowsPayload = ReviewLayoutCalculator::buildRenderedRowsPayload($rows, $breakpoint);
         $renderedWidth = (int)($summary['renderedWidth'] ?? 0);
@@ -56,14 +60,14 @@ final class ReviewBreakpointStateBuilder
         $currentWidthDerived = $ratioIsDrivingDimensions && $currentRatioSourceDimension === 'height';
         $currentHeightDerived = $ratioIsDrivingDimensions && $currentRatioSourceDimension === 'width';
 
-        $display = ReviewLayoutCalculator::resolvePreviewDisplayDimensions($rows, $breakpoint);
+        $display = ReviewLayoutCalculator::resolvePreviewDisplayDimensions($rows, $breakpoint, $ref > 0 ? $ref : null);
         $displayWidth = max(0, (int)($display['width'] ?? 0));
         $displayHeight = max(0, (int)($display['height'] ?? 0));
 
         if ($displayWidth < 1 || $displayHeight < 1) {
-            if ($previewSrc !== '' && $breakpoint > 0) {
-                $displayWidth = $breakpoint;
-                $displayHeight = $breakpoint;
+            if ($previewSrc !== '' && $ref > 0) {
+                $displayWidth = $ref;
+                $displayHeight = $ref;
             } else {
                 [$displayWidth, $displayHeight] = ReviewLayoutCalculator::resolveInitialPreviewBoxDimensions(
                     $currentWidth,
@@ -76,8 +80,8 @@ final class ReviewBreakpointStateBuilder
         $aspectRatio = $displayWidth > 0 && $displayHeight > 0
             ? $displayWidth . ' / ' . $displayHeight
             : '1 / 1';
-        $relativeWidth = $breakpoint > 0
-            ? max(0.0, min(100.0, ($displayWidth / $breakpoint) * 100))
+        $relativeWidth = $ref > 0
+            ? max(0.0, min(100.0, ($displayWidth / $ref) * 100))
             : 0.0;
 
         $widthClass = $this->getRenderedDimensionClass($renderedWidth, $currentWidth, $autoDimension, 'width');

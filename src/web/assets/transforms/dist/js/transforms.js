@@ -740,24 +740,40 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         elements.btnStop.setAttribute('aria-hidden', shouldShow ? 'false' : 'true');
     }
 
-    function getConfiguredBreakpoints() {
-        const rawBreakpoints = Array.isArray(bpiProcessingConfig?.breakpointValues)
-            ? bpiProcessingConfig.breakpointValues
+    function getConfiguredSlots() {
+        const rawSlots = Array.isArray(bpiProcessingConfig?.breakpointSlots)
+            ? bpiProcessingConfig.breakpointSlots
             : [];
 
-        return rawBreakpoints
-            .map((entry) => parseInt(String(entry), 10))
-            .filter((bp) => Number.isFinite(bp) && bp > 0)
-            .sort((a, b) => a - b);
+        return rawSlots
+            .map((slot, fallbackIndex) => {
+                const key = String(slot?.key || '').trim();
+                const index = Number.isFinite(Number(slot?.index)) ? parseInt(String(slot.index), 10) : fallbackIndex;
+                const mediaWidth = parseInt(String(slot?.mediaWidth ?? ''), 10);
+                const measureWidth = parseInt(String(slot?.measureWidth ?? mediaWidth), 10);
+                if (!key || !Number.isFinite(index) || !Number.isFinite(mediaWidth) || mediaWidth <= 0) {
+                    return null;
+                }
+
+                return {
+                    key,
+                    index,
+                    mediaWidth,
+                    measureWidth: Number.isFinite(measureWidth) && measureWidth > 0 ? measureWidth : mediaWidth,
+                    isBase: slot?.isBase === true,
+                    isFinal: slot?.isFinal === true,
+                };
+            })
+            .filter((slot) => slot !== null);
     }
 
     function getFirstBreakpointMeasurementWidth() {
-        const breakpoints = getConfiguredBreakpoints();
-        if (!breakpoints.length) {
+        const slots = getConfiguredSlots();
+        if (!slots.length) {
             return null;
         }
 
-        return getMeasurementWidthForBreakpoint(breakpoints[0]);
+        return getMeasurementWidthForBreakpoint(slots[0].mediaWidth);
     }
 
     function setButtonsDisabled(disabled) {
@@ -1240,9 +1256,13 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             || `unknown-${index}`;
     }
 
-    function getPrimarySourceForBreakpoint(picture, breakpoint) {
-        return picture?.querySelector(`source[data-bp-source="primary"][data-bp-size="${breakpoint}"]`)
-            || picture?.querySelector(`source[data-bp-size="${breakpoint}"]`)
+    function getPrimarySourceForSlot(picture, slot) {
+        const key = String(slot?.key || '').replace(/"/g, '\\"');
+        const index = String(slot?.index ?? '');
+        return picture?.querySelector(`source[data-bp-source="primary"][data-bp-key="${key}"]`)
+            || picture?.querySelector(`source[data-bp-key="${key}"]`)
+            || picture?.querySelector(`source[data-bp-source="primary"][data-bp-index="${index}"]`)
+            || picture?.querySelector(`source[data-bp-index="${index}"]`)
             || null;
     }
 
@@ -1358,13 +1378,14 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         });
     }
 
-    function prepareBreakpoints(breakpoint) {
+    function prepareSlot(slot) {
         return processingPrepareBreakpoints({
-            breakpoint,
+            breakpoint: slot.mediaWidth,
+            slot,
             frameDocument: getFrameDocument(),
             frameWindow: state.previewFrame?.contentWindow || window,
             getTrackedPictures,
-            getPrimarySourceForBreakpoint,
+            getPrimarySourceForBreakpoint: (_picture, _breakpoint) => getPrimarySourceForSlot(_picture, slot),
             sampleLimit: PREPARE_NORMALIZATION_SAMPLE_LIMIT,
         });
     }
@@ -1385,13 +1406,14 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         return processingCreateReadinessSummary(readinessByKey);
     }
 
-    function buildBreakpointReadinessTracker(breakpoint, preloadStates = null) {
+    function buildSlotReadinessTracker(slot, preloadStates = null) {
         return processingBuildBreakpointReadinessTracker({
-            breakpoint,
+            breakpoint: slot.mediaWidth,
+            slot,
             frameDocument: getFrameDocument(),
             preloadStates,
             getPictureLoadKey,
-            getPrimarySourceForBreakpoint,
+            getPrimarySourceForBreakpoint: (_picture, _breakpoint) => getPrimarySourceForSlot(_picture, slot),
             deriveSource: deriveSourceUsed,
             isTransparentSrcset: isTransparentPixelSrcset,
             isRenderable: isImageRenderable,
@@ -1421,13 +1443,14 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         });
     }
 
-    async function preloadBreakpointSources(breakpoint, timeoutMs = 5000) {
+    async function preloadSlotSources(slot, timeoutMs = 5000) {
         return processingPreloadBreakpointSources({
-            breakpoint,
+            breakpoint: slot.mediaWidth,
+            slot,
             frameDocument: getFrameDocument(),
             timeoutMs,
             getPictureLoadKey,
-            getPrimarySourceForBreakpoint,
+            getPrimarySourceForBreakpoint: (_picture, _breakpoint) => getPrimarySourceForSlot(_picture, slot),
             isTransparentSrcset: isTransparentPixelSrcset,
             ImageCtor: Image,
             setTimeoutFn: (callback, ms) => window.setTimeout(callback, ms),
@@ -1435,13 +1458,14 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         });
     }
 
-    function extractRowsForBreakpoint(breakpoint, preloadStates = null, readinessByKey = null) {
+    function extractRowsForSlot(slot, preloadStates = null, readinessByKey = null) {
         return processingExtractRowsForBreakpoint({
-            breakpoint,
+            breakpoint: slot.mediaWidth,
+            slot,
             frameDocument: getFrameDocument(),
             preloadStates,
             readinessByKey,
-            getPrimarySourceForBreakpoint,
+            getPrimarySourceForBreakpoint: (_picture, _breakpoint) => getPrimarySourceForSlot(_picture, slot),
             getPictureLoadKey,
             deriveSource: deriveSourceUsed,
             isLikelyBroken: isImageLikelyBroken,
@@ -1453,11 +1477,13 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         return processingToPositiveIntOrNull(value);
     }
 
-    function buildStructuredOutput(sourceUrl, breakpoints, rowsByBreakpoint, startedAt, runReport = null) {
+    function buildStructuredOutput(sourceUrl, slots, rowsBySlot, startedAt, runReport = null) {
         return processingBuildStructuredOutput({
             sourceUrl,
-            breakpoints,
-            rowsByBreakpoint,
+            breakpoints: slots.map((slot) => slot.mediaWidth),
+            slots,
+            rowsByBreakpoint: rowsBySlot,
+            rowsBySlot,
             startedAt,
             runReport,
             configSchemaVersion: bpiProcessingConfig?.schemaVersion || null,
@@ -2410,7 +2436,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         return counts;
     }
 
-    async function persistRunSnapshot(report, rowsByBreakpoint) {
+    async function persistRunSnapshot(report, rowsBySlot) {
         if (!report || typeof report !== 'object') {
             return false;
         }
@@ -2428,7 +2454,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                 entryId: getSelectedEntryId(),
                 sourceUrl: String(report.sourceUrl || ''),
                 failureReasonCounts: summarizeFailureReasonCountsFromReport(report),
-                rowsByBreakpoint: rowsByBreakpoint && typeof rowsByBreakpoint === 'object' ? rowsByBreakpoint : {},
+                rowsBySlot: rowsBySlot && typeof rowsBySlot === 'object' ? rowsBySlot : {},
             },
         });
 
@@ -2505,11 +2531,11 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             return typeof candidate === 'function' ? candidate : null;
         };
 
-        const breakpoints = getConfiguredBreakpoints();
-        const totalProgressSteps = breakpoints.length + 1;
+        const slots = getConfiguredSlots();
+        const totalProgressSteps = slots.length + 1;
         let completedProgressSteps = 0;
 
-        if (!breakpoints.length) {
+        if (!slots.length) {
             setStatus('No configured breakpoints available. Check plugin settings.');
             return;
         }
@@ -2526,8 +2552,8 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         const diagnosticsEnabled = isAuthorDiagnosticsEnabled();
         const startedAt = Date.now();
         let failureStage = 'initialization';
-        const rowsByBreakpoint = {};
-        const runReport = createRunReport(state.previewUrl || '', breakpoints, diagnosticsEnabled);
+        const rowsBySlot = {};
+        const runReport = createRunReport(state.previewUrl || '', slots, diagnosticsEnabled);
 
         try {
             failureStage = 'resolve-entry-url';
@@ -2544,14 +2570,19 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             completedProgressSteps += 1;
             updateProcessingProgress(completedProgressSteps);
 
-            for (const breakpoint of breakpoints) {
+            for (const slot of slots) {
+                const breakpoint = slot.mediaWidth;
                 const breakpointReport = createBreakpointReportEntry(breakpoint);
+                breakpointReport.slotKey = slot.key;
+                breakpointReport.slotIndex = slot.index;
+                breakpointReport.mediaWidth = slot.mediaWidth;
+                breakpointReport.measureWidth = slot.measureWidth;
                 runReport.breakpoints.push(breakpointReport);
 
                 state.waitSoftLimitReached = false;
                 setStopButtonVisibility(false);
-                const measurementWidth = getMeasurementWidthForBreakpoint(breakpoint);
-                setStatus(`Processing ${breakpoint}px...`);
+                const measurementWidth = getMeasurementWidthForBreakpoint(slot.mediaWidth);
+                setStatus(`Processing ${slot.key} (${slot.mediaWidth}px)...`);
 
                 failureStage = 'set-breakpoint-width';
                 const previewWidthSetter = getRunOverride('setPreviewWidth') || setPreviewWidth;
@@ -2559,8 +2590,8 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
                 failureStage = 'prepare-breakpoint-images';
                 const prepareStartedAt = Date.now();
-                const breakpointPreparer = getRunOverride('prepareBreakpoints') || prepareBreakpoints;
-                const prepareResult = breakpointPreparer(breakpoint);
+                const breakpointPreparer = getRunOverride('prepareBreakpoints') || prepareSlot;
+                const prepareResult = breakpointPreparer(slot);
                 breakpointReport.activationStrategies = prepareResult.activationStrategies.slice();
                 breakpointReport.normalizationCount = prepareResult.normalizationCount;
 
@@ -2588,8 +2619,8 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
                 failureStage = 'preload-breakpoint-sources';
                 const preloadStartedAt = Date.now();
-                const breakpointPreloader = getRunOverride('preloadBreakpointSources') || preloadBreakpointSources;
-                const preloadStates = await breakpointPreloader(breakpoint);
+                const breakpointPreloader = getRunOverride('preloadBreakpointSources') || preloadSlotSources;
+                const preloadStates = await breakpointPreloader(slot);
                 if (runReport.authorDiagnostics) {
                     runReport.authorDiagnostics.stageTimings.push({
                         stage: 'preload-breakpoint-sources',
@@ -2599,8 +2630,8 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                 }
 
                 failureStage = 'wait-for-image-readiness';
-                const readinessTrackerBuilder = getRunOverride('buildBreakpointReadinessTracker') || buildBreakpointReadinessTracker;
-                const readinessTracker = readinessTrackerBuilder(breakpoint, preloadStates);
+                const readinessTrackerBuilder = getRunOverride('buildBreakpointReadinessTracker') || buildSlotReadinessTracker;
+                const readinessTracker = readinessTrackerBuilder(slot, preloadStates);
                 const waitStartedAt = Date.now();
                 let waitResult = null;
 
@@ -2633,9 +2664,9 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                 state.waitSoftLimitReached = false;
                 setStopButtonVisibility(false);
 
-                const rowExtractor = getRunOverride('extractRowsForBreakpoint') || extractRowsForBreakpoint;
-                rowsByBreakpoint[breakpoint] = rowExtractor(
-                    breakpoint,
+                const rowExtractor = getRunOverride('extractRowsForBreakpoint') || extractRowsForSlot;
+                rowsBySlot[slot.key] = rowExtractor(
+                    slot,
                     preloadStates,
                     readinessTracker.readinessByKey,
                 );
@@ -2666,25 +2697,20 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             state.runCount += 1;
             const finalizedReport = finalizeRunReport(runReport, {
                 status: 'completed',
-                rowsByBreakpoint,
+                rowsByBreakpoint: rowsBySlot,
+                rowsBySlot,
                 resultPublished: true,
             });
             publishRunReport(finalizedReport);
 
-            const result = buildStructuredOutput(
-                state.previewUrl || runReport.sourceUrl || '',
-                breakpoints,
-                rowsByBreakpoint,
-                startedAt,
-                finalizedReport,
-            );
+            const result = buildStructuredOutput(state.previewUrl || runReport.sourceUrl || '', slots, rowsBySlot, startedAt, finalizedReport);
 
             const resultPublisher = getRunOverride('publishResult') || publishResult;
             await resultPublisher(result);
             let snapshotPersisted = true;
             try {
                 const snapshotPersister = getRunOverride('persistRunSnapshot') || persistRunSnapshot;
-                snapshotPersisted = await snapshotPersister(finalizedReport, rowsByBreakpoint);
+                snapshotPersisted = await snapshotPersister(finalizedReport, rowsBySlot);
             } catch (error) {
                 // Snapshot persistence should never block processing completion UX.
                 console.error(error);
@@ -2896,7 +2922,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     setupResultsSettingsLightswitchSync();
     setupDatastarCardUpdateStatus();
     window.addEventListener('resize', scheduleBreakpointPreviewHeightSync);
-    getConfiguredBreakpoints();
+    getConfiguredSlots();
     void renderInitialStoredReview().catch((error) => {
         console.error(error);
         setReviewHydrated(true);

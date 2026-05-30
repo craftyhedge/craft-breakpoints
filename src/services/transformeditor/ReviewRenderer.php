@@ -46,8 +46,8 @@ final class ReviewRenderer
     ): array {
         $normalizedReviewMode = $this->normalizeReviewMode($reviewMode);
         $this->initialStoredReviewBuilder->resetTelemetryInitCache();
-        $rowsByBreakpoint = $this->normalizeReviewRowsByBreakpoint($result['rowsByBreakpoint'] ?? []);
-        $breakpoints = $this->normalizeReviewBreakpoints($result['breakpoints'] ?? []);
+        $rowsByBreakpoint = $this->normalizeReviewRowsByBreakpoint($result['rowsBySlot'] ?? ($result['rowsByBreakpoint'] ?? []));
+        $breakpoints = $rowsByBreakpoint !== [] ? array_keys($rowsByBreakpoint) : $this->normalizeReviewBreakpoints($result['breakpoints'] ?? []);
         if ($breakpoints === []) {
             $breakpoints = $this->getReviewConfiguredBreakpoints();
         }
@@ -75,7 +75,7 @@ final class ReviewRenderer
         array $result = [],
     ): array {
         $this->initialStoredReviewBuilder->resetTelemetryInitCache();
-        $resultRowsByBreakpoint = $this->normalizeReviewRowsByBreakpoint($result['rowsByBreakpoint'] ?? []);
+        $resultRowsByBreakpoint = $this->normalizeReviewRowsByBreakpoint($result['rowsBySlot'] ?? ($result['rowsByBreakpoint'] ?? []));
         $resultBreakpoints = $this->normalizeReviewBreakpoints($result['breakpoints'] ?? []);
         $mergedRowsByBreakpoint = $this->initialStoredReviewBuilder->buildRowsByBreakpoint($resultRowsByBreakpoint);
 
@@ -251,6 +251,10 @@ final class ReviewRenderer
         $storedSavedWidthsByTransform = $this->buildStoredSavedWidthsByTransformAndBreakpoint();
         $storedSavedHeightsByTransform = $this->buildStoredSavedHeightsByTransformAndBreakpoint();
 
+        $referenceWidthsById = [];
+        foreach ($transformBreakpoints as $bp) {
+            $referenceWidthsById[(string)$bp] = $this->getReviewSlotMediaWidthById($bp, $includeEscapeWidth) ?? $bp;
+        }
         $rowsByBreakpoint = [];
         foreach ($transformBreakpoints as $breakpoint) {
             $breakpointKey = (string)$breakpoint;
@@ -266,6 +270,7 @@ final class ReviewRenderer
                 $allowAnyHeight,
                 $hideRenderedApply,
                 $reviewMode,
+                $referenceWidthsById[(string)$breakpoint] ?? null,
             );
             $rowsByBreakpoint[$breakpointKey] = array_merge($coreRows[$breakpointKey] ?? [], $ui);
         }
@@ -305,21 +310,22 @@ final class ReviewRenderer
         $renderedRowsPayload = $state['renderedRowsPayload'];
         $renderedApplyNoop = ($state['renderedApplyNoop'] ?? false) === true;
         $currentEnabled = ($state['currentEnabled'] ?? true) === true;
+        $displayPx = $this->getReviewSlotMediaWidthById($breakpoint, false) ?? $breakpoint;
 
         return [
             'breakpointColumnMismatchClass' => ($state['hasBreakpointMismatch'] ?? false) === true ? '1' : '0',
             'breakpointColumnDisabledClass' => $currentEnabled ? '0' : '1',
-            'breakpointEnableTitle' => $currentEnabled ? "Disable {$breakpoint}px breakpoint" : "Enable {$breakpoint}px breakpoint",
-            'breakpointEnableAriaLabel' => $currentEnabled ? "Disable {$breakpoint}px breakpoint" : "Enable {$breakpoint}px breakpoint",
+            'breakpointEnableTitle' => $currentEnabled ? "Disable {$displayPx}px breakpoint" : "Enable {$displayPx}px breakpoint",
+            'breakpointEnableAriaLabel' => $currentEnabled ? "Disable {$displayPx}px breakpoint" : "Enable {$displayPx}px breakpoint",
             'breakpointEnableAriaChecked' => $currentEnabled ? 'true' : 'false',
             'breakpointDisabledAttr' => $renderedRowsPayload === [] ? '1' : '0',
             'breakpointRenderedApplyMatchClass' => $renderedApplyNoop ? '1' : '0',
             'breakpointRenderedApplyAriaLabel' => $renderedApplyNoop
-                ? "Rendered values already match for {$breakpoint}px"
-                : "Apply rendered values for {$breakpoint}px",
+                ? "Rendered values already match for {$displayPx}px"
+                : "Apply rendered values for {$displayPx}px",
             'breakpointRenderedApplyTitle' => $renderedApplyNoop
-                ? "Rendered values already match for {$breakpoint}px"
-                : "Apply rendered values for {$breakpoint}px",
+                ? "Rendered values already match for {$displayPx}px"
+                : "Apply rendered values for {$displayPx}px",
             'breakpointRenderedApplyIconName' => $renderedApplyNoop ? 'check' : 'arrow-down',
             'breakpointRenderedApplyHiddenClass' => $hideRenderedApply ? '1' : '0',
             'breakpointRenderedRowHiddenClass' => $hideRenderedApply ? '1' : '0',
@@ -358,9 +364,11 @@ final class ReviewRenderer
             }
 
             $transformHandle = trim((string)($row['transformHandle'] ?? ''));
-            $breakpointWidth = isset($row['breakpointWidth']) && is_numeric($row['breakpointWidth'])
+            $slotKey = trim((string)($row['slotKey'] ?? ''));
+            $breakpointWidth = $this->getReviewSlotIdByKey($slotKey) ?? 0;
+            $mediaWidth = isset($row['breakpointWidth']) && is_numeric($row['breakpointWidth'])
                 ? (int)$row['breakpointWidth']
-                : 0;
+                : ($this->getReviewSlotMediaWidthById($breakpointWidth) ?? 0);
 
             if ($transformHandle !== $transformName || $breakpointWidth <= 0) {
                 continue;
@@ -373,8 +381,12 @@ final class ReviewRenderer
 
             $rowsByBreakpoint[$breakpointWidth][] = [
                 'transform' => $transformHandle,
+                'slotKey' => $slotKey,
+                'slotIndex' => $breakpointWidth - 1,
+                'mediaWidth' => $mediaWidth,
+                'measureWidth' => isset($row['measureWidth']) && is_numeric($row['measureWidth']) ? (int)$row['measureWidth'] : null,
                 'assetId' => trim((string)($row['assetId'] ?? '')),
-                'title' => $transformHandle . ' ' . $breakpointWidth . 'px',
+                'title' => $transformHandle . ' ' . ($slotKey !== '' ? $slotKey : (string)$mediaWidth),
                 'enabled' => true,
                 'isVisible' => true,
                 'loaded' => ($row['rowStatus'] ?? '') === 'loaded',
@@ -510,7 +522,7 @@ final class ReviewRenderer
             $cardWarnings = $warningsByTransform[$transformName] ?? [];
             $includeEscapeWidth = ($storedTransformConfig['includeEscapeWidth'] ?? false) === true;
             if ($storedTransformConfig === null) {
-                $includeEscapeWidth = $escapeBreakpoint !== null && in_array($escapeBreakpoint, $observedBreakpoints, true);
+                $includeEscapeWidth = ($observedDataByTransform[$transformName]['includeEscapeWidth'] ?? null) === true;
             }
 
             $transformBreakpoints = $observedBreakpoints !== []
@@ -604,12 +616,13 @@ final class ReviewRenderer
             $ratioSourceBreakpointOptions = '';
             foreach ($transformBreakpoints as $transformBreakpoint) {
                 $value = (string)$transformBreakpoint;
+                $displayPx = $this->getReviewSlotMediaWidthById($transformBreakpoint, $includeEscapeWidth) ?? $transformBreakpoint;
                 $selectedAttr = $value === $ratioSourceBreakpointDefault ? ' selected' : '';
                 $ratioSourceBreakpointOptions .= sprintf(
                     '<option value="%s"%s>%spx</option>',
                     $this->escapeReviewHtml($value),
                     $selectedAttr,
-                    $this->escapeReviewHtml($value),
+                    $this->escapeReviewHtml((string)$displayPx),
                 );
             }
 
@@ -647,11 +660,16 @@ final class ReviewRenderer
             $cardSignalsStructural['editor']['cards'][$signalKey]['ratioHeightInput'] = $scopeValues['ratioHeightInput'];
             $cardSignalsStructural['editor']['cards'][$signalKey]['ratioFloatInput'] = $scopeValues['ratioFloatInput'];
 
-            $columnWidths = ReviewLayoutCalculator::calculateBreakpointColumnWidths($transformBreakpoints);
+            $referenceWidthsById = [];
+            foreach ($transformBreakpoints as $bp) {
+                $referenceWidthsById[(string)$bp] = $this->getReviewSlotMediaWidthById($bp, $includeEscapeWidth) ?? $bp;
+            }
+            $columnWidths = ReviewLayoutCalculator::calculateBreakpointColumnWidths($transformBreakpoints, $referenceWidthsById);
             $previewLockHeightsByBreakpoint = ReviewLayoutCalculator::calculateBreakpointPreviewLockHeights(
                 $assetCollection['rowsByAssetByBreakpoint'],
                 $transformBreakpoints,
                 $columnWidths,
+                $referenceWidthsById,
             );
             foreach ($transformBreakpoints as $breakpoint) {
                 $breakpointKey = (string)$breakpoint;
@@ -668,6 +686,7 @@ final class ReviewRenderer
                         $allowAnyHeight,
                         $hideRenderedApply,
                         $reviewMode,
+                        $referenceWidthsById[(string)$breakpoint] ?? null,
                     )
                 );
             }
@@ -680,14 +699,15 @@ final class ReviewRenderer
 
             $breakpointColumns = '';
             $breakpointKeysByWidth = $this->getBreakpointKeysByWidth($includeEscapeWidth);
-            $previousBreakpoint = null;
+            $previousMediaWidth = null;
             foreach ($transformBreakpoints as $breakpoint) {
                 $rows = $selectedAssetRowsByBreakpoint[$breakpoint] ?? [];
+                $mediaWidth = $this->getReviewSlotMediaWidthById($breakpoint, $includeEscapeWidth) ?? $breakpoint;
                 $breakpointColumns .= $this->renderReviewBreakpointColumn(
                     $transformName,
                     $breakpoint,
                     $breakpointKeysByWidth[(string)$breakpoint] ?? '',
-                    $this->buildBreakpointRangeLabel($breakpoint, $previousBreakpoint, $escapeBreakpoint),
+                    $this->buildBreakpointRangeLabel($mediaWidth, $previousMediaWidth, $escapeBreakpoint),
                     $rows,
                     $currentRows[$breakpoint] ?? Support::buildDefaultTransformEntry(),
                     $columnWidths,
@@ -702,8 +722,9 @@ final class ReviewRenderer
                     $storedSavedWidthsByTransform[$transformName][$breakpoint] ?? null,
                     $storedSavedHeightsByTransform[$transformName][$breakpoint] ?? null,
                     $allowAnyHeight,
+                    $referenceWidthsById[(string)$breakpoint] ?? null,
                 );
-                $previousBreakpoint = $breakpoint;
+                $previousMediaWidth = $mediaWidth;
             }
             $assetMismatchByKey = ($isProcessedReview && !$hideAssetPagination)
                 ? $this->buildReviewAssetMismatchByKey(
@@ -729,9 +750,12 @@ final class ReviewRenderer
             $activeDimensions = $tab === 'dimensions';
             $activeRatio = $tab === 'ratio';
             $activeSettings = $tab === 'settings';
+            $scopeDisplayPx = $scope['mode'] === 'breakpoint'
+                ? ($this->getReviewSlotMediaWidthById((int)$scope['breakpoint'], $includeEscapeWidth) ?? $scope['breakpoint'])
+                : null;
             $scopeLabel = $scope['mode'] === 'all'
                 ? 'All'
-                : ($scope['mode'] === 'breakpoint' ? ($scope['breakpoint'] . 'px') : 'Select scope');
+                : ($scope['mode'] === 'breakpoint' ? ($scopeDisplayPx . 'px') : 'Select scope');
             $latestRunSummaryForTransform = $latestRunSummariesByTransform[$transformName] ?? null;
             $hasAssetMismatchWarning = $isProcessedReview
                 && is_array($latestRunSummaryForTransform)
@@ -915,6 +939,7 @@ final class ReviewRenderer
         ?int $savedWidth = null,
         ?int $savedHeight = null,
         bool $allowAnyHeight = false,
+        ?int $referenceWidth = null,
     ): string {
         $state = $this->breakpointStateBuilder->build(
             $transformName,
@@ -927,6 +952,7 @@ final class ReviewRenderer
             $allowAnyHeight,
             $hideRenderedApply,
             $reviewMode,
+            $referenceWidth,
         );
 
         $summary = $state['summary'];
@@ -950,13 +976,14 @@ final class ReviewRenderer
         $currentEnabled = ($state['currentEnabled'] ?? true) === true;
         $currentWidthDerivedClass = (string)($state['currentWidthDerivedClass'] ?? '');
         $currentHeightDerivedClass = (string)($state['currentHeightDerivedClass'] ?? '');
+        $displayPx = $referenceWidth ?? ($this->getReviewSlotMediaWidthById($breakpoint, false) ?? $breakpoint);
         $previewMedia = '';
         if ($currentEnabled) {
             $previewMedia = $previewSrc !== ''
                 ? sprintf(
                     '<img src="%s" alt="%s" class="bpi_breakpoint-result-image" draggable="false" style="--bpts-aspect-ratio:%s;">',
                     $this->escapeReviewHtml($previewSrc),
-                    $this->escapeReviewHtml('Preview ' . $transformName . ' ' . $breakpoint . 'px'),
+                    $this->escapeReviewHtml('Preview ' . $transformName . ' ' . $displayPx . 'px'),
                     $this->escapeReviewHtml($aspectRatio),
                 )
                 : sprintf(
@@ -973,7 +1000,8 @@ final class ReviewRenderer
         $unloadedBadge = $unloadedCount > 0
             ? '<span class="bpts-row-badge">Unloaded ' . $unloadedCount . '</span>'
             : '';
-        $escapeBadge = $escapeBreakpoint !== null && $escapeBreakpoint === $breakpoint
+        $mediaWidthForBadge = $this->getReviewSlotMediaWidthById($breakpoint, false) ?? $breakpoint;
+        $escapeBadge = $escapeBreakpoint !== null && $escapeBreakpoint === $mediaWidthForBadge
             ? '<span class="bpi_escaped-notice">ESC</span>'
             : '';
         $hasBreakpointMismatch = ($state['hasBreakpointMismatch'] ?? false) === true;
@@ -1007,19 +1035,19 @@ final class ReviewRenderer
             'hiddenBadge' => $hiddenBadge,
             'unloadedBadge' => $unloadedBadge,
             'breakpointEnableOnClass' => $currentEnabled ? 'on' : '',
-            'breakpointEnableTitle' => $this->escapeReviewHtml(($currentEnabled ? 'Disable' : 'Enable') . ' ' . $breakpoint . 'px breakpoint'),
-            'breakpointEnableAriaLabel' => $this->escapeReviewHtml(($currentEnabled ? 'Disable' : 'Enable') . ' ' . $breakpoint . 'px breakpoint'),
+            'breakpointEnableTitle' => $this->escapeReviewHtml(($currentEnabled ? 'Disable' : 'Enable') . ' ' . $displayPx . 'px breakpoint'),
+            'breakpointEnableAriaLabel' => $this->escapeReviewHtml(($currentEnabled ? 'Disable' : 'Enable') . ' ' . $displayPx . 'px breakpoint'),
             'breakpointEnableAriaChecked' => $currentEnabled ? 'true' : 'false',
             'breakpointDisabledAttr' => $renderedRowsPayload === [] ? 'disabled' : '',
             'breakpointRenderedApplyMatchClass' => $renderedApplyNoop ? 'bpts-rendered-apply-single-noop' : '',
             'breakpointRenderedApplyAriaLabel' => $this->escapeReviewHtml(
                 ($renderedApplyNoop ? 'Rendered values already match for ' : 'Apply rendered values for ')
-                . $breakpoint
+                . $displayPx
                 . 'px'
             ),
             'breakpointRenderedApplyTitle' => $this->escapeReviewHtml(
                 ($renderedApplyNoop ? 'Rendered values already match for ' : 'Apply rendered values for ')
-                . $breakpoint
+                . $displayPx
                 . 'px'
             ),
             'breakpointRenderedApplyIconName' => $renderedApplyNoop ? 'check' : 'arrow-down',
@@ -1058,14 +1086,17 @@ final class ReviewRenderer
 
         $normalized = [];
         foreach ($rawRowsByBreakpoint as $breakpointKey => $rows) {
-            $breakpoint = Support::normalizeNullablePositiveInt($breakpointKey);
-            if ($breakpoint === null || !is_array($rows)) {
+            if (!is_array($rows)) {
                 continue;
             }
 
-            $normalizedRows = [];
             foreach ($rows as $row) {
                 if (!is_array($row)) {
+                    continue;
+                }
+
+                $breakpoint = $this->resolveReviewSlotIdFromRow($row, $breakpointKey);
+                if ($breakpoint === null) {
                     continue;
                 }
 
@@ -1089,7 +1120,12 @@ final class ReviewRenderer
                     $broken = false;
                 }
 
-                $normalizedRows[] = [
+                $normalized[$breakpoint] ??= [];
+                $normalized[$breakpoint][] = [
+                    'slotKey' => is_string($row['slotKey'] ?? null) ? (string)$row['slotKey'] : $this->getReviewSlotKeyById($breakpoint),
+                    'slotIndex' => $breakpoint - 1,
+                    'mediaWidth' => Support::normalizeNullablePositiveInt($row['mediaWidth'] ?? null) ?? $this->getReviewSlotMediaWidthById($breakpoint),
+                    'measureWidth' => Support::normalizeNullablePositiveInt($row['measureWidth'] ?? null),
                     'assetId' => $assetId,
                     'assetKey' => $this->buildReviewAssetKey($transformName, $assetId, $sourceUsed, $src, $title),
                     'transform' => $transformName,
@@ -1116,12 +1152,28 @@ final class ReviewRenderer
                     ],
                 ];
             }
-
-            $normalized[$breakpoint] = $normalizedRows;
         }
 
         ksort($normalized, SORT_NUMERIC);
         return $normalized;
+    }
+
+    private function resolveReviewSlotIdFromRow(array $row, int|string $fallbackKey): ?int
+    {
+        $slotIndex = Support::normalizeNullablePositiveInt($row['slotIndex'] ?? null);
+        if ($slotIndex !== null) {
+            return $slotIndex + 1;
+        }
+
+        $slotKey = trim((string)($row['slotKey'] ?? (is_string($fallbackKey) ? $fallbackKey : '')));
+        if ($slotKey !== '') {
+            $id = $this->getReviewSlotIdByKey($slotKey);
+            if ($id !== null) {
+                return $id;
+            }
+        }
+
+        return Support::normalizeNullablePositiveInt($fallbackKey);
     }
 
     private function normalizeReviewBreakpoints(mixed $rawBreakpoints): array
@@ -1233,15 +1285,14 @@ final class ReviewRenderer
 
     private function getReviewBreakpointsForTransformConfig(bool $includeEscapeWidth, array $breakpoints): array
     {
-        $escapeBreakpoint = $this->getReviewEscapeBreakpoint();
-        if ($includeEscapeWidth || $escapeBreakpoint === null) {
-            return $breakpoints;
+        if ($this->plugin !== null) {
+            return array_map(
+                static fn(array $slot): int => ((int)$slot['index']) + 1,
+                $this->plugin->getBreakpointSlots()->getSlots($includeEscapeWidth),
+            );
         }
 
-        return array_values(array_filter(
-            $breakpoints,
-            static fn(int $breakpoint): bool => $breakpoint !== $escapeBreakpoint,
-        ));
+        return array_values(array_filter($breakpoints, static fn(int $breakpoint): bool => $breakpoint > 0));
     }
 
     private function getReviewEscapeBreakpoint(): ?int
@@ -1264,23 +1315,10 @@ final class ReviewRenderer
             return [];
         }
 
-        $breakpoints = $this->plugin->getConfigService()->getBreakpoints();
-        if (!is_array($breakpoints)) {
-            return [];
-        }
-
-        $values = [];
-        foreach ($breakpoints as $value) {
-            $normalized = Support::normalizeNullablePositiveInt($value);
-            if ($normalized !== null) {
-                $values[] = $normalized;
-            }
-        }
-
-        $values = array_values(array_unique($values));
-        sort($values, SORT_NUMERIC);
-
-        return $values;
+        return array_map(
+            static fn(array $slot): int => ((int)$slot['index']) + 1,
+            $this->plugin->getBreakpointSlots()->getSlots(false),
+        );
     }
 
     /**
@@ -1297,15 +1335,62 @@ final class ReviewRenderer
         // labels disagree with the saved variant keys by one slot.
         $keysByWidth = [];
         foreach ($this->breakpointCatalog->getDefinitionsForIncludeEscapeWidth($includeEscapeWidth) as $definition) {
-            $normalizedWidth = Support::normalizeNullablePositiveInt($definition['width']);
-            if ($normalizedWidth === null) {
+            $slotId = isset($definition['index']) && is_numeric($definition['index'])
+                ? ((int)$definition['index']) + 1
+                : $this->getReviewSlotIdByKey((string)$definition['key']);
+            if ($slotId === null) {
                 continue;
             }
 
-            $keysByWidth[(string)$normalizedWidth] = (string)$definition['key'];
+            $keysByWidth[(string)$slotId] = (string)$definition['key'];
         }
 
         return $keysByWidth;
+    }
+
+    private function getReviewSlotIdByKey(string $slotKey): ?int
+    {
+        if ($this->plugin === null || $slotKey === '') {
+            return null;
+        }
+
+        foreach ($this->plugin->getBreakpointSlots()->getSlots(false) as $slot) {
+            if ((string)$slot['key'] === $slotKey) {
+                return ((int)$slot['index']) + 1;
+            }
+        }
+
+        return null;
+    }
+
+    private function getReviewSlotKeyById(int $slotId): ?string
+    {
+        if ($this->plugin === null || $slotId <= 0) {
+            return null;
+        }
+
+        foreach ($this->plugin->getBreakpointSlots()->getSlots(false) as $slot) {
+            if (((int)$slot['index']) + 1 === $slotId) {
+                return (string)$slot['key'];
+            }
+        }
+
+        return null;
+    }
+
+    private function getReviewSlotMediaWidthById(int $slotId, bool $includeEscapeWidth = false): ?int
+    {
+        if ($this->plugin === null || $slotId <= 0) {
+            return null;
+        }
+
+        foreach ($this->plugin->getBreakpointSlots()->getSlots($includeEscapeWidth) as $slot) {
+            if (((int)$slot['index']) + 1 === $slotId) {
+                return (int)$slot['mediaWidth'];
+            }
+        }
+
+        return null;
     }
 
     private function getReviewStoredTransforms(): array
@@ -1969,10 +2054,18 @@ final class ReviewRenderer
         $entries = isset($transformConfig['transforms']) && is_array($transformConfig['transforms'])
             ? array_values($transformConfig['transforms'])
             : [];
+        $includeEscapeWidth = ($transformConfig['includeEscapeWidth'] ?? false) === true;
+        $entryIndexByBreakpoint = [];
+        foreach ($this->getBreakpointsForTransform($includeEscapeWidth) as $index => $breakpoint) {
+            if (is_int($breakpoint)) {
+                $entryIndexByBreakpoint[(string)$breakpoint] = $index;
+            }
+        }
 
         foreach ($transformBreakpoints as $index => $breakpoint) {
-            $entry = isset($entries[$index]) && is_array($entries[$index])
-                ? $entries[$index]
+            $entryIndex = $entryIndexByBreakpoint[(string)$breakpoint] ?? $index;
+            $entry = isset($entries[$entryIndex]) && is_array($entries[$entryIndex])
+                ? $entries[$entryIndex]
                 : [];
 
             $rows[$breakpoint] = Support::normalizeTransformEntry($entry);
@@ -1990,7 +2083,10 @@ final class ReviewRenderer
 
     private function getBreakpointsForTransform(bool $includeEscapeWidth): array
     {
-        return $this->plugin->getConfigService()->getBreakpointWidths($includeEscapeWidth);
+        return array_map(
+            static fn(array $slot): int => ((int)$slot['index']) + 1,
+            $this->plugin->getBreakpointSlots()->getSlots($includeEscapeWidth),
+        );
     }
 
 }

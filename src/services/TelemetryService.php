@@ -70,7 +70,7 @@ class TelemetryService extends Component
         return $configService->allowTransformEditing();
     }
 
-    public function recordUsage(string $transformHandle, ?InitOptions $initOptions = null): void
+    public function recordUsage(string $transformHandle, ?InitOptions $initOptions = null, ?bool $includeEscapeWidth = null): void
     {
         if (!$this->canWriteTelemetry()) {
             return;
@@ -103,13 +103,13 @@ class TelemetryService extends Component
             }
 
             $this->_seenHandles[$handle] = true;
-            $this->upsertUsage($handle, $sourceElementId, $sourceUrl, $initOptions);
+            $this->upsertUsage($handle, $sourceElementId, $sourceUrl, $initOptions, $includeEscapeWidth);
 
             return;
         }
 
         // Queue/console runtimes have no web request lifecycle; write immediately.
-        $this->upsertUsage($handle, $sourceElementId, $sourceUrl, $initOptions);
+        $this->upsertUsage($handle, $sourceElementId, $sourceUrl, $initOptions, $includeEscapeWidth);
     }
 
     public function flushPendingUsage(): void
@@ -118,7 +118,7 @@ class TelemetryService extends Component
         $this->_seenHandles = [];
     }
 
-    private function upsertUsage(string $handle, ?int $sourceElementId, ?string $sourceUrl, ?InitOptions $initOptions = null): void
+    private function upsertUsage(string $handle, ?int $sourceElementId, ?string $sourceUrl, ?InitOptions $initOptions = null, ?bool $includeEscapeWidth = null): void
     {
         $now = Db::prepareDateForDb(new \DateTime());
         $normalizedSourceUrl = $sourceUrl;
@@ -136,6 +136,7 @@ class TelemetryService extends Component
             'initRatio' => null,
             'initWidthAuto' => null,
             'initHeightAuto' => null,
+            'includeEscapeWidth' => $includeEscapeWidth === null ? null : ($includeEscapeWidth ? 1 : 0),
         ];
 
         if ($initOptions !== null) {
@@ -180,7 +181,7 @@ class TelemetryService extends Component
      * Returns one row per observed transform handle, carrying the most-recently
      * observed entry reference and persisted init options for that handle.
      *
-     * @return array<string, array{handle: string, entryId: ?int, sourceUrl: ?string, lastSeenAt: string, initWidth: ?int, initHeight: ?int, initRatio: ?string, initWidthAuto: ?bool, initHeightAuto: ?bool}>
+     * @return array<string, array{handle: string, entryId: ?int, sourceUrl: ?string, lastSeenAt: string, initWidth: ?int, initHeight: ?int, initRatio: ?string, initWidthAuto: ?bool, initHeightAuto: ?bool, includeEscapeWidth: ?bool}>
      */
     public function getMostRecentByHandle(): array
     {
@@ -196,6 +197,7 @@ class TelemetryService extends Component
                     'initRatio',
                     'initWidthAuto',
                     'initHeightAuto',
+                    'includeEscapeWidth',
                 ])
                 ->from('{{%bpi_transform_last_processed}}')
                 ->orderBy(['lastSeenAt' => SORT_DESC])
@@ -218,6 +220,7 @@ class TelemetryService extends Component
             $initRatio = $row['initRatio'] ?? null;
             $initWidthAuto = $row['initWidthAuto'] ?? null;
             $initHeightAuto = $row['initHeightAuto'] ?? null;
+            $includeEscapeWidth = $row['includeEscapeWidth'] ?? null;
 
             $byHandle[$handle] = [
                 'handle' => $handle,
@@ -229,6 +232,7 @@ class TelemetryService extends Component
                 'initRatio' => $initRatio !== null && $initRatio !== '' ? (string)$initRatio : null,
                 'initWidthAuto' => $initWidthAuto === null || $initWidthAuto === '' ? null : ((int)$initWidthAuto === 1),
                 'initHeightAuto' => $initHeightAuto === null || $initHeightAuto === '' ? null : ((int)$initHeightAuto === 1),
+                'includeEscapeWidth' => $includeEscapeWidth === null || $includeEscapeWidth === '' ? null : ((int)$includeEscapeWidth === 1),
             ];
         }
 
@@ -241,7 +245,7 @@ class TelemetryService extends Component
      * reference and persisted init options for that handle.
      *
      * @param array<int, string> $configuredHandles
-     * @return array<int, array{handle: string, entryId: ?int, sourceUrl: ?string, lastSeenAt: string, initWidth: ?int, initHeight: ?int, initRatio: ?string, initWidthAuto: ?bool, initHeightAuto: ?bool}>
+     * @return array<int, array{handle: string, entryId: ?int, sourceUrl: ?string, lastSeenAt: string, initWidth: ?int, initHeight: ?int, initRatio: ?string, initWidthAuto: ?bool, initHeightAuto: ?bool, includeEscapeWidth: ?bool}>
      */
     public function getObservedUnsavedHandles(array $configuredHandles): array
     {
@@ -308,7 +312,7 @@ class TelemetryService extends Component
         if (!is_string($failureReasonCountsJson)) {
             $failureReasonCountsJson = '{}';
         }
-        $snapshotRows = $this->normalizeSnapshotRowsByBreakpoint($payload['rowsByBreakpoint'] ?? []);
+        $snapshotRows = $this->normalizeSnapshotRowsByBreakpoint($payload['rowsBySlot'] ?? ($payload['rowsByBreakpoint'] ?? []));
         $savedDimensionsByTransform = $this->collectSavedDimensionsAtPersistTime();
 
         $transaction = $db->beginTransaction();
@@ -336,7 +340,10 @@ class TelemetryService extends Component
                     $batchRows[] = [
                         1,
                         $row['transformHandle'],
+                        $row['slotKey'],
+                        $row['slotIndex'],
                         $row['breakpointWidth'],
+                        $row['measureWidth'],
                         $row['assetId'],
                         $row['displayAssetUrl'],
                         $row['rowStatus'],
@@ -351,7 +358,7 @@ class TelemetryService extends Component
                 $db->createCommand()
                     ->batchInsert(
                         self::RUN_SNAPSHOT_ROWS_TABLE,
-                        ['snapshotId', 'transformHandle', 'breakpointWidth', 'assetId', 'displayAssetUrl', 'rowStatus', 'renderedWidth', 'renderedHeight', 'autoDimension', 'dateCreated', 'dateUpdated'],
+                        ['snapshotId', 'transformHandle', 'slotKey', 'slotIndex', 'breakpointWidth', 'measureWidth', 'assetId', 'displayAssetUrl', 'rowStatus', 'renderedWidth', 'renderedHeight', 'autoDimension', 'dateCreated', 'dateUpdated'],
                         $batchRows
                     )
                     ->execute();
@@ -411,7 +418,7 @@ class TelemetryService extends Component
         if ($status === self::RUN_STATUS_COMPLETED) {
             try {
                 $this->updatePreviewCacheFromRun(
-                    $payload['rowsByBreakpoint'] ?? [],
+                    $payload['rowsBySlot'] ?? ($payload['rowsByBreakpoint'] ?? []),
                     $ranAt,
                     $runId,
                     $entryId,
@@ -445,10 +452,10 @@ class TelemetryService extends Component
         $perAssetRows = [];
         if ($snapshotId > 0) {
             $perAssetRows = (new Query())
-                ->select(['transformHandle', 'breakpointWidth', 'assetId', 'displayAssetUrl', 'rowStatus', 'renderedWidth', 'renderedHeight', 'autoDimension'])
+                ->select(['transformHandle', 'slotKey', 'slotIndex', 'breakpointWidth', 'measureWidth', 'assetId', 'displayAssetUrl', 'rowStatus', 'renderedWidth', 'renderedHeight', 'autoDimension'])
                 ->from(self::RUN_SNAPSHOT_ROWS_TABLE)
                 ->where(['snapshotId' => $snapshotId])
-                ->orderBy(['transformHandle' => SORT_ASC, 'breakpointWidth' => SORT_ASC, 'id' => SORT_ASC])
+                ->orderBy(['transformHandle' => SORT_ASC, 'slotIndex' => SORT_ASC, 'id' => SORT_ASC])
                 ->all();
         }
 
@@ -459,14 +466,20 @@ class TelemetryService extends Component
                 continue;
             }
             $transformHandle = (string)($row['transformHandle'] ?? '');
+            $slotKey = trim((string)($row['slotKey'] ?? ''));
+            $slotIndex = (int)($row['slotIndex'] ?? -1);
             $breakpointWidth = (int)($row['breakpointWidth'] ?? 0);
-            if ($transformHandle === '' || $breakpointWidth <= 0) {
+            $measureWidth = (int)($row['measureWidth'] ?? $breakpointWidth);
+            if ($transformHandle === '' || $slotKey === '' || $slotIndex < 0 || $breakpointWidth <= 0) {
                 continue;
             }
 
             $rowsPayload[] = [
                 'transformHandle' => $transformHandle,
+                'slotKey' => $slotKey,
+                'slotIndex' => $slotIndex,
                 'breakpointWidth' => $breakpointWidth,
+                'measureWidth' => $measureWidth,
                 'assetId' => (string)($row['assetId'] ?? ''),
                 'displayAssetUrl' => $row['displayAssetUrl'] !== null ? (string)$row['displayAssetUrl'] : null,
                 'rowStatus' => (string)($row['rowStatus'] ?? 'unprocessed'),
@@ -475,11 +488,14 @@ class TelemetryService extends Component
                 'autoDimension' => $row['autoDimension'] !== null && $row['autoDimension'] !== '' ? (string)$row['autoDimension'] : null,
             ];
 
-            $dedupeKey = $transformHandle . '|' . $breakpointWidth;
+            $dedupeKey = $transformHandle . '|' . $slotKey;
             if (!isset($rowsByKey[$dedupeKey])) {
                 $rowsByKey[$dedupeKey] = [
                     'transformHandle' => $transformHandle,
+                    'slotKey' => $slotKey,
+                    'slotIndex' => $slotIndex,
                     'breakpointWidth' => $breakpointWidth,
+                    'measureWidth' => $measureWidth,
                     'displayAssetUrl' => $row['displayAssetUrl'] !== null ? (string)$row['displayAssetUrl'] : null,
                     'rowStatus' => (string)($row['rowStatus'] ?? 'unprocessed'),
                 ];
@@ -603,18 +619,23 @@ class TelemetryService extends Component
         }
 
         $normalizedRows = [];
-        foreach ($rawRowsByBreakpoint as $breakpointKey => $rows) {
+        foreach ($rawRowsByBreakpoint as $slotKeyFromMap => $rows) {
             if (!is_array($rows)) {
-                continue;
-            }
-
-            $breakpointWidth = is_numeric($breakpointKey) ? (int)$breakpointKey : 0;
-            if ($breakpointWidth <= 0) {
                 continue;
             }
 
             foreach ($rows as $row) {
                 if (!is_array($row)) {
+                    continue;
+                }
+
+                $slotKey = trim((string)($row['slotKey'] ?? (is_string($slotKeyFromMap) ? $slotKeyFromMap : '')));
+                $slotIndex = is_numeric($row['slotIndex'] ?? null) ? (int)$row['slotIndex'] : -1;
+                $breakpointWidth = is_numeric($row['mediaWidth'] ?? null)
+                    ? (int)$row['mediaWidth']
+                    : (is_numeric($slotKeyFromMap) ? (int)$slotKeyFromMap : 0);
+                $measureWidth = is_numeric($row['measureWidth'] ?? null) ? (int)$row['measureWidth'] : $breakpointWidth;
+                if ($slotKey === '' || $slotIndex < 0 || $breakpointWidth <= 0) {
                     continue;
                 }
 
@@ -651,7 +672,10 @@ class TelemetryService extends Component
 
                 $normalizedRows[] = [
                     'transformHandle' => $transformHandle,
+                    'slotKey' => $slotKey,
+                    'slotIndex' => $slotIndex,
                     'breakpointWidth' => $breakpointWidth,
+                    'measureWidth' => $measureWidth,
                     'assetId' => $assetId !== '' ? $assetId : null,
                     'displayAssetUrl' => $displayAssetUrl,
                     'rowStatus' => $rowStatus,
@@ -743,16 +767,11 @@ class TelemetryService extends Component
         }
 
         $now = Db::prepareDateForDb(new \DateTimeImmutable());
-        /** @var array<string, array<int, true>> transform handle → set of active breakpoint widths */
-        $activeBreakpointsByTransform = [];
+        /** @var array<string, array<string, true>> transform handle → set of active slot keys */
+        $activeSlotsByTransform = [];
 
-        foreach ($rawRowsByBreakpoint as $breakpointKey => $rows) {
+        foreach ($rawRowsByBreakpoint as $slotKeyFromMap => $rows) {
             if (!is_array($rows)) {
-                continue;
-            }
-
-            $breakpointWidth = is_numeric($breakpointKey) ? (int)$breakpointKey : 0;
-            if ($breakpointWidth <= 0) {
                 continue;
             }
 
@@ -767,14 +786,26 @@ class TelemetryService extends Component
                     continue;
                 }
 
+                $slotKey = trim((string)($row['slotKey'] ?? (is_string($slotKeyFromMap) ? $slotKeyFromMap : '')));
+                if ($slotKey === '') {
+                    continue;
+                }
+
                 if (!isset($firstByTransform[$transformHandle])) {
                     $firstByTransform[$transformHandle] = $row;
-                    $activeBreakpointsByTransform[$transformHandle] ??= [];
-                    $activeBreakpointsByTransform[$transformHandle][$breakpointWidth] = true;
+                    $activeSlotsByTransform[$transformHandle] ??= [];
+                    $activeSlotsByTransform[$transformHandle][$slotKey] = true;
                 }
             }
 
             foreach ($firstByTransform as $transformHandle => $row) {
+                $slotKey = trim((string)($row['slotKey'] ?? (is_string($slotKeyFromMap) ? $slotKeyFromMap : '')));
+                $slotIndex = is_numeric($row['slotIndex'] ?? null) ? (int)$row['slotIndex'] : -1;
+                $breakpointWidth = is_numeric($row['mediaWidth'] ?? null) ? (int)$row['mediaWidth'] : 0;
+                $measureWidth = is_numeric($row['measureWidth'] ?? null) ? (int)$row['measureWidth'] : $breakpointWidth;
+                if ($slotKey === '' || $slotIndex < 0 || $breakpointWidth <= 0) {
+                    continue;
+                }
                 $enabled = ($row['enabled'] ?? true) === true;
                 $loaded = ($row['loaded'] ?? false) === true;
                 $broken = ($row['broken'] ?? false) === true;
@@ -795,7 +826,10 @@ class TelemetryService extends Component
 
                 $this->upsertPreviewCacheRow(
                     $transformHandle,
+                    $slotKey,
+                    $slotIndex,
                     $breakpointWidth,
+                    $measureWidth,
                     $displayAssetUrl,
                     $rowStatus,
                     $renderedWidth,
@@ -809,8 +843,8 @@ class TelemetryService extends Component
             }
         }
 
-        if ($activeBreakpointsByTransform !== []) {
-            $this->pruneObsoletePreviewCacheRows($activeBreakpointsByTransform);
+        if ($activeSlotsByTransform !== []) {
+            $this->pruneObsoletePreviewCacheRows($activeSlotsByTransform);
         }
     }
 
@@ -819,7 +853,10 @@ class TelemetryService extends Component
      */
     private function upsertPreviewCacheRow(
         string $transformHandle,
+        string $slotKey,
+        int $slotIndex,
         int $breakpointWidth,
+        int $measureWidth,
         string $displayAssetUrl,
         string $rowStatus,
         int $renderedWidth,
@@ -837,7 +874,7 @@ class TelemetryService extends Component
             ->from(self::PREVIEW_CACHE_TABLE)
             ->where([
                 'transformHandle' => $transformHandle,
-                'breakpointWidth' => $breakpointWidth,
+                'slotKey' => $slotKey,
             ])
             ->one();
 
@@ -858,7 +895,10 @@ class TelemetryService extends Component
         try {
             Db::upsert(self::PREVIEW_CACHE_TABLE, [
                 'transformHandle' => $transformHandle,
+                'slotKey' => $slotKey,
+                'slotIndex' => $slotIndex,
                 'breakpointWidth' => $breakpointWidth,
+                'measureWidth' => $measureWidth,
                 'displayAssetUrl' => $displayAssetUrl,
                 'rowStatus' => $rowStatus,
                 'renderedWidth' => $renderedWidth > 0 ? $renderedWidth : null,
@@ -869,7 +909,7 @@ class TelemetryService extends Component
                 'sourceUrl' => $sourceUrl,
             ]);
         } catch (\Throwable $e) {
-            Plugin::warning('Preview cache upsert failed for "' . $transformHandle . '" at ' . $breakpointWidth . 'px: ' . $e->getMessage());
+            Plugin::warning('Preview cache upsert failed for "' . $transformHandle . '" slot ' . $slotKey . ': ' . $e->getMessage());
         }
     }
 
@@ -878,7 +918,7 @@ class TelemetryService extends Component
      * breakpoint definitions have shrunk (breakpoints no longer in the run).
      */
     /**
-     * @param array<string, array<int, true>> $activeBreakpointsByTransform
+     * @param array<string, array<string, true>> $activeBreakpointsByTransform
      */
     private function pruneObsoletePreviewCacheRows(array $activeBreakpointsByTransform): void
     {
@@ -886,23 +926,23 @@ class TelemetryService extends Component
 
         foreach ($activeBreakpointsByTransform as $transformHandle => $activeBreakpoints) {
             $cachedBreakpoints = (new Query())
-                ->select(['breakpointWidth'])
+                ->select(['slotKey'])
                 ->from(self::PREVIEW_CACHE_TABLE)
                 ->where(['transformHandle' => $transformHandle])
                 ->column();
 
             foreach ($cachedBreakpoints as $cached) {
-                $cachedWidth = (int)$cached;
-                if (!isset($activeBreakpoints[$cachedWidth])) {
+                $cachedSlotKey = (string)$cached;
+                if (!isset($activeBreakpoints[$cachedSlotKey])) {
                     try {
                         $db->createCommand()
                             ->delete(self::PREVIEW_CACHE_TABLE, [
                                 'transformHandle' => $transformHandle,
-                                'breakpointWidth' => $cachedWidth,
+                                'slotKey' => $cachedSlotKey,
                             ])
                             ->execute();
                     } catch (\Throwable $e) {
-                        Plugin::warning('Preview cache prune failed for "' . $transformHandle . '" at ' . $cachedWidth . 'px: ' . $e->getMessage());
+                        Plugin::warning('Preview cache prune failed for "' . $transformHandle . '" slot ' . $cachedSlotKey . ': ' . $e->getMessage());
                     }
                 }
             }
@@ -934,7 +974,7 @@ class TelemetryService extends Component
     }
 
     /**
-     * Read all preview cache rows, indexed by transformHandle|breakpointWidth.
+     * Read all preview cache rows, indexed by transformHandle|slotKey.
      *
      * @return array<string, array<string, mixed>>
      */
@@ -948,14 +988,17 @@ class TelemetryService extends Component
         $rows = (new Query())
             ->select([
                 'transformHandle',
+                'slotKey',
+                'slotIndex',
                 'breakpointWidth',
+                'measureWidth',
                 'displayAssetUrl',
                 'rowStatus',
                 'renderedWidth',
                 'renderedHeight',
             ])
             ->from(self::PREVIEW_CACHE_TABLE)
-            ->orderBy(['transformHandle' => SORT_ASC, 'breakpointWidth' => SORT_ASC])
+            ->orderBy(['transformHandle' => SORT_ASC, 'slotIndex' => SORT_ASC])
             ->all();
 
         $indexed = [];
@@ -965,14 +1008,15 @@ class TelemetryService extends Component
             }
 
             $transformHandle = trim((string)($row['transformHandle'] ?? ''));
+            $slotKey = trim((string)($row['slotKey'] ?? ''));
             $breakpointWidth = isset($row['breakpointWidth']) && is_numeric($row['breakpointWidth'])
                 ? (int)$row['breakpointWidth']
                 : 0;
-            if ($transformHandle === '' || $breakpointWidth <= 0) {
+            if ($transformHandle === '' || $slotKey === '' || $breakpointWidth <= 0) {
                 continue;
             }
 
-            $indexed[$transformHandle . '|' . $breakpointWidth] = $row;
+            $indexed[$transformHandle . '|' . $slotKey] = $row;
         }
 
         return $indexed;

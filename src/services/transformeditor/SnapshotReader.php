@@ -72,12 +72,12 @@ final class SnapshotReader
             }
 
             $transformHandle = $this->extractTransformHandleFromRow($row);
-            $breakpointWidth = $this->extractBreakpointWidthFromRow($row);
-            if ($transformHandle === '' || $breakpointWidth <= 0) {
+            $slotKey = $this->extractSlotKeyFromRow($row);
+            if ($transformHandle === '' || $slotKey === '') {
                 continue;
             }
 
-            $indexed[$this->buildTransformBreakpointKey($transformHandle, $breakpointWidth)] = $row;
+            $indexed[$this->buildTransformBreakpointKey($transformHandle, $slotKey)] = $row;
         }
 
         return $this->latestRunRowsByTransformAndBreakpoint = $indexed;
@@ -167,7 +167,7 @@ final class SnapshotReader
      * and breakpoint from server-side telemetry sources.
      *
      * Resolution order:
-     *   1. Match snapshot.rowsPayload by transformHandle + breakpointWidth + assetId
+     *   1. Match snapshot.rowsPayload by transformHandle + slotKey + assetId
      *   2. Fall back to previewCacheRows for first-asset evidence
      *   3. Return null (caller must produce an explicit user-facing error)
      *
@@ -195,8 +195,8 @@ final class SnapshotReader
                 }
 
                 $rowTransformHandle = $this->extractTransformHandleFromRow($row);
-                $rowBreakpointWidth = $this->extractBreakpointWidthFromRow($row);
-                if ($rowTransformHandle !== $transformName || $rowBreakpointWidth !== $breakpointWidth) {
+                $rowSlotId = $this->extractSlotIdFromRow($row);
+                if ($rowTransformHandle !== $transformName || $rowSlotId !== $breakpointWidth) {
                     continue;
                 }
 
@@ -219,7 +219,7 @@ final class SnapshotReader
             }
         }
 
-        $key = $this->buildTransformBreakpointKey($transformName, $breakpointWidth);
+        $key = $this->buildTransformBreakpointKey($transformName, (string)($breakpointWidth - 1));
         $previewRow = $rowsByTransformAndBreakpoint[$key] ?? null;
         if (is_array($previewRow)) {
             return $this->extractRenderedDimensionsFromRow($previewRow);
@@ -264,7 +264,7 @@ final class SnapshotReader
                 }
 
                 $rowTransformHandle = $this->extractTransformHandleFromRow($row);
-                $rowBreakpointWidth = $this->extractBreakpointWidthFromRow($row);
+                $rowBreakpointWidth = $this->extractSlotIdFromRow($row);
                 if ($rowTransformHandle !== $transformName || $rowBreakpointWidth <= 0) {
                     continue;
                 }
@@ -291,6 +291,7 @@ final class SnapshotReader
                 if ($dimensions !== null) {
                     $rowsByBreakpoint[] = [
                         'breakpoint' => $bp,
+                        'slotKey' => $this->extractSlotKeyFromRow($row),
                         'width' => $dimensions['width'],
                         'height' => $dimensions['height'],
                     ];
@@ -305,7 +306,7 @@ final class SnapshotReader
                     continue;
                 }
                 $rowTransformHandle = $this->extractTransformHandleFromRow($row);
-                $rowBreakpointWidth = $this->extractBreakpointWidthFromRow($row);
+                $rowBreakpointWidth = $this->extractSlotIdFromRow($row);
                 if ($rowTransformHandle !== $transformName || $rowBreakpointWidth <= 0) {
                     continue;
                 }
@@ -314,6 +315,7 @@ final class SnapshotReader
                 if ($dimensions !== null) {
                     $rowsByBreakpoint[] = [
                         'breakpoint' => $rowBreakpointWidth,
+                        'slotKey' => $this->extractSlotKeyFromRow($row),
                         'width' => $dimensions['width'],
                         'height' => $dimensions['height'],
                     ];
@@ -386,6 +388,7 @@ final class SnapshotReader
                 'lastSeenAt' => $row['lastSeenAt'] ?? null,
                 'sourceElementId' => $sourceElementId,
                 'sourceUrl' => $row['sourceUrl'] ?? null,
+                'includeEscapeWidth' => $row['includeEscapeWidth'] ?? null,
                 'entry' => null,
             ];
 
@@ -434,9 +437,9 @@ final class SnapshotReader
         return $this->observedDataByTransform = $byTransform;
     }
 
-    private function buildTransformBreakpointKey(string $transformHandle, int $breakpointWidth): string
+    private function buildTransformBreakpointKey(string $transformHandle, string $slotKey): string
     {
-        return $transformHandle . '|' . $breakpointWidth;
+        return $transformHandle . '|' . $slotKey;
     }
 
     /**
@@ -455,6 +458,20 @@ final class SnapshotReader
         return isset($row['breakpointWidth']) && is_numeric($row['breakpointWidth'])
             ? (int)$row['breakpointWidth']
             : 0;
+    }
+
+    private function extractSlotKeyFromRow(array $row): string
+    {
+        return trim((string)($row['slotKey'] ?? ''));
+    }
+
+    private function extractSlotIdFromRow(array $row): int
+    {
+        if (isset($row['slotIndex']) && is_numeric($row['slotIndex'])) {
+            return ((int)$row['slotIndex']) + 1;
+        }
+
+        return $this->extractBreakpointWidthFromRow($row);
     }
 
     /**

@@ -46,13 +46,7 @@ class ImageTransforms extends Component
         $breakpointName = $breakpointNames[$loopIndex] ?? null;
         $namedSet = $this->getNamedSet($config);
         $initOptions = InitOptions::fromConfig($config, $namedSet !== null);
-        $variantIndex = $loopIndex;
-        if ($breakpointName === 'escape' && !$this->isEscapeWidthIncluded($config, $namedSet)) {
-            $variantIndex = $loopIndex - 1;
-        }
-        $variant = $variantIndex >= 0
-            ? $this->getVariantByIndex($namedSet, $variantIndex)
-            : null;
+        $variant = $this->getVariantByIndex($namedSet, $loopIndex);
         $autoDimension = $this->resolveAutoDimension($variant, $initOptions);
 
         $setName = $this->resolveSetName($config);
@@ -81,6 +75,8 @@ class ImageTransforms extends Component
                 null,
                 $autoDimension,
                 'primary',
+                $breakpointName,
+                $loopIndex,
             ));
 
             if ($sourceMediaQuery !== '') {
@@ -109,6 +105,8 @@ class ImageTransforms extends Component
                     null,
                     $autoDimension,
                     'secondary',
+                    $breakpointName,
+                    $loopIndex,
                 ));
 
                 if ($sourceMediaQuery !== '') {
@@ -165,6 +163,8 @@ class ImageTransforms extends Component
             $primary,
             $autoDimension,
             'primary',
+            $breakpointName,
+            $loopIndex,
         ));
 
         if ($mediaQuery !== '') {
@@ -185,6 +185,8 @@ class ImageTransforms extends Component
                 $secondary,
                 $autoDimension,
                 'secondary',
+                $breakpointName,
+                $loopIndex,
             ));
 
             if ($mediaQuery !== '') {
@@ -285,7 +287,11 @@ class ImageTransforms extends Component
         $namedSet = $this->getNamedSet($config);
         $initOptions = InitOptions::fromConfig($config, $namedSet !== null);
 
-        $this->_plugin->getTelemetry()->recordUsage($setName, $initOptions);
+        $this->_plugin->getTelemetry()->recordUsage(
+            $setName,
+            $initOptions,
+            $this->isEscapeWidthIncluded($config, $namedSet),
+        );
 
         $config['setName'] = $setName;
 
@@ -296,6 +302,7 @@ class ImageTransforms extends Component
 
         $mergedConfig = $this->_plugin->getConfigService()->getConfig($config);
         $breakpoints = $this->_plugin->getBreakpointPolicy()->getBreakpointsForSet($config, $mergedConfig);
+        $slots = $this->_plugin->getBreakpointSlots()->getSlots($this->isEscapeWidthIncluded($config, $namedSet));
         $namedSetConfig = $this->getNamedSetConfig($namedSet);
 
         $primaryFormat = $this->normalizeTargetFormat(
@@ -342,13 +349,8 @@ class ImageTransforms extends Component
             $isDisabled = $this->_plugin->getBreakpointPolicy()->isBreakpointDisabled((string)$breakpointName, $index, $config);
             $namedSetVariant = $this->getVariantByIndex($namedSet, $index);
 
-            if ($breakpointName === 'escape' && !$this->isEscapeWidthIncluded($config, $namedSet) && isset($transformed[$index - 1])) {
-                $transformed[$index] = $transformed[$index - 1];
-                $index++;
-                continue;
-            }
-
-            $targetWidth = (int)$breakpointWidth;
+            $slot = $slots[$index] ?? null;
+            $targetWidth = is_array($slot) ? (int)$slot['measureWidth'] : (int)$breakpointWidth;
             if ($targetWidth <= 0) {
                 $targetWidth = $sourceWidth;
             }
@@ -637,6 +639,8 @@ class ImageTransforms extends Component
         ?array $fallbackTransform,
         ?string $autoDimension,
         string $sourceRole,
+        ?string $slotKey = null,
+        ?int $slotIndex = null,
     ): array {
         // These markers exist solely for the client-side processing pipeline,
         // which only ever runs inside the processing preview iframe. Keep them
@@ -652,6 +656,8 @@ class ImageTransforms extends Component
             $fallbackTransform,
             $autoDimension,
             $sourceRole,
+            $slotKey,
+            $slotIndex,
         );
     }
 
@@ -662,6 +668,8 @@ class ImageTransforms extends Component
         ?array $fallbackTransform,
         ?string $autoDimension,
         string $sourceRole,
+        ?string $slotKey,
+        ?int $slotIndex,
     ): array {
         $explicitWidth = isset($variant['width']) && is_numeric($variant['width'])
             ? (int)$variant['width']
@@ -689,7 +697,10 @@ class ImageTransforms extends Component
         $attributes = [
             'data-bp-source' => $sourceRole,
             'data-bp-size' => $breakpoint,
+            'data-bp-key' => $slotKey,
+            'data-bp-index' => $slotIndex,
             'data-bp-enabled' => $enabled ? 'true' : 'false',
+            'data-bp-measure-width' => $fallbackWidth,
             'data-set-width' => $transformWidth,
             'data-set-height' => $transformHeight,
         ];

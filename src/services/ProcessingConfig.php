@@ -23,6 +23,7 @@ class ProcessingConfig extends Component
                 'generatedAt' => gmdate('c'),
                 'breakpoints' => [],
                 'breakpointValues' => [],
+                'breakpointSlots' => [],
                 'sets' => [],
                 'processing' => [
                     'authorDiagnosticsEnabled' => false,
@@ -30,13 +31,18 @@ class ProcessingConfig extends Component
             ];
         }
 
-        $breakpoints = $this->_plugin->getConfigService()->getBreakpoints();
+        $slots = $this->_plugin->getBreakpointSlots()->getSlots(true);
+        $breakpoints = [];
+        foreach ($slots as $slot) {
+            $breakpoints[$slot['key']] = (int)$slot['mediaWidth'];
+        }
 
         return [
             'schemaVersion' => 2,
             'generatedAt' => gmdate('c'),
             'breakpoints' => $breakpoints,
             'breakpointValues' => array_values($breakpoints),
+            'breakpointSlots' => $slots,
             'sets' => $this->_plugin->getTransformSets()->getSets(),
             'processing' => [
                 'authorDiagnosticsEnabled' => $this->_plugin->getConfigService()->isProcessingDiagnosticsEnabled(),

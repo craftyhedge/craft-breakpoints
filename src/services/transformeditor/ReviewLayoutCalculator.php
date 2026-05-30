@@ -119,10 +119,14 @@ final class ReviewLayoutCalculator
 
     /**
      * @param array<int, array<string, mixed>> $rows
+     * @param int $breakpoint slot id (for identity)
+     * @param int|null $referenceWidth media/measure px for scaling + square fallback
      * @return array{width:int,height:int,previewRow:array<string,mixed>|null}
      */
-    public static function resolvePreviewDisplayDimensions(array $rows, int $breakpoint): array
+    public static function resolvePreviewDisplayDimensions(array $rows, int $breakpoint, ?int $referenceWidth = null): array
     {
+        $ref = ($referenceWidth !== null && $referenceWidth > 0) ? $referenceWidth : $breakpoint;
+
         $summary = self::summarizeRows($rows);
         $displayWidth = max(0, (int)($summary['renderedWidth'] ?? 0));
         $displayHeight = max(0, (int)($summary['renderedHeight'] ?? 0));
@@ -153,11 +157,11 @@ final class ReviewLayoutCalculator
             }
         }
 
-        if (($displayWidth < 1 || $displayHeight < 1) && is_array($previewRow) && $breakpoint > 0) {
+        if (($displayWidth < 1 || $displayHeight < 1) && is_array($previewRow) && $ref > 0) {
             $previewSrc = (string)($previewRow['src'] ?? '');
             if ($previewSrc !== '') {
-                $displayWidth = $breakpoint;
-                $displayHeight = $breakpoint;
+                $displayWidth = $ref;
+                $displayHeight = $ref;
             }
         }
 
@@ -170,18 +174,29 @@ final class ReviewLayoutCalculator
 
     /**
      * @param array<int, int> $breakpoints
+     * @param array<string, int> $referenceWidthsByBreakpoint
      * @return array<string, float>
      */
-    public static function calculateBreakpointColumnWidths(array $breakpoints): array
+    public static function calculateBreakpointColumnWidths(array $breakpoints, array $referenceWidthsByBreakpoint = []): array
     {
         if ($breakpoints === []) {
             return [];
         }
 
-        $firstBreakpoint = $breakpoints[0] > 0 ? $breakpoints[0] : 1;
+        $firstRef = null;
+        foreach ($breakpoints as $bp) {
+            $ref = $referenceWidthsByBreakpoint[(string)$bp] ?? $bp;
+            if ($ref > 0) {
+                $firstRef = $ref;
+                break;
+            }
+        }
+        $firstRef = $firstRef ?? 1;
+
         $widths = [];
         foreach ($breakpoints as $breakpoint) {
-            $widths[(string)$breakpoint] = ($breakpoint / $firstBreakpoint) * 160;
+            $ref = $referenceWidthsByBreakpoint[(string)$breakpoint] ?? $breakpoint;
+            $widths[(string)$breakpoint] = ($ref / $firstRef) * 160;
         }
 
         return $widths;
@@ -191,12 +206,14 @@ final class ReviewLayoutCalculator
      * @param array<string, array<int, array<int, array<string, mixed>>>> $rowsByAssetByBreakpoint
      * @param array<int, int> $transformBreakpoints
      * @param array<string, float> $breakpointColumnWidths
+     * @param array<string, int> $referenceWidthsByBreakpoint
      * @return array<string, int>
      */
     public static function calculateBreakpointPreviewLockHeights(
         array $rowsByAssetByBreakpoint,
         array $transformBreakpoints,
         array $breakpointColumnWidths,
+        array $referenceWidthsByBreakpoint = [],
     ): array {
         $globalLockHeight = 48;
 
@@ -214,15 +231,16 @@ final class ReviewLayoutCalculator
                     continue;
                 }
 
-                $display = self::resolvePreviewDisplayDimensions($rows, $breakpoint);
+                $ref = $referenceWidthsByBreakpoint[(string)$breakpoint] ?? $breakpoint;
+                $display = self::resolvePreviewDisplayDimensions($rows, $breakpoint, $ref > 0 ? $ref : null);
                 $displayWidth = $display['width'];
                 $displayHeight = $display['height'];
 
-                if ($displayWidth < 1 || $displayHeight < 1 || $breakpoint < 1) {
+                if ($displayWidth < 1 || $displayHeight < 1 || $ref < 1) {
                     continue;
                 }
 
-                $candidateHeight = (int)ceil(($availablePreviewWidth * $displayHeight) / $breakpoint);
+                $candidateHeight = (int)ceil(($availablePreviewWidth * $displayHeight) / $ref);
                 $globalLockHeight = max($globalLockHeight, $candidateHeight);
             }
         }

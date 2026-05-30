@@ -21,7 +21,13 @@ class BreakpointPolicy extends Component
             return [];
         }
 
-        return $this->_plugin->getConfigService()->getBreakpoints($mergedConfig);
+        $includeEscapeWidth = $this->shouldIncludeEscapeWidth($config);
+        $breakpoints = [];
+        foreach ($this->_plugin->getBreakpointSlots()->getSlots($includeEscapeWidth) as $slot) {
+            $breakpoints[$slot['key']] = (int)$slot['mediaWidth'];
+        }
+
+        return $breakpoints;
     }
 
     public function getBreakpointStates(array $config = []): array
@@ -102,14 +108,7 @@ class BreakpointPolicy extends Component
     }
 
     /**
-     * Canonical variant label (`base`-first, no `escape`) for a slot position,
-     * matching the editor UI and saved-set keys.
-     *
-     * Labels are built to span the SAME slots the disable callers iterate, i.e.
-     * `getBreakpoints($mergedConfig)` — which appends an `escape` width slot
-     * whenever `escapeWidth > 0`, regardless of `includeEscapeWidth`. So the
-     * label list is `['base', ...$configuredNames]` truncated to that slot
-     * count, keeping index→label aligned for the trailing (escape-width) slot.
+     * Canonical variant label for a slot position, matching saved-set keys.
      */
     private function getCanonicalKeyForIndex(int $index, array $config): ?string
     {
@@ -117,14 +116,7 @@ class BreakpointPolicy extends Component
             return null;
         }
 
-        $configService = $this->_plugin->getConfigService();
-        $mergedConfig = $configService->getConfig($config);
-        $slotCount = count($this->getBreakpointsForSet($config, $mergedConfig));
-
-        // Raw configured names (no `base`, no `escape`), e.g. [xs,sm,md,lg,xl].
-        $configuredNames = array_keys($configService->getBreakpointMap(false));
-
-        $labels = array_slice(['base', ...$configuredNames], 0, $slotCount);
+        $labels = $this->_plugin->getBreakpointSlots()->getKeys();
 
         return $labels[$index] ?? null;
     }

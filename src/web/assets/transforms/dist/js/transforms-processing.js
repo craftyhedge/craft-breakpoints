@@ -472,6 +472,7 @@ export function activateLozad(frameWindow, frameDocument, prepareResult, pushStr
 
 export function prepareBreakpoints({
     breakpoint,
+    slot = null,
     frameDocument,
     frameWindow,
     getTrackedPictures,
@@ -555,6 +556,7 @@ export function prepareBreakpoints({
 
 export function buildBreakpointReadinessTracker({
     breakpoint,
+    slot = null,
     frameDocument,
     preloadStates = null,
     getPictureLoadKey,
@@ -801,6 +803,7 @@ export async function waitForImagesToSettle({
 
 export async function preloadBreakpointSources({
     breakpoint,
+    slot = null,
     frameDocument,
     timeoutMs = 5000,
     getPictureLoadKey,
@@ -887,6 +890,7 @@ export function toPositiveFloatOrNull(value) {
 
 export function extractRowsForBreakpoint({
     breakpoint,
+    slot = null,
     frameDocument,
     preloadStates = null,
     readinessByKey = null,
@@ -946,6 +950,10 @@ export function extractRowsForBreakpoint({
         }
 
         return {
+            slotKey: slot?.key || source?.getAttribute('data-bp-key') || null,
+            slotIndex: Number.isFinite(Number(slot?.index)) ? Number(slot.index) : toPositiveIntOrNullFn(source?.getAttribute('data-bp-index')),
+            mediaWidth: Number.isFinite(Number(slot?.mediaWidth)) ? Number(slot.mediaWidth) : breakpoint,
+            measureWidth: Number.isFinite(Number(slot?.measureWidth)) ? Number(slot.measureWidth) : toPositiveIntOrNullFn(source?.getAttribute('data-bp-measure-width')),
             assetId,
             transform: picture?.getAttribute('data-set') || 'unknown',
             title: picture?.getAttribute('data-asset-title') || '',
@@ -976,7 +984,9 @@ export function extractRowsForBreakpoint({
 export function buildStructuredOutput({
     sourceUrl,
     breakpoints,
+    slots = [],
     rowsByBreakpoint,
+    rowsBySlot = null,
     startedAt,
     runReport = null,
     configSchemaVersion = null,
@@ -1024,11 +1034,13 @@ export function buildStructuredOutput({
         sourceUrl: runReport?.sourceUrl || sourceUrl,
         timestamp: nowIso(),
         breakpoints,
+        slots,
         rowsByBreakpoint,
+        rowsBySlot: rowsBySlot || rowsByBreakpoint,
         processingReport: runReport,
         summary: {
             runs: runCount,
-            breakpointCount: breakpoints.length,
+            breakpointCount: slots.length || breakpoints.length,
             assetCount: Array.from(assetsById).filter((assetId) => assetId !== '').length,
             setCount: Array.from(setsByName).filter((setName) => setName !== '').length,
             rowCount,

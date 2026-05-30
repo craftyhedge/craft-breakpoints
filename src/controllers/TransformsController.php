@@ -577,6 +577,7 @@ class TransformsController extends Controller
             'sourceUrl' => $this->request->getBodyParam('sourceUrl'),
             'failureReasonCounts' => $this->request->getBodyParam('failureReasonCounts', []),
             'rowsByBreakpoint' => $this->request->getBodyParam('rowsByBreakpoint', []),
+            'rowsBySlot' => $this->request->getBodyParam('rowsBySlot', []),
         ];
 
         $persisted = Plugin::getInstance()->getTelemetry()->persistRunSnapshot($payload);

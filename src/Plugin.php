@@ -16,6 +16,7 @@ use craft\web\twig\variables\CraftVariable;
 use craftyhedge\craftbreakpoints\helpers\ProcessingRequest;
 use craftyhedge\craftbreakpoints\models\Settings;
 use craftyhedge\craftbreakpoints\services\BreakpointPolicy;
+use craftyhedge\craftbreakpoints\services\BreakpointSlotResolver;
 use craftyhedge\craftbreakpoints\services\ConfigService;
 use craftyhedge\craftbreakpoints\services\DatabaseService;
 use craftyhedge\craftbreakpoints\services\ImageRenderer;
@@ -51,6 +52,7 @@ class Plugin extends BasePlugin
                 'images' => Images::class,
                 'configService' => ConfigService::class,
                 'breakpointPolicy' => BreakpointPolicy::class,
+                'breakpointSlots' => BreakpointSlotResolver::class,
                 'transformSets' => TransformSets::class,
                 'transformStore' => TransformStore::class,
                 'imageRenderer' => ImageRenderer::class,
@@ -119,6 +121,11 @@ class Plugin extends BasePlugin
     public function getBreakpointPolicy(): BreakpointPolicy
     {
         return $this->get('breakpointPolicy');
+    }
+
+    public function getBreakpointSlots(): BreakpointSlotResolver
+    {
+        return $this->get('breakpointSlots');
     }
 
     public function getImageRenderer(): ImageRenderer
