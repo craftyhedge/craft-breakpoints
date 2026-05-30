@@ -59,7 +59,7 @@ final class BreakpointPolicyTest extends Unit
 
             $breakpoints = $policy->getBreakpointsForSet($config, $mergedConfig);
 
-            $this->assertArrayNotHasKey('escape', $breakpoints);
+            $this->assertArrayHasKey('escape', $breakpoints);
         });
     }
 
@@ -77,7 +77,7 @@ final class BreakpointPolicyTest extends Unit
         ], function(Plugin $plugin): void {
             $policy = $plugin->getBreakpointPolicy();
 
-            $isDisabled = $policy->isBreakpointDisabled('xs', [
+            $isDisabled = $policy->isBreakpointDisabled('xs', 0, [
                 'transformName' => 'entry-disabled',
             ]);
 

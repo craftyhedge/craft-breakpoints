@@ -109,11 +109,9 @@ final class TransformEditorServiceTest extends Unit
     {
         $plugin = Plugin::getInstance();
         $editor = $plugin->getTransformEditor();
-        $breakpoints = $plugin->getConfigService()->getBreakpoints();
-        unset($breakpoints['escape']);
-
-        $firstBreakpointName = (string)array_key_first($breakpoints);
-        $firstBreakpointValue = (int)($breakpoints[$firstBreakpointName] ?? 0);
+        $configService = $plugin->getConfigService();
+        $firstBreakpointName = (string)($configService->getBreakpointKeys(false)[0] ?? '');
+        $firstBreakpointValue = (int)($configService->getBreakpointWidths(false)[0] ?? 0);
 
         $this->assertNotSame('', $firstBreakpointName);
         $this->assertGreaterThan(0, $firstBreakpointValue);
@@ -190,10 +188,7 @@ final class TransformEditorServiceTest extends Unit
     {
         $plugin = Plugin::getInstance();
         $editor = $plugin->getTransformEditor();
-        $breakpoints = $plugin->getConfigService()->getBreakpoints();
-        unset($breakpoints['escape']);
-
-        $breakpointNames = array_values(array_map('strval', array_keys($breakpoints)));
+        $breakpointNames = array_map('strval', $plugin->getConfigService()->getBreakpointKeys(false));
         $this->assertGreaterThanOrEqual(2, count($breakpointNames));
 
         $variants = [];
@@ -236,10 +231,7 @@ final class TransformEditorServiceTest extends Unit
     {
         $plugin = Plugin::getInstance();
         $editor = $plugin->getTransformEditor();
-        $breakpoints = $plugin->getConfigService()->getBreakpoints();
-        unset($breakpoints['escape']);
-
-        $firstBreakpointName = (string)array_key_first($breakpoints);
+        $firstBreakpointName = (string)($plugin->getConfigService()->getBreakpointKeys(false)[0] ?? '');
         $this->assertNotSame('', $firstBreakpointName);
 
         $this->withRuntimeSets([
@@ -286,15 +278,15 @@ final class TransformEditorServiceTest extends Unit
     {
         $plugin = Plugin::getInstance();
         $editor = $plugin->getTransformEditor();
-        $breakpoints = $plugin->getConfigService()->getBreakpoints();
-        unset($breakpoints['escape']);
-        $firstBreakpoint = (int)reset($breakpoints);
-        $breakpointNames = array_keys($breakpoints);
+        $configService = $plugin->getConfigService();
+        $breakpointWidths = $configService->getBreakpointWidths(false);
+        $breakpointNames = $configService->getBreakpointKeys(false);
+        $firstBreakpoint = (int)($breakpointWidths[0] ?? 0);
         $firstBreakpointName = (string)($breakpointNames[0] ?? '');
         $secondBreakpointName = (string)($breakpointNames[1] ?? '');
         $variants = [];
 
-        foreach (array_keys($breakpoints) as $breakpointName) {
+        foreach ($breakpointNames as $breakpointName) {
             $variants[$breakpointName] = [
                 'width' => null,
                 'height' => null,
@@ -529,7 +521,7 @@ final class TransformEditorServiceTest extends Unit
                 'name' => 'hero',
                 'includeEscapeWidth' => false,
                 'variants' => [
-                    'sm' => ['width' => null, 'height' => 340, 'enabled' => true, 'autoDimension' => 'width'],
+                    'xs' => ['width' => null, 'height' => 340, 'enabled' => true, 'autoDimension' => 'width'],
                 ],
                 'config' => [],
             ],
@@ -1220,7 +1212,7 @@ final class TransformEditorServiceTest extends Unit
                 'name' => 'hero',
                 'includeEscapeWidth' => false,
                 'variants' => [
-                    'sm' => ['width' => 600, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
+                    'xs' => ['width' => 600, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
                 ],
                 'config' => ['passHeightWhenRenderedLteSaved' => true],
             ],
@@ -1345,7 +1337,7 @@ final class TransformEditorServiceTest extends Unit
                 'name' => 'hero',
                 'includeEscapeWidth' => false,
                 'variants' => [
-                    'sm' => ['width' => 600, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
+                    'xs' => ['width' => 600, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
                 ],
                 'config' => ['passHeightWhenRenderedLteSaved' => true],
             ],
@@ -1676,7 +1668,7 @@ final class TransformEditorServiceTest extends Unit
 
     private function withRuntimeSets(array $sets, callable $callback): mixed
     {
-        $breakpointNames = array_keys(Plugin::getInstance()->getConfigService()->getBreakpoints());
+        $configService = Plugin::getInstance()->getConfigService();
         $normalizedSets = [];
 
         foreach ($sets as $setName => $setDefinition) {
@@ -1685,9 +1677,8 @@ final class TransformEditorServiceTest extends Unit
             }
 
             $includeEscapeWidth = ($setDefinition['includeEscapeWidth'] ?? false) === true;
-            $setBreakpointNames = $includeEscapeWidth
-                ? $breakpointNames
-                : array_values(array_filter($breakpointNames, static fn(string $name): bool => $name !== 'escape'));
+            // Canonical variant labels (`base`-first, no `escape`) for this set.
+            $setBreakpointNames = $configService->getBreakpointKeys($includeEscapeWidth);
 
             $variants = isset($setDefinition['variants']) && is_array($setDefinition['variants'])
                 ? $setDefinition['variants']

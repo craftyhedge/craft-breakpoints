@@ -35,6 +35,7 @@ final class ImageTransformsServiceTest extends Unit
         $this->assertSame([
             'xs' => 480,
             'md' => 768,
+            'escape' => 1920,
         ], $breakpoints);
     }
 
@@ -113,8 +114,9 @@ final class ImageTransformsServiceTest extends Unit
                 'md' => 768,
             ],
             'escapeWidth' => 0,
+            // Canonical label for the index-0 slot (480px) is `base`.
             'disableBreakpoints' => [
-                'xs' => true,
+                'base' => true,
             ],
             'secondaryFormat' => 'webp',
         ], $asset);

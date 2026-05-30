@@ -215,17 +215,8 @@ final class ReviewWarningsBuilder
      */
     private function resolveBreakpointsForTransform(bool $includeEscapeWidth): array
     {
-        $breakpoints = $this->configService->getBreakpoints();
-        if (!is_array($breakpoints)) {
-            return [];
-        }
-
-        if (!$includeEscapeWidth) {
-            unset($breakpoints['escape']);
-        }
-
         $values = [];
-        foreach ($breakpoints as $breakpoint) {
+        foreach ($this->configService->getBreakpointWidths($includeEscapeWidth) as $breakpoint) {
             $normalized = Support::normalizeNullablePositiveInt($breakpoint);
             if ($normalized !== null) {
                 $values[] = $normalized;

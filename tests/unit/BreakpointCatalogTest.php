@@ -10,7 +10,7 @@ use craftyhedge\craftbreakpoints\services\transformeditor\BreakpointCatalog;
 
 final class BreakpointCatalogTest extends Unit
 {
-    public function testDefinitionsPreserveConfiguredKeysAndEscapePolicy(): void
+    public function testDefinitionsUseBaseFirstLabelsAndDropEscapeKey(): void
     {
         $catalog = new BreakpointCatalog($this->buildConfigService([
             'xs' => 480,
@@ -21,11 +21,13 @@ final class BreakpointCatalogTest extends Unit
         $withoutEscape = $catalog->getDefinitionsForIncludeEscapeWidth(false);
         $withEscape = $catalog->getDefinitionsForIncludeEscapeWidth(true);
 
-        $this->assertSame(['xs', 'sm'], array_column($withoutEscape, 'key'));
+        // Labels are `base`-first; configured names shift down; no `escape` key.
+        // Widths stay paired to slots by position.
+        $this->assertSame(['base', 'xs'], array_column($withoutEscape, 'key'));
         $this->assertSame([480, 640], array_column($withoutEscape, 'width'));
-        $this->assertSame(['xs', 'sm', 'escape'], array_column($withEscape, 'key'));
+        $this->assertSame(['base', 'xs', 'sm'], array_column($withEscape, 'key'));
         $this->assertSame([480, 640, 1281], array_column($withEscape, 'width'));
-        $this->assertTrue($withEscape[2]['isEscape']);
+        $this->assertFalse($withEscape[2]['isEscape']);
     }
 
     public function testNumericWidthResolutionRejectsDuplicateActiveWidths(): void

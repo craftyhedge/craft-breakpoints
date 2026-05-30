@@ -74,6 +74,61 @@ class ConfigService extends Component
         return $breakpoints;
     }
 
+    /**
+     * Breakpoints map (`name => width`) with `escape` dropped unless opted in.
+     *
+     * Shared base for the drop-escape consumers: callers that need key+width
+     * pairs use this directly; key-only and width-only callers use the helpers
+     * below. Keeps the `unset('escape')` rule in one place.
+     *
+     * @return array<string, int>
+     */
+    public function getBreakpointMap(bool $includeEscapeWidth): array
+    {
+        $breakpoints = $this->getBreakpoints();
+
+        if (!$includeEscapeWidth) {
+            unset($breakpoints['escape']);
+        }
+
+        $map = [];
+        foreach ($breakpoints as $key => $width) {
+            $map[(string)$key] = (int)$width;
+        }
+
+        return $map;
+    }
+
+    /**
+     * Ordered widths for a set, escape dropped unless opted in.
+     *
+     * @return int[]
+     */
+    public function getBreakpointWidths(bool $includeEscapeWidth): array
+    {
+        return array_values($this->getBreakpointMap($includeEscapeWidth));
+    }
+
+    /**
+     * Canonical ordered list of variant keys for a set: `base` first, then the
+     * configured breakpoint names. No `escape` — the escape-width slot (when
+     * included) takes the last configured name. Paired to widths by position.
+     *
+     * Must stay identical to the labels BreakpointCatalog emits, so the
+     * sets⇄transforms adapters re-key variants to the same names every other
+     * path uses. Width-only and count-only consumers should use
+     * getBreakpointWidths()/getBreakpoints().
+     *
+     * @return string[]
+     */
+    public function getBreakpointKeys(bool $includeEscapeWidth): array
+    {
+        $configuredNames = array_keys($this->getBreakpointMap(false));
+        $slotCount = count($this->getBreakpointMap($includeEscapeWidth));
+
+        return array_slice(['base', ...$configuredNames], 0, $slotCount);
+    }
+
     public function getPictureTemplatePath(array $overrides = []): string
     {
         return $this->normalizeTemplatePath(

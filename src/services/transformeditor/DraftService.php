@@ -295,12 +295,6 @@ final class DraftService
      */
     private function getBreakpointsForTransform(bool $includeEscapeWidth): array
     {
-        $breakpoints = $this->configService->getBreakpoints();
-
-        if (!$includeEscapeWidth) {
-            unset($breakpoints['escape']);
-        }
-
-        return array_values(array_map(static fn(mixed $value): int => (int)$value, $breakpoints));
+        return $this->configService->getBreakpointWidths($includeEscapeWidth);
     }
 }

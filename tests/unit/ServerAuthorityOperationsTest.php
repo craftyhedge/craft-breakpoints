@@ -85,7 +85,7 @@ final class ServerAuthorityOperationsTest extends Unit
                     'name' => 'hero',
                     'includeEscapeWidth' => false,
                     'variants' => [
-                        'sm' => ['width' => null, 'height' => null, 'enabled' => true, 'autoDimension' => null],
+                        'xs' => ['width' => null, 'height' => null, 'enabled' => true, 'autoDimension' => null],
                     ],
                     'config' => [],
                 ],
@@ -113,8 +113,8 @@ final class ServerAuthorityOperationsTest extends Unit
                 $this->assertFalse(($result['validation']['hasErrors'] ?? true) === true);
 
                 $sets = $plugin->getTransformStore()->getSets();
-                $this->assertSame(600, $sets['hero']['variants']['sm']['width'] ?? null);
-                $this->assertSame(340, $sets['hero']['variants']['sm']['height'] ?? null);
+                $this->assertSame(600, $sets['hero']['variants']['xs']['width'] ?? null);
+                $this->assertSame(340, $sets['hero']['variants']['xs']['height'] ?? null);
             });
         } finally {
             $plugin->set('telemetry', $previousTelemetry);
@@ -153,7 +153,7 @@ final class ServerAuthorityOperationsTest extends Unit
                     'name' => 'hero',
                     'includeEscapeWidth' => false,
                     'variants' => [
-                        'sm' => ['width' => null, 'height' => null, 'enabled' => true, 'autoDimension' => null],
+                        'xs' => ['width' => null, 'height' => null, 'enabled' => true, 'autoDimension' => null],
                     ],
                     'config' => [],
                 ],
@@ -180,8 +180,8 @@ final class ServerAuthorityOperationsTest extends Unit
                 $this->assertTrue(($result['persisted'] ?? false) === true);
 
                 $sets = $plugin->getTransformStore()->getSets();
-                $this->assertSame(600, $sets['hero']['variants']['sm']['width'] ?? null);
-                $this->assertSame(340, $sets['hero']['variants']['sm']['height'] ?? null);
+                $this->assertSame(600, $sets['hero']['variants']['xs']['width'] ?? null);
+                $this->assertSame(340, $sets['hero']['variants']['xs']['height'] ?? null);
             });
         } finally {
             $plugin->set('telemetry', $previousTelemetry);
@@ -197,7 +197,7 @@ final class ServerAuthorityOperationsTest extends Unit
                 'name' => 'hero',
                 'includeEscapeWidth' => false,
                 'variants' => [
-                    'sm' => ['width' => 320, 'height' => 180, 'enabled' => true, 'autoDimension' => null],
+                    'xs' => ['width' => 320, 'height' => 180, 'enabled' => true, 'autoDimension' => null],
                 ],
                 'config' => [],
             ],
@@ -226,7 +226,7 @@ final class ServerAuthorityOperationsTest extends Unit
                 'name' => 'hero',
                 'includeEscapeWidth' => false,
                 'variants' => [
-                    'sm' => [
+                    'xs' => [
                         'width' => 640,
                         'height' => 360,
                         'enabled' => true,
@@ -263,7 +263,7 @@ final class ServerAuthorityOperationsTest extends Unit
                 'name' => 'hero',
                 'includeEscapeWidth' => false,
                 'variants' => [
-                    'sm' => ['width' => null, 'height' => null, 'enabled' => true, 'autoDimension' => null],
+                    'xs' => ['width' => null, 'height' => null, 'enabled' => true, 'autoDimension' => null],
                 ],
                 'config' => [],
             ],
@@ -321,7 +321,7 @@ final class ServerAuthorityOperationsTest extends Unit
                     'name' => 'hero',
                     'includeEscapeWidth' => false,
                     'variants' => [
-                        'sm' => ['width' => null, 'height' => null, 'enabled' => true, 'autoDimension' => null],
+                        'xs' => ['width' => null, 'height' => null, 'enabled' => true, 'autoDimension' => null],
                     ],
                     'config' => [],
                 ],
@@ -348,8 +348,8 @@ final class ServerAuthorityOperationsTest extends Unit
                 $this->assertTrue(($result['persisted'] ?? false) === true);
 
                 $sets = $plugin->getTransformStore()->getSets();
-                $this->assertSame(620, $sets['hero']['variants']['sm']['width'] ?? null);
-                $this->assertSame(350, $sets['hero']['variants']['sm']['height'] ?? null);
+                $this->assertSame(620, $sets['hero']['variants']['xs']['width'] ?? null);
+                $this->assertSame(350, $sets['hero']['variants']['xs']['height'] ?? null);
             });
         } finally {
             $plugin->set('telemetry', $previousTelemetry);
@@ -379,7 +379,7 @@ final class ServerAuthorityOperationsTest extends Unit
                 'name' => 'hero',
                 'includeEscapeWidth' => false,
                 'variants' => [
-                    'sm' => ['width' => null, 'height' => null, 'enabled' => true, 'autoDimension' => null],
+                    'xs' => ['width' => null, 'height' => null, 'enabled' => true, 'autoDimension' => null],
                 ],
                 'config' => [],
             ],
@@ -430,7 +430,7 @@ final class ServerAuthorityOperationsTest extends Unit
 
     private function withRuntimeSets(array $sets, callable $callback): mixed
     {
-        $breakpointNames = array_keys(Plugin::getInstance()->getConfigService()->getBreakpoints());
+        $configService = Plugin::getInstance()->getConfigService();
         $normalizedSets = [];
 
         foreach ($sets as $setName => $setDefinition) {
@@ -439,9 +439,8 @@ final class ServerAuthorityOperationsTest extends Unit
             }
 
             $includeEscapeWidth = ($setDefinition['includeEscapeWidth'] ?? false) === true;
-            $setBreakpointNames = $includeEscapeWidth
-                ? $breakpointNames
-                : array_values(array_filter($breakpointNames, static fn(string $name): bool => $name !== 'escape'));
+            // Canonical variant labels (`base`-first, no `escape`) for this set.
+            $setBreakpointNames = $configService->getBreakpointKeys($includeEscapeWidth);
 
             $variants = isset($setDefinition['variants']) && is_array($setDefinition['variants'])
                 ? $setDefinition['variants']

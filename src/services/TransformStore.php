@@ -466,11 +466,6 @@ class TransformStore extends Component
             return [];
         }
 
-        $breakpoints = $this->_plugin->getConfigService()->getBreakpoints();
-        if (!$includeEscapeWidth) {
-            unset($breakpoints['escape']);
-        }
-
-        return array_values(array_map(static fn(mixed $value): string => (string)$value, array_keys($breakpoints)));
+        return $this->_plugin->getConfigService()->getBreakpointKeys($includeEscapeWidth);
     }
 }

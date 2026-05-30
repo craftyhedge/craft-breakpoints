@@ -55,7 +55,8 @@ final class RenderContextBuilderTest extends Unit
             'setName' => 'default',
             'breakpoints' => ['xs' => 480],
             'escapeWidth' => 0,
-            'disableBreakpoints' => ['xs' => true],
+            // Canonical label for the smallest slot (480px) is `base`.
+            'disableBreakpoints' => ['base' => true],
             'secondaryFormat' => 'none',
         ], $this->createMockAsset());
 
@@ -171,16 +172,18 @@ final class RenderContextBuilderTest extends Unit
                 'xs' => 480,
                 'md' => 768,
             ],
+            // Canonical labels for these slots are `base` (480) and `xs` (768);
+            // disable + states both use the canonical names.
             'disableBreakpoints' => [
-                'md' => true,
+                'xs' => true,
             ],
         ]);
 
         $decoded = json_decode((string)($attributes['data-breakpoint-states'] ?? ''), true);
 
         $this->assertIsArray($decoded);
-        $this->assertSame('enabled', $decoded['xs'] ?? null);
-        $this->assertSame('disabled', $decoded['md'] ?? null);
+        $this->assertSame('enabled', $decoded['base'] ?? null);
+        $this->assertSame('disabled', $decoded['xs'] ?? null);
     }
 
     private function setBuilderPlugin(RenderContextBuilder $builder, ?Plugin $plugin): void

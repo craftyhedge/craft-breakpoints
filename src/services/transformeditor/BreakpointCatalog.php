@@ -33,19 +33,22 @@ final class BreakpointCatalog
      */
     public function getDefinitionsForIncludeEscapeWidth(bool $includeEscapeWidth): array
     {
-        $breakpoints = $this->configService->getBreakpoints();
-
-        if (!$includeEscapeWidth) {
-            unset($breakpoints['escape']);
-        }
+        // Variant key labels: the first slot is `base`, then the configured
+        // breakpoint names shifted down by one. There is no `escape` key — when
+        // the escape width is included it occupies the final slot under the last
+        // configured breakpoint name. Widths stay paired to slots by position.
+        $configuredNames = array_keys($this->configService->getBreakpointMap(false));
+        $labels = ['base', ...$configuredNames];
 
         $definitions = [];
-        foreach ($breakpoints as $key => $width) {
+        $index = 0;
+        foreach ($this->configService->getBreakpointMap($includeEscapeWidth) as $width) {
             $definitions[] = [
-                'key' => (string)$key,
+                'key' => (string)($labels[$index] ?? $configuredNames[count($configuredNames) - 1] ?? 'base'),
                 'width' => (int)$width,
-                'isEscape' => $key === 'escape',
+                'isEscape' => false,
             ];
+            $index++;
         }
 
         return $definitions;

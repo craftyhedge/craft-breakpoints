@@ -46,12 +46,12 @@ class ImageTransforms extends Component
         $breakpointName = $breakpointNames[$loopIndex] ?? null;
         $namedSet = $this->getNamedSet($config);
         $initOptions = InitOptions::fromConfig($config, $namedSet !== null);
-        $variantName = $breakpointName;
+        $variantIndex = $loopIndex;
         if ($breakpointName === 'escape' && !$this->isEscapeWidthIncluded($config, $namedSet)) {
-            $variantName = $breakpointNames[$loopIndex - 1] ?? $breakpointName;
+            $variantIndex = $loopIndex - 1;
         }
-        $variant = $variantName !== null
-            ? $this->getVariantByBreakpointName($namedSet, (string)$variantName)
+        $variant = $variantIndex >= 0
+            ? $this->getVariantByIndex($namedSet, $variantIndex)
             : null;
         $autoDimension = $this->resolveAutoDimension($variant, $initOptions);
 
@@ -60,7 +60,7 @@ class ImageTransforms extends Component
         $transformedPrimary = $this->getTransformedImages($image, $setName, 'primary', $config);
         $transformedSecondary = $this->getTransformedImages($image, $setName, 'secondary', $config);
 
-        if ($this->_plugin->getBreakpointPolicy()->isBreakpointDisabled($breakpointName, $config)) {
+        if ($this->_plugin->getBreakpointPolicy()->isBreakpointDisabled($breakpointName, $loopIndex, $config)) {
             $sourceMediaQuery = $this->getDisabledMediaQuery($breakpoint);
             $disabledPrimary = $transformedPrimary[$loopIndex] ?? null;
             $disabledWidth = is_array($disabledPrimary) && isset($disabledPrimary['width']) ? (int)$disabledPrimary['width'] : 1;
@@ -212,12 +212,12 @@ class ImageTransforms extends Component
 
         $mergedConfig = $this->_plugin->getConfigService()->getConfig($config);
         $breakpoints = $this->_plugin->getBreakpointPolicy()->getBreakpointsForSet($config, $mergedConfig);
+        $index = 0;
         foreach ($breakpoints as $breakpointName => $breakpointValue) {
-            if (!$this->_plugin->getBreakpointPolicy()->isBreakpointDisabled((string)$breakpointName, $config)) {
-                $breakpointNames = array_keys($breakpoints);
-                $position = array_search((string)$breakpointName, $breakpointNames, true);
-                return is_int($position) ? $position : null;
+            if (!$this->_plugin->getBreakpointPolicy()->isBreakpointDisabled((string)$breakpointName, $index, $config)) {
+                return $index;
             }
+            $index++;
         }
 
         return null;
@@ -339,8 +339,8 @@ class ImageTransforms extends Component
 
         $index = 0;
         foreach ($breakpoints as $breakpointName => $breakpointWidth) {
-            $isDisabled = $this->_plugin->getBreakpointPolicy()->isBreakpointDisabled((string)$breakpointName, $config);
-            $namedSetVariant = $this->getVariantByBreakpointName($namedSet, (string)$breakpointName);
+            $isDisabled = $this->_plugin->getBreakpointPolicy()->isBreakpointDisabled((string)$breakpointName, $index, $config);
+            $namedSetVariant = $this->getVariantByIndex($namedSet, $index);
 
             if ($breakpointName === 'escape' && !$this->isEscapeWidthIncluded($config, $namedSet) && isset($transformed[$index - 1])) {
                 $transformed[$index] = $transformed[$index - 1];
@@ -720,17 +720,21 @@ class ImageTransforms extends Component
         return $setName;
     }
 
-    private function getVariantByBreakpointName(?array $set, string $breakpointName): ?array
+    /**
+     * Resolve a variant by its slot position rather than its key.
+     *
+     * The render/transform pipeline iterates breakpoints positionally, so the
+     * variant for a given source is the one at the same slot — independent of
+     * what key it is stored under. This decouples the render path from any
+     * assumption that variant keys match the configured breakpoint names.
+     */
+    private function getVariantByIndex(?array $set, int $index): ?array
     {
-        if ($set === null || !isset($set['variants']) || !is_array($set['variants'])) {
+        if ($this->_plugin === null) {
             return null;
         }
 
-        if (!isset($set['variants'][$breakpointName]) || !is_array($set['variants'][$breakpointName])) {
-            return null;
-        }
-
-        return $set['variants'][$breakpointName];
+        return $this->_plugin->getBreakpointPolicy()->getVariantByIndex($set, $index);
     }
 
     private function getNamedSetConfig(?array $set): array

@@ -392,12 +392,6 @@ final class InitialStoredReviewBuilder
      */
     private function getBreakpointsForTransform(bool $includeEscapeWidth): array
     {
-        $breakpoints = $this->plugin->getConfigService()->getBreakpoints();
-
-        if (!$includeEscapeWidth) {
-            unset($breakpoints['escape']);
-        }
-
-        return array_values(array_map(static fn(mixed $value): int => (int)$value, $breakpoints));
+        return $this->plugin->getConfigService()->getBreakpointWidths($includeEscapeWidth);
     }
 }

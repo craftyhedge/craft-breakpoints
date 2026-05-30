@@ -33,10 +33,16 @@ class BreakpointPolicy extends Component
         $mergedConfig = $this->_plugin->getConfigService()->getConfig($config);
         $breakpoints = $this->getBreakpointsForSet($config, $mergedConfig);
 
+        // Key the states map by the canonical variant labels (`base`-first, the
+        // same names the editor UI and `disableBreakpoints` use), resolved by
+        // slot position — not the width-map name.
         $states = [];
+        $index = 0;
         foreach ($breakpoints as $breakpointName => $breakpointValue) {
-            $isDisabled = $this->isBreakpointDisabled((string)$breakpointName, $config);
-            $states[(string)$breakpointName] = $isDisabled ? 'disabled' : 'enabled';
+            $isDisabled = $this->isBreakpointDisabled((string)$breakpointName, $index, $config);
+            $canonicalKey = $this->getCanonicalKeyForIndex($index, $config) ?? (string)$breakpointName;
+            $states[$canonicalKey] = $isDisabled ? 'disabled' : 'enabled';
+            $index++;
         }
 
         return $states;
@@ -45,18 +51,30 @@ class BreakpointPolicy extends Component
     public function getEnabledBreakpoints(array $breakpoints, array $config): array
     {
         $enabled = [];
+        $index = 0;
         foreach ($breakpoints as $breakpointName => $breakpointValue) {
-            if ($this->isBreakpointDisabled((string)$breakpointName, $config)) {
+            if ($this->isBreakpointDisabled((string)$breakpointName, $index, $config)) {
+                $index++;
                 continue;
             }
 
             $enabled[(string)$breakpointName] = (int)$breakpointValue;
+            $index++;
         }
 
         return $enabled;
     }
 
-    public function isBreakpointDisabled(?string $breakpointName, array $config): bool
+    /**
+     * @param int $index The breakpoint's slot position. The variant `enabled`
+     *   flag is resolved positionally (variant keys are not assumed to match
+     *   the configured breakpoint names). The public `disableBreakpoints` config
+     *   is keyed by the canonical variant labels (`base`-first, the same names
+     *   shown in the editor UI), resolved from the slot position — NOT the
+     *   width-map name. So `disableBreakpoints['base']` disables the smallest
+     *   slot, matching the UI.
+     */
+    public function isBreakpointDisabled(?string $breakpointName, int $index, array $config): bool
     {
         if ($breakpointName === null || $breakpointName === '') {
             return false;
@@ -64,14 +82,51 @@ class BreakpointPolicy extends Component
 
         $namedSet = $this->getNamedSet($config);
         if ($namedSet !== null) {
-            $variant = $this->getVariantByBreakpointName($namedSet, $breakpointName);
+            $variant = $this->getVariantByIndex($namedSet, $index);
             if ($variant !== null && isset($variant['enabled']) && $variant['enabled'] === false) {
                 return true;
             }
         }
 
-        return isset($config['disableBreakpoints'][$breakpointName])
-            && $config['disableBreakpoints'][$breakpointName] === true;
+        $disableBreakpoints = $config['disableBreakpoints'] ?? null;
+        if (!is_array($disableBreakpoints)) {
+            return false;
+        }
+
+        $canonicalKey = $this->getCanonicalKeyForIndex($index, $config);
+        if ($canonicalKey === null) {
+            return false;
+        }
+
+        return ($disableBreakpoints[$canonicalKey] ?? null) === true;
+    }
+
+    /**
+     * Canonical variant label (`base`-first, no `escape`) for a slot position,
+     * matching the editor UI and saved-set keys.
+     *
+     * Labels are built to span the SAME slots the disable callers iterate, i.e.
+     * `getBreakpoints($mergedConfig)` — which appends an `escape` width slot
+     * whenever `escapeWidth > 0`, regardless of `includeEscapeWidth`. So the
+     * label list is `['base', ...$configuredNames]` truncated to that slot
+     * count, keeping index→label aligned for the trailing (escape-width) slot.
+     */
+    private function getCanonicalKeyForIndex(int $index, array $config): ?string
+    {
+        if ($this->_plugin === null || $index < 0) {
+            return null;
+        }
+
+        $configService = $this->_plugin->getConfigService();
+        $mergedConfig = $configService->getConfig($config);
+        $slotCount = count($this->getBreakpointsForSet($config, $mergedConfig));
+
+        // Raw configured names (no `base`, no `escape`), e.g. [xs,sm,md,lg,xl].
+        $configuredNames = array_keys($configService->getBreakpointMap(false));
+
+        $labels = array_slice(['base', ...$configuredNames], 0, $slotCount);
+
+        return $labels[$index] ?? null;
     }
 
     private function shouldIncludeEscapeWidth(array $config): bool
@@ -101,16 +156,22 @@ class BreakpointPolicy extends Component
         return $this->_plugin->getTransformSets()->getSet($setName);
     }
 
-    private function getVariantByBreakpointName(?array $set, string $breakpointName): ?array
+    /**
+     * Resolve a variant by its slot position rather than its key, so callers
+     * do not depend on variant keys matching the configured breakpoint names.
+     */
+    public function getVariantByIndex(?array $set, int $index): ?array
     {
         if ($set === null || !isset($set['variants']) || !is_array($set['variants'])) {
             return null;
         }
 
-        if (!isset($set['variants'][$breakpointName]) || !is_array($set['variants'][$breakpointName])) {
+        if ($index < 0) {
             return null;
         }
 
-        return $set['variants'][$breakpointName];
+        $variant = array_values($set['variants'])[$index] ?? null;
+
+        return is_array($variant) ? $variant : null;
     }
 }

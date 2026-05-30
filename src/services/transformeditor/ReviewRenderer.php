@@ -19,6 +19,7 @@ final class ReviewRenderer
     private readonly CardStateBuilder $cardStateBuilder;
     private readonly ReviewBreakpointStateBuilder $breakpointStateBuilder;
     private readonly InitialStoredReviewBuilder $initialStoredReviewBuilder;
+    private readonly BreakpointCatalog $breakpointCatalog;
 
     public function __construct(
         private readonly Plugin $plugin,
@@ -29,6 +30,7 @@ final class ReviewRenderer
         $this->cardStateBuilder = new CardStateBuilder();
         $this->breakpointStateBuilder = new ReviewBreakpointStateBuilder($healthAnalyzer);
         $this->initialStoredReviewBuilder = new InitialStoredReviewBuilder($plugin, $snapshotReader);
+        $this->breakpointCatalog = new BreakpointCatalog($plugin->getConfigService());
     }
 
     public function renderResultReview(
@@ -1290,19 +1292,17 @@ final class ReviewRenderer
             return [];
         }
 
-        $breakpoints = $this->plugin->getConfigService()->getBreakpoints();
-        if (!$includeEscapeWidth) {
-            unset($breakpoints['escape']);
-        }
-
+        // Labels come from the catalog (the canonical variant-key source:
+        // `base` first, no `escape`), not the raw config map — otherwise column
+        // labels disagree with the saved variant keys by one slot.
         $keysByWidth = [];
-        foreach ($breakpoints as $key => $width) {
-            $normalizedWidth = Support::normalizeNullablePositiveInt($width);
+        foreach ($this->breakpointCatalog->getDefinitionsForIncludeEscapeWidth($includeEscapeWidth) as $definition) {
+            $normalizedWidth = Support::normalizeNullablePositiveInt($definition['width']);
             if ($normalizedWidth === null) {
                 continue;
             }
 
-            $keysByWidth[(string)$normalizedWidth] = (string)$key;
+            $keysByWidth[(string)$normalizedWidth] = (string)$definition['key'];
         }
 
         return $keysByWidth;
@@ -1990,13 +1990,7 @@ final class ReviewRenderer
 
     private function getBreakpointsForTransform(bool $includeEscapeWidth): array
     {
-        $breakpoints = $this->plugin->getConfigService()->getBreakpoints();
-
-        if (!$includeEscapeWidth) {
-            unset($breakpoints['escape']);
-        }
-
-        return array_values(array_map(static fn(mixed $value): int => (int)$value, $breakpoints));
+        return $this->plugin->getConfigService()->getBreakpointWidths($includeEscapeWidth);
     }
 
 }

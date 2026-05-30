@@ -2,5 +2,7 @@ actor: UnitTester
 modules:
   enabled:
     - Asserts
-    - \Helper\Unit
     - \craft\test\Craft
+    # Listed after the Craft module so its _before hook runs once Craft (and the
+    # plugin) is bootstrapped — it isolates the file-backed transform store per test.
+    - \Helper\Unit
