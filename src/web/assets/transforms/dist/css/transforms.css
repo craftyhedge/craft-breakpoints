@@ -1125,7 +1125,7 @@ input.bpts-init-value::placeholder {
     align-items: center;
     gap: 16px;
     min-width: 60px;
-    color: var(--text-color);
+    text-transform: uppercase;
     font-weight: 600;
     font-size: 12px;
     white-space: nowrap;
@@ -1166,7 +1166,7 @@ input.bpts-init-value::placeholder {
 }
 
 .bpts-transform-edit-scope strong {
-    color: var(--text-color);
+    color: var(--fg-subtle);
 }
 
 .bpts-transform-ratio-scope-indicator {

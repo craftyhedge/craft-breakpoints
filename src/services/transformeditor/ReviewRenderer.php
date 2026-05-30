@@ -767,12 +767,9 @@ final class ReviewRenderer
             $activeDimensions = $tab === 'dimensions';
             $activeRatio = $tab === 'ratio';
             $activeSettings = $tab === 'settings';
-            $scopeDisplayPx = $scope['mode'] === 'breakpoint'
-                ? ($this->getReviewSlotMediaWidthById((int)$scope['breakpoint'], $includeEscapeWidth) ?? $scope['breakpoint'])
-                : null;
             $scopeLabel = $scope['mode'] === 'all'
                 ? 'All'
-                : ($scope['mode'] === 'breakpoint' ? ($scopeDisplayPx . 'px') : 'Select scope');
+                : ($scope['mode'] === 'breakpoint' && $scopeBreakpointKey !== '' ? $scopeBreakpointKey : 'Select scope');
             $latestRunSummaryForTransform = $latestRunSummariesByTransform[$transformName] ?? null;
             $hasAssetMismatchWarning = $isProcessedReview
                 && is_array($latestRunSummaryForTransform)
