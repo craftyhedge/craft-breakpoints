@@ -43,18 +43,23 @@ final class InitialStoredReviewBuilder
             }
 
             $includeEscapeWidth = ($transformDefinition['includeEscapeWidth'] ?? false) === true;
-            $breakpoints = $this->getBreakpointsForTransform($includeEscapeWidth);
+            $slots = $this->plugin->getBreakpointSlots()->getSlots($includeEscapeWidth);
             $entries = isset($transformDefinition['transforms']) && is_array($transformDefinition['transforms'])
                 ? array_values($transformDefinition['transforms'])
                 : [];
 
-            foreach ($breakpoints as $index => $breakpoint) {
-                if (!is_int($breakpoint) || $breakpoint <= 0) {
+            foreach ($slots as $slot) {
+                $slotKey = (string)($slot['key'] ?? '');
+                $slotIndex = (int)($slot['index'] ?? -1);
+                $slotId = $slotIndex + 1;
+                $mediaWidth = (int)($slot['mediaWidth'] ?? 0);
+                $measureWidth = (int)($slot['measureWidth'] ?? $mediaWidth);
+                if ($slotIndex < 0 || $mediaWidth <= 0) {
                     continue;
                 }
 
-                $entry = isset($entries[$index]) && is_array($entries[$index])
-                    ? $entries[$index]
+                $entry = isset($entries[$slotIndex]) && is_array($entries[$slotIndex])
+                    ? $entries[$slotIndex]
                     : [];
 
                 $autoDimension = Support::normalizeAutoDimension($entry['autoDimension'] ?? null);
@@ -75,7 +80,8 @@ final class InitialStoredReviewBuilder
                     $autoDimension,
                 );
 
-                $snapshotRow = $previewCacheByTransformAndBreakpoint[$setName . '|' . $breakpoint] ?? null;
+                $cacheKey = $setName . '|' . $slotKey;
+                $snapshotRow = $previewCacheByTransformAndBreakpoint[$cacheKey] ?? null;
                 $savedDisplayAssetUrl = is_array($snapshotRow)
                     ? trim((string)($snapshotRow['displayAssetUrl'] ?? ''))
                     : '';
@@ -94,10 +100,14 @@ final class InitialStoredReviewBuilder
                 $broken = $rowStatus === 'broken';
                 $unresolved = $rowStatus === 'unresolved';
 
-                $syntheticRowsByBreakpoint[$breakpoint][] = [
+                $syntheticRowsByBreakpoint[$slotId][] = [
                     'transform' => $setName,
+                    'slotKey' => $slotKey,
+                    'slotIndex' => $slotIndex,
+                    'mediaWidth' => $mediaWidth,
+                    'measureWidth' => $measureWidth,
                     'assetId' => '',
-                    'title' => $setName . ' ' . $breakpoint . 'px placeholder',
+                    'title' => $setName . ' ' . ($slotKey !== '' ? $slotKey : (string)$mediaWidth) . ' placeholder',
                     'enabled' => $enabled,
                     'isVisible' => true,
                     'loaded' => $loaded,
@@ -127,7 +137,7 @@ final class InitialStoredReviewBuilder
             static fn($name): bool => is_string($name) && $name !== '',
         ));
         $observedUnsaved = $this->plugin->getTelemetry()->getObservedUnsavedHandles($configuredNames);
-        $observedBreakpoints = $this->getBreakpointsForTransform(false);
+        $observedSlots = $this->plugin->getBreakpointSlots()->getSlots(false);
         foreach ($observedUnsaved as $observedEntry) {
             $handle = (string)$observedEntry['handle'];
             if ($handle === '') {
@@ -135,15 +145,23 @@ final class InitialStoredReviewBuilder
             }
 
             $placeholderSrc = ReviewLayoutCalculator::buildInitialPlaceholderDataUri(null, null, null);
-            foreach ($observedBreakpoints as $breakpoint) {
-                if (!is_int($breakpoint) || $breakpoint <= 0) {
+            foreach ($observedSlots as $slot) {
+                $slotKey = (string)($slot['key'] ?? '');
+                $slotIndex = (int)($slot['index'] ?? -1);
+                $slotId = $slotIndex + 1;
+                $mediaWidth = (int)($slot['mediaWidth'] ?? 0);
+                if ($slotIndex < 0 || $mediaWidth <= 0) {
                     continue;
                 }
 
-                $syntheticRowsByBreakpoint[$breakpoint][] = [
+                $syntheticRowsByBreakpoint[$slotId][] = [
                     'transform' => $handle,
+                    'slotKey' => $slotKey,
+                    'slotIndex' => $slotIndex,
+                    'mediaWidth' => $mediaWidth,
+                    'measureWidth' => (int)($slot['measureWidth'] ?? $mediaWidth),
                     'assetId' => '',
-                    'title' => $handle . ' ' . $breakpoint . 'px placeholder',
+                    'title' => $handle . ' ' . ($slotKey !== '' ? $slotKey : (string)$mediaWidth) . ' placeholder',
                     'enabled' => true,
                     'isVisible' => true,
                     'loaded' => false,
@@ -385,13 +403,5 @@ final class InitialStoredReviewBuilder
         }
 
         return $a > 0 ? $a : 1;
-    }
-
-    /**
-     * @return array<int, int>
-     */
-    private function getBreakpointsForTransform(bool $includeEscapeWidth): array
-    {
-        return $this->plugin->getConfigService()->getBreakpointWidths($includeEscapeWidth);
     }
 }
