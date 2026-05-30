@@ -314,6 +314,48 @@ final class TransformsControllerTest extends Unit
         $this->assertTrue($controller->postRequestChecked);
     }
 
+    public function testApplyCardOperationUsesCanonicalScopeKeyFromEditorSignals(): void
+    {
+        $setName = 'slot-key-scope-test';
+        $signalKey = $this->buildSignalKey($setName);
+        $baseVersion = Plugin::getInstance()->getTransformStore()->getCurrentVersion();
+
+        $controller = $this->controllerWithBody([
+            'baseVersion' => $baseVersion,
+            'operation' => 'dimensions.apply',
+            'setName' => $setName,
+            'scopeMode' => 'breakpoint',
+            'scopeBreakpoint' => 2,
+            'width' => 777,
+            'height' => 333,
+            'editor' => [
+                'cards' => [
+                    $signalKey => [
+                        'scopeMode' => 'breakpoint',
+                        'scopeBreakpoint' => '2',
+                        'scopeBreakpointKey' => 'xs',
+                        'widthInput' => '777',
+                        'heightInput' => '333',
+                        'widthAuto' => '0',
+                        'heightAuto' => '0',
+                    ],
+                ],
+            ],
+        ]);
+        $response = $controller->actionApplyCardOperation();
+
+        $this->assertSame(Response::FORMAT_RAW, $response->format);
+        $this->assertStringContainsString('datastar-patch-signals', (string)$response->content);
+        $this->assertStringNotContainsString('No breakpoint found for width.', (string)$response->content);
+
+        $sets = Plugin::getInstance()->getTransformStore()->getSets();
+        $this->assertSame(777, $sets[$setName]['variants']['xs']['width'] ?? null);
+        $this->assertSame(333, $sets[$setName]['variants']['xs']['height'] ?? null);
+        $this->assertArrayHasKey('base', $sets[$setName]['variants'] ?? []);
+        $this->assertTrue($controller->cpRequestChecked);
+        $this->assertTrue($controller->postRequestChecked);
+    }
+
     public function testApplyCardOperationRatioCopyRequiresRatioSourceBreakpoint(): void
     {
         $controller = $this->controllerWithBody([
@@ -585,6 +627,8 @@ final class TransformsControllerTest extends Unit
         $this->assertStringContainsString('ratio.copyFromRenderedBreakpoint', $visualResults);
         $this->assertStringContainsString('ratioSourceBreakpoint: Number($editor.cards.', $visualResults);
         $this->assertStringContainsString('ratioSourceBreakpointKey: String(option?.dataset?.slotKey', $visualResults);
+        $this->assertStringContainsString('scopeBreakpointKey=String($editor.cards.', $visualResults);
+        $this->assertStringContainsString('scopeBreakpointKey,', $visualResults);
         $this->assertStringContainsString('selectedAssetKey: String(card?.dataset?.selectedAssetKey', $visualResults);
         $this->assertStringContainsString('ratioFloat: Number($editor.cards.', $visualResults);
         $this->assertStringNotContainsString('localStateByBreakpoint', $visualResults);

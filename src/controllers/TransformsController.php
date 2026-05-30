@@ -211,6 +211,7 @@ class TransformsController extends Controller
 
         $scopeMode = $operation->operation === 'scope.selectAll' ? 'all' : 'breakpoint';
         $scopeBreakpoint = $scopeMode === 'breakpoint' ? $operation->scopeBreakpoint : null;
+        $scopeBreakpointKey = $scopeMode === 'breakpoint' ? ($operation->scopeBreakpointKey ?? '') : '';
         $signalKey = $this->buildCardSignalKey($operation->setName);
         if ($signalKey === '') {
             return $this->asDatastarEventStream([
@@ -224,6 +225,7 @@ class TransformsController extends Controller
         $cardSignals = [
             'scopeMode' => $scopeMode,
             'scopeBreakpoint' => $scopeBreakpoint !== null ? (string)$scopeBreakpoint : '',
+            'scopeBreakpointKey' => $scopeBreakpointKey,
             'scopeActive' => ($scopeMode === 'breakpoint' && $scopeBreakpoint !== null) ? '1' : '0',
             'activeTab' => $activeTab,
         ];
@@ -319,6 +321,7 @@ class TransformsController extends Controller
         $requestedScope = $this->readRequestedCardScope($operation->setName);
         $scopeMode = $requestedScope['mode'] ?? $operation->scopeMode;
         $scopeBreakpoint = $requestedScope['breakpoint'] ?? $operation->scopeBreakpoint;
+        $scopeBreakpointKey = $requestedScope['key'] ?? $operation->scopeBreakpointKey;
 
         return $editor->applySetDimensionsOperation(
             $operation->setName,
@@ -331,7 +334,7 @@ class TransformsController extends Controller
             $this->readRequestedCardSignalBool($operation->setName, 'heightAuto') ?? $operation->heightAuto,
             $operation->forceAll,
             $operation->baseVersion,
-            $operation->scopeBreakpointKey,
+            $scopeBreakpointKey,
         );
     }
 
@@ -340,6 +343,7 @@ class TransformsController extends Controller
         $requestedScope = $this->readRequestedCardScope($operation->setName);
         $scopeMode = $requestedScope['mode'] ?? $operation->scopeMode;
         $scopeBreakpoint = $requestedScope['breakpoint'] ?? $operation->scopeBreakpoint;
+        $scopeBreakpointKey = $requestedScope['key'] ?? $operation->scopeBreakpointKey;
 
         return $editor->applySetToggleAutoWidthOperation(
             $operation->setName,
@@ -349,7 +353,7 @@ class TransformsController extends Controller
             $operation->selectedAssetKey,
             $operation->includeEscapeWidth,
             $operation->baseVersion,
-            $operation->scopeBreakpointKey,
+            $scopeBreakpointKey,
         );
     }
 
@@ -358,6 +362,7 @@ class TransformsController extends Controller
         $requestedScope = $this->readRequestedCardScope($operation->setName);
         $scopeMode = $requestedScope['mode'] ?? $operation->scopeMode;
         $scopeBreakpoint = $requestedScope['breakpoint'] ?? $operation->scopeBreakpoint;
+        $scopeBreakpointKey = $requestedScope['key'] ?? $operation->scopeBreakpointKey;
 
         return $editor->applySetToggleAutoHeightOperation(
             $operation->setName,
@@ -367,7 +372,7 @@ class TransformsController extends Controller
             $operation->selectedAssetKey,
             $operation->includeEscapeWidth,
             $operation->baseVersion,
-            $operation->scopeBreakpointKey,
+            $scopeBreakpointKey,
         );
     }
 
@@ -376,6 +381,7 @@ class TransformsController extends Controller
         $requestedScope = $this->readRequestedCardScope($operation->setName);
         $scopeMode = $requestedScope['mode'] ?? $operation->scopeMode;
         $scopeBreakpoint = $requestedScope['breakpoint'] ?? $operation->scopeBreakpoint;
+        $scopeBreakpointKey = $requestedScope['key'] ?? $operation->scopeBreakpointKey;
 
         $ratioWidth = $this->readRequestedCardSignalNullablePositiveInt($operation->setName, 'ratioWidthInput') ?? $operation->ratioWidth;
         $ratioHeight = $this->readRequestedCardSignalNullablePositiveInt($operation->setName, 'ratioHeightInput') ?? $operation->ratioHeight;
@@ -400,7 +406,7 @@ class TransformsController extends Controller
             $this->readRequestedCardSignalString($operation->setName, 'ratioSourceDimension') ?? $operation->ratioSourceDimension,
             $operation->includeEscapeWidth,
             $operation->baseVersion,
-            $operation->scopeBreakpointKey,
+            $scopeBreakpointKey,
         );
     }
 
@@ -723,7 +729,7 @@ class TransformsController extends Controller
     }
 
     /**
-     * @return array{mode: string, breakpoint: ?int}|null
+     * @return array{mode: string, breakpoint: ?int, key: ?string}|null
      */
     private function readRequestedCardScope(string $setName): ?array
     {
@@ -732,6 +738,7 @@ class TransformsController extends Controller
             return [
                 'mode' => 'all',
                 'breakpoint' => null,
+                'key' => null,
             ];
         }
 
@@ -752,6 +759,7 @@ class TransformsController extends Controller
         return [
             'mode' => 'breakpoint',
             'breakpoint' => $scopeBreakpoint,
+            'key' => Support::parseNullableNonEmptyString($this->readRequestedCardSignalString($setName, 'scopeBreakpointKey')),
         ];
     }
 

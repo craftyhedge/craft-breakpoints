@@ -615,6 +615,12 @@ final class ReviewRenderer
             $ratioSourceBreakpointKeyDefault = $selectedBreakpoint !== null
                 ? ($this->getReviewSlotKeyById((int)$selectedBreakpoint) ?? '')
                 : ($firstBreakpoint !== null ? ($this->getReviewSlotKeyById((int)$firstBreakpoint) ?? '') : '');
+            $scopeBreakpointKey = $selectedBreakpoint !== null
+                ? ($this->getReviewSlotKeyById((int)$selectedBreakpoint) ?? '')
+                : '';
+            $firstBreakpointKey = $firstBreakpoint !== null
+                ? ($this->getReviewSlotKeyById((int)$firstBreakpoint) ?? '')
+                : '';
 
             $ratioSourceBreakpointOptions = '';
             foreach ($transformBreakpoints as $transformBreakpoint) {
@@ -642,10 +648,12 @@ final class ReviewRenderer
                             'activeTab' => $tab,
                             'scopeMode' => $scope['mode'],
                             'scopeBreakpoint' => $scope['mode'] === 'breakpoint' ? (string)$scope['breakpoint'] : '',
+                            'scopeBreakpointKey' => $scope['mode'] === 'breakpoint' ? $scopeBreakpointKey : '',
                             'scopeActive' => $this->isReviewScopeActive($scope) ? '1' : '0',
                             'selectedAssetKey' => $selectedAssetKey,
                             'rowsByBreakpoint' => $rowsByBreakpointSignal,
                             'firstBreakpoint' => $firstBreakpoint !== null ? (string)$firstBreakpoint : '',
+                            'firstBreakpointKey' => $firstBreakpointKey,
                             'initSeedAppliedAny' => ($cardState['initSeedAppliedAny'] ?? false) === true,
                             'passHeightWhenRenderedLteSaved' => $passHeightWhenRenderedLteSaved,
                             'allowAnyHeight' => $allowAnyHeight,
