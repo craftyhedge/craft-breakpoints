@@ -173,9 +173,15 @@ final class SnapshotReader
      *
      * @return array{renderedWidth: int, renderedHeight: int}|null
      */
-    public function resolveRenderedWidthHeightByBreakpoint(string $transformName, int $breakpointWidth, ?string $assetKey = null): ?array
+    public function resolveRenderedWidthHeightByBreakpoint(
+        string $transformName,
+        int $breakpointWidth,
+        ?string $assetKey = null,
+        ?string $slotKey = null,
+    ): ?array
     {
-        if ($transformName === '' || $breakpointWidth <= 0) {
+        $slotKey = $slotKey !== null ? trim($slotKey) : '';
+        if ($transformName === '' || $slotKey === '') {
             return null;
         }
 
@@ -194,9 +200,7 @@ final class SnapshotReader
                     continue;
                 }
 
-                $rowTransformHandle = $this->extractTransformHandleFromRow($row);
-                $rowSlotId = $this->extractSlotIdFromRow($row);
-                if ($rowTransformHandle !== $transformName || $rowSlotId !== $breakpointWidth) {
+                if (!$this->rowMatchesTransformSlot($row, $transformName, $breakpointWidth, $slotKey)) {
                     continue;
                 }
 
@@ -219,7 +223,7 @@ final class SnapshotReader
             }
         }
 
-        $key = $this->buildTransformBreakpointKey($transformName, (string)($breakpointWidth - 1));
+        $key = $this->buildTransformBreakpointKey($transformName, $slotKey);
         $previewRow = $rowsByTransformAndBreakpoint[$key] ?? null;
         if (is_array($previewRow)) {
             return $this->extractRenderedDimensionsFromRow($previewRow);
@@ -252,7 +256,7 @@ final class SnapshotReader
             ? $snapshot['rowsPayload']
             : [];
 
-        $rowsByBreakpoint = [];
+        $renderedRows = [];
 
         if ($perAssetRows !== []) {
             $firstByBreakpoint = [];
@@ -289,7 +293,7 @@ final class SnapshotReader
             foreach ($resolvedByBreakpoint as $bp => $row) {
                 $dimensions = $this->extractNullableDimensionsFromRow($row);
                 if ($dimensions !== null) {
-                    $rowsByBreakpoint[] = [
+                    $renderedRows[] = [
                         'breakpoint' => $bp,
                         'slotKey' => $this->extractSlotKeyFromRow($row),
                         'width' => $dimensions['width'],
@@ -299,7 +303,7 @@ final class SnapshotReader
             }
         }
 
-        if ($rowsByBreakpoint === []) {
+        if ($renderedRows === []) {
             $previewCacheRows = $this->getPreviewCacheRowsByTransformAndBreakpoint();
             foreach ($previewCacheRows as $row) {
                 if (!is_array($row)) {
@@ -313,7 +317,7 @@ final class SnapshotReader
 
                 $dimensions = $this->extractNullableDimensionsFromRow($row);
                 if ($dimensions !== null) {
-                    $rowsByBreakpoint[] = [
+                    $renderedRows[] = [
                         'breakpoint' => $rowBreakpointWidth,
                         'slotKey' => $this->extractSlotKeyFromRow($row),
                         'width' => $dimensions['width'],
@@ -323,7 +327,7 @@ final class SnapshotReader
             }
         }
 
-        return $rowsByBreakpoint;
+        return $renderedRows;
     }
 
     /**
@@ -471,7 +475,19 @@ final class SnapshotReader
             return ((int)$row['slotIndex']) + 1;
         }
 
-        return $this->extractBreakpointWidthFromRow($row);
+        return 0;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function rowMatchesTransformSlot(array $row, string $transformName, int $slotId, string $slotKey): bool
+    {
+        if ($this->extractTransformHandleFromRow($row) !== $transformName) {
+            return false;
+        }
+
+        return $slotKey !== '' && $this->extractSlotKeyFromRow($row) === $slotKey;
     }
 
     /**

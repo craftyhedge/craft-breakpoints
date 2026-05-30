@@ -33,9 +33,13 @@ final class ImageTransformsServiceTest extends Unit
         ]);
 
         $this->assertSame([
-            'xs' => 480,
-            'md' => 768,
-            'escape' => 1920,
+            'base' => 480,
+            'xs' => 640,
+            'sm' => 768,
+            'md' => 1024,
+            'lg' => 1280,
+            'xl' => 1536,
+            '2xl' => 1536,
         ], $breakpoints);
     }
 
@@ -54,9 +58,13 @@ final class ImageTransformsServiceTest extends Unit
         ]);
 
         $this->assertSame([
-            'xs' => 480,
-            'md' => 768,
-            'escape' => 1920,
+            'base' => 480,
+            'xs' => 640,
+            'sm' => 768,
+            'md' => 1024,
+            'lg' => 1280,
+            'xl' => 1536,
+            '2xl' => 1536,
         ], $breakpoints);
     }
 
@@ -95,9 +103,13 @@ final class ImageTransformsServiceTest extends Unit
             ]);
 
             $this->assertSame([
-                'xs' => 480,
-                'md' => 768,
-                'escape' => 1920,
+                'base' => 480,
+                'xs' => 640,
+                'sm' => 768,
+                'md' => 1024,
+                'lg' => 1280,
+                'xl' => 1536,
+                '2xl' => 1536,
             ], $breakpoints);
         });
     }
@@ -475,11 +487,16 @@ final class ImageTransformsServiceTest extends Unit
             null,
             null,
             'primary',
+            'base',
+            0,
         );
 
         $this->assertSame('primary', $primary['data-bp-source']);
         $this->assertSame(480, $primary['data-bp-size']);
+        $this->assertSame('base', $primary['data-bp-key']);
+        $this->assertSame(0, $primary['data-bp-index']);
         $this->assertSame('true', $primary['data-bp-enabled']);
+        $this->assertNull($primary['data-bp-measure-width']);
         $this->assertSame(480, $primary['data-set-width']);
         $this->assertSame(270, $primary['data-set-height']);
         $this->assertArrayNotHasKey('data-auto-dimension', $primary);
@@ -492,9 +509,13 @@ final class ImageTransformsServiceTest extends Unit
             null,
             'height',
             'secondary',
+            'sm',
+            1,
         );
 
         $this->assertSame('secondary', $secondaryAuto['data-bp-source']);
+        $this->assertSame('sm', $secondaryAuto['data-bp-key']);
+        $this->assertSame(1, $secondaryAuto['data-bp-index']);
         $this->assertSame('false', $secondaryAuto['data-bp-enabled']);
         // auto height drops the computed height and records the auto dimension.
         $this->assertNull($secondaryAuto['data-set-height']);

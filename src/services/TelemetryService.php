@@ -312,7 +312,7 @@ class TelemetryService extends Component
         if (!is_string($failureReasonCountsJson)) {
             $failureReasonCountsJson = '{}';
         }
-        $snapshotRows = $this->normalizeSnapshotRowsByBreakpoint($payload['rowsBySlot'] ?? ($payload['rowsByBreakpoint'] ?? []));
+        $snapshotRows = $this->normalizeSnapshotRowsBySlot($payload['rowsBySlot'] ?? []);
         $savedDimensionsByTransform = $this->collectSavedDimensionsAtPersistTime();
 
         $transaction = $db->beginTransaction();
@@ -371,24 +371,30 @@ class TelemetryService extends Component
 
                 $dimensionRows = [];
                 $now = $now ?? Db::prepareDateForDb(new \DateTimeImmutable());
-                foreach ($savedDimensionsByTransform as $transformHandle => $byBreakpoint) {
-                    if (!is_string($transformHandle) || $transformHandle === '' || !is_array($byBreakpoint)) {
+                foreach ($savedDimensionsByTransform as $transformHandle => $bySlot) {
+                    if (!is_string($transformHandle) || $transformHandle === '' || !is_array($bySlot)) {
                         continue;
                     }
-                    foreach ($byBreakpoint as $breakpointKey => $entry) {
-                        if (!is_numeric($breakpointKey)) {
+                    foreach ($bySlot as $slotKey => $entry) {
+                        if (!is_string($slotKey) || $slotKey === '' || !is_array($entry)) {
                             continue;
                         }
-                        $breakpointWidth = (int)$breakpointKey;
-                        if ($breakpointWidth <= 0 || !is_array($entry)) {
+                        $slotIndex = isset($entry['slotIndex']) && is_numeric($entry['slotIndex']) ? (int)$entry['slotIndex'] : -1;
+                        $breakpointWidth = isset($entry['breakpointWidth']) && is_numeric($entry['breakpointWidth']) ? (int)$entry['breakpointWidth'] : 0;
+                        $measureWidth = isset($entry['measureWidth']) && is_numeric($entry['measureWidth']) ? (int)$entry['measureWidth'] : $breakpointWidth;
+                        if ($slotIndex < 0 || $breakpointWidth <= 0 || $measureWidth <= 0) {
                             continue;
                         }
+
                         $savedWidth = isset($entry['w']) && is_numeric($entry['w']) && (int)$entry['w'] > 0 ? (int)$entry['w'] : null;
                         $savedHeight = isset($entry['h']) && is_numeric($entry['h']) && (int)$entry['h'] > 0 ? (int)$entry['h'] : null;
                         $dimensionRows[] = [
                             1,
                             $transformHandle,
+                            $slotKey,
+                            $slotIndex,
                             $breakpointWidth,
+                            $measureWidth,
                             $savedWidth,
                             $savedHeight,
                             $now,
@@ -401,7 +407,7 @@ class TelemetryService extends Component
                     $db->createCommand()
                         ->batchInsert(
                             self::RUN_SNAPSHOT_DIMENSIONS_TABLE,
-                            ['snapshotId', 'transformHandle', 'breakpointWidth', 'savedWidth', 'savedHeight', 'dateCreated', 'dateUpdated'],
+                            ['snapshotId', 'transformHandle', 'slotKey', 'slotIndex', 'breakpointWidth', 'measureWidth', 'savedWidth', 'savedHeight', 'dateCreated', 'dateUpdated'],
                             $dimensionRows
                         )
                         ->execute();
@@ -418,7 +424,7 @@ class TelemetryService extends Component
         if ($status === self::RUN_STATUS_COMPLETED) {
             try {
                 $this->updatePreviewCacheFromRun(
-                    $payload['rowsBySlot'] ?? ($payload['rowsByBreakpoint'] ?? []),
+                    $payload['rowsBySlot'] ?? [],
                     $ranAt,
                     $runId,
                     $entryId,
@@ -505,7 +511,7 @@ class TelemetryService extends Component
         $savedDimensionsByTransform = [];
         if ($snapshotId > 0 && $db->tableExists(self::RUN_SNAPSHOT_DIMENSIONS_TABLE)) {
             $dimensionRows = (new Query())
-                ->select(['transformHandle', 'breakpointWidth', 'savedWidth', 'savedHeight'])
+                ->select(['transformHandle', 'slotKey', 'slotIndex', 'breakpointWidth', 'measureWidth', 'savedWidth', 'savedHeight'])
                 ->from(self::RUN_SNAPSHOT_DIMENSIONS_TABLE)
                 ->where(['snapshotId' => $snapshotId])
                 ->all();
@@ -515,11 +521,18 @@ class TelemetryService extends Component
                     continue;
                 }
                 $transformHandle = (string)($row['transformHandle'] ?? '');
+                $slotKey = trim((string)($row['slotKey'] ?? ''));
+                $slotIndex = isset($row['slotIndex']) && is_numeric($row['slotIndex']) ? (int)$row['slotIndex'] : -1;
                 $breakpointWidth = (int)($row['breakpointWidth'] ?? 0);
-                if ($transformHandle === '' || $breakpointWidth <= 0) {
+                $measureWidth = isset($row['measureWidth']) && is_numeric($row['measureWidth']) ? (int)$row['measureWidth'] : $breakpointWidth;
+                if ($transformHandle === '' || $slotKey === '' || $slotIndex < 0 || $breakpointWidth <= 0) {
                     continue;
                 }
-                $savedDimensionsByTransform[$transformHandle][$breakpointWidth] = [
+                $savedDimensionsByTransform[$transformHandle][$slotKey] = [
+                    'slotKey' => $slotKey,
+                    'slotIndex' => $slotIndex,
+                    'breakpointWidth' => $breakpointWidth,
+                    'measureWidth' => $measureWidth,
                     'w' => $row['savedWidth'] !== null ? (int)$row['savedWidth'] : null,
                     'h' => $row['savedHeight'] !== null ? (int)$row['savedHeight'] : null,
                 ];
@@ -612,14 +625,14 @@ class TelemetryService extends Component
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function normalizeSnapshotRowsByBreakpoint(mixed $rawRowsByBreakpoint): array
+    private function normalizeSnapshotRowsBySlot(mixed $rawRowsBySlot): array
     {
-        if (!is_array($rawRowsByBreakpoint)) {
+        if (!is_array($rawRowsBySlot)) {
             return [];
         }
 
         $normalizedRows = [];
-        foreach ($rawRowsByBreakpoint as $slotKeyFromMap => $rows) {
+        foreach ($rawRowsBySlot as $slotKeyFromMap => $rows) {
             if (!is_array($rows)) {
                 continue;
             }
@@ -702,7 +715,7 @@ class TelemetryService extends Component
     }
 
     /**
-     * @return array<string, array<int, array{w: int|null, h: int|null}>>
+     * @return array<string, array<string, array{slotKey: string, slotIndex: int, breakpointWidth: int, measureWidth: int, w: int|null, h: int|null}>>
      */
     private function collectSavedDimensionsAtPersistTime(): array
     {
@@ -712,7 +725,7 @@ class TelemetryService extends Component
         }
 
         try {
-            return $plugin->getTransformEditor()->buildSavedDimensionsByTransformAndBreakpoint();
+            return $plugin->getTransformEditor()->buildSavedDimensionsByTransformAndSlot();
         } catch (\Throwable $e) {
             Plugin::warning('Failed to collect saved transform dimensions for snapshot: ' . $e->getMessage());
             return [];

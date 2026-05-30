@@ -31,8 +31,16 @@ final class BreakpointPolicyTest extends Unit
 
             $breakpoints = $policy->getBreakpointsForSet($config, $mergedConfig);
 
-            $this->assertArrayHasKey('escape', $breakpoints);
-            $this->assertSame(1920, $breakpoints['escape']);
+            $this->assertArrayNotHasKey('escape', $breakpoints);
+            $this->assertSame([
+                'base' => 480,
+                'xs' => 640,
+                'sm' => 768,
+                'md' => 1024,
+                'lg' => 1280,
+                'xl' => 1536,
+                '2xl' => 1536,
+            ], $breakpoints);
         });
     }
 
@@ -59,7 +67,16 @@ final class BreakpointPolicyTest extends Unit
 
             $breakpoints = $policy->getBreakpointsForSet($config, $mergedConfig);
 
-            $this->assertArrayHasKey('escape', $breakpoints);
+            $this->assertArrayNotHasKey('escape', $breakpoints);
+            $this->assertSame([
+                'base' => 480,
+                'xs' => 640,
+                'sm' => 768,
+                'md' => 1024,
+                'lg' => 1280,
+                'xl' => 1536,
+                '2xl' => 1536,
+            ], $breakpoints);
         });
     }
 

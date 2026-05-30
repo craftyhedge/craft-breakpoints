@@ -67,6 +67,8 @@ final class ServerAuthorityOperationsTest extends Unit
                     'rowsPayload' => [
                         [
                             'transformHandle' => 'hero',
+                            'slotKey' => 'xs',
+                            'slotIndex' => 1,
                             'breakpointWidth' => 640,
                             'assetId' => '100',
                             'renderedWidth' => 600,
@@ -135,6 +137,8 @@ final class ServerAuthorityOperationsTest extends Unit
                     'rowsPayload' => [
                         [
                             'transformHandle' => 'hero',
+                            'slotKey' => 'xs',
+                            'slotIndex' => 1,
                             'breakpointWidth' => 640,
                             'assetId' => '100',
                             'renderedWidth' => 600,
@@ -295,6 +299,8 @@ final class ServerAuthorityOperationsTest extends Unit
                     'rowsPayload' => [
                         [
                             'transformHandle' => 'hero',
+                            'slotKey' => 'xs',
+                            'slotIndex' => 1,
                             'breakpointWidth' => 640,
                             'assetId' => '100',
                             'renderedWidth' => 320,
@@ -303,6 +309,8 @@ final class ServerAuthorityOperationsTest extends Unit
                         ],
                         [
                             'transformHandle' => 'hero',
+                            'slotKey' => 'xs',
+                            'slotIndex' => 1,
                             'breakpointWidth' => 640,
                             'assetId' => '101',
                             'renderedWidth' => 620,
@@ -402,8 +410,10 @@ final class ServerAuthorityOperationsTest extends Unit
             public function getPreviewCacheRows(): array
             {
                 return [
-                    'hero|640' => [
+                    'hero|xs' => [
                         'transformHandle' => 'hero',
+                        'slotKey' => 'xs',
+                        'slotIndex' => 1,
                         'breakpointWidth' => 640,
                         'renderedWidth' => 580,
                         'renderedHeight' => 320,
@@ -418,7 +428,7 @@ final class ServerAuthorityOperationsTest extends Unit
                 $plugin->getTelemetry(),
             );
 
-            $resolved = $snapshotReader->resolveRenderedWidthHeightByBreakpoint('hero', 640);
+            $resolved = $snapshotReader->resolveRenderedWidthHeightByBreakpoint('hero', 640, null, 'xs');
 
             $this->assertNotNull($resolved);
             $this->assertSame(580, $resolved['renderedWidth']);

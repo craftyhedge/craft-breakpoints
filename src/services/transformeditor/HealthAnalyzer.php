@@ -35,9 +35,9 @@ final class HealthAnalyzer
             return [];
         }
 
-        $storedAutoDimensionsByTransform = $this->buildStoredAutoDimensionsByTransformAndBreakpoint();
-        $storedSavedWidthsByTransform = $this->buildStoredSavedWidthsByTransformAndBreakpoint();
-        $storedSavedHeightsByTransform = $this->buildStoredSavedHeightsByTransformAndBreakpoint();
+        $storedAutoDimensionsByTransform = $this->buildStoredAutoDimensionsByTransformAndSlot();
+        $storedSavedWidthsByTransform = $this->buildStoredSavedWidthsByTransformAndSlot();
+        $storedSavedHeightsByTransform = $this->buildStoredSavedHeightsByTransformAndSlot();
         $storedTransforms = $this->snapshotReader->getStoredTransforms();
 
         $rowsPayload = isset($resolvedSnapshot['rowsPayload']) && is_array($resolvedSnapshot['rowsPayload'])
@@ -57,14 +57,21 @@ final class HealthAnalyzer
             $breakpointWidth = isset($payloadRow['breakpointWidth']) && is_numeric($payloadRow['breakpointWidth'])
                 ? (int)$payloadRow['breakpointWidth']
                 : 0;
-            if ($transformHandle === '' || $breakpointWidth <= 0) {
+            $slotKey = trim((string)($payloadRow['slotKey'] ?? ''));
+            $slotIndex = isset($payloadRow['slotIndex']) && is_numeric($payloadRow['slotIndex'])
+                ? (int)$payloadRow['slotIndex']
+                : -1;
+            if ($transformHandle === '' || $slotKey === '' || $slotIndex < 0 || $breakpointWidth <= 0) {
                 continue;
             }
 
             $autoDimension = Support::normalizeAutoDimension($payloadRow['autoDimension'] ?? null)
-                ?? ($storedAutoDimensionsByTransform[$transformHandle][$breakpointWidth] ?? null);
+                ?? ($storedAutoDimensionsByTransform[$transformHandle][$slotKey] ?? null);
 
-            $payloadByTransform[$transformHandle][$breakpointWidth][] = [
+            $payloadByTransform[$transformHandle][$slotKey][] = [
+                'slotKey' => $slotKey,
+                'slotIndex' => $slotIndex,
+                'breakpointWidth' => $breakpointWidth,
                 'assetId' => trim((string)($payloadRow['assetId'] ?? '')),
                 'rowStatus' => $this->normalizeLatestRunRowStatus((string)($payloadRow['rowStatus'] ?? '')),
                 'renderedWidth' => max(0, (int)($payloadRow['renderedWidth'] ?? 0)),
@@ -100,18 +107,18 @@ final class HealthAnalyzer
                     continue;
                 }
 
-                $breakpointWidth = isset($breakpointRow['breakpointWidth']) && is_numeric($breakpointRow['breakpointWidth'])
+                $breakpointId = isset($breakpointRow['breakpointWidth']) && is_numeric($breakpointRow['breakpointWidth'])
                     ? (int)$breakpointRow['breakpointWidth']
                     : 0;
-                if ($breakpointWidth <= 0) {
+                if ($breakpointId <= 0) {
                     continue;
                 }
 
                 if (($breakpointRow['hasAssetMismatch'] ?? false) === true) {
-                    $assetMismatchBreakpoints[] = $breakpointWidth;
+                    $assetMismatchBreakpoints[] = $breakpointId;
                 }
                 if (($breakpointRow['hasBreakpointMismatch'] ?? false) === true) {
-                    $breakpointMismatchBreakpoints[] = $breakpointWidth;
+                    $breakpointMismatchBreakpoints[] = $breakpointId;
                 }
             }
 
@@ -155,10 +162,11 @@ final class HealthAnalyzer
             }
 
             $transformHandle = trim((string)($row['transformHandle'] ?? ''));
-            $breakpointWidth = isset($row['breakpointWidth']) && is_numeric($row['breakpointWidth'])
-                ? (int)$row['breakpointWidth']
-                : 0;
-            if ($transformHandle === '' || $breakpointWidth <= 0) {
+            $slotIndex = isset($row['slotIndex']) && is_numeric($row['slotIndex'])
+                ? (int)$row['slotIndex']
+                : -1;
+            $breakpointId = $slotIndex + 1;
+            if ($transformHandle === '' || $breakpointId <= 0) {
                 continue;
             }
 
@@ -179,7 +187,7 @@ final class HealthAnalyzer
             }
 
             $summaries[$transformHandle]['statusCounts'][$rowStatus] += 1;
-            $summaries[$transformHandle]['statusByBreakpoint'][(string)$breakpointWidth] = $rowStatus;
+            $summaries[$transformHandle]['statusByBreakpoint'][(string)$breakpointId] = $rowStatus;
         }
 
         $healthByTransform = $this->buildLatestRunHealthByTransform($snapshot);
@@ -230,7 +238,7 @@ final class HealthAnalyzer
             $snapshotDimensions = [];
         }
 
-        $currentDimensions = $this->buildSavedDimensionsByTransformAndBreakpoint();
+        $currentDimensions = $this->buildSavedDimensionsByTransformAndSlot();
 
         $edited = [];
 
@@ -297,6 +305,49 @@ final class HealthAnalyzer
     }
 
     /**
+     * @return array<string, array<string, array{slotKey: string, slotIndex: int, breakpointWidth: int, measureWidth: int, w: int|null, h: int|null}>>
+     */
+    public function buildSavedDimensionsByTransformAndSlot(): array
+    {
+        $widths = $this->buildStoredSavedWidthsByTransformAndSlot();
+        $heights = $this->buildStoredSavedHeightsByTransformAndSlot();
+        $slotMetadata = $this->buildStoredSlotMetadataByTransform();
+
+        $merged = [];
+        $transformNames = array_unique(array_merge(array_keys($widths), array_keys($heights), array_keys($slotMetadata)));
+        foreach ($transformNames as $transformName) {
+            $slotKeys = array_unique(array_merge(
+                array_keys($widths[$transformName] ?? []),
+                array_keys($heights[$transformName] ?? []),
+                array_keys($slotMetadata[$transformName] ?? []),
+            ));
+            usort($slotKeys, function (string $a, string $b) use ($slotMetadata, $transformName): int {
+                $aIndex = $slotMetadata[$transformName][$a]['slotIndex'] ?? PHP_INT_MAX;
+                $bIndex = $slotMetadata[$transformName][$b]['slotIndex'] ?? PHP_INT_MAX;
+                return $aIndex <=> $bIndex ?: strcmp($a, $b);
+            });
+
+            foreach ($slotKeys as $slotKey) {
+                $metadata = $slotMetadata[$transformName][$slotKey] ?? null;
+                if (!is_array($metadata)) {
+                    continue;
+                }
+
+                $merged[$transformName][$slotKey] = [
+                    'slotKey' => $slotKey,
+                    'slotIndex' => (int)$metadata['slotIndex'],
+                    'breakpointWidth' => (int)$metadata['breakpointWidth'],
+                    'measureWidth' => (int)$metadata['measureWidth'],
+                    'w' => $widths[$transformName][$slotKey] ?? null,
+                    'h' => $heights[$transformName][$slotKey] ?? null,
+                ];
+            }
+        }
+
+        return $merged;
+    }
+
+    /**
      * @param array<int|string, array{w: int|null, h: int|null}> $a
      * @param array<int|string, array{w: int|null, h: int|null}> $b
      */
@@ -305,7 +356,7 @@ final class HealthAnalyzer
         $breakpoints = array_unique(array_merge(array_keys($a), array_keys($b)));
         foreach ($breakpoints as $breakpointKey) {
             $aEntry = $a[$breakpointKey] ?? null;
-            $bEntry = $b[(int)$breakpointKey] ?? $b[$breakpointKey] ?? null;
+            $bEntry = $b[$breakpointKey] ?? (is_numeric($breakpointKey) ? ($b[(int)$breakpointKey] ?? null) : null);
             $aW = is_array($aEntry) ? ($aEntry['w'] ?? null) : null;
             $aH = is_array($aEntry) ? ($aEntry['h'] ?? null) : null;
             $bW = is_array($bEntry) ? ($bEntry['w'] ?? null) : null;
@@ -604,6 +655,44 @@ final class HealthAnalyzer
     }
 
     /**
+     * @return array<string, array<string, string|null>>
+     */
+    public function buildStoredAutoDimensionsByTransformAndSlot(): array
+    {
+        return $this->buildStoredTransformMapBySlot(
+            fn(array $entry) => Support::normalizeAutoDimension($entry['autoDimension'] ?? null),
+        );
+    }
+
+    /**
+     * @return array<string, array<string, int|null>>
+     */
+    public function buildStoredSavedHeightsByTransformAndSlot(): array
+    {
+        return $this->buildStoredTransformMapBySlot(function (array $entry): ?int {
+            $autoDimension = Support::normalizeAutoDimension($entry['autoDimension'] ?? null);
+            if ($autoDimension === 'height') {
+                return null;
+            }
+            return Support::normalizeNullablePositiveInt($entry['height'] ?? null);
+        });
+    }
+
+    /**
+     * @return array<string, array<string, int|null>>
+     */
+    public function buildStoredSavedWidthsByTransformAndSlot(): array
+    {
+        return $this->buildStoredTransformMapBySlot(function (array $entry): ?int {
+            $autoDimension = Support::normalizeAutoDimension($entry['autoDimension'] ?? null);
+            if ($autoDimension === 'width') {
+                return null;
+            }
+            return Support::normalizeNullablePositiveInt($entry['width'] ?? null);
+        });
+    }
+
+    /**
      * @param callable(array<string, mixed>): mixed $extractValue
      * @return array<string, array<int, mixed>>
      */
@@ -637,6 +726,85 @@ final class HealthAnalyzer
                     : [];
 
                 $result[$transformName][$breakpoint] = $extractValue($entry);
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param callable(array<string, mixed>): mixed $extractValue
+     * @return array<string, array<string, mixed>>
+     */
+    private function buildStoredTransformMapBySlot(callable $extractValue): array
+    {
+        $storedTransforms = $this->snapshotReader->getStoredTransforms();
+        if ($storedTransforms === []) {
+            return [];
+        }
+
+        $result = [];
+
+        foreach ($storedTransforms as $transformName => $transformDefinition) {
+            if (!is_string($transformName) || $transformName === '' || !is_array($transformDefinition)) {
+                continue;
+            }
+
+            $includeEscapeWidth = ($transformDefinition['includeEscapeWidth'] ?? false) === true;
+            $slots = $this->configService->getBreakpointSlotDefinitions($includeEscapeWidth);
+            $entries = isset($transformDefinition['transforms']) && is_array($transformDefinition['transforms'])
+                ? array_values($transformDefinition['transforms'])
+                : [];
+
+            foreach ($slots as $slot) {
+                $slotKey = trim((string)($slot['key'] ?? ''));
+                $slotIndex = isset($slot['index']) && is_numeric($slot['index']) ? (int)$slot['index'] : -1;
+                if ($slotKey === '' || $slotIndex < 0) {
+                    continue;
+                }
+
+                $entry = isset($entries[$slotIndex]) && is_array($entries[$slotIndex])
+                    ? $entries[$slotIndex]
+                    : [];
+
+                $result[$transformName][$slotKey] = $extractValue($entry);
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array<string, array<string, array{slotIndex: int, breakpointWidth: int, measureWidth: int}>>
+     */
+    private function buildStoredSlotMetadataByTransform(): array
+    {
+        $storedTransforms = $this->snapshotReader->getStoredTransforms();
+        if ($storedTransforms === []) {
+            return [];
+        }
+
+        $result = [];
+        foreach ($storedTransforms as $transformName => $transformDefinition) {
+            if (!is_string($transformName) || $transformName === '' || !is_array($transformDefinition)) {
+                continue;
+            }
+
+            $includeEscapeWidth = ($transformDefinition['includeEscapeWidth'] ?? false) === true;
+            foreach ($this->configService->getBreakpointSlotDefinitions($includeEscapeWidth) as $slot) {
+                $slotKey = trim((string)($slot['key'] ?? ''));
+                $slotIndex = isset($slot['index']) && is_numeric($slot['index']) ? (int)$slot['index'] : -1;
+                $mediaWidth = isset($slot['mediaWidth']) && is_numeric($slot['mediaWidth']) ? (int)$slot['mediaWidth'] : 0;
+                $measureWidth = isset($slot['measureWidth']) && is_numeric($slot['measureWidth']) ? (int)$slot['measureWidth'] : $mediaWidth;
+                if ($slotKey === '' || $slotIndex < 0 || $mediaWidth <= 0 || $measureWidth <= 0) {
+                    continue;
+                }
+
+                $result[$transformName][$slotKey] = [
+                    'slotIndex' => $slotIndex,
+                    'breakpointWidth' => $mediaWidth,
+                    'measureWidth' => $measureWidth,
+                ];
             }
         }
 
@@ -703,9 +871,9 @@ final class HealthAnalyzer
     }
 
     /**
-     * @param array<int, array<int, array<string, mixed>>> $breakpointEntriesByWidth
-     * @param array<int, int|null> $savedWidthsByBreakpoint
-     * @param array<int, int|null> $savedHeightsByBreakpoint
+     * @param array<string, array<int, array<string, mixed>>> $breakpointEntriesByWidth
+     * @param array<string, int|null> $savedWidthsByBreakpoint
+     * @param array<string, int|null> $savedHeightsByBreakpoint
      * @return array<int, array<string, mixed>>
      */
     private function buildLatestRunBreakpointHealthRows(
@@ -715,17 +883,36 @@ final class HealthAnalyzer
         array $savedHeightsByBreakpoint,
         bool $allowAnyHeight = false,
     ): array {
-        ksort($breakpointEntriesByWidth, SORT_NUMERIC);
+        uasort($breakpointEntriesByWidth, static function (array $a, array $b): int {
+            $aFirst = $a[0] ?? [];
+            $bFirst = $b[0] ?? [];
+            $aIndex = is_array($aFirst) && isset($aFirst['slotIndex']) && is_numeric($aFirst['slotIndex'])
+                ? (int)$aFirst['slotIndex']
+                : PHP_INT_MAX;
+            $bIndex = is_array($bFirst) && isset($bFirst['slotIndex']) && is_numeric($bFirst['slotIndex'])
+                ? (int)$bFirst['slotIndex']
+                : PHP_INT_MAX;
+
+            return $aIndex <=> $bIndex;
+        });
         $rows = [];
 
-        foreach ($breakpointEntriesByWidth as $breakpointWidth => $breakpointEntries) {
+        foreach ($breakpointEntriesByWidth as $slotKey => $breakpointEntries) {
             if (!is_array($breakpointEntries) || $breakpointEntries === []) {
                 continue;
             }
 
-            $breakpointWidthInt = (int)$breakpointWidth;
-            $savedWidth = $savedWidthsByBreakpoint[$breakpointWidthInt] ?? null;
-            $savedHeight = $savedHeightsByBreakpoint[$breakpointWidthInt] ?? null;
+            $firstEntry = $breakpointEntries[0] ?? [];
+            $slotIndex = is_array($firstEntry) && isset($firstEntry['slotIndex']) && is_numeric($firstEntry['slotIndex'])
+                ? (int)$firstEntry['slotIndex']
+                : -1;
+            $breakpointId = $slotIndex + 1;
+            if (!is_string($slotKey) || $slotKey === '' || $breakpointId <= 0) {
+                continue;
+            }
+
+            $savedWidth = $savedWidthsByBreakpoint[$slotKey] ?? null;
+            $savedHeight = $savedHeightsByBreakpoint[$slotKey] ?? null;
             $autoDimension = null;
             foreach ($breakpointEntries as $candidateEntry) {
                 if (!is_array($candidateEntry)) {
@@ -836,7 +1023,9 @@ final class HealthAnalyzer
             );
 
             $rows[] = [
-                'breakpointWidth' => $breakpointWidthInt,
+                'slotKey' => $slotKey,
+                'slotIndex' => $slotIndex,
+                'breakpointWidth' => $breakpointId,
                 'hasAssetMismatch' => $hasAssetMismatch,
                 'assetMismatchLabel' => $hasAssetMismatch ? 'Mismatch' : 'Matching',
                 'assetMismatchInfo' => $hasAssetMismatch ? implode('; ', $visibleDetails) : '-',

@@ -577,4 +577,21 @@ class TransformEditor extends Component
 
         return $this->_healthAnalyzer->buildSavedDimensionsByTransformAndBreakpoint();
     }
+
+    /**
+     * Builds a map of saved dimensions by transform and canonical slot key.
+     *
+     * Used by snapshot persistence so processed baselines keep the same stable
+     * identity as run rows, even when media widths repeat.
+     *
+     * @return array<string, array<string, array{slotKey: string, slotIndex: int, breakpointWidth: int, measureWidth: int, w: int|null, h: int|null}>>
+     */
+    public function buildSavedDimensionsByTransformAndSlot(): array
+    {
+        if ($this->_healthAnalyzer === null) {
+            return [];
+        }
+
+        return $this->_healthAnalyzer->buildSavedDimensionsByTransformAndSlot();
+    }
 }

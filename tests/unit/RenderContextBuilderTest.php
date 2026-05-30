@@ -61,9 +61,9 @@ final class RenderContextBuilderTest extends Unit
         ], $this->createMockAsset());
 
         $this->assertIsArray($attributes);
-        $this->assertSame(self::TRANSPARENT_PIXEL_DATA_URI, $attributes['src'] ?? null);
-        $this->assertSame(1, $attributes['width'] ?? null);
-        $this->assertSame(1, $attributes['height'] ?? null);
+        $this->assertSame('https://example.test/640x360.jpg', $attributes['src'] ?? null);
+        $this->assertSame(640, $attributes['width'] ?? null);
+        $this->assertSame(360, $attributes['height'] ?? null);
         // Normal (non-processing) render: no internal processing markers on <img>.
         $this->assertArrayNotHasKey('data-asset-id', $attributes);
         $this->assertArrayNotHasKey('data-uid', $attributes);

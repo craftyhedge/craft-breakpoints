@@ -21,13 +21,15 @@ final class BreakpointCatalogTest extends Unit
         $withoutEscape = $catalog->getDefinitionsForIncludeEscapeWidth(false);
         $withEscape = $catalog->getDefinitionsForIncludeEscapeWidth(true);
 
-        // Labels are `base`-first; configured names shift down; no `escape` key.
-        // Widths stay paired to slots by position.
-        $this->assertSame(['base', 'xs'], array_column($withoutEscape, 'key'));
-        $this->assertSame([480, 640], array_column($withoutEscape, 'width'));
-        $this->assertSame(['base', 'xs', 'sm'], array_column($withEscape, 'key'));
-        $this->assertSame([480, 640, 1281], array_column($withEscape, 'width'));
-        $this->assertFalse($withEscape[2]['isEscape']);
+        // Labels are `base`-first; configured names follow; no `escape` key.
+        // includeEscapeWidth changes only the final slot's measurement width.
+        $this->assertSame(['base', 'xs', 'sm', 'md', 'lg', 'xl', '2xl'], array_column($withoutEscape, 'key'));
+        $this->assertSame([480, 640, 768, 1024, 1280, 1536, 1536], array_column($withoutEscape, 'width'));
+        $this->assertSame([480, 640, 768, 1024, 1280, 1536, 1536], array_column($withoutEscape, 'measureWidth'));
+        $this->assertSame(['base', 'xs', 'sm', 'md', 'lg', 'xl', '2xl'], array_column($withEscape, 'key'));
+        $this->assertSame([480, 640, 768, 1024, 1280, 1536, 1536], array_column($withEscape, 'width'));
+        $this->assertSame([480, 640, 768, 1024, 1280, 1536, 1920], array_column($withEscape, 'measureWidth'));
+        $this->assertFalse($withEscape[6]['isEscape']);
     }
 
     public function testNumericWidthResolutionRejectsDuplicateActiveWidths(): void
@@ -37,12 +39,12 @@ final class BreakpointCatalogTest extends Unit
             'md' => 640,
         ]));
 
-        $result = $catalog->resolveOperationTargetOrReject(null, 640, false);
+        $result = $catalog->resolveOperationTargetOrReject(null, 1536, false);
 
         $this->assertSame([
             'error' => 'Ambiguous breakpoint: multiple breakpoints have the same width.',
         ], $result);
-        $this->assertNull($catalog->findDefinitionByWidth(640, false));
+        $this->assertNull($catalog->findDefinitionByWidth(1536, false));
     }
 
     private function buildConfigService(array $breakpoints): ConfigService

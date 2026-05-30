@@ -477,7 +477,7 @@ final class TransformEditorServiceTest extends Unit
                 'name' => 'hero',
                 'includeEscapeWidth' => false,
                 'variants' => [
-                    'sm' => ['width' => 600, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
+                    'xs' => ['width' => 600, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
                 ],
                 'config' => [],
             ],
@@ -529,6 +529,8 @@ final class TransformEditorServiceTest extends Unit
             'rowsPayload' => [
                 [
                     'transformHandle' => 'hero',
+                    'slotKey' => 'xs',
+                    'slotIndex' => 1,
                     'breakpointWidth' => 640,
                     'assetId' => '100',
                     'renderedWidth' => 600,
@@ -537,6 +539,8 @@ final class TransformEditorServiceTest extends Unit
                 ],
                 [
                     'transformHandle' => 'hero',
+                    'slotKey' => 'xs',
+                    'slotIndex' => 1,
                     'breakpointWidth' => 640,
                     'assetId' => '101',
                     'renderedWidth' => 560,
@@ -882,6 +886,8 @@ final class TransformEditorServiceTest extends Unit
                     'rows' => [
                         [
                             'transformHandle' => 'hero',
+                            'slotKey' => 'xs',
+                            'slotIndex' => 1,
                             'breakpointWidth' => 640,
                             'displayAssetUrl' => 'https://example.test/saved-preview.jpg',
                             'rowStatus' => 'unprocessed',
@@ -1220,6 +1226,8 @@ final class TransformEditorServiceTest extends Unit
             'rowsPayload' => [
                 [
                     'transformHandle' => 'hero',
+                    'slotKey' => 'xs',
+                    'slotIndex' => 1,
                     'breakpointWidth' => 640,
                     'assetId' => '100',
                     'renderedWidth' => 600,
@@ -1228,6 +1236,8 @@ final class TransformEditorServiceTest extends Unit
                 ],
                 [
                     'transformHandle' => 'hero',
+                    'slotKey' => 'xs',
+                    'slotIndex' => 1,
                     'breakpointWidth' => 640,
                     'assetId' => '101',
                     'renderedWidth' => 600,
@@ -1254,7 +1264,7 @@ final class TransformEditorServiceTest extends Unit
                 'name' => 'hero',
                 'includeEscapeWidth' => false,
                 'variants' => [
-                    'sm' => ['width' => 600, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
+                    'xs' => ['width' => 600, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
                 ],
                 'config' => ['passHeightWhenRenderedLteSaved' => true],
             ],
@@ -1262,6 +1272,8 @@ final class TransformEditorServiceTest extends Unit
             'rowsPayload' => [
                 [
                     'transformHandle' => 'hero',
+                    'slotKey' => 'xs',
+                    'slotIndex' => 1,
                     'breakpointWidth' => 640,
                     'assetId' => '100',
                     'renderedWidth' => 600,
@@ -1270,6 +1282,8 @@ final class TransformEditorServiceTest extends Unit
                 ],
                 [
                     'transformHandle' => 'hero',
+                    'slotKey' => 'xs',
+                    'slotIndex' => 1,
                     'breakpointWidth' => 640,
                     'assetId' => '101',
                     'renderedWidth' => 600,
@@ -1303,6 +1317,8 @@ final class TransformEditorServiceTest extends Unit
             'rowsPayload' => [
                 [
                     'transformHandle' => 'hero',
+                    'slotKey' => 'xs',
+                    'slotIndex' => 1,
                     'breakpointWidth' => 640,
                     'assetId' => '100',
                     'renderedWidth' => 600,
@@ -1311,6 +1327,8 @@ final class TransformEditorServiceTest extends Unit
                 ],
                 [
                     'transformHandle' => 'hero',
+                    'slotKey' => 'xs',
+                    'slotIndex' => 1,
                     'breakpointWidth' => 640,
                     'assetId' => '101',
                     'renderedWidth' => 600,

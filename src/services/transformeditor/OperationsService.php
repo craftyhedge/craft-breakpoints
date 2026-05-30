@@ -473,7 +473,13 @@ final class OperationsService
             $scopeBreakpointWidth = is_array($targetResolution) && isset($targetResolution['width'])
                 ? (int)$targetResolution['width']
                 : (int)$scopeBreakpoint;
-            $restoredValue = $this->resolveRenderedDimensionFromServer($transformName, $scopeBreakpointWidth, $autoDimension, $assetKey);
+            $restoredValue = $this->resolveRenderedDimensionFromServer(
+                $transformName,
+                $scopeBreakpointWidth,
+                $autoDimension,
+                $assetKey,
+                $breakpointKey ?? $scopeBreakpointKey,
+            );
 
             if ($autoDimension === 'width') {
                 return $this->applySetDimensionsOperation(
@@ -539,13 +545,24 @@ final class OperationsService
         );
     }
 
-    private function resolveRenderedDimensionFromServer(string $transformName, int $scopeBreakpoint, string $dimension, ?string $assetKey = null): ?int
+    private function resolveRenderedDimensionFromServer(
+        string $transformName,
+        int $scopeBreakpoint,
+        string $dimension,
+        ?string $assetKey = null,
+        ?string $scopeBreakpointKey = null,
+    ): ?int
     {
         if ($this->snapshotReader === null) {
             return null;
         }
 
-        $resolved = $this->snapshotReader->resolveRenderedWidthHeightByBreakpoint($transformName, $scopeBreakpoint, $assetKey);
+        $resolved = $this->snapshotReader->resolveRenderedWidthHeightByBreakpoint(
+            $transformName,
+            $scopeBreakpoint,
+            $assetKey,
+            $scopeBreakpointKey,
+        );
         if ($resolved === null) {
             return null;
         }
