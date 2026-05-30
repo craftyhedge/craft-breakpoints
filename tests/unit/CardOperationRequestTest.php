@@ -168,7 +168,8 @@ final class CardOperationRequestTest extends Unit
         Craft::$app->getRequest()->setBodyParams([
             'setName' => 'hero',
             'operation' => 'ratio.copyFromRenderedBreakpoint',
-            'ratioSourceBreakpoint' => '640',
+            'ratioSourceBreakpoint' => '2',
+            'ratioSourceBreakpointKey' => 'xs',
         ]);
 
         $operation = CardOperationRequest::fromRequest(Craft::$app->getRequest(), 'fallback-version');
@@ -176,7 +177,8 @@ final class CardOperationRequestTest extends Unit
         $this->assertTrue($operation->hasValidOperation);
         $this->assertSame('ratio.copyFromRenderedBreakpoint', $operation->operation);
         $this->assertSame('ratio', $operation->field);
-        $this->assertSame(640, $operation->ratioSourceBreakpoint);
+        $this->assertSame(2, $operation->ratioSourceBreakpoint);
+        $this->assertSame('xs', $operation->ratioSourceBreakpointKey);
     }
 
     public function testFromRequestNormalizesRatioApplyFloatPayload(): void

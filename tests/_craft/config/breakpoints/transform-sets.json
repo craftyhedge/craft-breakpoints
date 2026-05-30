@@ -5,13 +5,19 @@
             "name": "hero",
             "includeEscapeWidth": false,
             "variants": {
-                "sm": {
+                "base": {
+                    "width": null,
+                    "height": null,
+                    "enabled": false,
+                    "autoDimension": null
+                },
+                "xs": {
                     "width": 640,
                     "height": 340,
                     "enabled": true,
                     "autoDimension": null
                 },
-                "xs": {
+                "sm": {
                     "width": null,
                     "height": null,
                     "enabled": false,

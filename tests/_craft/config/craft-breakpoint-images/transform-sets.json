@@ -5,7 +5,7 @@
             "name": "hero",
             "includeEscapeWidth": false,
             "variants": {
-                "xs": {
+                "base": {
                     "width": null,
                     "height": null,
                     "enabled": true,
@@ -15,9 +15,19 @@
                     "ratioSourceDimension": "width",
                     "ratioLocked": false
                 },
-                "sm": {
+                "xs": {
                     "width": 640,
                     "height": 340,
+                    "enabled": true,
+                    "autoDimension": null,
+                    "ratioWidth": null,
+                    "ratioHeight": null,
+                    "ratioSourceDimension": "width",
+                    "ratioLocked": false
+                },
+                "sm": {
+                    "width": null,
+                    "height": null,
                     "enabled": true,
                     "autoDimension": null,
                     "ratioWidth": null,

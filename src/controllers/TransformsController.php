@@ -260,17 +260,18 @@ class TransformsController extends Controller
             ]);
         }
 
-        $sourceBreakpoint = $this->readRequestedCardSignalNullablePositiveInt($operation->setName, 'ratioSourceBreakpoint')
-            ?? $operation->ratioSourceBreakpoint;
-        if ($sourceBreakpoint === null) {
+        $sourceBreakpointKey = $this->readRequestedCardSignalString($operation->setName, 'ratioSourceBreakpointKey')
+            ?? $operation->ratioSourceBreakpointKey;
+        $sourceBreakpointKey = is_string($sourceBreakpointKey) ? trim($sourceBreakpointKey) : '';
+        if ($sourceBreakpointKey === '') {
             return $this->asDatastarEventStream([
-                new PatchElements($this->renderEditorStatusFragment('error', 'ratioSourceBreakpoint is required.')),
+                new PatchElements($this->renderEditorStatusFragment('error', 'ratioSourceBreakpointKey is required.')),
             ]);
         }
 
         $copiedRatio = $editor->applySetCopyRatioFromRenderedBreakpointOperation(
             $operation->setName,
-            $sourceBreakpoint,
+            $sourceBreakpointKey,
         );
         if ($copiedRatio === null) {
             return $this->asDatastarEventStream([

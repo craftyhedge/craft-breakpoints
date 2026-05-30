@@ -213,7 +213,7 @@ final class ServerAuthorityOperationsTest extends Unit
                 null,
             );
 
-            $ratio = $service->resolveRenderedRatioByBreakpoint('hero', 640);
+            $ratio = $service->resolveRenderedRatioByBreakpoint('hero', 'xs');
 
             $this->assertNotNull($ratio);
             $this->assertSame(16, $ratio['width']);
@@ -250,7 +250,7 @@ final class ServerAuthorityOperationsTest extends Unit
                 null,
             );
 
-            $ratio = $service->resolveRenderedRatioByBreakpoint('hero', 640);
+            $ratio = $service->resolveRenderedRatioByBreakpoint('hero', 'xs');
 
             $this->assertNotNull($ratio);
             $this->assertSame(16, $ratio['width']);
@@ -279,7 +279,7 @@ final class ServerAuthorityOperationsTest extends Unit
                 null,
             );
 
-            $ratio = $service->resolveRenderedRatioByBreakpoint('hero', 640);
+            $ratio = $service->resolveRenderedRatioByBreakpoint('hero', 'xs');
 
             $this->assertNull($ratio);
         });
@@ -392,7 +392,7 @@ final class ServerAuthorityOperationsTest extends Unit
                 'config' => [],
             ],
         ], function () use ($plugin, $service): void {
-            $ratio = $service->resolveRenderedRatioByBreakpoint('hero', 640);
+            $ratio = $service->resolveRenderedRatioByBreakpoint('hero', 'xs');
             $this->assertNull($ratio);
         });
     }

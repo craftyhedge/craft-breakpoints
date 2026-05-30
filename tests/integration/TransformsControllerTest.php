@@ -326,7 +326,7 @@ final class TransformsControllerTest extends Unit
 
         $this->assertSame(Response::FORMAT_RAW, $response->format);
         $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
-        $this->assertStringContainsString('ratioSourceBreakpoint is required.', (string)$response->content);
+        $this->assertStringContainsString('ratioSourceBreakpointKey is required.', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
     }
@@ -337,7 +337,7 @@ final class TransformsControllerTest extends Unit
             'baseVersion' => 6,
             'operation' => 'ratio.copyFromRenderedBreakpoint',
             'setName' => 'hero',
-            'ratioSourceBreakpoint' => 640,
+            'ratioSourceBreakpointKey' => 'xs',
         ]);
         $response = $controller->actionApplyCardOperation();
 
@@ -396,7 +396,7 @@ final class TransformsControllerTest extends Unit
             'baseVersion' => 6,
             'operation' => 'ratio.copyFromRenderedBreakpoint',
             'setName' => 'hero',
-            'ratioSourceBreakpoint' => 480,
+            'ratioSourceBreakpointKey' => 'base',
         ]);
         $response = $controller->actionApplyCardOperation();
 
@@ -584,6 +584,7 @@ final class TransformsControllerTest extends Unit
         $this->assertStringContainsString('renderedValues.apply', $visualResults);
         $this->assertStringContainsString('ratio.copyFromRenderedBreakpoint', $visualResults);
         $this->assertStringContainsString('ratioSourceBreakpoint: Number($editor.cards.', $visualResults);
+        $this->assertStringContainsString('ratioSourceBreakpointKey: String(option?.dataset?.slotKey', $visualResults);
         $this->assertStringContainsString('selectedAssetKey: String(card?.dataset?.selectedAssetKey', $visualResults);
         $this->assertStringContainsString('ratioFloat: Number($editor.cards.', $visualResults);
         $this->assertStringNotContainsString('localStateByBreakpoint', $visualResults);

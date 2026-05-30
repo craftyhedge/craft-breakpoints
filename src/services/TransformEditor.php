@@ -290,13 +290,13 @@ class TransformEditor extends Component
 
     public function applySetCopyRatioFromRenderedBreakpointOperation(
         string $transformName,
-        int $sourceBreakpoint,
+        string $sourceBreakpointKey,
     ): ?array {
         if ($this->_operationsService === null) {
             return null;
         }
 
-        return $this->_operationsService->resolveRenderedRatioByBreakpoint($transformName, $sourceBreakpoint);
+        return $this->_operationsService->resolveRenderedRatioByBreakpoint($transformName, $sourceBreakpointKey);
     }
 
     public function applySetBreakpointEnabledOperation(

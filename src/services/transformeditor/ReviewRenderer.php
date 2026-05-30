@@ -612,15 +612,20 @@ final class ReviewRenderer
             $ratioSourceBreakpointDefault = $selectedBreakpoint !== null
                 ? (string)$selectedBreakpoint
                 : ($firstBreakpoint !== null ? (string)$firstBreakpoint : '');
+            $ratioSourceBreakpointKeyDefault = $selectedBreakpoint !== null
+                ? ($this->getReviewSlotKeyById((int)$selectedBreakpoint) ?? '')
+                : ($firstBreakpoint !== null ? ($this->getReviewSlotKeyById((int)$firstBreakpoint) ?? '') : '');
 
             $ratioSourceBreakpointOptions = '';
             foreach ($transformBreakpoints as $transformBreakpoint) {
                 $value = (string)$transformBreakpoint;
+                $slotKey = $this->getReviewSlotKeyById((int)$transformBreakpoint) ?? '';
                 $displayPx = $this->getReviewSlotMediaWidthById($transformBreakpoint, $includeEscapeWidth) ?? $transformBreakpoint;
                 $selectedAttr = $value === $ratioSourceBreakpointDefault ? ' selected' : '';
                 $ratioSourceBreakpointOptions .= sprintf(
-                    '<option value="%s"%s>%spx</option>',
+                    '<option value="%s" data-slot-key="%s"%s>%spx</option>',
                     $this->escapeReviewHtml($value),
+                    $this->escapeReviewHtml($slotKey),
                     $selectedAttr,
                     $this->escapeReviewHtml((string)$displayPx),
                 );
@@ -633,6 +638,7 @@ final class ReviewRenderer
                             'ratioLocked' => $scopeValues['ratioLocked'],
                             'ratioSourceDimension' => $scopeValues['ratioSourceDimension'],
                             'ratioSourceBreakpoint' => $ratioSourceBreakpointDefault,
+                            'ratioSourceBreakpointKey' => $ratioSourceBreakpointKeyDefault,
                             'activeTab' => $tab,
                             'scopeMode' => $scope['mode'],
                             'scopeBreakpoint' => $scope['mode'] === 'breakpoint' ? (string)$scope['breakpoint'] : '',

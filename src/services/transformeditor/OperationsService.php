@@ -1304,9 +1304,10 @@ final class OperationsService
     /**
      * @return array{width: int, height: int}|null
      */
-    public function resolveRenderedRatioByBreakpoint(string $transformName, int $breakpoint): ?array
+    public function resolveRenderedRatioByBreakpoint(string $transformName, string $breakpointKey): ?array
     {
-        if ($transformName === '' || $breakpoint <= 0) {
+        $breakpointKey = trim($breakpointKey);
+        if ($transformName === '' || $breakpointKey === '') {
             return null;
         }
 
@@ -1319,7 +1320,7 @@ final class OperationsService
         }
 
         $includeEscapeWidth = ($setDefinition['includeEscapeWidth'] ?? false) === true;
-        $targetResolution = $this->breakpointCatalog->resolveOperationTarget(null, $breakpoint, $includeEscapeWidth);
+        $targetResolution = $this->breakpointCatalog->resolveOperationTarget($breakpointKey, null, $includeEscapeWidth);
         if ($targetResolution === null) {
             return null;
         }
