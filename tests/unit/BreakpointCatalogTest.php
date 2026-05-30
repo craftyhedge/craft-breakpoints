@@ -32,19 +32,18 @@ final class BreakpointCatalogTest extends Unit
         $this->assertFalse($withEscape[6]['isEscape']);
     }
 
-    public function testNumericWidthResolutionRejectsDuplicateActiveWidths(): void
+    public function testOperationResolutionRequiresCanonicalKey(): void
     {
         $catalog = new BreakpointCatalog($this->buildConfigService([
             'sm' => 640,
             'md' => 640,
         ]));
 
-        $result = $catalog->resolveOperationTargetOrReject(null, 1536, false);
+        $result = $catalog->resolveOperationTargetOrReject(null, null, false);
 
         $this->assertSame([
-            'error' => 'Ambiguous breakpoint: multiple breakpoints have the same width.',
+            'error' => 'breakpoint key is required.',
         ], $result);
-        $this->assertNull($catalog->findDefinitionByWidth(1536, false));
     }
 
     private function buildConfigService(array $breakpoints): ConfigService

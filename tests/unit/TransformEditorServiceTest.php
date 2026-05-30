@@ -85,7 +85,7 @@ final class TransformEditorServiceTest extends Unit
 
         $this->assertFalse($result['persisted'] ?? true);
         $this->assertContains(
-            'Either breakpoint key or width is required.',
+            'breakpoint key is required.',
             $result['validation']['global'] ?? []
         );
     }
@@ -111,10 +111,8 @@ final class TransformEditorServiceTest extends Unit
         $editor = $plugin->getTransformEditor();
         $configService = $plugin->getConfigService();
         $firstBreakpointName = (string)($configService->getBreakpointKeys(false)[0] ?? '');
-        $firstBreakpointValue = (int)($configService->getBreakpointWidths(false)[0] ?? 0);
 
         $this->assertNotSame('', $firstBreakpointName);
-        $this->assertGreaterThan(0, $firstBreakpointValue);
 
         $this->withRuntimeSets([
             'hero' => [
@@ -125,14 +123,15 @@ final class TransformEditorServiceTest extends Unit
                 ],
                 'config' => [],
             ],
-        ], function () use ($editor, $firstBreakpointName, $firstBreakpointValue): void {
+        ], function () use ($editor, $firstBreakpointName): void {
             $result = $editor->applySetBreakpointEnabledOperation(
                 'hero',
-                $firstBreakpointValue,
+                null,
                 false,
                 null,
                 null,
                 true,
+                $firstBreakpointName,
             );
 
             $this->assertTrue(($result['persisted'] ?? false) === true);
@@ -279,9 +278,7 @@ final class TransformEditorServiceTest extends Unit
         $plugin = Plugin::getInstance();
         $editor = $plugin->getTransformEditor();
         $configService = $plugin->getConfigService();
-        $breakpointWidths = $configService->getBreakpointWidths(false);
         $breakpointNames = $configService->getBreakpointKeys(false);
-        $firstBreakpoint = (int)($breakpointWidths[0] ?? 0);
         $firstBreakpointName = (string)($breakpointNames[0] ?? '');
         $secondBreakpointName = (string)($breakpointNames[1] ?? '');
         $variants = [];
@@ -302,16 +299,19 @@ final class TransformEditorServiceTest extends Unit
                 'variants' => $variants,
                 'config' => [],
             ],
-        ], function () use ($editor, $firstBreakpoint, $firstBreakpointName, $secondBreakpointName): void {
+        ], function () use ($editor, $firstBreakpointName, $secondBreakpointName): void {
             $result = $editor->applySetDimensionsOperation(
                 'hero',
                 'breakpoint',
-                $firstBreakpoint,
+                null,
                 321,
                 654,
                 false,
                 false,
                 false,
+                false,
+                null,
+                $firstBreakpointName,
             );
 
             $this->assertTrue(($result['persisted'] ?? false) === true);

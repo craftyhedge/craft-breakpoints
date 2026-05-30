@@ -173,17 +173,12 @@ final class TransformsControllerTest extends Unit
 
     public function testApplyCardOperationRejectsNonBooleanNumericEnabledValue(): void
     {
-        $breakpoints = Plugin::getInstance()->getConfigService()->getBreakpoints();
-        unset($breakpoints['escape']);
-        $firstBreakpointValue = (int)($breakpoints[(string)array_key_first($breakpoints)] ?? 0);
-
-        $this->assertGreaterThan(0, $firstBreakpointValue);
-
         $controller = $this->controllerWithBody([
             'baseVersion' => 7,
             'operation' => 'breakpoint.toggleEnabled',
             'setName' => 'hero',
-            'scopeBreakpoint' => $firstBreakpointValue,
+            'scopeBreakpoint' => 1,
+            'scopeBreakpointKey' => 'base',
             'enabled' => 2,
         ]);
         $response = $controller->actionApplyCardOperation();
@@ -198,17 +193,12 @@ final class TransformsControllerTest extends Unit
 
     public function testApplyCardOperationTogglesBreakpointEnabledWhenEnabledIsOmitted(): void
     {
-        $breakpoints = Plugin::getInstance()->getConfigService()->getBreakpoints();
-        unset($breakpoints['escape']);
-        $firstBreakpointValue = (int)($breakpoints[(string)array_key_first($breakpoints)] ?? 0);
-
-        $this->assertGreaterThan(0, $firstBreakpointValue);
-
         $controller = $this->controllerWithBody([
             'baseVersion' => Plugin::getInstance()->getTransformStore()->getCurrentVersion(),
             'operation' => 'breakpoint.toggleEnabled',
             'setName' => 'hero',
-            'scopeBreakpoint' => $firstBreakpointValue,
+            'scopeBreakpoint' => 1,
+            'scopeBreakpointKey' => 'base',
         ]);
         $response = $controller->actionApplyCardOperation();
 
@@ -221,23 +211,19 @@ final class TransformsControllerTest extends Unit
 
     public function testApplyCardOperationToggleEnabledPreservesRequestedBreakpointScope(): void
     {
-        $breakpoints = Plugin::getInstance()->getConfigService()->getBreakpoints();
-        unset($breakpoints['escape']);
-        $firstBreakpointValue = (int)($breakpoints[(string)array_key_first($breakpoints)] ?? 0);
-
-        $this->assertGreaterThan(0, $firstBreakpointValue);
-
         $signalKey = $this->buildSignalKey('hero');
         $controller = $this->controllerWithBody([
             'baseVersion' => Plugin::getInstance()->getTransformStore()->getCurrentVersion(),
             'operation' => 'breakpoint.toggleEnabled',
             'setName' => 'hero',
-            'scopeBreakpoint' => $firstBreakpointValue,
+            'scopeBreakpoint' => 1,
+            'scopeBreakpointKey' => 'base',
             'editor' => [
                 'cards' => [
                     $signalKey => [
                         'scopeMode' => 'breakpoint',
-                        'scopeBreakpoint' => (string)$firstBreakpointValue,
+                        'scopeBreakpoint' => '1',
+                        'scopeBreakpointKey' => 'base',
                     ],
                 ],
             ],
@@ -256,17 +242,12 @@ final class TransformsControllerTest extends Unit
 
     public function testApplyCardOperationToggleEnabledWithoutEditorSignalsUsesBreakpointScope(): void
     {
-        $breakpoints = Plugin::getInstance()->getConfigService()->getBreakpoints();
-        unset($breakpoints['escape']);
-        $firstBreakpointValue = (int)($breakpoints[(string)array_key_first($breakpoints)] ?? 0);
-
-        $this->assertGreaterThan(0, $firstBreakpointValue);
-
         $controller = $this->controllerWithBody([
             'baseVersion' => Plugin::getInstance()->getTransformStore()->getCurrentVersion(),
             'operation' => 'breakpoint.toggleEnabled',
             'setName' => 'hero',
-            'scopeBreakpoint' => $firstBreakpointValue,
+            'scopeBreakpoint' => 1,
+            'scopeBreakpointKey' => 'base',
         ]);
         $response = $controller->actionApplyCardOperation();
 
@@ -346,7 +327,7 @@ final class TransformsControllerTest extends Unit
 
         $this->assertSame(Response::FORMAT_RAW, $response->format);
         $this->assertStringContainsString('datastar-patch-signals', (string)$response->content);
-        $this->assertStringNotContainsString('No breakpoint found for width.', (string)$response->content);
+        $this->assertStringContainsString('Dimensions updated.', (string)$response->content);
 
         $sets = Plugin::getInstance()->getTransformStore()->getSets();
         $this->assertSame(777, $sets[$setName]['variants']['xs']['width'] ?? null);
@@ -481,9 +462,7 @@ final class TransformsControllerTest extends Unit
         $this->assertSame(Response::FORMAT_RAW, $response->format);
         $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
         $this->assertStringContainsString('data-kind="error"', (string)$response->content);
-        // A fractional breakpoint normalizes to neither a valid breakpoint key nor a width,
-        // so BreakpointCatalog rejects it with its centralized validation message.
-        $this->assertStringContainsString('Either breakpoint key or width is required.', (string)$response->content);
+        $this->assertStringContainsString('breakpoint key is required.', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
     }

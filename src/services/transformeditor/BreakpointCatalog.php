@@ -8,8 +8,8 @@ use craftyhedge\craftbreakpoints\services\ConfigService;
  * Provides lookup and resolution of breakpoint definitions from config.
  *
  * Breakpoints are named pixel-width thresholds (e.g. "sm" => 640). This catalog
- * exposes methods to list all definitions, find one by key or width, and resolve
- * an operation target from either identifier — returning an error descriptor
+ * exposes methods to list all definitions, find one by key, and resolve
+ * an operation target from a canonical slot key — returning an error descriptor
  * instead of null when a match is required.
  */
 final class BreakpointCatalog
@@ -59,19 +59,6 @@ final class BreakpointCatalog
         return null;
     }
 
-    public function findDefinitionByWidth(int $width, bool $includeEscapeWidth): ?array
-    {
-        $definitions = $this->getDefinitionsForIncludeEscapeWidth($includeEscapeWidth);
-        $matches = [];
-        foreach ($definitions as $definition) {
-            if ($definition['width'] === $width) {
-                $matches[] = $definition;
-            }
-        }
-
-        return count($matches) === 1 ? $matches[0] : null;
-    }
-
     /**
      * @return array{key: string, width: int, isEscape: bool}|null
      * @phpstan-return array{key: string, width: int, isEscape: bool}|null
@@ -83,11 +70,6 @@ final class BreakpointCatalog
     ): ?array {
         if ($scopeBreakpointKey !== null && $scopeBreakpointKey !== '') {
             $definition = $this->findDefinitionByKey($scopeBreakpointKey, $includeEscapeWidth);
-            return $definition;
-        }
-
-        if ($scopeBreakpointWidth !== null && $scopeBreakpointWidth > 0) {
-            $definition = $this->findDefinitionByWidth($scopeBreakpointWidth, $includeEscapeWidth);
             return $definition;
         }
 
@@ -111,26 +93,6 @@ final class BreakpointCatalog
             return $definition;
         }
 
-        if ($scopeBreakpointWidth !== null && $scopeBreakpointWidth > 0) {
-            $definitions = $this->getDefinitionsForIncludeEscapeWidth($includeEscapeWidth);
-            $matches = [];
-            foreach ($definitions as $definition) {
-                if ($definition['width'] === $scopeBreakpointWidth) {
-                    $matches[] = $definition;
-                }
-            }
-
-            if (count($matches) === 0) {
-                return ['error' => 'No breakpoint found for width.'];
-            }
-
-            if (count($matches) > 1) {
-                return ['error' => 'Ambiguous breakpoint: multiple breakpoints have the same width.'];
-            }
-
-            return $matches[0];
-        }
-
-        return ['error' => 'Either breakpoint key or width is required.'];
+        return ['error' => 'breakpoint key is required.'];
     }
 }
