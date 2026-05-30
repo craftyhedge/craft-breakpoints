@@ -713,6 +713,8 @@ final class ReviewRenderer
 
             $breakpointColumns = '';
             $breakpointKeysByWidth = $this->getBreakpointKeysByWidth($includeEscapeWidth);
+            $lastBreakpoint = $transformBreakpoints === [] ? null : end($transformBreakpoints);
+            reset($transformBreakpoints);
             $previousMediaWidth = null;
             foreach ($transformBreakpoints as $breakpoint) {
                 $rows = $selectedAssetRowsByBreakpoint[$breakpoint] ?? [];
@@ -721,7 +723,7 @@ final class ReviewRenderer
                     $transformName,
                     $breakpoint,
                     $breakpointKeysByWidth[(string)$breakpoint] ?? '',
-                    $this->buildBreakpointRangeLabel($mediaWidth, $previousMediaWidth, $escapeBreakpoint),
+                    $this->buildBreakpointRangeLabel($mediaWidth, $previousMediaWidth, $breakpoint === $lastBreakpoint),
                     $rows,
                     $currentRows[$breakpoint] ?? Support::buildDefaultTransformEntry(),
                     $columnWidths,
@@ -1080,10 +1082,10 @@ final class ReviewRenderer
         ]);
     }
 
-    private function buildBreakpointRangeLabel(int $breakpoint, ?int $previousBreakpoint, ?int $escapeBreakpoint): string
+    private function buildBreakpointRangeLabel(int $breakpoint, ?int $previousBreakpoint, bool $isLast): string
     {
-        if ($escapeBreakpoint !== null && $breakpoint === $escapeBreakpoint && $previousBreakpoint !== null) {
-            return $previousBreakpoint . 'px+';
+        if ($isLast) {
+            return $breakpoint . 'px+';
         }
 
         $start = $previousBreakpoint ?? 0;

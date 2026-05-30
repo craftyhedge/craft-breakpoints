@@ -52,7 +52,9 @@
 {% autoescape false %}
 {%- set cardModePayload -%}hideRenderedApply: String($editor.cards.{{ signalKey }}.hideRenderedApply || '0') === '1', reviewMode: String($editor.cards.{{ signalKey }}.reviewMode || 'processed'), {%- endset -%}
 {%- set breakpointEnableToggleBody -%}@post($_applyCardOperationUrl, {contentType: 'json', headers: {'X-CSRF-Token': $_csrfToken}, payload: {setName: String($editor.cards.{{ signalKey }}.setName || ''), operation: 'breakpoint.toggleEnabled', includeEscapeWidth: String($editor.cards.{{ signalKey }}.includeEscapeWidth || '0') === '1', scopeBreakpoint: Number({{ breakpoint }}) || null, scopeBreakpointKey: '{{ breakpointKey }}', {{ cardModePayload }} baseVersion: String($editor.baseVersion || '')}}){%- endset -%}
-<div class="bpts-breakpoint-column {{ breakpointColumnSelectedClass }}" data-breakpoint="{{ breakpoint }}" data-breakpoint-key="{{ breakpointKey }}" data-breakpoint-width="{{ breakpoint }}" style="--bpts-breakpoint-column-width:{{ breakpointColumnWidth }}px; --bpts-preview-lock-height:{{ previewLockHeight }}px;"
+<div class="bpts-breakpoint-column-wrap" style="--bpts-breakpoint-column-width:{{ breakpointColumnWidth }}px; --bpts-preview-lock-height:{{ previewLockHeight }}px;">
+    <h3 class="bpts-breakpoint-column-key">{{ breakpointKey }}</h3>
+    <div class="bpts-breakpoint-column {{ breakpointColumnSelectedClass }}" data-breakpoint="{{ breakpoint }}" data-breakpoint-key="{{ breakpointKey }}" data-breakpoint-width="{{ breakpoint }}"
         data-class:bpts-breakpoint-column-selected="$editor.cards.{{ signalKey }}.scopeMode === 'all' || ($editor.cards.{{ signalKey }}.scopeMode === 'breakpoint' && Number($editor.cards.{{ signalKey }}.scopeBreakpoint || 0) === {{ breakpoint }})"
         data-class:bpts-breakpoint-column-mismatch="String(($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].breakpointColumnMismatchClass || '0') : '0') === '1'"
         data-class:bpts-breakpoint-column-disabled="String(($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].breakpointColumnDisabledClass || '0') : '0') === '1'"
@@ -137,4 +139,5 @@
                 </div>
             </div>
         </div>
-    </div>{% endautoescape %}
+    </div>
+</div>{% endautoescape %}
