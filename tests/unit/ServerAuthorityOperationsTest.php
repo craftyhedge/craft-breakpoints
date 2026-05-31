@@ -438,6 +438,120 @@ final class ServerAuthorityOperationsTest extends Unit
         }
     }
 
+    public function testAllScopeAutoToggleSetsRequestedAutoDimensionOnEnabledBreakpoints(): void
+    {
+        $plugin = Plugin::getInstance();
+
+        $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'base' => ['width' => 1200, 'height' => 675, 'enabled' => false, 'autoDimension' => null],
+                    'xs' => ['width' => 640, 'height' => 360, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => [],
+            ],
+        ], function () use ($plugin): void {
+            $service = new OperationsService(
+                $plugin->getTransformStore(),
+                $plugin->getConfigService(),
+                $plugin->getTelemetry(),
+                null,
+            );
+
+            $result = $service->applySetToggleAutoWidthOperation(
+                'hero',
+                'all',
+                null,
+                null,
+                null,
+                null,
+                false,
+                $plugin->getTransformStore()->getCurrentVersion(),
+            );
+
+            $this->assertTrue(($result['persisted'] ?? false) === true);
+
+            $sets = $plugin->getTransformStore()->getSets();
+            $this->assertSame('width', $sets['hero']['variants']['xs']['autoDimension'] ?? null);
+            $this->assertNull($sets['hero']['variants']['xs']['width'] ?? null);
+            $this->assertNull($sets['hero']['variants']['base']['autoDimension'] ?? null);
+        });
+    }
+
+    public function testAllScopeAutoToggleClearsRequestedAutoDimensionWithRenderedValues(): void
+    {
+        $plugin = Plugin::getInstance();
+        $previousTelemetry = $plugin->getTelemetry();
+
+        $plugin->set('telemetry', new class() extends TelemetryService {
+            public function getLatestRunSnapshot(): ?array
+            {
+                return [
+                    'runStatus' => 'completed',
+                    'ranAt' => '2026-05-01 10:00:00',
+                    'rowsPayload' => [
+                        [
+                            'transformHandle' => 'hero',
+                            'slotKey' => 'xs',
+                            'slotIndex' => 1,
+                            'breakpointWidth' => 640,
+                            'assetId' => '100',
+                            'renderedWidth' => 610,
+                            'renderedHeight' => 343,
+                            'rowStatus' => 'loaded',
+                        ],
+                    ],
+                    'rows' => [],
+                ];
+            }
+        });
+
+        try {
+            $this->withRuntimeSets([
+                'hero' => [
+                    'name' => 'hero',
+                    'includeEscapeWidth' => false,
+                    'variants' => [
+                        'xs' => ['width' => null, 'height' => 360, 'enabled' => true, 'autoDimension' => 'width'],
+                    ],
+                    'config' => [],
+                ],
+            ], function () use ($plugin): void {
+                $snapshotReader = new SnapshotReader(
+                    $plugin->getTransformStore(),
+                    $plugin->getTelemetry(),
+                );
+                $service = new OperationsService(
+                    $plugin->getTransformStore(),
+                    $plugin->getConfigService(),
+                    $plugin->getTelemetry(),
+                    $snapshotReader,
+                );
+
+                $result = $service->applySetToggleAutoWidthOperation(
+                    'hero',
+                    'all',
+                    null,
+                    null,
+                    null,
+                    '100',
+                    false,
+                    $plugin->getTransformStore()->getCurrentVersion(),
+                );
+
+                $this->assertTrue(($result['persisted'] ?? false) === true);
+
+                $sets = $plugin->getTransformStore()->getSets();
+                $this->assertNull($sets['hero']['variants']['xs']['autoDimension'] ?? null);
+                $this->assertSame(610, $sets['hero']['variants']['xs']['width'] ?? null);
+            });
+        } finally {
+            $plugin->set('telemetry', $previousTelemetry);
+        }
+    }
+
     private function withRuntimeSets(array $sets, callable $callback): mixed
     {
         $configService = Plugin::getInstance()->getConfigService();

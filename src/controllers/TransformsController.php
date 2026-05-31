@@ -219,29 +219,31 @@ class TransformsController extends Controller
             ]);
         }
 
-        $requestedTab = $this->readRequestedCardSignalString($operation->setName, 'activeTab');
-        $activeTab = in_array($requestedTab, ['dimensions', 'ratio', 'settings'], true) ? $requestedTab : 'dimensions';
+        $scopeValues = $scopeMode === 'breakpoint' && $scopeBreakpoint !== null
+            ? $editor->buildScopeValuesForBreakpoint($operation->setName, $scopeBreakpoint, $operation->includeEscapeWidth)
+            : $editor->buildScopeValuesForAll($operation->setName, $operation->includeEscapeWidth);
+
+        $activeTab = $this->normalizeCardActiveTab(
+            $this->readRequestedCardSignalString($operation->setName, 'activeTab'),
+            $scopeMode,
+            $scopeValues,
+        );
 
         $cardSignals = [
             'scopeMode' => $scopeMode,
             'scopeBreakpoint' => $scopeBreakpoint !== null ? (string)$scopeBreakpoint : '',
             'scopeBreakpointKey' => $scopeBreakpointKey,
-            'scopeActive' => ($scopeMode === 'breakpoint' && $scopeBreakpoint !== null) ? '1' : '0',
             'activeTab' => $activeTab,
+            'widthInput' => $scopeValues['widthInput'] ?? '',
+            'heightInput' => $scopeValues['heightInput'] ?? '',
+            'widthAuto' => $scopeValues['widthAuto'] ?? '0',
+            'heightAuto' => $scopeValues['heightAuto'] ?? '0',
+            'ratioLocked' => $scopeValues['ratioLocked'] ?? '0',
+            'ratioWidthInput' => $scopeValues['ratioWidthInput'] ?? '',
+            'ratioHeightInput' => $scopeValues['ratioHeightInput'] ?? '',
+            'ratioFloatInput' => $scopeValues['ratioFloatInput'] ?? '',
+            'ratioSourceDimension' => $scopeValues['ratioSourceDimension'] ?? 'width',
         ];
-
-        if ($scopeMode === 'breakpoint' && $scopeBreakpoint !== null) {
-            $scopeValues = $editor->buildScopeValuesForBreakpoint($operation->setName, $scopeBreakpoint, $operation->includeEscapeWidth);
-            $cardSignals['widthInput'] = $scopeValues['widthInput'] ?? '';
-            $cardSignals['heightInput'] = $scopeValues['heightInput'] ?? '';
-            $cardSignals['widthAuto'] = $scopeValues['widthAuto'] ?? '0';
-            $cardSignals['heightAuto'] = $scopeValues['heightAuto'] ?? '0';
-            $cardSignals['ratioLocked'] = $scopeValues['ratioLocked'] ?? '0';
-            $cardSignals['ratioWidthInput'] = $scopeValues['ratioWidthInput'] ?? '';
-            $cardSignals['ratioHeightInput'] = $scopeValues['ratioHeightInput'] ?? '';
-            $cardSignals['ratioFloatInput'] = $scopeValues['ratioFloatInput'] ?? '';
-            $cardSignals['ratioSourceDimension'] = $scopeValues['ratioSourceDimension'] ?? 'width';
-        }
 
         return $this->asDatastarEventStream([
             new PatchSignals([
@@ -487,12 +489,26 @@ class TransformsController extends Controller
                     : ($hideRenderedApply ? 'saved' : 'processed');
                 $deltas = $editor->buildSignalDeltasForTransform($operation->setName, $selectedAssetKey, $hideRenderedApply, $reviewMode);
                 if (!empty($deltas['rowsByBreakpoint'])) {
+                    $cardSignalPatch = [
+                        'rowsByBreakpoint' => $deltas['rowsByBreakpoint'],
+                    ];
+                    if ($this->operationMayChangeAllScopeAutoSignals($operation)) {
+                        $autoSignals = $this->buildAllScopeAutoSignalsFromRows($deltas['rowsByBreakpoint']);
+                        $cardSignalPatch = array_merge($cardSignalPatch, $autoSignals);
+                        $cardSignalPatch['activeTab'] = $this->normalizeCardActiveTab(
+                            $this->readRequestedCardSignalString($operation->setName, 'activeTab'),
+                            'all',
+                            [
+                                'widthAuto' => $autoSignals['widthAuto'] ?? '0',
+                                'heightAuto' => $autoSignals['heightAuto'] ?? '0',
+                            ],
+                        );
+                    }
+
                     $events[] = new PatchSignals([
                         'editor' => [
                             'cards' => [
-                                $signalKey => [
-                                    'rowsByBreakpoint' => $deltas['rowsByBreakpoint'],
-                                ],
+                                $signalKey => $cardSignalPatch,
                             ],
                         ],
                     ]);
@@ -820,6 +836,72 @@ class TransformsController extends Controller
         return [$setName => $normalizedTab];
     }
 
+    /**
+     * @param array<string, string> $scopeValues
+     */
+    private function normalizeCardActiveTab(?string $requestedTab, string $scopeMode, array $scopeValues): string
+    {
+        $tab = is_string($requestedTab) ? strtolower(trim($requestedTab)) : '';
+        $tab = in_array($tab, ['dimensions', 'ratio', 'settings'], true) ? $tab : 'dimensions';
+
+        if ($scopeMode !== 'all' && $tab === 'settings') {
+            return 'dimensions';
+        }
+
+        $ratioBlockedByAuto = ($scopeValues['widthAuto'] ?? '0') === '1'
+            || ($scopeValues['heightAuto'] ?? '0') === '1';
+        if ($tab === 'ratio' && $ratioBlockedByAuto) {
+            return 'dimensions';
+        }
+
+        return $tab;
+    }
+
+    private function operationMayChangeAllScopeAutoSignals(CardOperationRequest $operation): bool
+    {
+        if ($operation->operation !== 'dimensions.toggleAutoWidth' && $operation->operation !== 'dimensions.toggleAutoHeight') {
+            return false;
+        }
+
+        $requestedScope = $this->readRequestedCardScope($operation->setName);
+        $scopeMode = $requestedScope['mode'] ?? $operation->scopeMode;
+
+        return $scopeMode === 'all';
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $rowsByBreakpoint
+     * @return array{widthAuto: string, heightAuto: string}
+     */
+    private function buildAllScopeAutoSignalsFromRows(array $rowsByBreakpoint): array
+    {
+        return [
+            'widthAuto' => $this->allEnabledRowsUseAutoDimension($rowsByBreakpoint, 'width') ? '1' : '0',
+            'heightAuto' => $this->allEnabledRowsUseAutoDimension($rowsByBreakpoint, 'height') ? '1' : '0',
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $rowsByBreakpoint
+     */
+    private function allEnabledRowsUseAutoDimension(array $rowsByBreakpoint, string $dimension): bool
+    {
+        $enabledCount = 0;
+
+        foreach ($rowsByBreakpoint as $row) {
+            if (($row['enabled'] ?? true) !== true) {
+                continue;
+            }
+
+            $enabledCount += 1;
+            if (($row['autoDimension'] ?? '') !== $dimension) {
+                return false;
+            }
+        }
+
+        return $enabledCount > 0;
+    }
+
     private function readRequestedCardSelectedAssetKey(string $setName): ?string
     {
         $rawSelectedAssetKey = $this->readRequestedCardSignalString($setName, 'selectedAssetKey');
@@ -950,7 +1032,7 @@ class TransformsController extends Controller
             }
         }
 
-        if ($field === 'ratio') {
+        if ($field === 'ratio' || $field === 'dimensions') {
             $details = is_array($operationResult['operationDetails'] ?? null)
                 ? $operationResult['operationDetails']
                 : [];
@@ -963,14 +1045,22 @@ class TransformsController extends Controller
 
             if ($persisted && ($appliedBreakpoints !== [] || $skippedBreakpoints !== [])) {
                 $appliedCount = count($appliedBreakpoints);
-                if ($appliedCount > 0) {
-                    $message = sprintf('Ratio applied to %d breakpoint%s.', $appliedCount, $appliedCount === 1 ? '' : 's');
+                if ($field === 'ratio') {
+                    if ($appliedCount > 0) {
+                        $message = sprintf('Ratio applied to %d breakpoint%s.', $appliedCount, $appliedCount === 1 ? '' : 's');
+                    } else {
+                        $message = 'Ratio not applied to any breakpoints.';
+                    }
                 } else {
-                    $message = 'Ratio not applied to any breakpoints.';
+                    if ($appliedCount > 0) {
+                        $message = sprintf('Dimensions updated for %d breakpoint%s.', $appliedCount, $appliedCount === 1 ? '' : 's');
+                    } else {
+                        $message = 'Dimensions not updated for any breakpoints.';
+                    }
                 }
 
                 if ($skippedBreakpoints !== []) {
-                    $message .= ' Skipped: ' . $this->formatSkippedRatioBreakpoints($skippedBreakpoints) . '.';
+                    $message .= ' Skipped: ' . $this->formatSkippedBreakpoints($skippedBreakpoints) . '.';
                 }
 
                 return $message;
@@ -1002,7 +1092,7 @@ class TransformsController extends Controller
         };
     }
 
-    private function formatSkippedRatioBreakpoints(array $skippedBreakpoints): string
+    private function formatSkippedBreakpoints(array $skippedBreakpoints): string
     {
         $parts = [];
 

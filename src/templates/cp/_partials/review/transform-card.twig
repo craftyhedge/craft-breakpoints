@@ -25,7 +25,7 @@
       - ratioSourceBreakpointOptions, lastProcessPanelHtml
 #}
 {% autoescape false %}
-{%- set disabledWhenInactive -%}Number($editor.cards.{{ signalKey }}.scopeActive || 0) !== 1{%- endset -%}
+{%- set disabledWhenInactive -%}String($editor.cards.{{ signalKey }}.scopeMode || 'unset') === 'unset'{%- endset -%}
 {%- set autoOn -%}Number($editor.cards.{{ signalKey }}.widthAuto || 0) === 1 || Number($editor.cards.{{ signalKey }}.heightAuto || 0) === 1{%- endset -%}
 {%- set disabledWhenInactiveOrAutoOn -%}{{ disabledWhenInactive }} || {{ autoOn }}{%- endset -%}
 {%- set scopedInitSeedApplied -%}String($editor.cards.{{ signalKey }}.scopeMode||'') === 'breakpoint' && (($editor.cards.{{ signalKey }}.rowsByBreakpoint && $editor.cards.{{ signalKey }}.rowsByBreakpoint[String($editor.cards.{{ signalKey }}.scopeBreakpoint||'')]) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint[String($editor.cards.{{ signalKey }}.scopeBreakpoint||'')].initSeedApplied === true) : false){%- endset -%}

@@ -433,6 +433,18 @@ final class OperationsService
         ['set' => $setDefinition, 'includeEscapeWidth' => $resolvedIncludeEscapeWidth] =
             $this->loadOrInitSet($transformName, $includeEscapeWidth);
 
+        if ($scopeMode === 'all') {
+            return $this->applySetToggleAutoDimensionForAll(
+                $transformName,
+                $setDefinition,
+                $autoDimension,
+                $assetKey,
+                $resolvedIncludeEscapeWidth,
+                $validation,
+                $expectedVersion,
+            );
+        }
+
         $isAutoEnabledForScope = false;
         $targetResolution = null;
         if ($scopeMode === 'breakpoint') {
@@ -543,6 +555,127 @@ final class OperationsService
             $forceAll,
             $expectedVersion,
         );
+    }
+
+    /**
+     * @param array<string, mixed> $setDefinition
+     * @param array<string, mixed> $validation
+     * @return array<string, mixed>
+     */
+    private function applySetToggleAutoDimensionForAll(
+        string $transformName,
+        array $setDefinition,
+        string $autoDimension,
+        ?string $assetKey,
+        bool $resolvedIncludeEscapeWidth,
+        array $validation,
+        ?string $expectedVersion,
+    ): array {
+        $sets = $this->transformStore->getSets();
+        $variants = $setDefinition['variants'] ?? [];
+        $definitions = $this->breakpointCatalog->getDefinitionsForIncludeEscapeWidth($resolvedIncludeEscapeWidth);
+        $enabledDefinitions = [];
+
+        foreach ($definitions as $definition) {
+            $breakpointKey = (string)$definition['key'];
+            $entry = self::getOrInitVariant($variants, $breakpointKey);
+            if (($entry['enabled'] ?? true) !== true) {
+                continue;
+            }
+
+            $enabledDefinitions[] = $definition;
+        }
+
+        if ($enabledDefinitions === []) {
+            return [
+                'persisted' => true,
+                'conflict' => false,
+                'currentVersion' => $this->transformStore->getCurrentVersion(),
+                'validation' => $validation,
+                'operationDetails' => [
+                    'appliedBreakpoints' => [],
+                    'skippedBreakpoints' => [],
+                ],
+            ];
+        }
+
+        $allEnabledAlreadyAuto = true;
+        foreach ($enabledDefinitions as $definition) {
+            $breakpointKey = (string)$definition['key'];
+            $entry = self::getOrInitVariant($variants, $breakpointKey);
+            if (Support::normalizeAutoDimension($entry['autoDimension'] ?? null) !== $autoDimension) {
+                $allEnabledAlreadyAuto = false;
+                break;
+            }
+        }
+
+        $appliedBreakpoints = [];
+        $skippedBreakpoints = [];
+
+        if (!$allEnabledAlreadyAuto) {
+            foreach ($enabledDefinitions as $definition) {
+                $breakpointKey = (string)$definition['key'];
+                $currentEntry = self::getOrInitVariant($variants, $breakpointKey);
+                $currentEntry['autoDimension'] = $autoDimension;
+                $currentEntry[$autoDimension] = null;
+                $currentEntry['ratioLocked'] = false;
+                $variants[$breakpointKey] = $currentEntry;
+                $appliedBreakpoints[] = (int)$definition['width'];
+            }
+        } else {
+            foreach ($enabledDefinitions as $definition) {
+                $breakpointKey = (string)$definition['key'];
+                $breakpointWidth = (int)$definition['width'];
+                $currentEntry = self::getOrInitVariant($variants, $breakpointKey);
+                $rendered = $this->resolveRenderedDimensionFromServer(
+                    $transformName,
+                    $breakpointWidth,
+                    $autoDimension,
+                    $assetKey,
+                    $breakpointKey,
+                );
+
+                if ($rendered === null) {
+                    $skippedBreakpoints[] = [
+                        'breakpoint' => $breakpointWidth,
+                        'reason' => 'rendered_dimension_missing',
+                    ];
+                    continue;
+                }
+
+                $currentEntry[$autoDimension] = $rendered;
+                if (Support::normalizeAutoDimension($currentEntry['autoDimension'] ?? null) === $autoDimension) {
+                    $currentEntry['autoDimension'] = null;
+                }
+                $variants[$breakpointKey] = $currentEntry;
+                $appliedBreakpoints[] = $breakpointWidth;
+            }
+        }
+
+        if ($appliedBreakpoints === []) {
+            return [
+                'persisted' => true,
+                'conflict' => false,
+                'currentVersion' => $this->transformStore->getCurrentVersion(),
+                'validation' => $validation,
+                'operationDetails' => [
+                    'appliedBreakpoints' => $appliedBreakpoints,
+                    'skippedBreakpoints' => $skippedBreakpoints,
+                ],
+            ];
+        }
+
+        $setDefinition['variants'] = $variants;
+        $setDefinition['name'] = (string)($setDefinition['name'] ?? $transformName);
+        $sets[$transformName] = $setDefinition;
+
+        $persistResult = $this->persistOperationSets($sets, $validation, $expectedVersion);
+        $persistResult['operationDetails'] = [
+            'appliedBreakpoints' => $appliedBreakpoints,
+            'skippedBreakpoints' => $skippedBreakpoints,
+        ];
+
+        return $persistResult;
     }
 
     private function resolveRenderedDimensionFromServer(

@@ -166,6 +166,38 @@ final class TransformsControllerTest extends Unit
         // with no card re-render and no editor status fragment.
         $this->assertStringContainsString('datastar-patch-signals', (string)$response->content);
         $this->assertStringContainsString('"scopeMode":"all"', (string)$response->content);
+        $this->assertStringContainsString('"widthInput":""', (string)$response->content);
+        $this->assertStringContainsString('"heightInput":""', (string)$response->content);
+        $this->assertStringContainsString('"ratioWidthInput":""', (string)$response->content);
+        $this->assertStringContainsString('"ratioSourceDimension":"width"', (string)$response->content);
+        $this->assertStringNotContainsString('bpts-editor-status', (string)$response->content);
+        $this->assertTrue($controller->cpRequestChecked);
+        $this->assertTrue($controller->postRequestChecked);
+    }
+
+    public function testApplyCardOperationScopeSelectBreakpointFromSettingsFallsBackToDimensions(): void
+    {
+        $signalKey = $this->buildSignalKey('hero');
+        $controller = $this->controllerWithBody([
+            'baseVersion' => 6,
+            'operation' => 'scope.selectBreakpoint',
+            'setName' => 'hero',
+            'scopeBreakpoint' => 1,
+            'scopeBreakpointKey' => 'base',
+            'editor' => [
+                'cards' => [
+                    $signalKey => [
+                        'activeTab' => 'settings',
+                    ],
+                ],
+            ],
+        ]);
+        $response = $controller->actionApplyCardOperation();
+
+        $this->assertSame(Response::FORMAT_RAW, $response->format);
+        $this->assertStringContainsString('datastar-patch-signals', (string)$response->content);
+        $this->assertStringContainsString('"scopeMode":"breakpoint"', (string)$response->content);
+        $this->assertStringContainsString('"activeTab":"dimensions"', (string)$response->content);
         $this->assertStringNotContainsString('bpts-editor-status', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);

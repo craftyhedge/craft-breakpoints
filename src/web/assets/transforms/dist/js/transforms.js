@@ -2738,7 +2738,8 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
             const finalizedReport = finalizeRunReport(runReport, {
                 status: cancelled ? 'cancelled' : 'failed',
-                rowsByBreakpoint,
+                rowsByBreakpoint: rowsBySlot,
+                rowsBySlot,
                 resultPublished: false,
                 failureStage,
                 failureMessage: String(error?.message || 'Processing failed.'),
@@ -2747,7 +2748,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             let snapshotPersisted = true;
             try {
                 const snapshotPersister = getRunOverride('persistRunSnapshot') || persistRunSnapshot;
-                snapshotPersisted = await snapshotPersister(finalizedReport, rowsByBreakpoint);
+                snapshotPersisted = await snapshotPersister(finalizedReport, rowsBySlot);
             } catch (persistError) {
                 // Snapshot persistence should never block failure/cancel status updates.
                 console.error(persistError);

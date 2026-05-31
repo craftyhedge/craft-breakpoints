@@ -546,6 +546,30 @@ class TransformEditor extends Component
         return $this->_reviewRenderer->buildScopeValuesForBreakpoint($setName, $breakpoint, $includeEscapeWidth);
     }
 
+    /**
+     * Build all-scope edit values when the card enters Select All mode.
+     *
+     * @return array<string, string>
+     */
+    public function buildScopeValuesForAll(string $setName, ?bool $includeEscapeWidth = null): array
+    {
+        if ($this->_reviewRenderer === null) {
+            return [
+                'widthInput' => '',
+                'heightInput' => '',
+                'widthAuto' => '0',
+                'heightAuto' => '0',
+                'ratioLocked' => '0',
+                'ratioWidthInput' => '',
+                'ratioHeightInput' => '',
+                'ratioFloatInput' => '',
+                'ratioSourceDimension' => 'width',
+            ];
+        }
+
+        return $this->_reviewRenderer->buildScopeValuesForAll($setName, $includeEscapeWidth);
+    }
+
     // ---- Health / Saved dimensions (delegated) ----
 
     /**

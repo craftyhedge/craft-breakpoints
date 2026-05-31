@@ -181,6 +181,38 @@ final class ReviewRenderer
     }
 
     /**
+     * Build all-scope values when Select All becomes the selected scope.
+     *
+     * @return array<string, string>
+     */
+    public function buildScopeValuesForAll(string $setName, ?bool $includeEscapeWidth = null): array
+    {
+        $storedTransforms = $this->getReviewStoredTransforms();
+        $transformConfig = $storedTransforms[$setName] ?? null;
+        if ($transformConfig === null) {
+            return $this->emptyScopeValues();
+        }
+
+        if ($includeEscapeWidth === null) {
+            $includeEscapeWidth = ($transformConfig['includeEscapeWidth'] ?? false) === true;
+        }
+        $transformBreakpoints = $this->getBreakpointsForTransform($includeEscapeWidth);
+        if ($transformBreakpoints === []) {
+            return $this->emptyScopeValues();
+        }
+
+        $currentRows = $this->buildReviewCurrentRowsForTransform($transformConfig, $transformBreakpoints);
+        $cardState = $this->cardStateBuilder->build(
+            $currentRows,
+            $transformBreakpoints,
+            ['mode' => 'all'],
+            null,
+        );
+
+        return $cardState['scopeValues'];
+    }
+
+    /**
      * @return array<string, string>
      */
     private function emptyScopeValues(): array
@@ -648,7 +680,6 @@ final class ReviewRenderer
                             'scopeMode' => $scope['mode'],
                             'scopeBreakpoint' => $scope['mode'] === 'breakpoint' ? (string)$scope['breakpoint'] : '',
                             'scopeBreakpointKey' => $scope['mode'] === 'breakpoint' ? $scopeBreakpointKey : '',
-                            'scopeActive' => $this->isReviewScopeActive($scope) ? '1' : '0',
                             'selectedAssetKey' => $selectedAssetKey,
                             'rowsByBreakpoint' => $rowsByBreakpointSignal,
                             'firstBreakpoint' => $firstBreakpoint !== null ? (string)$firstBreakpoint : '',
@@ -1954,76 +1985,6 @@ final class ReviewRenderer
         }
 
         return ['mode' => 'unset', 'breakpoint' => null];
-    }
-
-    private function isReviewScopeActive(array $scope): bool
-    {
-        return ($scope['mode'] ?? 'unset') === 'all' || ($scope['mode'] ?? 'unset') === 'breakpoint';
-    }
-
-    private function getReviewScopeDimensionInputValues(array $currentRowsByBreakpoint, array $scope): array
-    {
-        if (($scope['mode'] ?? 'unset') !== 'breakpoint') {
-            return [
-                'widthInput' => '',
-                'heightInput' => '',
-                'widthAuto' => '0',
-                'heightAuto' => '0',
-                'ratioLocked' => '0',
-                'ratioWidthInput' => '',
-                'ratioHeightInput' => '',
-                'ratioFloatInput' => '',
-                'ratioSourceDimension' => 'width',
-            ];
-        }
-
-        $breakpoint = Support::normalizeNullablePositiveInt($scope['breakpoint'] ?? null);
-        if ($breakpoint === null || !isset($currentRowsByBreakpoint[$breakpoint])) {
-            return [
-                'widthInput' => '',
-                'heightInput' => '',
-                'widthAuto' => '0',
-                'heightAuto' => '0',
-                'ratioLocked' => '0',
-                'ratioWidthInput' => '',
-                'ratioHeightInput' => '',
-                'ratioFloatInput' => '',
-                'ratioSourceDimension' => 'width',
-            ];
-        }
-
-        $entry = $currentRowsByBreakpoint[$breakpoint];
-        $autoDimension = Support::normalizeAutoDimension($entry['autoDimension'] ?? null);
-        $widthValue = Support::normalizeNullablePositiveInt($entry['width'] ?? null);
-        $heightValue = Support::normalizeNullablePositiveInt($entry['height'] ?? null);
-        $ratioWidthValue = Support::normalizeNullablePositiveInt($entry['ratioWidth'] ?? null);
-        $ratioHeightValue = Support::normalizeNullablePositiveInt($entry['ratioHeight'] ?? null);
-        $ratioSourceDimension = Support::normalizeRatioSourceDimension($entry['ratioSourceDimension'] ?? null) ?? 'width';
-        $ratioLocked = ($entry['ratioLocked'] ?? false) === true
-            && $ratioWidthValue !== null
-            && $ratioHeightValue !== null;
-        $widthAuto = $autoDimension === 'width';
-        $heightAuto = $autoDimension === 'height';
-
-        $fallbackRatioWidth = $widthAuto || $widthValue === null ? '' : (string)$widthValue;
-        $fallbackRatioHeight = $heightAuto || $heightValue === null ? '' : (string)$heightValue;
-        $resolvedRatioWidth = $ratioLocked ? (string)$ratioWidthValue : $fallbackRatioWidth;
-        $resolvedRatioHeight = $ratioLocked ? (string)$ratioHeightValue : $fallbackRatioHeight;
-
-        return [
-            'widthInput' => $widthAuto || $widthValue === null ? '' : (string)$widthValue,
-            'heightInput' => $heightAuto || $heightValue === null ? '' : (string)$heightValue,
-            'widthAuto' => $widthAuto ? '1' : '0',
-            'heightAuto' => $heightAuto ? '1' : '0',
-            'ratioLocked' => $ratioLocked ? '1' : '0',
-            'ratioWidthInput' => $resolvedRatioWidth,
-            'ratioHeightInput' => $resolvedRatioHeight,
-            'ratioFloatInput' => Support::formatRatioFloatInput(
-                Support::normalizeNullablePositiveInt($resolvedRatioWidth),
-                Support::normalizeNullablePositiveInt($resolvedRatioHeight),
-            ),
-            'ratioSourceDimension' => $ratioLocked ? $ratioSourceDimension : 'width',
-        ];
     }
 
     private function buildReviewWarningsByTransform(array $rowsByBreakpoint): array

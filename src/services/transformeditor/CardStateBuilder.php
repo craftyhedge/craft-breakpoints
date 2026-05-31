@@ -169,6 +169,18 @@ final class CardStateBuilder
      */
     private function resolveScopeValues(array $rowsByBreakpoint, array $scope): array
     {
+        if (($scope['mode'] ?? 'all') === 'all') {
+            $values = $this->emptyScopeValues();
+            $values['widthAuto'] = $this->allEnabledRowsUseAutoDimension($rowsByBreakpoint, 'width') ? '1' : '0';
+            $values['heightAuto'] = $this->allEnabledRowsUseAutoDimension($rowsByBreakpoint, 'height') ? '1' : '0';
+            $sharedRatio = $this->resolveSharedEnabledRowsRatio($rowsByBreakpoint);
+            if ($sharedRatio !== null) {
+                $values = array_merge($values, $sharedRatio);
+            }
+
+            return $values;
+        }
+
         if (($scope['mode'] ?? 'all') !== 'breakpoint') {
             return $this->emptyScopeValues();
         }
@@ -215,5 +227,77 @@ final class CardStateBuilder
             'ratioFloatInput' => '',
             'ratioSourceDimension' => 'width',
         ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $rowsByBreakpoint
+     */
+    private function allEnabledRowsUseAutoDimension(array $rowsByBreakpoint, string $dimension): bool
+    {
+        $enabledCount = 0;
+
+        foreach ($rowsByBreakpoint as $row) {
+            if (($row['enabled'] ?? true) !== true) {
+                continue;
+            }
+
+            $enabledCount += 1;
+            if (($row['autoDimension'] ?? '') !== $dimension) {
+                return false;
+            }
+        }
+
+        return $enabledCount > 0;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $rowsByBreakpoint
+     * @return array<string, string>|null
+     */
+    private function resolveSharedEnabledRowsRatio(array $rowsByBreakpoint): ?array
+    {
+        $sharedRatio = null;
+        $enabledCount = 0;
+
+        foreach ($rowsByBreakpoint as $row) {
+            if (($row['enabled'] ?? true) !== true) {
+                continue;
+            }
+
+            $enabledCount += 1;
+            if (($row['ratioLocked'] ?? '0') !== '1') {
+                return null;
+            }
+
+            $ratioWidth = (string)($row['ratioWidthInput'] ?? '');
+            $ratioHeight = (string)($row['ratioHeightInput'] ?? '');
+            $ratioSourceDimension = (string)($row['ratioSourceDimension'] ?? 'width');
+            if ($ratioWidth === '' || $ratioHeight === '') {
+                return null;
+            }
+
+            $candidate = [
+                'ratioLocked' => '1',
+                'ratioWidthInput' => $ratioWidth,
+                'ratioHeightInput' => $ratioHeight,
+                'ratioFloatInput' => (string)($row['ratioFloatInput'] ?? ''),
+                'ratioSourceDimension' => $ratioSourceDimension,
+            ];
+
+            if ($sharedRatio === null) {
+                $sharedRatio = $candidate;
+                continue;
+            }
+
+            if (
+                $sharedRatio['ratioWidthInput'] !== $candidate['ratioWidthInput']
+                || $sharedRatio['ratioHeightInput'] !== $candidate['ratioHeightInput']
+                || $sharedRatio['ratioSourceDimension'] !== $candidate['ratioSourceDimension']
+            ) {
+                return null;
+            }
+        }
+
+        return $enabledCount > 0 ? $sharedRatio : null;
     }
 }

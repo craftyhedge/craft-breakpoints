@@ -26,6 +26,10 @@ async function loadRuntimeHooks() {
     window.bpiProcessingConfig = {
         schemaVersion: 2,
         breakpointValues: [480, 768],
+        breakpointSlots: [
+            { key: 'xs', index: 0, mediaWidth: 480, measureWidth: 480, isBase: true, isFinal: false },
+            { key: 'sm', index: 1, mediaWidth: 768, measureWidth: 768, isBase: false, isFinal: true },
+        ],
         processing: {
             authorDiagnosticsEnabled: false,
         },
@@ -33,12 +37,92 @@ async function loadRuntimeHooks() {
 
     window.__BPI_TEST_HOOKS = true;
 
+    const processing = await import('../../src/web/assets/transforms/dist/js/transforms-processing.js?bpts-processing-test-hooks');
+    const harness = {
+        frameDocument: document,
+        frameWindow: window,
+    };
+    const getFrameDocument = () => harness.frameDocument || document;
+    const getFrameWindow = () => harness.frameWindow || window;
+    const getTrackedPictures = (frameDocument) => Array.from(frameDocument.querySelectorAll('picture[data-set]'));
+    const getPictureLoadKey = (picture, index) => picture?.getAttribute('data-picture-id')
+        || picture?.getAttribute('data-asset-id')
+        || `unknown-${index}`;
+    const getPrimarySourceForBreakpoint = (picture, breakpoint) => picture?.querySelector(`source[data-bp-source="primary"][data-bp-size="${breakpoint}"]`)
+        || picture?.querySelector(`source[data-bp-size="${breakpoint}"]`)
+        || picture?.querySelector(`source[data-bp-source="primary"][data-bp-key="${breakpoint}"]`)
+        || picture?.querySelector(`source[data-bp-key="${breakpoint}"]`)
+        || null;
+
+    window.__BPIRuntimeTestHookHarness = {
+        preloadBreakpointSources: (breakpoint, timeoutMs = 5000) => processing.preloadBreakpointSources({
+            breakpoint,
+            frameDocument: getFrameDocument(),
+            timeoutMs,
+            getPictureLoadKey,
+            getPrimarySourceForBreakpoint,
+            isTransparentSrcset: processing.isTransparentPixelSrcset,
+            ImageCtor: Image,
+            setTimeoutFn: (callback, ms) => window.setTimeout(callback, ms),
+            requestAnimationFrameFn: (callback) => requestAnimationFrame(callback),
+        }),
+        prepareBreakpoints: (breakpoint) => processing.prepareBreakpoints({
+            breakpoint,
+            frameDocument: getFrameDocument(),
+            frameWindow: getFrameWindow(),
+            getTrackedPictures,
+            getPrimarySourceForBreakpoint,
+        }),
+        buildBreakpointReadinessTracker: (breakpoint, preloadStates = null) => processing.buildBreakpointReadinessTracker({
+            breakpoint,
+            frameDocument: getFrameDocument(),
+            preloadStates,
+            getPictureLoadKey,
+            getPrimarySourceForBreakpoint,
+            deriveSource: processing.deriveSourceUsed,
+            isTransparentSrcset: processing.isTransparentPixelSrcset,
+            isRenderable: processing.isImageRenderable,
+        }),
+        extractRowsForBreakpoint: (breakpoint, preloadStates = null, readinessByKey = null) => processing.extractRowsForBreakpoint({
+            breakpoint,
+            frameDocument: getFrameDocument(),
+            preloadStates,
+            readinessByKey,
+            getPrimarySourceForBreakpoint,
+            getPictureLoadKey,
+            deriveSource: processing.deriveSourceUsed,
+            isLikelyBroken: (img) => processing.isImageLikelyBroken(img, processing.isImageRenderable),
+            toPositiveIntOrNullFn: processing.toPositiveIntOrNull,
+        }),
+    };
+
+    globalThis.eval(`
+        var preloadBreakpointSources = globalThis.__BPIRuntimeTestHookHarness.preloadBreakpointSources;
+        var prepareBreakpoints = globalThis.__BPIRuntimeTestHookHarness.prepareBreakpoints;
+        var buildBreakpointReadinessTracker = globalThis.__BPIRuntimeTestHookHarness.buildBreakpointReadinessTracker;
+        var extractRowsForBreakpoint = globalThis.__BPIRuntimeTestHookHarness.extractRowsForBreakpoint;
+    `);
+
     await import('../../src/web/assets/transforms/dist/js/transforms.js?bpts-test-hooks');
 
     const hooks = window.__BPIProcessingTestHooks;
     if (!hooks || typeof hooks !== 'object') {
         throw new Error('Expected transforms runtime test hooks to be exported.');
     }
+
+    const setPreviewFrameForTests = hooks.setPreviewFrameForTests;
+    hooks.setPreviewFrameForTests = (frameDocument, frameWindow = window) => {
+        harness.frameDocument = frameDocument;
+        harness.frameWindow = frameWindow;
+        setPreviewFrameForTests(frameDocument, frameWindow);
+    };
+
+    const clearPreviewFrameForTests = hooks.clearPreviewFrameForTests;
+    hooks.clearPreviewFrameForTests = () => {
+        harness.frameDocument = document;
+        harness.frameWindow = window;
+        clearPreviewFrameForTests();
+    };
 
     return hooks;
 }
@@ -1143,7 +1227,8 @@ describe('transforms runtime helper logic', () => {
             resultPublished: false,
             failureStage: 'wait',
             failureMessage: 'user cancelled',
-            rowsByBreakpoint: { 480: [{ transform: 'hero', loaded: false, broken: false, unresolved: true }] },
+            rowsByBreakpoint: { xs: [{ transform: 'hero', loaded: false, broken: false, unresolved: true }] },
+            rowsBySlot: { xs: [{ transform: 'hero', loaded: false, broken: false, unresolved: true }] },
         });
 
         hooks.setLastResultForTests(null);
@@ -1152,7 +1237,7 @@ describe('transforms runtime helper logic', () => {
         window.Craft = { sendActionRequest };
 
         const ok = await hooks.persistRunSnapshot(finalized, {
-            480: [{ transform: 'hero', loaded: false, broken: false, unresolved: true }],
+            xs: [{ transform: 'hero', loaded: false, broken: false, unresolved: true }],
         });
 
         expect(ok).toBe(true);
@@ -1162,8 +1247,8 @@ describe('transforms runtime helper logic', () => {
             expect.objectContaining({
                 data: expect.objectContaining({
                     runStatus: 'cancelled',
-                    rowsByBreakpoint: expect.objectContaining({
-                        480: expect.arrayContaining([
+                    rowsBySlot: expect.objectContaining({
+                        xs: expect.arrayContaining([
                             expect.objectContaining({ transform: 'hero' }),
                         ]),
                     }),
@@ -1172,14 +1257,14 @@ describe('transforms runtime helper logic', () => {
         );
     });
 
-    it('includes rowsByBreakpoint with first asset data in persistence payload', async () => {
+    it('includes rowsBySlot with first asset data in persistence payload', async () => {
         const report = hooks.createRunReport('https://example.test/source', [480, 768], false);
-        const rowsByBreakpoint = {
-            480: [
+        const rowsBySlot = {
+            xs: [
                 { transform: 'hero', src: 'https://example.test/hero-480.jpg', loaded: true, broken: false, unresolved: false, rendered: { width: 480, height: 320 } },
                 { transform: 'thumb', src: 'https://example.test/thumb-480.jpg', loaded: true, broken: false, unresolved: false, rendered: { width: 100, height: 100 } },
             ],
-            768: [
+            sm: [
                 { transform: 'hero', src: 'https://example.test/hero-768.jpg', loaded: true, broken: false, unresolved: false, rendered: { width: 768, height: 512 } },
             ],
         };
@@ -1187,10 +1272,11 @@ describe('transforms runtime helper logic', () => {
         const finalized = hooks.finalizeRunReport(report, {
             status: 'completed',
             resultPublished: true,
-            rowsByBreakpoint,
+            rowsByBreakpoint: rowsBySlot,
+            rowsBySlot,
         });
 
-        hooks.setLastResultForTests({ summary: { warningCount: 0 }, rowsByBreakpoint });
+        hooks.setLastResultForTests({ summary: { warningCount: 0 }, rowsBySlot });
 
         const sendActionRequest = vi.fn().mockImplementation((_method, action) => {
             if (action === 'breakpoints/transforms/persist-run-snapshot') {
@@ -1202,7 +1288,7 @@ describe('transforms runtime helper logic', () => {
         });
         window.Craft = { sendActionRequest };
 
-        const ok = await hooks.persistRunSnapshot(finalized, rowsByBreakpoint);
+        const ok = await hooks.persistRunSnapshot(finalized, rowsBySlot);
 
         expect(ok).toBe(true);
         const persistCall = sendActionRequest.mock.calls.find(
@@ -1210,14 +1296,15 @@ describe('transforms runtime helper logic', () => {
         );
         expect(persistCall).toBeTruthy();
         const payload = persistCall[2].data;
-        expect(payload.rowsByBreakpoint[480]).toHaveLength(2);
-        expect(payload.rowsByBreakpoint[768]).toHaveLength(1);
-        expect(payload.rowsByBreakpoint[480][0].transform).toBe('hero');
-        expect(payload.rowsByBreakpoint[480][0].src).toBe('https://example.test/hero-480.jpg');
+        expect(payload.rowsBySlot.xs).toHaveLength(2);
+        expect(payload.rowsBySlot.sm).toHaveLength(1);
+        expect(payload.rowsBySlot.xs[0].transform).toBe('hero');
+        expect(payload.rowsBySlot.xs[0].src).toBe('https://example.test/hero-480.jpg');
     });
 
     it('short-circuits processing with status when no configured breakpoints exist', async () => {
         window.bpiProcessingConfig.breakpointValues = [];
+        window.bpiProcessingConfig.breakpointSlots = [];
 
         await hooks.runProcessing();
 
@@ -1225,6 +1312,10 @@ describe('transforms runtime helper logic', () => {
             .toContain('No configured breakpoints available. Check plugin settings.');
 
         window.bpiProcessingConfig.breakpointValues = [480, 768];
+        window.bpiProcessingConfig.breakpointSlots = [
+            { key: 'xs', index: 0, mediaWidth: 480, measureWidth: 480, isBase: true, isFinal: false },
+            { key: 'sm', index: 1, mediaWidth: 768, measureWidth: 768, isBase: false, isFinal: true },
+        ];
     });
 
     it('completes runProcessing success flow with expected report and completion status', async () => {
