@@ -359,6 +359,24 @@ class TransformEditor extends Component
         );
     }
 
+    public function applySetNotesOperation(
+        string $transformName,
+        mixed $value,
+        ?bool $includeEscapeWidth = null,
+        ?string $expectedVersion = null,
+    ): array {
+        if ($this->_operationsService === null) {
+            return ['persisted' => false, 'validation' => $this->defaultValidation()];
+        }
+
+        return $this->_operationsService->applySetNotesOperation(
+            $transformName,
+            $value,
+            $includeEscapeWidth,
+            $expectedVersion,
+        );
+    }
+
     public function applyRenderedValuesOperation(
         string $transformName,
         ?string $assetKey = null,

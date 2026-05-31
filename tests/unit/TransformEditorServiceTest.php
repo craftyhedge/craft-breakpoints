@@ -1209,6 +1209,65 @@ final class TransformEditorServiceTest extends Unit
         });
     }
 
+    public function testApplySetNotesOperationPersistsNotesAndPreservesSetDefinition(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'sm' => ['width' => 640, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => ['allowAnyHeight' => true],
+            ],
+        ], function () use ($editor): void {
+            $result = $editor->applySetNotesOperation(
+                'hero',
+                "  Campaign hero\r\nCheck crop after launch.  ",
+                false,
+            );
+
+            $this->assertTrue(($result['persisted'] ?? false) === true);
+            $this->assertTrue(($result['validation']['hasErrors'] ?? true) === false);
+
+            $sets = Plugin::getInstance()->getTransformStore()->getSets();
+            $this->assertSame("Campaign hero\nCheck crop after launch.", $sets['hero']['notes'] ?? null);
+            $this->assertTrue((($sets['hero']['config']['allowAnyHeight'] ?? false) === true));
+            $this->assertSame(640, $sets['hero']['variants']['sm']['width'] ?? null);
+        });
+    }
+
+    public function testApplySetNotesOperationRejectsLongNotes(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'notes' => 'Original',
+                'variants' => [
+                    'sm' => ['width' => 640, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => [],
+            ],
+        ], function () use ($editor): void {
+            $result = $editor->applySetNotesOperation(
+                'hero',
+                str_repeat('x', 4001),
+                false,
+            );
+
+            $this->assertFalse(($result['persisted'] ?? true) === true);
+            $this->assertTrue(($result['validation']['hasErrors'] ?? false) === true);
+
+            $sets = Plugin::getInstance()->getTransformStore()->getSets();
+            $this->assertSame('Original', $sets['hero']['notes'] ?? null);
+        });
+    }
+
     public function testBuildLatestRunHealthByTransformSuppressesHeightMismatchWhenRenderedHeightLteSaved(): void
     {
         $editor = Plugin::getInstance()->getTransformEditor();
@@ -1309,7 +1368,7 @@ final class TransformEditorServiceTest extends Unit
                 'name' => 'hero',
                 'includeEscapeWidth' => false,
                 'variants' => [
-                    'sm' => ['width' => 600, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
+                    'xs' => ['width' => 600, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
                 ],
                 'config' => ['passHeightWhenRenderedLteSaved' => true],
             ],
@@ -1477,6 +1536,51 @@ final class TransformEditorServiceTest extends Unit
         $this->assertStringContainsString('&quot;activeTab&quot;:&quot;settings&quot;', (string)($result['visualResultsHtml'] ?? ''));
         $this->assertStringContainsString('data-attr:data-active-tab=', (string)($result['visualResultsHtml'] ?? ''));
         $this->assertStringContainsString('bpts-edit-panel-hero-tab-settings" type="button" role="tab" class="bpts-transform-tab active"', (string)($result['visualResultsHtml'] ?? ''));
+    }
+
+    public function testRenderResultReviewAcceptsNotesTabAndEscapesNotes(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $result = $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'notes' => 'Needs <crop> review',
+                'variants' => [
+                    'sm' => ['width' => 640, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => [],
+            ],
+        ], fn() => $editor->renderResultReview(
+            [
+                'breakpoints' => [640],
+                'rowsByBreakpoint' => [
+                    640 => [[
+                        'assetId' => '100',
+                        'transform' => 'hero',
+                        'enabled' => true,
+                        'isVisible' => true,
+                        'loaded' => true,
+                        'rendered' => ['width' => 640, 'height' => 340],
+                        'transformDimensions' => ['width' => 640, 'height' => 340, 'autoDimension' => null],
+                    ]],
+                ],
+            ],
+            ['hero' => ['mode' => 'breakpoint', 'breakpoint' => 640]],
+            ['hero' => 'notes'],
+        ));
+
+        $html = (string)($result['visualResultsHtml'] ?? '');
+        $this->assertStringContainsString('&quot;activeTab&quot;:&quot;notes&quot;', $html);
+        $this->assertStringContainsString('bpts-edit-panel-hero-tab-notes" type="button" role="tab" class="bpts-transform-tab active"', $html);
+        $this->assertStringContainsString('operation: \'set.notes.update\'', $html);
+        $this->assertStringContainsString('Needs &lt;crop&gt; review', $html);
+        $this->assertStringContainsString('bpts-transform-note-toggle', $html);
+        $this->assertStringContainsString('bpts-transform-note-toggle-svg', $html);
+        $this->assertStringContainsString('bpts-transform-tab-note-svg', $html);
+        $this->assertStringContainsString("activeTab = 'notes'", $html);
+        $this->assertStringContainsString('notesVisible', $html);
     }
 
     public function testRenderInitialStoredReviewRendersRatioOverlayAndMarksDerivedCurrentDimension(): void

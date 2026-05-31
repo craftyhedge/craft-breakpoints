@@ -77,6 +77,28 @@ final class CardStateBuilderTest extends Unit
         $this->assertSame('dimensions', $state['tab']);
     }
 
+    public function testBuildAllowsNotesTabWhenSingleBreakpointIsSelected(): void
+    {
+        $builder = new CardStateBuilder();
+
+        $state = $builder->build(
+            [
+                640 => [
+                    'width' => 320,
+                    'height' => 180,
+                    'autoDimension' => null,
+                    'enabled' => true,
+                ],
+            ],
+            [640],
+            ['mode' => 'breakpoint', 'breakpoint' => 640],
+            'notes',
+        );
+
+        $this->assertSame(['mode' => 'breakpoint', 'breakpoint' => 640], $state['scope']);
+        $this->assertSame('notes', $state['tab']);
+    }
+
     public function testBuildReturnsSharedLockedRatioInAllScopeMode(): void
     {
         $builder = new CardStateBuilder();

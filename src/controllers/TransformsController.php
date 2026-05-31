@@ -180,6 +180,12 @@ class TransformsController extends Controller
                 $operation->includeEscapeWidth,
                 $operation->baseVersion,
             ),
+            'set.notes.update'                           => $editor->applySetNotesOperation(
+                $operation->setName,
+                $operation->notes,
+                $operation->includeEscapeWidth,
+                $operation->baseVersion,
+            ),
             default                                      => $editor->applySetDimensionOperation(
                 $operation->setName,
                 $operation->scopeMode,
@@ -488,10 +494,9 @@ class TransformsController extends Controller
                     ? $requestedReviewMode
                     : ($hideRenderedApply ? 'saved' : 'processed');
                 $deltas = $editor->buildSignalDeltasForTransform($operation->setName, $selectedAssetKey, $hideRenderedApply, $reviewMode);
+                $cardSignalPatch = [];
                 if (!empty($deltas['rowsByBreakpoint'])) {
-                    $cardSignalPatch = [
-                        'rowsByBreakpoint' => $deltas['rowsByBreakpoint'],
-                    ];
+                    $cardSignalPatch['rowsByBreakpoint'] = $deltas['rowsByBreakpoint'];
                     if ($this->operationMayChangeAllScopeAutoSignals($operation)) {
                         $autoSignals = $this->buildAllScopeAutoSignalsFromRows($deltas['rowsByBreakpoint']);
                         $cardSignalPatch = array_merge($cardSignalPatch, $autoSignals);
@@ -529,7 +534,13 @@ class TransformsController extends Controller
                             'ratioSourceDimension' => $scopeValues['ratioSourceDimension'] ?? 'width',
                         ]);
                     }
+                }
 
+                if ($operation->operation === 'set.notes.update') {
+                    $cardSignalPatch['notesInput'] = (string)($operationResult['notes'] ?? $operation->notes);
+                }
+
+                if ($cardSignalPatch !== []) {
                     $events[] = new PatchSignals([
                         'editor' => [
                             'cards' => [
@@ -815,6 +826,7 @@ class TransformsController extends Controller
 
         $tab = match ($field) {
             'ratio' => 'ratio',
+            'notes' => 'notes',
             'passHeightWhenRenderedLteSaved', 'allowAnyHeight' => 'settings',
             default => 'dimensions',
         };
@@ -854,7 +866,7 @@ class TransformsController extends Controller
         }
 
         $normalizedTab = strtolower($requestedTab);
-        if (!in_array($normalizedTab, ['dimensions', 'ratio', 'settings'], true)) {
+        if (!in_array($normalizedTab, ['dimensions', 'ratio', 'settings', 'notes'], true)) {
             return [];
         }
 
@@ -867,7 +879,7 @@ class TransformsController extends Controller
     private function normalizeCardActiveTab(?string $requestedTab, string $scopeMode, array $scopeValues): string
     {
         $tab = is_string($requestedTab) ? strtolower(trim($requestedTab)) : '';
-        $tab = in_array($tab, ['dimensions', 'ratio', 'settings'], true) ? $tab : 'dimensions';
+        $tab = in_array($tab, ['dimensions', 'ratio', 'settings', 'notes'], true) ? $tab : 'dimensions';
 
         if ($scopeMode !== 'all' && $tab === 'settings') {
             return 'dimensions';
@@ -1101,6 +1113,7 @@ class TransformsController extends Controller
                 'breakpointEnabled' => 'Breakpoint state updated.',
                 'passHeightWhenRenderedLteSaved' => 'Allow shorter heights setting updated.',
                 'allowAnyHeight' => 'Allow any height setting updated.',
+                'notes' => 'Notes updated.',
                 default => ucfirst($field) . ' updated.',
             };
         }
@@ -1113,6 +1126,7 @@ class TransformsController extends Controller
             'breakpointEnabled' => 'Breakpoint state update failed.',
             'passHeightWhenRenderedLteSaved' => 'Allow shorter heights setting update failed.',
             'allowAnyHeight' => 'Allow any height setting update failed.',
+            'notes' => 'Notes update failed.',
             default => ucfirst($field) . ' update failed.',
         };
     }

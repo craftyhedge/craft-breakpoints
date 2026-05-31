@@ -19,6 +19,8 @@ use craftyhedge\craftbreakpoints\services\TransformStore;
  */
 final class OperationsService
 {
+    private const NOTES_MAX_LENGTH = 4000;
+
     private BreakpointCatalog $breakpointCatalog;
 
     public function __construct(
@@ -1050,6 +1052,61 @@ final class OperationsService
     /**
      * @return array<string, mixed>
      */
+    public function applySetNotesOperation(
+        string $transformName,
+        mixed $value,
+        ?bool $includeEscapeWidth = null,
+        ?string $expectedVersion = null,
+    ): array {
+        $validation = Support::defaultValidation();
+
+        if ($transformName === '') {
+            Support::addGlobalError($validation, 'setName is required.');
+
+            return [
+                'persisted' => false,
+                'validation' => $validation,
+            ];
+        }
+
+        $notes = $this->normalizeNotes((string)$value);
+        if (strlen($notes) > self::NOTES_MAX_LENGTH) {
+            Support::addGlobalError($validation, sprintf('Notes must be %d characters or fewer.', self::NOTES_MAX_LENGTH));
+
+            return [
+                'persisted' => false,
+                'validation' => $validation,
+            ];
+        }
+
+        ['sets' => $sets, 'set' => $setDefinition, 'includeEscapeWidth' => $resolvedIncludeEscapeWidth] =
+            $this->loadOrInitSet($transformName, $includeEscapeWidth);
+
+        $definitions = $this->breakpointCatalog->getDefinitionsForIncludeEscapeWidth($resolvedIncludeEscapeWidth);
+        $variants = $setDefinition['variants'] ?? [];
+
+        foreach ($definitions as $definition) {
+            $breakpointKey = $definition['key'];
+            if (!isset($variants[$breakpointKey])) {
+                $variants[$breakpointKey] = self::getOrInitVariant($variants, $breakpointKey);
+            }
+        }
+
+        $setDefinition['variants'] = $variants;
+        $setDefinition['notes'] = $notes;
+        $setDefinition['name'] = (string)($setDefinition['name'] ?? $transformName);
+
+        $sets[$transformName] = $setDefinition;
+
+        $result = $this->persistOperationSets($sets, $validation, $expectedVersion);
+        $result['notes'] = $notes;
+
+        return $result;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     private function applyConfigFlagOperation(
         string $transformName,
         string $flag,
@@ -1095,6 +1152,11 @@ final class OperationsService
         $sets[$transformName] = $setDefinition;
 
         return $this->persistOperationSets($sets, $validation, $expectedVersion);
+    }
+
+    private function normalizeNotes(string $value): string
+    {
+        return trim(str_replace(["\r\n", "\r"], "\n", $value));
     }
 
     /**

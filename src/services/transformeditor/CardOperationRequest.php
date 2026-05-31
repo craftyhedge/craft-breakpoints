@@ -25,6 +25,7 @@ final class CardOperationRequest
     private const FIELD_ALLOW_ANY_HEIGHT = 'allowAnyHeight';
     private const FIELD_RENDERED_VALUES = 'renderedValues';
     private const FIELD_DELETE_SET = 'deleteSet';
+    private const FIELD_NOTES = 'notes';
     private const FIELD_SCOPE = 'scope';
 
     private const OPERATION_DIMENSION_WIDTH = 'dimension.width';
@@ -39,6 +40,7 @@ final class CardOperationRequest
     private const OPERATION_SETTINGS_SET_ALLOW_ANY_HEIGHT = 'settings.setAllowAnyHeight';
     private const OPERATION_RENDERED_VALUES_APPLY = 'renderedValues.apply';
     private const OPERATION_SET_DELETE = 'set.delete';
+    private const OPERATION_SET_NOTES_UPDATE = 'set.notes.update';
     private const OPERATION_SCOPE_SELECT_BREAKPOINT = 'scope.selectBreakpoint';
     private const OPERATION_SCOPE_SELECT_ALL = 'scope.selectAll';
 
@@ -58,6 +60,7 @@ final class CardOperationRequest
         self::OPERATION_SETTINGS_SET_ALLOW_ANY_HEIGHT => self::FIELD_ALLOW_ANY_HEIGHT,
         self::OPERATION_RENDERED_VALUES_APPLY => self::FIELD_RENDERED_VALUES,
         self::OPERATION_SET_DELETE => self::FIELD_DELETE_SET,
+        self::OPERATION_SET_NOTES_UPDATE => self::FIELD_NOTES,
         self::OPERATION_SCOPE_SELECT_BREAKPOINT => self::FIELD_SCOPE,
         self::OPERATION_SCOPE_SELECT_ALL => self::FIELD_SCOPE,
     ];
@@ -84,6 +87,7 @@ final class CardOperationRequest
         public readonly ?int $ratioSourceBreakpoint,
         public readonly ?string $ratioSourceBreakpointKey,
         public readonly ?bool $enabled,
+        public readonly string $notes,
         public readonly ?string $selectedAssetKey,
         public readonly string $baseVersion,
         public readonly mixed $valueRaw,
@@ -125,6 +129,7 @@ final class CardOperationRequest
             ratioSourceBreakpoint: Support::parseNullablePositiveInt($request->getBodyParam('ratioSourceBreakpoint')),
             ratioSourceBreakpointKey: Support::parseNullableNonEmptyString($request->getBodyParam('ratioSourceBreakpointKey')),
             enabled: Support::parseNullableBool($request->getBodyParam('enabled')),
+            notes: (string)$request->getBodyParam('notes', ''),
             selectedAssetKey: $selectedAssetKey,
             baseVersion: $resolvedBaseVersion,
             valueRaw: $request->getBodyParam('value'),

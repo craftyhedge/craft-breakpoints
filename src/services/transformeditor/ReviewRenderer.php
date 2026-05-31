@@ -626,6 +626,7 @@ final class ReviewRenderer
             $firstBreakpoint = $cardState['firstBreakpoint'];
             $passHeightWhenRenderedLteSaved = $this->isPassHeightWhenRenderedLteSavedEnabled($storedTransformConfig);
             $allowAnyHeight = $this->isAllowAnyHeightEnabled($storedTransformConfig);
+            $notes = $this->normalizeSetNotes($storedTransformConfig['notes'] ?? '');
 
             $selectedBreakpoint = $scope['mode'] === 'breakpoint' ? $scope['breakpoint'] : null;
             $signalKey = $this->getReviewTransformSignalKey($transformName);
@@ -687,6 +688,8 @@ final class ReviewRenderer
                             'initSeedAppliedAny' => ($cardState['initSeedAppliedAny'] ?? false) === true,
                             'passHeightWhenRenderedLteSaved' => $passHeightWhenRenderedLteSaved,
                             'allowAnyHeight' => $allowAnyHeight,
+                            'notesInput' => $notes,
+                            'notesVisible' => false,
                             'includeEscapeWidth' => $includeEscapeWidth ? '1' : '0',
                             'hideRenderedApply' => $hideRenderedApply ? '1' : '0',
                             'reviewMode' => $reviewMode,
@@ -798,6 +801,7 @@ final class ReviewRenderer
             $activeDimensions = $tab === 'dimensions';
             $activeRatio = $tab === 'ratio';
             $activeSettings = $tab === 'settings';
+            $activeNotes = $tab === 'notes';
             $scopeLabel = $scope['mode'] === 'all'
                 ? 'All'
                 : ($scope['mode'] === 'breakpoint' && $scopeBreakpointKey !== '' ? $scopeBreakpointKey : 'Select scope');
@@ -938,12 +942,17 @@ final class ReviewRenderer
                 'settingsTabActiveClass' => $activeSettings ? 'active' : '',
                 'settingsTabSelected' => $activeSettings ? 'true' : 'false',
                 'settingsTabTabindex' => $activeSettings ? '0' : '-1',
+                'notesTabActiveClass' => $activeNotes ? 'active' : '',
+                'notesTabSelected' => $activeNotes ? 'true' : 'false',
+                'notesTabTabindex' => $activeNotes ? '0' : '-1',
                 'dimensionsPanelActiveClass' => $activeDimensions ? 'active' : '',
                 'dimensionsPanelHiddenAttr' => $activeDimensions ? '' : 'hidden',
                 'ratioPanelActiveClass' => $activeRatio ? 'active' : '',
                 'ratioPanelHiddenAttr' => $activeRatio ? '' : 'hidden',
                 'settingsPanelActiveClass' => $activeSettings ? 'active' : '',
                 'settingsPanelHiddenAttr' => $activeSettings ? '' : 'hidden',
+                'notesPanelActiveClass' => $activeNotes ? 'active' : '',
+                'notesPanelHiddenAttr' => $activeNotes ? '' : 'hidden',
                 'widthInputId' => $this->escapeReviewHtml($editPanelId . '-width'),
                 'heightInputId' => $this->escapeReviewHtml($editPanelId . '-height'),
                 'ratioWidthInputId' => $this->escapeReviewHtml($editPanelId . '-ratio-width'),
@@ -952,6 +961,8 @@ final class ReviewRenderer
                 'ratioSourceName' => $this->escapeReviewHtml($editPanelId . '-ratio-source'),
                 'passHeightToggleId' => $this->escapeReviewHtml($editPanelId . '-pass-height-toggle'),
                 'allowAnyHeightToggleId' => $this->escapeReviewHtml($editPanelId . '-allow-any-height-toggle'),
+                'notesInputId' => $this->escapeReviewHtml($editPanelId . '-notes'),
+                'notesInput' => $this->escapeReviewHtml($notes),
                 'passHeightIndicatorHiddenClass' => ($passHeightWhenRenderedLteSaved || $allowAnyHeight) ? '' : 'bpts-force-hidden',
                 'ratioSourceBreakpointOptions' => $ratioSourceBreakpointOptions,
                 'lastProcessPanelHtml' => $lastProcessPanelHtml,
@@ -1833,6 +1844,15 @@ final class ReviewRenderer
         return $this->healthAnalyzer->isAllowAnyHeightEnabled($transformDefinition);
     }
 
+    private function normalizeSetNotes(mixed $value): string
+    {
+        if (!is_string($value)) {
+            return '';
+        }
+
+        return trim(str_replace(["\r\n", "\r"], "\n", $value));
+    }
+
     /**
      * @return array<string, array<int, int|null>>
      */
@@ -1955,7 +1975,7 @@ final class ReviewRenderer
     private function normalizeReviewTab(mixed $rawTab): string
     {
         $tab = is_string($rawTab) ? $rawTab : '';
-        return in_array($tab, ['dimensions', 'ratio', 'settings'], true) ? $tab : 'dimensions';
+        return in_array($tab, ['dimensions', 'ratio', 'settings', 'notes'], true) ? $tab : 'dimensions';
     }
 
     private function normalizeReviewMode(mixed $rawReviewMode): string

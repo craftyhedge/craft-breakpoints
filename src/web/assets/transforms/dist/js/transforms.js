@@ -1598,7 +1598,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             }
 
             const activeTab = String(card.getAttribute('data-active-tab') || '').trim().toLowerCase();
-            editTabBySet[transformName] = (activeTab === 'ratio' || activeTab === 'settings')
+            editTabBySet[transformName] = (activeTab === 'ratio' || activeTab === 'settings' || activeTab === 'notes')
                 ? activeTab
                 : 'dimensions';
 

@@ -83,7 +83,7 @@ final class CardStateBuilder
     private function normalizeTab(mixed $rawTab, array $scopeValues): string
     {
         $tab = is_string($rawTab) ? strtolower(trim($rawTab)) : '';
-        $normalizedTab = in_array($tab, ['dimensions', 'ratio', 'settings'], true) ? $tab : 'dimensions';
+        $normalizedTab = in_array($tab, ['dimensions', 'ratio', 'settings', 'notes'], true) ? $tab : 'dimensions';
 
         $ratioBlockedByAuto = ($scopeValues['widthAuto'] ?? '0') === '1'
             || ($scopeValues['heightAuto'] ?? '0') === '1';

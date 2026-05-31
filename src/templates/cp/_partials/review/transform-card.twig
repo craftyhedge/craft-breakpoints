@@ -19,9 +19,10 @@
       - dimensionsPanelActiveClass, dimensionsPanelHiddenAttr
       - ratioPanelActiveClass, ratioPanelHiddenAttr
       - settingsPanelActiveClass, settingsPanelHiddenAttr
+      - notesPanelActiveClass, notesPanelHiddenAttr
       - widthInputId, heightInputId, ratioWidthInputId, ratioHeightInputId
     - ratioFloatInputId
-      - ratioSourceName, passHeightToggleId, allowAnyHeightToggleId
+      - ratioSourceName, passHeightToggleId, allowAnyHeightToggleId, notesInputId
       - ratioSourceBreakpointOptions, lastProcessPanelHtml
 #}
 {% autoescape false %}
@@ -50,6 +51,17 @@
         <header class="bpts-transform-card-header">
             <div class="bpts-transform-title-wrap">
                 <h2 class="bpts-transform-name">{{ transformNameEscaped }}</h2>
+                <button type="button"
+                    class="bpts-transform-note-toggle {{ notesInput == '' ? 'bpts-force-hidden' : '' }}"
+                    title="Show notes"
+                    aria-label="Show notes"
+                    data-class:bpts-force-hidden="String($editor.cards.{{ signalKey }}.notesInput || '').trim() === ''"
+                    data-attr:aria-expanded="$editor.cards.{{ signalKey }}.notesVisible === true ? 'true' : 'false'"
+                    data-on:click="if(String($showCardSettings) === 'true' || String($showCardSettings) === '1'){ $editor.cards.{{ signalKey }}.activeTab = 'notes'; $editor.cards.{{ signalKey }}.notesVisible = false; setTimeout(() => document.getElementById('{{ notesInputId }}')?.focus(), 0); } else { $editor.cards.{{ signalKey }}.notesVisible = $editor.cards.{{ signalKey }}.notesVisible === true ? false : true; }">
+                    <svg class="bpts-transform-note-toggle-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" focusable="false" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125"></path>
+                    </svg>
+                </button>
                 <span class="bpts-transform-pass-height-indicator {{ passHeightIndicatorHiddenClass }}"
                     role="img"
                     title="Height tolerance is enabled"
@@ -85,6 +97,10 @@
                     data-on:click__throttle.300ms="if(!window.confirm('Delete this transform set?')){ return; } const card=el.closest('.bpts-transform-card'); const setName=String($editor.cards.{{ signalKey }}.setName || card?.dataset?.set || ''); @post($_applyCardOperationUrl, {contentType: 'json', headers: {'X-CSRF-Token': $_csrfToken}, payload: {setName, operation: 'set.delete', baseVersion: String($editor.baseVersion || '')}})"><span class="icon" data-icon="trash" aria-hidden="true"></span></button>
             </div>
         </header>
+        <div class="bpts-transform-note-preview bpts-force-hidden"
+            data-class:bpts-force-hidden="String($editor.cards.{{ signalKey }}.notesInput || '').trim() === '' || $editor.cards.{{ signalKey }}.notesVisible !== true">
+            <div class="bpts-transform-note-preview-body" data-text="$editor.cards.{{ signalKey }}.notesInput || ''">{{ notesInput }}</div>
+        </div>
         <div class="bpts-breakpoint-grid">{{ breakpointColumns }}</div>
         <div class="bpts-breakpoint-grid-actions">
             <button type="button" class="bpts-rendered-apply-all {{ renderedApplyHiddenClass }}"
@@ -108,6 +124,7 @@
                         <button id="{{ editPanelId }}-tab-dimensions" type="button" role="tab" class="bpts-transform-tab {{ dimensionsTabActiveClass }}" data-tab="dimensions" aria-controls="{{ editPanelId }}-panel-dimensions" aria-selected="{{ dimensionsTabSelected }}" tabindex="{{ dimensionsTabTabindex }}" data-on:click="$editor.cards.{{ signalKey }}.activeTab = 'dimensions'" data-class:sel="$editor.cards.{{ signalKey }}.activeTab === 'dimensions'" data-class:active="$editor.cards.{{ signalKey }}.activeTab === 'dimensions'" data-attr:aria-selected="$editor.cards.{{ signalKey }}.activeTab === 'dimensions' ? 'true' : 'false'" data-attr:tabindex="$editor.cards.{{ signalKey }}.activeTab === 'dimensions' ? '0' : '-1'"><span class="tab-label">Dimensions</span></button>
                         <button id="{{ editPanelId }}-tab-ratio" type="button" role="tab" class="bpts-transform-tab {{ ratioTabActiveClass }}" data-tab="ratio" aria-controls="{{ editPanelId }}-panel-ratio" aria-selected="{{ ratioTabSelected }}" tabindex="{{ ratioTabTabindex }}" data-on:click="$editor.cards.{{ signalKey }}.activeTab = 'ratio'" data-class:sel="$editor.cards.{{ signalKey }}.activeTab === 'ratio'" data-class:active="$editor.cards.{{ signalKey }}.activeTab === 'ratio'" data-attr:aria-selected="$editor.cards.{{ signalKey }}.activeTab === 'ratio' ? 'true' : 'false'" data-attr:tabindex="$editor.cards.{{ signalKey }}.activeTab === 'ratio' ? '0' : '-1'" data-attr:disabled="{{ autoOn }} ? true : null"><span class="tab-label">Ratio</span></button>
                         <button id="{{ editPanelId }}-tab-settings" type="button" role="tab" class="bpts-transform-tab {{ settingsTabActiveClass }}" data-tab="settings" aria-controls="{{ editPanelId }}-panel-settings" aria-selected="{{ settingsTabSelected }}" tabindex="{{ settingsTabTabindex }}" data-on:click="$editor.cards.{{ signalKey }}.activeTab = 'settings'" data-class:sel="$editor.cards.{{ signalKey }}.activeTab === 'settings'" data-class:active="$editor.cards.{{ signalKey }}.activeTab === 'settings'" data-attr:aria-selected="$editor.cards.{{ signalKey }}.activeTab === 'settings' ? 'true' : 'false'" data-attr:tabindex="$editor.cards.{{ signalKey }}.activeTab === 'settings' ? '0' : '-1'" data-attr:hidden="$editor.cards.{{ signalKey }}.scopeMode === 'all' ? null : true"><span class="tab-label">Set options</span></button>
+                        <button id="{{ editPanelId }}-tab-notes" type="button" role="tab" class="bpts-transform-tab {{ notesTabActiveClass }}" data-tab="notes" aria-controls="{{ editPanelId }}-panel-notes" aria-selected="{{ notesTabSelected }}" tabindex="{{ notesTabTabindex }}" data-on:click="$editor.cards.{{ signalKey }}.activeTab = 'notes'" data-class:sel="$editor.cards.{{ signalKey }}.activeTab === 'notes'" data-class:active="$editor.cards.{{ signalKey }}.activeTab === 'notes'" data-attr:aria-selected="$editor.cards.{{ signalKey }}.activeTab === 'notes' ? 'true' : 'false'" data-attr:tabindex="$editor.cards.{{ signalKey }}.activeTab === 'notes' ? '0' : '-1'"><span class="tab-label">Notes <svg class="bpts-transform-tab-note-svg {{ notesInput == '' ? 'bpts-force-hidden' : '' }}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" focusable="false" aria-hidden="true" data-class:bpts-force-hidden="String($editor.cards.{{ signalKey }}.notesInput || '').trim() === ''"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125"></path></svg></span></button>
                     </div>
                 </div>
                 <span class="bpts-transform-edit-scope"><strong data-role="edit-scope-value" data-text="$editor.cards.{{ signalKey }}.scopeMode === 'all' ? 'All' : ($editor.cards.{{ signalKey }}.scopeMode === 'breakpoint' ? String($editor.cards.{{ signalKey }}.scopeBreakpointKey || '') : 'Select a breakpoint to edit')">Select a breakpoint to edit</strong><span class="bpts-transform-ratio-scope-indicator" data-class:active="String($editor.cards.{{ signalKey }}.scopeMode||'')==='breakpoint' && Number($editor.cards.{{ signalKey }}.widthAuto||0)!==1 && Number($editor.cards.{{ signalKey }}.heightAuto||0)!==1 && Number($editor.cards.{{ signalKey }}.ratioLocked||0)===1 && Number($editor.cards.{{ signalKey }}.ratioWidthInput||0)>0 && Number($editor.cards.{{ signalKey }}.ratioHeightInput||0)>0">Ratio</span></span>
@@ -244,6 +261,18 @@
                                     <span>Allow Any Height</span>
                                 </label>
                                 <p class="bpts-transform-settings-help">When enabled, height is never flagged as a mismatch regardless of the rendered value.</p>
+                            </section>
+                            </section>
+
+                            <section id="{{ editPanelId }}-panel-notes" role="tabpanel" aria-labelledby="{{ editPanelId }}-tab-notes" class="bpts-transform-tab-panel {{ notesPanelActiveClass }}" data-tab-panel="notes" {{ notesPanelHiddenAttr }} data-class:active="$editor.cards.{{ signalKey }}.activeTab === 'notes'" data-attr:hidden="$editor.cards.{{ signalKey }}.activeTab === 'notes' ? false : true">
+                            <section class="bpts-transform-notes-section" aria-label="Notes controls">
+                                <label class="bpts-transform-edit-label" for="{{ notesInputId }}">Notes</label>
+                                <textarea id="{{ notesInputId }}" class="text bpts-transform-notes-input" rows="4" maxlength="4000" data-bind="{{ signalPathBase }}.notesInput">{{ notesInput }}</textarea>
+                                <div class="bpts-transform-notes-actions">
+                                    <button type="button" class="btn small bpts-transform-notes-save"
+                                        data-bpts-action="notes"
+                                        data-on:click__throttle.300ms="@post($_applyCardOperationUrl, {contentType: 'json', headers: {'X-CSRF-Token': $_csrfToken}, payload: {setName: String($editor.cards.{{ signalKey }}.setName || ''), operation: 'set.notes.update', notes: String($editor.cards.{{ signalKey }}.notesInput || ''), {{ cardModePayload }} baseVersion: String($editor.baseVersion || '')}})">Save notes</button>
+                                </div>
                             </section>
                             </section>
                             </div>

@@ -1085,17 +1085,20 @@ describe('transforms runtime helper logic', () => {
         visualResults.innerHTML = `
             <article class="bpts-transform-card" data-set="hero" data-scope-mode="all" data-active-tab="settings" data-selected-asset-key="asset-hero"></article>
             <article class="bpts-transform-card" data-set="card" data-scope-mode="breakpoint" data-scope-breakpoint="768" data-active-tab="ratio" data-selected-asset-key="asset-card"></article>
+            <article class="bpts-transform-card" data-set="gallery" data-scope-mode="breakpoint" data-scope-breakpoint="1024" data-active-tab="notes"></article>
             <article class="bpts-transform-card" data-set="teaser" data-scope-mode="invalid" data-active-tab="invalid"></article>
         `;
 
         const state = hooks.collectReviewEditStateFromDom();
 
-        expect(state.preferredOrderBySet).toEqual(['hero', 'card', 'teaser']);
+        expect(state.preferredOrderBySet).toEqual(['hero', 'card', 'gallery', 'teaser']);
         expect(state.editScopeBySet.hero).toEqual({ mode: 'all', breakpoint: null });
         expect(state.editScopeBySet.card).toEqual({ mode: 'breakpoint', breakpoint: 768 });
+        expect(state.editScopeBySet.gallery).toEqual({ mode: 'breakpoint', breakpoint: 1024 });
         expect(state.editScopeBySet.teaser).toEqual({ mode: 'all', breakpoint: null });
         expect(state.editTabBySet.hero).toBe('settings');
         expect(state.editTabBySet.card).toBe('ratio');
+        expect(state.editTabBySet.gallery).toBe('notes');
         expect(state.editTabBySet.teaser).toBe('dimensions');
         expect(state.selectedAssetKeyBySet.hero).toBe('asset-hero');
         expect(state.selectedAssetKeyBySet.card).toBe('asset-card');

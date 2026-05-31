@@ -90,6 +90,22 @@ final class CardOperationRequestTest extends Unit
         $this->assertSame('asset:hero:100', $operation->selectedAssetKey);
     }
 
+    public function testFromRequestAcceptsNotesOperation(): void
+    {
+        Craft::$app->getRequest()->setBodyParams([
+            'operation' => 'set.notes.update',
+            'setName' => 'hero',
+            'notes' => "  Line one\r\nLine two  ",
+        ]);
+
+        $operation = CardOperationRequest::fromRequest(Craft::$app->getRequest(), 'fallback-version');
+
+        $this->assertTrue($operation->hasValidOperation);
+        $this->assertSame('set.notes.update', $operation->operation);
+        $this->assertSame('notes', $operation->field);
+        $this->assertSame("  Line one\r\nLine two  ", $operation->notes);
+    }
+
     public function testFromRequestNormalizesEmptySelectedAssetKeyToNull(): void
     {
         Craft::$app->getRequest()->setBodyParams([

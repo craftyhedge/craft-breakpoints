@@ -369,6 +369,31 @@ final class TransformsControllerTest extends Unit
         $this->assertTrue($controller->postRequestChecked);
     }
 
+    public function testApplyCardOperationPersistsNotesAndPatchesCardSignal(): void
+    {
+        $setName = 'notes-controller-test';
+        $baseVersion = Plugin::getInstance()->getTransformStore()->getCurrentVersion();
+
+        $controller = $this->controllerWithBody([
+            'baseVersion' => $baseVersion,
+            'operation' => 'set.notes.update',
+            'setName' => $setName,
+            'notes' => "  Controller note\r\nSecond line  ",
+        ]);
+        $response = $controller->actionApplyCardOperation();
+
+        $this->assertSame(Response::FORMAT_RAW, $response->format);
+        $this->assertStringContainsString('datastar-patch-signals', (string)$response->content);
+        $this->assertStringContainsString('Notes updated.', (string)$response->content);
+        $this->assertStringContainsString('notesInput', (string)$response->content);
+
+        $sets = Plugin::getInstance()->getTransformStore()->getSets();
+        $this->assertSame("Controller note\nSecond line", $sets[$setName]['notes'] ?? null);
+        $this->assertArrayHasKey('base', $sets[$setName]['variants'] ?? []);
+        $this->assertTrue($controller->cpRequestChecked);
+        $this->assertTrue($controller->postRequestChecked);
+    }
+
     public function testApplyCardOperationRatioCopyRequiresRatioSourceBreakpoint(): void
     {
         $controller = $this->controllerWithBody([

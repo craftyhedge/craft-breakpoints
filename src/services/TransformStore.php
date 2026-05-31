@@ -288,10 +288,14 @@ class TransformStore extends Component
                 throw new InvalidArgumentException('Set config must be an array when provided.');
             }
 
+            $notes = $setDefinition['notes'] ?? '';
+            $notes = is_string($notes) ? $this->normalizeNotes($notes) : '';
+
             $lastUpdatedAt = $this->normalizeIsoDateTime($setDefinition['lastUpdatedAt'] ?? null);
 
             $normalized[$setName] = array_merge($setDefinition, [
                 'name' => (string)($setDefinition['name'] ?? $setName),
+                'notes' => $notes,
                 'variants' => $canonicalVariants,
                 'includeEscapeWidth' => ($setDefinition['includeEscapeWidth'] ?? false) === true,
                 'config' => $config,
@@ -300,6 +304,11 @@ class TransformStore extends Component
         }
 
         return $normalized;
+    }
+
+    private function normalizeNotes(string $value): string
+    {
+        return trim(str_replace(["\r\n", "\r"], "\n", $value));
     }
 
     private function stampProcessedTimestamps(array $sets, array $existingSets): array
@@ -414,6 +423,9 @@ class TransformStore extends Component
 
             $legacy[$setName] = [
                 'name' => (string)($setDefinition['name'] ?? $setName),
+                'notes' => is_string($setDefinition['notes'] ?? null)
+                    ? $this->normalizeNotes((string)$setDefinition['notes'])
+                    : '',
                 'includeEscapeWidth' => ($setDefinition['includeEscapeWidth'] ?? false) === true,
                 'transforms' => $entries,
                 'config' => isset($setDefinition['config']) && is_array($setDefinition['config'])

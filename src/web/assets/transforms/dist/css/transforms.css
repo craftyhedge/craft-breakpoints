@@ -730,6 +730,49 @@
     margin-bottom: 0px;
 }
 
+.bpts-transform-note-toggle {
+    appearance: none;
+    background: transparent;
+    border: 0;
+    color: var(--fg-subtle);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    padding: 0;
+    align-self: center;
+}
+
+.bpts-transform-note-toggle:hover,
+.bpts-transform-note-toggle[aria-expanded="true"] {
+    color: var(--text-color);
+}
+
+.bpts-transform-note-toggle-svg {
+    display: block;
+    width: 14px;
+    height: 14px;
+}
+
+.bpts-transform-note-preview {
+    margin: -6px 24px 16px;
+    max-width: 48rem;
+    border-left: 3px solid var(--bpts-color-accent-blue);
+    background: var(--bpts-color-accent-blue-bg);
+    color: var(--text-color);
+    padding: 10px 12px;
+}
+
+.bpts-transform-note-preview-body {
+    font-size: 12px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
 .bpts-transform-pass-height-indicator {
     display: inline-flex;
     align-items: flex-end;
@@ -1089,9 +1132,16 @@ input.bpts-init-value::placeholder {
     align-items: center;
     display: flex;
     flex-direction: row;
+    gap: 5px;
     height: 30px;
     padding: 0 10px;
     white-space: nowrap;
+}
+
+.bpts-transform-tab-note-svg {
+    display: block;
+    width: 12px;
+    height: 12px;
 }
 
 .bpts-transform-tab:hover {
@@ -1180,6 +1230,24 @@ input.bpts-init-value::placeholder {
     font-size: 11px;
     line-height: 1.4;
     max-width: 22rem;
+}
+
+.bpts-transform-notes-section {
+    display: grid;
+    gap: 8px;
+    max-width: 34rem;
+}
+
+.bpts-transform-notes-input {
+    box-sizing: border-box;
+    min-height: 92px;
+    resize: vertical;
+    width: 100%;
+}
+
+.bpts-transform-notes-actions {
+    display: flex;
+    justify-content: flex-start;
 }
 
 .bpts-transform-dimensions-row,

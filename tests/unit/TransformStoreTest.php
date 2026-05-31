@@ -10,6 +10,32 @@ use craftyhedge\craftbreakpoints\Plugin;
 
 final class TransformStoreTest extends Unit
 {
+    public function testReplaceSetsForRuntimeNormalizesNotes(): void
+    {
+        $store = Plugin::getInstance()->getTransformStore();
+        $previousSets = $store->getSets();
+
+        try {
+            $store->replaceSetsForRuntime([
+                'notes-transform' => [
+                    'name' => 'notes-transform',
+                    'includeEscapeWidth' => false,
+                    'notes' => "  First line\r\nSecond line  ",
+                    'variants' => [
+                        'xs' => ['width' => 640, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
+                    ],
+                    'config' => [],
+                ],
+            ]);
+
+            $normalized = $store->getSet('notes-transform');
+            $this->assertNotNull($normalized);
+            $this->assertSame("First line\nSecond line", $normalized['notes'] ?? null);
+        } finally {
+            $store->replaceSetsForRuntime($previousSets);
+        }
+    }
+
     public function testReplaceTransformsForRuntimeNormalizesMissingTransformsToEmptyEntries(): void
     {
         $store = Plugin::getInstance()->getTransformStore();
