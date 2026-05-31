@@ -547,7 +547,6 @@
 
 .bpts-transform-card-header {
     display: flex;
-    justify-content: space-between;
     align-items: center;
     margin-bottom: 16px;
     padding: 24px 24px 0px;
@@ -559,13 +558,14 @@
     gap: 8px;
     min-width: 0;
     position: relative;
-    padding-right: 112px;
+    flex: 0 1 auto;
 }
 
 .bpts-transform-header-actions {
     display: flex;
     align-items: center;
     gap: 8px;
+    margin-left: auto;
     min-width: 0;
 }
 
@@ -739,9 +739,6 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 22px;
-    height: 22px;
-    min-width: 22px;
     padding: 0;
     align-self: center;
 }
@@ -753,24 +750,28 @@
 
 .bpts-transform-note-toggle-svg {
     display: block;
-    width: 14px;
-    height: 14px;
+    width: 12px;
+    height: 12px;
 }
 
 .bpts-transform-note-preview {
-    margin: -6px 24px 16px;
-    max-width: 48rem;
-    border-left: 3px solid var(--bpts-color-accent-blue);
+    display: inline-flex;
+    align-items: flex-start;
+    gap: 4px;
     background: var(--bpts-color-accent-blue-bg);
     color: var(--text-color);
-    padding: 10px 12px;
+    padding: 2px 6px;
+    border-radius: 4px;
 }
 
 .bpts-transform-note-preview-body {
+    min-width: 0;
     font-size: 12px;
-    line-height: 1.45;
+    line-height: 1.35;
     white-space: pre-wrap;
     word-break: break-word;
+    max-height: 4.05em;
+    overflow: auto;
 }
 
 .bpts-transform-pass-height-indicator {
@@ -1140,8 +1141,8 @@ input.bpts-init-value::placeholder {
 
 .bpts-transform-tab-note-svg {
     display: block;
-    width: 12px;
-    height: 12px;
+    width: 10px;
+    margin-bottom: 2px;
 }
 
 .bpts-transform-tab:hover {
