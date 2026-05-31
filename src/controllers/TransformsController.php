@@ -504,6 +504,31 @@ class TransformsController extends Controller
                             ],
                         );
                     }
+                    if ($operation->operation === 'renderedValues.apply') {
+                        $requestedScope = $this->readRequestedCardScope($operation->setName);
+                        $scopeMode = $requestedScope['mode'] ?? $operation->scopeMode;
+                        $scopeBreakpoint = $requestedScope['breakpoint'] ?? $operation->scopeBreakpoint;
+                        $scopeValues = $scopeMode === 'breakpoint' && $scopeBreakpoint !== null
+                            ? $editor->buildScopeValuesForBreakpoint($operation->setName, $scopeBreakpoint, $operation->includeEscapeWidth)
+                            : $editor->buildScopeValuesForAll($operation->setName, $operation->includeEscapeWidth);
+
+                        $cardSignalPatch = array_merge($cardSignalPatch, [
+                            'activeTab' => $this->normalizeCardActiveTab(
+                                $this->readRequestedCardSignalString($operation->setName, 'activeTab'),
+                                $scopeMode,
+                                $scopeValues,
+                            ),
+                            'widthInput' => $scopeValues['widthInput'] ?? '',
+                            'heightInput' => $scopeValues['heightInput'] ?? '',
+                            'widthAuto' => $scopeValues['widthAuto'] ?? '0',
+                            'heightAuto' => $scopeValues['heightAuto'] ?? '0',
+                            'ratioLocked' => $scopeValues['ratioLocked'] ?? '0',
+                            'ratioWidthInput' => $scopeValues['ratioWidthInput'] ?? '',
+                            'ratioHeightInput' => $scopeValues['ratioHeightInput'] ?? '',
+                            'ratioFloatInput' => $scopeValues['ratioFloatInput'] ?? '',
+                            'ratioSourceDimension' => $scopeValues['ratioSourceDimension'] ?? 'width',
+                        ]);
+                    }
 
                     $events[] = new PatchSignals([
                         'editor' => [

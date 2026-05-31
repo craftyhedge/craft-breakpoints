@@ -134,11 +134,32 @@ final class CardStateBuilder
 
         $widthAuto = $autoDimension === 'width';
         $heightAuto = $autoDimension === 'height';
+        $enabled = ($entry['enabled'] ?? true) === true;
 
         $fallbackRatioWidth = $widthAuto || $widthValue === null ? '' : (string)$widthValue;
         $fallbackRatioHeight = $heightAuto || $heightValue === null ? '' : (string)$heightValue;
         $resolvedRatioWidth = $ratioLocked ? (string)$ratioWidthValue : $fallbackRatioWidth;
         $resolvedRatioHeight = $ratioLocked ? (string)$ratioHeightValue : $fallbackRatioHeight;
+
+        if (!$enabled) {
+            return [
+                'widthInput' => '',
+                'heightInput' => '',
+                'widthAuto' => '0',
+                'heightAuto' => '0',
+                'ratioLocked' => '0',
+                'ratioWidthInput' => '',
+                'ratioHeightInput' => '',
+                'ratioFloatInput' => '',
+                'ratioSourceDimension' => 'width',
+                'enabled' => false,
+                'autoDimension' => '',
+                'currentWidthDisplay' => '-',
+                'currentHeightDisplay' => '-',
+                'ratioOverlayText' => '',
+                'initSeedApplied' => ($entry['initSeedApplied'] ?? false) === true,
+            ];
+        }
 
         return [
             'widthInput' => $widthAuto || $widthValue === null ? '' : (string)$widthValue,
@@ -153,7 +174,7 @@ final class CardStateBuilder
                 Support::normalizeNullablePositiveInt($resolvedRatioHeight),
             ),
             'ratioSourceDimension' => $ratioLocked ? $ratioSourceDimension : 'width',
-            'enabled' => ($entry['enabled'] ?? true) === true,
+            'enabled' => true,
             'autoDimension' => $autoDimension ?? '',
             'currentWidthDisplay' => $widthAuto ? 'auto' : ($widthValue !== null ? (string)$widthValue : '-'),
             'currentHeightDisplay' => $heightAuto ? 'auto' : ($heightValue !== null ? (string)$heightValue : '-'),

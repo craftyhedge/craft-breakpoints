@@ -38,6 +38,7 @@ final class HealthAnalyzer
         $storedAutoDimensionsByTransform = $this->buildStoredAutoDimensionsByTransformAndSlot();
         $storedSavedWidthsByTransform = $this->buildStoredSavedWidthsByTransformAndSlot();
         $storedSavedHeightsByTransform = $this->buildStoredSavedHeightsByTransformAndSlot();
+        $storedEnabledByTransform = $this->buildStoredEnabledByTransformAndSlot();
         $storedTransforms = $this->snapshotReader->getStoredTransforms();
 
         $rowsPayload = isset($resolvedSnapshot['rowsPayload']) && is_array($resolvedSnapshot['rowsPayload'])
@@ -67,6 +68,7 @@ final class HealthAnalyzer
 
             $autoDimension = Support::normalizeAutoDimension($payloadRow['autoDimension'] ?? null)
                 ?? ($storedAutoDimensionsByTransform[$transformHandle][$slotKey] ?? null);
+            $enabled = ($storedEnabledByTransform[$transformHandle][$slotKey] ?? true) === true;
 
             $payloadByTransform[$transformHandle][$slotKey][] = [
                 'slotKey' => $slotKey,
@@ -77,6 +79,7 @@ final class HealthAnalyzer
                 'renderedWidth' => max(0, (int)($payloadRow['renderedWidth'] ?? 0)),
                 'renderedHeight' => max(0, (int)($payloadRow['renderedHeight'] ?? 0)),
                 'autoDimension' => $autoDimension,
+                'enabled' => $enabled,
             ];
         }
 
@@ -693,6 +696,16 @@ final class HealthAnalyzer
     }
 
     /**
+     * @return array<string, array<string, bool>>
+     */
+    public function buildStoredEnabledByTransformAndSlot(): array
+    {
+        return $this->buildStoredTransformMapBySlot(
+            static fn(array $entry): bool => ($entry['enabled'] ?? true) === true,
+        );
+    }
+
+    /**
      * @param callable(array<string, mixed>): mixed $extractValue
      * @return array<string, array<int, mixed>>
      */
@@ -914,19 +927,25 @@ final class HealthAnalyzer
             $savedWidth = $savedWidthsByBreakpoint[$slotKey] ?? null;
             $savedHeight = $savedHeightsByBreakpoint[$slotKey] ?? null;
             $autoDimension = null;
+            $enabledEntries = [];
             foreach ($breakpointEntries as $candidateEntry) {
                 if (!is_array($candidateEntry)) {
                     continue;
                 }
+                if (($candidateEntry['enabled'] ?? true) !== true) {
+                    continue;
+                }
+                $enabledEntries[] = $candidateEntry;
                 $entryAuto = Support::normalizeAutoDimension($candidateEntry['autoDimension'] ?? null);
                 if ($entryAuto !== null) {
                     $autoDimension = $entryAuto;
-                    break;
                 }
             }
+            $breakpointEnabled = $enabledEntries !== [];
 
-            $referenceEntry = $breakpointEntries[0];
-            foreach ($breakpointEntries as $candidateEntry) {
+            $comparisonEntries = $breakpointEnabled ? $enabledEntries : [];
+            $referenceEntry = $comparisonEntries[0] ?? $breakpointEntries[0];
+            foreach ($comparisonEntries as $candidateEntry) {
                 if (($candidateEntry['renderedWidth'] ?? 0) > 0 && ($candidateEntry['renderedHeight'] ?? 0) > 0) {
                     $referenceEntry = $candidateEntry;
                     break;
@@ -935,22 +954,32 @@ final class HealthAnalyzer
 
             $expectedAssetWidth = max(0, (int)($referenceEntry['renderedWidth'] ?? 0));
             $expectedAssetHeight = max(0, (int)($referenceEntry['renderedHeight'] ?? 0));
-            $comparison = $this->resolveLatestRunDimensionComparison($breakpointEntries);
+            $comparison = $this->resolveLatestRunDimensionComparison($comparisonEntries);
             $compareWidth = $comparison['compareWidth'];
             $compareHeight = $comparison['compareHeight'];
             $assetMismatchDetails = [];
 
-            $representativeEvaluation = $this->evaluateBreakpointMatch(
-                $expectedAssetWidth,
-                $expectedAssetHeight,
-                $savedWidth,
-                $savedHeight,
-                $autoDimension,
-                $passHeightWhenRenderedLteSaved,
-                $allowAnyHeight,
-            );
+            $representativeEvaluation = $breakpointEnabled
+                ? $this->evaluateBreakpointMatch(
+                    $expectedAssetWidth,
+                    $expectedAssetHeight,
+                    $savedWidth,
+                    $savedHeight,
+                    $autoDimension,
+                    $passHeightWhenRenderedLteSaved,
+                    $allowAnyHeight,
+                )
+                : [
+                    'widthStatus' => 'disabled',
+                    'heightStatus' => 'disabled',
+                    'isBreakpointMismatch' => false,
+                ];
 
             foreach ($breakpointEntries as $entryIndex => $entry) {
+                if (($entry['enabled'] ?? true) !== true) {
+                    continue;
+                }
+
                 $assetLabel = trim((string)($entry['assetId'] ?? ''));
                 if ($assetLabel === '') {
                     $assetLabel = 'Asset ' . (string)($entryIndex + 1);
