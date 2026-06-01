@@ -12,6 +12,7 @@ use craftyhedge\craftbreakpoints\services\transformeditor\Support;
 use starfederation\datastar\events\PatchElements;
 use starfederation\datastar\events\PatchSignals;
 use starfederation\datastar\ServerSentEventGenerator;
+use Throwable;
 use yii\web\Response;
 use yii\web\ForbiddenHttpException;
 
@@ -137,16 +138,20 @@ class TransformsController extends Controller
         $this->requireCpRequest();
         $this->requirePostRequest();
 
-        $this->requireTransformEditPermission();
-
-        $editor = Plugin::getInstance()->getTransformEditor();
-
         $operation = CardOperationRequest::fromRequest(
             $this->request,
             Plugin::getInstance()->getTransformStore()->getCurrentVersion(),
         );
 
+        $this->requireTransformEditPermission($operation);
+
+        $editor = Plugin::getInstance()->getTransformEditor();
+
         if (!$operation->hasValidOperation) {
+            Plugin::warning('Transform card operation rejected: ' . $this->formatOperationLogContext($operation, [
+                'statusMessage' => 'operation is required and must be a supported command.',
+            ]));
+
             return $this->asDatastarEventStream([
                 new PatchElements($this->renderEditorStatusFragment('error', 'operation is required and must be a supported command.')),
             ]);
@@ -160,43 +165,52 @@ class TransformsController extends Controller
             return $this->handleRatioCopyFromRendered($operation, $editor);
         }
 
-        $operationResult = match ($operation->operation) {
-            'renderedValues.apply'                       => $this->dispatchRenderedValuesApply($operation, $editor),
-            'set.delete'                                 => $editor->deleteSetOperation($operation->setName, $operation->baseVersion),
-            'dimensions.apply'                           => $this->dispatchDimensionsApply($operation, $editor),
-            'dimensions.toggleAutoWidth'                 => $this->dispatchToggleAutoWidth($operation, $editor),
-            'dimensions.toggleAutoHeight'                => $this->dispatchToggleAutoHeight($operation, $editor),
-            'ratio.apply'                                => $this->dispatchRatioApply($operation, $editor),
-            'breakpoint.toggleEnabled'                   => $this->dispatchBreakpointToggle($operation, $editor),
-            'settings.setPassHeightWhenRenderedLteSaved' => $editor->applySetPassHeightWhenRenderedLteSavedOperation(
-                $operation->setName,
-                $operation->valueRaw,
-                $operation->includeEscapeWidth,
-                $operation->baseVersion,
-            ),
-            'settings.setAllowAnyHeight'                 => $editor->applySetAllowAnyHeightOperation(
-                $operation->setName,
-                $operation->valueRaw,
-                $operation->includeEscapeWidth,
-                $operation->baseVersion,
-            ),
-            'set.notes.update'                           => $editor->applySetNotesOperation(
-                $operation->setName,
-                $operation->notes,
-                $operation->includeEscapeWidth,
-                $operation->baseVersion,
-            ),
-            default                                      => $editor->applySetDimensionOperation(
-                $operation->setName,
-                $operation->scopeMode,
-                $operation->scopeBreakpoint,
-                $operation->value,
-                $operation->field,
-                $operation->includeEscapeWidth,
-                $operation->baseVersion,
-                $operation->scopeBreakpointKey,
-            ),
-        };
+        try {
+            $operationResult = match ($operation->operation) {
+                'renderedValues.apply'                       => $this->dispatchRenderedValuesApply($operation, $editor),
+                'set.delete'                                 => $editor->deleteSetOperation($operation->setName, $operation->baseVersion),
+                'dimensions.apply'                           => $this->dispatchDimensionsApply($operation, $editor),
+                'dimensions.toggleAutoWidth'                 => $this->dispatchToggleAutoWidth($operation, $editor),
+                'dimensions.toggleAutoHeight'                => $this->dispatchToggleAutoHeight($operation, $editor),
+                'ratio.apply'                                => $this->dispatchRatioApply($operation, $editor),
+                'breakpoint.toggleEnabled'                   => $this->dispatchBreakpointToggle($operation, $editor),
+                'settings.setPassHeightWhenRenderedLteSaved' => $editor->applySetPassHeightWhenRenderedLteSavedOperation(
+                    $operation->setName,
+                    $operation->valueRaw,
+                    $operation->includeEscapeWidth,
+                    $operation->baseVersion,
+                ),
+                'settings.setAllowAnyHeight'                 => $editor->applySetAllowAnyHeightOperation(
+                    $operation->setName,
+                    $operation->valueRaw,
+                    $operation->includeEscapeWidth,
+                    $operation->baseVersion,
+                ),
+                'set.notes.update'                           => $editor->applySetNotesOperation(
+                    $operation->setName,
+                    $operation->notes,
+                    $operation->includeEscapeWidth,
+                    $operation->baseVersion,
+                ),
+                default                                      => $editor->applySetDimensionOperation(
+                    $operation->setName,
+                    $operation->scopeMode,
+                    $operation->scopeBreakpoint,
+                    $operation->value,
+                    $operation->field,
+                    $operation->includeEscapeWidth,
+                    $operation->baseVersion,
+                    $operation->scopeBreakpointKey,
+                ),
+            };
+        } catch (Throwable $exception) {
+            Plugin::error('Transform card operation threw: ' . $this->formatOperationLogContext($operation, [
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+            ]));
+
+            throw $exception;
+        }
 
         return $this->buildOperationResponse($operation, $operationResult, $editor);
     }
@@ -204,12 +218,16 @@ class TransformsController extends Controller
     private function handleScopeSelect(CardOperationRequest $operation, TransformEditor $editor): Response
     {
         if ($operation->setName === '') {
+            $this->logCardOperationResponseFailure($operation, 'setName is required.');
+
             return $this->asDatastarEventStream([
                 new PatchElements($this->renderEditorStatusFragment('error', 'setName is required.')),
             ]);
         }
 
         if ($operation->operation === 'scope.selectBreakpoint' && $operation->scopeBreakpoint === null) {
+            $this->logCardOperationResponseFailure($operation, 'scopeBreakpoint is required when selecting a breakpoint.');
+
             return $this->asDatastarEventStream([
                 new PatchElements($this->renderEditorStatusFragment('error', 'scopeBreakpoint is required when selecting a breakpoint.')),
             ]);
@@ -220,6 +238,8 @@ class TransformsController extends Controller
         $scopeBreakpointKey = $scopeMode === 'breakpoint' ? ($operation->scopeBreakpointKey ?? '') : '';
         $signalKey = $this->buildCardSignalKey($operation->setName);
         if ($signalKey === '') {
+            $this->logCardOperationResponseFailure($operation, 'Unable to resolve card state key.');
+
             return $this->asDatastarEventStream([
                 new PatchElements($this->renderEditorStatusFragment('error', 'Unable to resolve card state key.')),
             ]);
@@ -265,6 +285,8 @@ class TransformsController extends Controller
     private function handleRatioCopyFromRendered(CardOperationRequest $operation, TransformEditor $editor): Response
     {
         if ($operation->setName === '') {
+            $this->logCardOperationResponseFailure($operation, 'setName is required.');
+
             return $this->asDatastarEventStream([
                 new PatchElements($this->renderEditorStatusFragment('error', 'setName is required.')),
             ]);
@@ -274,6 +296,8 @@ class TransformsController extends Controller
             ?? $operation->ratioSourceBreakpointKey;
         $sourceBreakpointKey = is_string($sourceBreakpointKey) ? trim($sourceBreakpointKey) : '';
         if ($sourceBreakpointKey === '') {
+            $this->logCardOperationResponseFailure($operation, 'ratioSourceBreakpointKey is required.');
+
             return $this->asDatastarEventStream([
                 new PatchElements($this->renderEditorStatusFragment('error', 'ratioSourceBreakpointKey is required.')),
             ]);
@@ -284,6 +308,10 @@ class TransformsController extends Controller
             $sourceBreakpointKey,
         );
         if ($copiedRatio === null) {
+            $this->logCardOperationResponseFailure($operation, 'No rendered ratio source found for selected breakpoint.', [
+                'ratioSourceBreakpointKey' => $sourceBreakpointKey,
+            ]);
+
             return $this->asDatastarEventStream([
                 new PatchElements($this->renderEditorStatusFragment('error', 'No rendered ratio source found for selected breakpoint.')),
             ]);
@@ -291,6 +319,8 @@ class TransformsController extends Controller
 
         $signalKey = $this->buildCardSignalKey($operation->setName);
         if ($signalKey === '') {
+            $this->logCardOperationResponseFailure($operation, 'Unable to resolve card state key.');
+
             return $this->asDatastarEventStream([
                 new PatchElements($this->renderEditorStatusFragment('error', 'Unable to resolve card state key.')),
             ]);
@@ -441,6 +471,16 @@ class TransformsController extends Controller
         $statusMessage = $this->buildOperationStatusMessage($operation->field, $persisted, $conflict, $operationResult);
         $statusKind = $conflict ? 'conflict' : ($persisted ? 'success' : 'error');
         $resolvedBaseVersion = trim((string)($operationResult['currentVersion'] ?? ''));
+
+        if (!$persisted) {
+            Plugin::warning('Transform card operation did not persist: ' . $this->formatOperationLogContext($operation, [
+                'statusKind' => $statusKind,
+                'statusMessage' => $statusMessage,
+                'currentVersion' => $resolvedBaseVersion,
+                'validation' => $this->summarizeValidationForLog($operationResult['validation'] ?? null),
+                'operationDetails' => $this->summarizeOperationDetailsForLog($operationResult['operationDetails'] ?? null),
+            ]));
+        }
 
         $events = [];
         if (($persisted || $conflict) && $resolvedBaseVersion !== '') {
@@ -1036,9 +1076,16 @@ class TransformsController extends Controller
         return is_array($rawValue) ? $rawValue : [];
     }
 
-    private function requireTransformEditPermission(): void
+    private function requireTransformEditPermission(?CardOperationRequest $operation = null): void
     {
         if (!Plugin::getInstance()->getTelemetry()->canEditTransforms()) {
+            $message = 'Transform editing is disabled in this environment.';
+            Plugin::warning($operation !== null
+                ? 'Transform card operation forbidden: ' . $this->formatOperationLogContext($operation, [
+                    'statusMessage' => $message,
+                ])
+                : $message);
+
             throw new ForbiddenHttpException('Transform editing is disabled in this environment.');
         }
     }
@@ -1129,6 +1176,82 @@ class TransformsController extends Controller
             'notes' => 'Notes update failed.',
             default => ucfirst($field) . ' update failed.',
         };
+    }
+
+    private function logCardOperationResponseFailure(CardOperationRequest $operation, string $message, array $extra = []): void
+    {
+        Plugin::warning('Transform card operation failed: ' . $this->formatOperationLogContext($operation, array_merge([
+            'statusMessage' => $message,
+        ], $extra)));
+    }
+
+    private function formatOperationLogContext(CardOperationRequest $operation, array $extra = []): string
+    {
+        $context = array_filter([
+            'operation' => $operation->operation,
+            'field' => $operation->field,
+            'setName' => $operation->setName,
+            'scopeMode' => $operation->scopeMode,
+            'scopeBreakpoint' => $operation->scopeBreakpoint,
+            'scopeBreakpointKey' => $operation->scopeBreakpointKey,
+            'baseVersion' => $operation->baseVersion,
+            'includeEscapeWidth' => $operation->includeEscapeWidth,
+            'value' => $operation->value,
+            'width' => $operation->width,
+            'height' => $operation->height,
+            'widthAuto' => $operation->widthAuto,
+            'heightAuto' => $operation->heightAuto,
+            'forceAll' => $operation->forceAll,
+            'clearAuto' => $operation->clearAuto,
+            'ratioWidth' => $operation->ratioWidth,
+            'ratioHeight' => $operation->ratioHeight,
+            'ratioFloat' => $operation->ratioFloat,
+            'ratioSourceDimension' => $operation->ratioSourceDimension,
+            'ratioSourceBreakpoint' => $operation->ratioSourceBreakpoint,
+            'ratioSourceBreakpointKey' => $operation->ratioSourceBreakpointKey,
+            'enabled' => $operation->enabled,
+            'selectedAssetKey' => $operation->selectedAssetKey,
+        ], static fn(mixed $value): bool => $value !== null && $value !== '');
+
+        $encoded = Json::encode(array_merge($context, $extra));
+
+        return is_string($encoded) ? $encoded : '[unencodable context]';
+    }
+
+    private function summarizeValidationForLog(mixed $validation): array
+    {
+        if (!is_array($validation)) {
+            return [];
+        }
+
+        return array_filter([
+            'hasErrors' => ($validation['hasErrors'] ?? false) === true,
+            'global' => $this->stringListForLog($validation['global'] ?? null),
+        ], static fn(mixed $value): bool => $value !== [] && $value !== false);
+    }
+
+    private function summarizeOperationDetailsForLog(mixed $details): array
+    {
+        if (!is_array($details)) {
+            return [];
+        }
+
+        return array_filter([
+            'appliedBreakpoints' => $this->stringListForLog($details['appliedBreakpoints'] ?? null),
+            'skippedBreakpoints' => $this->stringListForLog($details['skippedBreakpoints'] ?? null),
+        ], static fn(mixed $value): bool => $value !== []);
+    }
+
+    private function stringListForLog(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(
+            static fn(mixed $item): string => trim((string)$item),
+            $value,
+        ), static fn(string $item): bool => $item !== ''));
     }
 
     private function formatSkippedBreakpoints(array $skippedBreakpoints): string

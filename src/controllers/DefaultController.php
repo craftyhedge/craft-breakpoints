@@ -61,7 +61,7 @@ class DefaultController extends Controller
             'processingConfig' => $config,
             'sidebarTransformRows' => $plugin->getTransformEditor()->buildSidebarTransformRows(),
             'currentBaseVersion' => $plugin->getTransformStore()->getCurrentVersion(),
-            'applyCardOperationUrl' => UrlHelper::cpUrl('actions/breakpoints/transforms/apply-card-operation'),
+            'applyCardOperationUrl' => UrlHelper::actionUrl('breakpoints/transforms/apply-card-operation'),
             'selectedSourceEntries' => $selectedSourceEntry ? [$selectedSourceEntry] : [],
             'previewCenter' => (bool)$plugin->getConfigService()->get('previewCenter', true),
             'transformsDeveloperActionsEnabled' => $plugin->getConfigService()->areTransformsDeveloperActionsEnabled(),

@@ -106,6 +106,14 @@ final class DefaultControllerTest extends Unit
             $this->assertSame(200, $response->statusCode);
             $this->assertSame('breakpoints/cp/transforms', $controller->capturedTemplatePayload['template'] ?? null);
             $this->assertTrue(($controller->capturedTemplatePayload['variables']['transformsDeveloperActionsEnabled'] ?? false) === true);
+            $this->assertSame(
+                UrlHelper::actionUrl('breakpoints/transforms/apply-card-operation'),
+                $controller->capturedTemplatePayload['variables']['applyCardOperationUrl'] ?? null,
+            );
+            $this->assertStringNotContainsString(
+                '/actions/breakpoints/transforms/apply-card-operation',
+                (string)($controller->capturedTemplatePayload['variables']['applyCardOperationUrl'] ?? ''),
+            );
         } finally {
             $property->setValue($configService, $previous);
         }

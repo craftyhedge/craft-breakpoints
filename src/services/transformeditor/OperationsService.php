@@ -2,6 +2,8 @@
 
 namespace craftyhedge\craftbreakpoints\services\transformeditor;
 
+use Throwable;
+use craftyhedge\craftbreakpoints\Plugin;
 use craftyhedge\craftbreakpoints\services\ConfigService;
 use craftyhedge\craftbreakpoints\services\TelemetryService;
 use craftyhedge\craftbreakpoints\services\TransformStore;
@@ -1446,7 +1448,17 @@ final class OperationsService
     {
         $sets = $this->normalizeCanonicalVariantsForSets($sets);
         $resolvedExpectedVersion = $expectedVersion ?? $this->transformStore->getCurrentVersion();
-        $persistResult = $this->transformStore->persistSets($sets, $resolvedExpectedVersion);
+        try {
+            $persistResult = $this->transformStore->persistSets($sets, $resolvedExpectedVersion);
+        } catch (Throwable $exception) {
+            Plugin::error('Transform operation persistence threw: ' . $this->formatPersistLogContext($sets, $validation, $resolvedExpectedVersion, [
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+            ]));
+
+            throw $exception;
+        }
+
         $conflict = ($persistResult['conflict'] ?? false) === true;
 
         if ($conflict) {
@@ -1459,6 +1471,40 @@ final class OperationsService
             'currentVersion' => (string)($persistResult['currentVersion'] ?? $resolvedExpectedVersion),
             'validation' => $validation,
         ];
+    }
+
+    private function formatPersistLogContext(array $sets, array $validation, string $expectedVersion, array $extra = []): string
+    {
+        $encoded = json_encode(array_merge([
+            'expectedVersion' => $expectedVersion,
+            'setNames' => array_values(array_filter(array_map(
+                static fn(mixed $setName): string => is_string($setName) ? $setName : '',
+                array_keys($sets),
+            ), static fn(string $setName): bool => $setName !== '')),
+            'validation' => $this->summarizeValidationForLog($validation),
+        ], $extra), JSON_UNESCAPED_SLASHES);
+
+        return is_string($encoded) ? $encoded : '[unencodable context]';
+    }
+
+    private function summarizeValidationForLog(array $validation): array
+    {
+        return array_filter([
+            'hasErrors' => ($validation['hasErrors'] ?? false) === true,
+            'global' => $this->stringListForLog($validation['global'] ?? null),
+        ], static fn(mixed $value): bool => $value !== [] && $value !== false);
+    }
+
+    private function stringListForLog(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(
+            static fn(mixed $item): string => trim((string)$item),
+            $value,
+        ), static fn(string $item): bool => $item !== ''));
     }
 
     /**

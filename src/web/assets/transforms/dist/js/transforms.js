@@ -2049,6 +2049,25 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         return action !== '' ? action : null;
     }
 
+    function logDatastarUpdateFailure(detail, transformName, action) {
+        if (!window.console || typeof window.console.error !== 'function') {
+            return;
+        }
+
+        const response = detail && typeof detail === 'object' ? detail.response : null;
+        const error = detail && typeof detail === 'object' ? detail.error : null;
+        window.console.error('[Breakpoints] Transform update request failed', {
+            type: detail && typeof detail === 'object' ? detail.type : undefined,
+            transformName,
+            action,
+            status: response && typeof response === 'object' ? response.status : undefined,
+            statusText: response && typeof response === 'object' ? response.statusText : undefined,
+            url: response && typeof response === 'object' ? response.url : undefined,
+            errorMessage: error && typeof error === 'object' ? error.message : undefined,
+            detail,
+        });
+    }
+
     function setupDatastarCardUpdateStatus() {
         document.addEventListener(DATASTAR_FETCH_EVENT, (event) => {
             const detail = event?.detail || {};
@@ -2122,6 +2141,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
             if (detail.type === 'error' || detail.type === 'retries-failed') {
                 const trackedTransformName = getTrackedTransformName() || transformName;
+                logDatastarUpdateFailure(detail, trackedTransformName, action);
                 if (trackedTransformName !== '') {
                     removePendingTransformUpdate(trackedTransformName);
                     const runId = getUpdateStatusRunId(trackedTransformName);
