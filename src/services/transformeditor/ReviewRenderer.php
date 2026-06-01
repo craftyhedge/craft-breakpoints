@@ -324,7 +324,8 @@ final class ReviewRenderer
         ?int $savedHeight,
         bool $allowAnyHeight,
         bool $hideRenderedApply,
-        string $reviewMode
+        string $reviewMode,
+        ?int $referenceWidth = null,
     ): array {
         $state = $this->breakpointStateBuilder->build(
             $transformName,
@@ -337,16 +338,20 @@ final class ReviewRenderer
             $allowAnyHeight,
             $hideRenderedApply,
             $reviewMode,
+            $referenceWidth,
         );
 
         $renderedRowsPayload = $state['renderedRowsPayload'];
         $renderedApplyNoop = ($state['renderedApplyNoop'] ?? false) === true;
         $currentEnabled = ($state['currentEnabled'] ?? true) === true;
+        $hiddenCount = (int)(($state['summary'] ?? [])['hiddenCount'] ?? 0);
         $displayPx = $this->getReviewSlotMediaWidthById($breakpoint, false) ?? $breakpoint;
 
         return [
             'breakpointColumnMismatchClass' => ($state['hasBreakpointMismatch'] ?? false) === true ? '1' : '0',
             'breakpointColumnDisabledClass' => $currentEnabled ? '0' : '1',
+            'hiddenBadgeHiddenClass' => (!$currentEnabled || $hiddenCount > 0) ? '0' : '1',
+            'hiddenBadgeTitle' => !$currentEnabled ? 'Disabled breakpoint' : "Hidden {$hiddenCount}",
             'breakpointEnableTitle' => $currentEnabled ? "Disable {$displayPx}px breakpoint" : "Enable {$displayPx}px breakpoint",
             'breakpointEnableAriaLabel' => $currentEnabled ? "Disable {$displayPx}px breakpoint" : "Enable {$displayPx}px breakpoint",
             'breakpointEnableAriaChecked' => $currentEnabled ? 'true' : 'false',
@@ -596,6 +601,9 @@ final class ReviewRenderer
                 $selectedAssetKey,
                 $transformBreakpoints,
             );
+            $processedHiddenBreakpoints = $isProcessedReview
+                ? $this->buildProcessedHiddenBreakpoints($selectedAssetRowsByBreakpoint, $transformBreakpoints)
+                : [];
 
             $currentRows = $this->buildReviewCurrentRowsForTransform(
                 $storedTransformConfig,
@@ -683,6 +691,7 @@ final class ReviewRenderer
                             'scopeBreakpointKey' => $scope['mode'] === 'breakpoint' ? $scopeBreakpointKey : '',
                             'selectedAssetKey' => $selectedAssetKey,
                             'rowsByBreakpoint' => $rowsByBreakpointSignal,
+                            'processedHiddenBreakpoints' => $processedHiddenBreakpoints,
                             'firstBreakpoint' => $firstBreakpoint !== null ? (string)$firstBreakpoint : '',
                             'firstBreakpointKey' => $firstBreakpointKey,
                             'initSeedAppliedAny' => ($cardState['initSeedAppliedAny'] ?? false) === true,
@@ -1050,9 +1059,9 @@ final class ReviewRenderer
 
         $hiddenCount = (int)($summary['hiddenCount'] ?? 0);
         $unloadedCount = (int)($summary['unloadedCount'] ?? 0);
-        $hiddenBadge = $hiddenCount > 0
-            ? '<span class="bpi_hidden-notice">Hidden ' . $hiddenCount . '</span>'
-            : '';
+        $hiddenBadgeTitle = !$currentEnabled ? 'Disabled breakpoint' : 'Hidden ' . $hiddenCount;
+        $hiddenBadgeHiddenClass = (!$currentEnabled || $hiddenCount > 0) ? '' : 'bpts-force-hidden';
+        $hiddenBadge = '<span class="bpi_hidden-notice bpts-icon-badge ' . $hiddenBadgeHiddenClass . '" title="' . $this->escapeReviewHtml($hiddenBadgeTitle) . '" aria-label="' . $this->escapeReviewHtml($hiddenBadgeTitle) . '" data-class:bpts-force-hidden="String(($editor.cards.' . $this->escapeReviewHtml($signalKey) . '.rowsByBreakpoint&&$editor.cards.' . $this->escapeReviewHtml($signalKey) . '.rowsByBreakpoint[\'' . $breakpoint . '\']) ? ($editor.cards.' . $this->escapeReviewHtml($signalKey) . '.rowsByBreakpoint[\'' . $breakpoint . '\'].hiddenBadgeHiddenClass || \'0\') : \'1\') === \'1\'" data-attr:title="($editor.cards.' . $this->escapeReviewHtml($signalKey) . '.rowsByBreakpoint&&$editor.cards.' . $this->escapeReviewHtml($signalKey) . '.rowsByBreakpoint[\'' . $breakpoint . '\']) ? ($editor.cards.' . $this->escapeReviewHtml($signalKey) . '.rowsByBreakpoint[\'' . $breakpoint . '\'].hiddenBadgeTitle || \'Disabled breakpoint\') : \'Disabled breakpoint\'" data-attr:aria-label="($editor.cards.' . $this->escapeReviewHtml($signalKey) . '.rowsByBreakpoint&&$editor.cards.' . $this->escapeReviewHtml($signalKey) . '.rowsByBreakpoint[\'' . $breakpoint . '\']) ? ($editor.cards.' . $this->escapeReviewHtml($signalKey) . '.rowsByBreakpoint[\'' . $breakpoint . '\'].hiddenBadgeTitle || \'Disabled breakpoint\') : \'Disabled breakpoint\'"><span class="icon" data-icon="eye-slash" aria-hidden="true"></span></span>';
         $unloadedBadge = $unloadedCount > 0
             ? '<span class="bpts-row-badge">Unloaded ' . $unloadedCount . '</span>'
             : '';
@@ -1119,6 +1128,33 @@ final class ReviewRenderer
             'currentWidthDerivedClass' => $currentWidthDerivedClass,
             'currentHeightDerivedClass' => $currentHeightDerivedClass,
         ]);
+    }
+
+    /**
+     * @param array<int, array<int, array<string, mixed>>> $rowsByBreakpoint
+     * @param array<int, int> $transformBreakpoints
+     * @return array<int, int>
+     */
+    private function buildProcessedHiddenBreakpoints(array $rowsByBreakpoint, array $transformBreakpoints): array
+    {
+        $hiddenBreakpoints = [];
+        foreach ($transformBreakpoints as $breakpoint) {
+            foreach ($rowsByBreakpoint[$breakpoint] ?? [] as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                if (($row['enabled'] ?? true) === true && ($row['isVisible'] ?? false) !== true) {
+                    $hiddenBreakpoints[] = $breakpoint;
+                    break;
+                }
+            }
+        }
+
+        $hiddenBreakpoints = array_values(array_unique($hiddenBreakpoints));
+        sort($hiddenBreakpoints, SORT_NUMERIC);
+
+        return $hiddenBreakpoints;
     }
 
     private function buildBreakpointRangeLabel(int $breakpoint, ?int $previousBreakpoint, bool $isLast): string
