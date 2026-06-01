@@ -840,7 +840,7 @@ input.bpts-init-value::placeholder {
 }
 
 .bpts-breakpoint-grid.bpts-scroll-fade-active {
-    --bpts-grid-fade-size: 8px;
+    --bpts-grid-fade-size: 24px;
     -webkit-mask-repeat: no-repeat;
     mask-repeat: no-repeat;
     -webkit-mask-size: 100% 100%;
@@ -1002,11 +1002,33 @@ input.bpts-init-value::placeholder {
 }
 
 .bpts-transform-edit-tab-names-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
     align-items: center;
-    justify-content: flex-start;
-    gap: 16px;
-    flex-wrap: wrap;
+    column-gap: 16px;
+    row-gap: 8px;
+    width: 100%;
+}
+
+.bpts-transform-pane-tabs-set {
+    grid-column: 4;
+    justify-self: end;
+    margin-left: 0;
+}
+
+@media (max-width: 720px) {
+    .bpts-transform-edit-tab-names-row {
+        grid-template-columns: auto 1fr;
+    }
+
+    .bpts-transform-edit-scope {
+        justify-self: end;
+    }
+
+    .bpts-transform-pane-tabs-set {
+        grid-column: 1 / -1;
+        justify-self: start;
+    }
 }
 
 .bpts-transform-edit-tab-names-row .bpts-rendered-apply-all {
