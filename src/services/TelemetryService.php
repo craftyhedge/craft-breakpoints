@@ -987,6 +987,32 @@ class TelemetryService extends Component
     }
 
     /**
+     * Delete the observed usage row for a given transform handle so the handle
+     * is no longer flagged as observed-but-unsaved. It must be observed again
+     * (via a fresh front-end render) before it reappears.
+     */
+    public function deleteObservedUsageByTransformHandle(string $transformHandle): void
+    {
+        $handle = trim($transformHandle);
+        if ($handle === '') {
+            return;
+        }
+
+        $db = Craft::$app->getDb();
+        if (!$db->tableExists('{{%bpi_transform_last_processed}}')) {
+            return;
+        }
+
+        try {
+            $db->createCommand()
+                ->delete('{{%bpi_transform_last_processed}}', ['transformHandle' => $handle])
+                ->execute();
+        } catch (\Throwable $e) {
+            Plugin::warning('Observed usage delete failed for "' . $handle . '": ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Read all preview cache rows, indexed by transformHandle|slotKey.
      *
      * @return array<string, array<string, mixed>>
