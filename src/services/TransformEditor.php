@@ -377,12 +377,16 @@ class TransformEditor extends Component
         );
     }
 
+    /**
+     * @param array<int, int> $hiddenBreakpointSlotIds Slot ids (1-based) flagged as hidden by processing.
+     */
     public function applyRenderedValuesOperation(
         string $transformName,
         ?string $assetKey = null,
         ?bool $includeEscapeWidth = null,
         bool $clearAuto = false,
         ?string $expectedVersion = null,
+        array $hiddenBreakpointSlotIds = [],
     ): array {
         if ($this->_operationsService === null) {
             return ['persisted' => false, 'validation' => $this->defaultValidation()];
@@ -394,6 +398,7 @@ class TransformEditor extends Component
             $includeEscapeWidth,
             $clearAuto,
             $expectedVersion,
+            $hiddenBreakpointSlotIds,
         );
     }
 

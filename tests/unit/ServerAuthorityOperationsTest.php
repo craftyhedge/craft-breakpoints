@@ -552,6 +552,156 @@ final class ServerAuthorityOperationsTest extends Unit
         }
     }
 
+    public function testApplyRenderedValuesOperationDisablesHiddenBreakpoints(): void
+    {
+        $plugin = Plugin::getInstance();
+        $previousTelemetry = $plugin->getTelemetry();
+
+        $plugin->set('telemetry', new class() extends TelemetryService {
+            public function getLatestRunSnapshot(): ?array
+            {
+                return [
+                    'runStatus' => 'completed',
+                    'ranAt' => '2026-05-01 10:00:00',
+                    'rowsPayload' => [
+                        [
+                            'transformHandle' => 'hero',
+                            'slotKey' => 'xs',
+                            'slotIndex' => 1,
+                            'breakpointWidth' => 640,
+                            'assetId' => '100',
+                            'renderedWidth' => 600,
+                            'renderedHeight' => 340,
+                            'rowStatus' => 'loaded',
+                        ],
+                    ],
+                    'rows' => [],
+                ];
+            }
+        });
+
+        try {
+            $this->withRuntimeSets([
+                'hero' => [
+                    'name' => 'hero',
+                    'includeEscapeWidth' => false,
+                    'variants' => [
+                        'xs' => ['width' => null, 'height' => null, 'enabled' => true, 'autoDimension' => null],
+                    ],
+                    'config' => [],
+                ],
+            ], function () use ($plugin): void {
+                $snapshotReader = new SnapshotReader(
+                    $plugin->getTransformStore(),
+                    $plugin->getTelemetry(),
+                );
+                $service = new OperationsService(
+                    $plugin->getTransformStore(),
+                    $plugin->getConfigService(),
+                    $plugin->getTelemetry(),
+                    $snapshotReader,
+                );
+
+                // 'xs' is slotIndex 1, i.e. slot id 2.
+                $result = $service->applyRenderedValuesOperation(
+                    'hero',
+                    null,
+                    false,
+                    false,
+                    $plugin->getTransformStore()->getCurrentVersion(),
+                    [2],
+                );
+
+                $this->assertTrue(($result['persisted'] ?? false) === true);
+                $this->assertFalse(($result['validation']['hasErrors'] ?? true) === true);
+
+                $sets = $plugin->getTransformStore()->getSets();
+                // Rendered values are still applied, and the hidden breakpoint is disabled.
+                $this->assertSame(600, $sets['hero']['variants']['xs']['width'] ?? null);
+                $this->assertSame(340, $sets['hero']['variants']['xs']['height'] ?? null);
+                $this->assertFalse($sets['hero']['variants']['xs']['enabled'] ?? null);
+            });
+        } finally {
+            $plugin->set('telemetry', $previousTelemetry);
+        }
+    }
+
+    public function testApplyRenderedValuesOperationDisablesHiddenBreakpointEvenWhenNoDimensionsApply(): void
+    {
+        $plugin = Plugin::getInstance();
+        $previousTelemetry = $plugin->getTelemetry();
+
+        // Rendered evidence exists (width only) but the variant has an auto width,
+        // so no dimension is applied. Disabling the hidden breakpoint must still
+        // drive a persist instead of the auto-skipped no-op return.
+        $plugin->set('telemetry', new class() extends TelemetryService {
+            public function getLatestRunSnapshot(): ?array
+            {
+                return [
+                    'runStatus' => 'completed',
+                    'ranAt' => '2026-05-01 10:00:00',
+                    'rowsPayload' => [
+                        [
+                            'transformHandle' => 'hero',
+                            'slotKey' => 'xs',
+                            'slotIndex' => 1,
+                            'breakpointWidth' => 640,
+                            'assetId' => '100',
+                            'renderedWidth' => 600,
+                            'renderedHeight' => 0,
+                            'rowStatus' => 'loaded',
+                        ],
+                    ],
+                    'rows' => [],
+                ];
+            }
+        });
+
+        try {
+            $this->withRuntimeSets([
+                'hero' => [
+                    'name' => 'hero',
+                    'includeEscapeWidth' => false,
+                    'variants' => [
+                        'xs' => ['width' => null, 'height' => null, 'enabled' => true, 'autoDimension' => 'width'],
+                    ],
+                    'config' => [],
+                ],
+            ], function () use ($plugin): void {
+                $snapshotReader = new SnapshotReader(
+                    $plugin->getTransformStore(),
+                    $plugin->getTelemetry(),
+                );
+                $service = new OperationsService(
+                    $plugin->getTransformStore(),
+                    $plugin->getConfigService(),
+                    $plugin->getTelemetry(),
+                    $snapshotReader,
+                );
+
+                // 'xs' is slotIndex 1, i.e. slot id 2.
+                $result = $service->applyRenderedValuesOperation(
+                    'hero',
+                    null,
+                    false,
+                    false,
+                    $plugin->getTransformStore()->getCurrentVersion(),
+                    [2],
+                );
+
+                $this->assertTrue(($result['persisted'] ?? false) === true);
+
+                $sets = $plugin->getTransformStore()->getSets();
+                // No dimension applied (auto width, no height), but the breakpoint is disabled.
+                $this->assertFalse($sets['hero']['variants']['xs']['enabled'] ?? null);
+                $this->assertNull($sets['hero']['variants']['xs']['width'] ?? null);
+                $this->assertSame('width', $sets['hero']['variants']['xs']['autoDimension'] ?? null);
+            });
+        } finally {
+            $plugin->set('telemetry', $previousTelemetry);
+        }
+    }
+
     private function withRuntimeSets(array $sets, callable $callback): mixed
     {
         $configService = Plugin::getInstance()->getConfigService();

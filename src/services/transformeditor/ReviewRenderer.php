@@ -341,7 +341,6 @@ final class ReviewRenderer
             $referenceWidth,
         );
 
-        $renderedRowsPayload = $state['renderedRowsPayload'];
         $renderedApplyNoop = ($state['renderedApplyNoop'] ?? false) === true;
         $currentEnabled = ($state['currentEnabled'] ?? true) === true;
         $hiddenCount = (int)(($state['summary'] ?? [])['hiddenCount'] ?? 0);
@@ -355,7 +354,9 @@ final class ReviewRenderer
             'breakpointEnableTitle' => $currentEnabled ? "Disable {$displayPx}px breakpoint" : "Enable {$displayPx}px breakpoint",
             'breakpointEnableAriaLabel' => $currentEnabled ? "Disable {$displayPx}px breakpoint" : "Enable {$displayPx}px breakpoint",
             'breakpointEnableAriaChecked' => $currentEnabled ? 'true' : 'false',
-            'breakpointDisabledAttr' => $renderedRowsPayload === [] ? '1' : '0',
+            // Only a genuinely disabled breakpoint blocks "Set to rendered"; a
+            // hidden-but-enabled breakpoint stays clickable so it can be disabled.
+            'breakpointDisabledAttr' => $currentEnabled ? '0' : '1',
             'breakpointRenderedApplyMatchClass' => $renderedApplyNoop ? '1' : '0',
             'breakpointRenderedApplyAriaLabel' => $renderedApplyNoop
                 ? "Rendered values already match for {$displayPx}px"
@@ -370,7 +371,8 @@ final class ReviewRenderer
             'heightClass' => (string)($state['heightClass'] ?? ''),
             'currentWidthDerivedClass' => (string)($state['currentWidthDerivedClass'] ?? '') !== '' ? '1' : '0',
             'currentHeightDerivedClass' => (string)($state['currentHeightDerivedClass'] ?? '') !== '' ? '1' : '0',
-            'previewMediaHidden' => $currentEnabled ? '0' : '1',
+            // Hidden-but-enabled breakpoints suppress their preview just like disabled ones.
+            'previewMediaHidden' => (!$currentEnabled || $hiddenCount > 0) ? '1' : '0',
         ];
     }
 
@@ -721,11 +723,22 @@ final class ReviewRenderer
                 $referenceWidthsById[(string)$bp] = $this->getReviewSlotMediaWidthById($bp, $includeEscapeWidth) ?? $bp;
             }
             $columnWidths = ReviewLayoutCalculator::calculateBreakpointColumnWidths($transformBreakpoints, $referenceWidthsById);
+            // Breakpoints whose preview is suppressed (disabled in the set, or flagged
+            // hidden by processing) must not inflate the shared preview height.
+            $lockHeightExcludedBreakpoints = [];
+            foreach ($transformBreakpoints as $breakpoint) {
+                $breakpointEnabled = ($currentRows[$breakpoint]['enabled'] ?? true) === true;
+                $breakpointHidden = in_array($breakpoint, $processedHiddenBreakpoints, true);
+                if (!$breakpointEnabled || $breakpointHidden) {
+                    $lockHeightExcludedBreakpoints[] = $breakpoint;
+                }
+            }
             $previewLockHeightsByBreakpoint = ReviewLayoutCalculator::calculateBreakpointPreviewLockHeights(
                 $assetCollection['rowsByAssetByBreakpoint'],
                 $transformBreakpoints,
                 $columnWidths,
                 $referenceWidthsById,
+                $lockHeightExcludedBreakpoints,
             );
             foreach ($transformBreakpoints as $breakpoint) {
                 $breakpointKey = (string)$breakpoint;
@@ -1021,7 +1034,6 @@ final class ReviewRenderer
         );
 
         $summary = $state['summary'];
-        $renderedRowsPayload = $state['renderedRowsPayload'];
         $renderedWidth = (int)($state['renderedWidth'] ?? 0);
         $renderedHeight = (int)($state['renderedHeight'] ?? 0);
         $previewSrc = (string)($state['previewSrc'] ?? '');
@@ -1042,8 +1054,11 @@ final class ReviewRenderer
         $currentWidthDerivedClass = (string)($state['currentWidthDerivedClass'] ?? '');
         $currentHeightDerivedClass = (string)($state['currentHeightDerivedClass'] ?? '');
         $displayPx = $referenceWidth ?? ($this->getReviewSlotMediaWidthById($breakpoint, false) ?? $breakpoint);
+        $hiddenCount = (int)($summary['hiddenCount'] ?? 0);
+        // Hide the preview for breakpoints processing flagged as hidden (and not yet
+        // saved/disabled), mirroring how disabled breakpoints suppress their preview.
         $previewMedia = '';
-        if ($currentEnabled) {
+        if ($currentEnabled && $hiddenCount < 1) {
             $previewMedia = $previewSrc !== ''
                 ? sprintf(
                     '<img src="%s" alt="%s" class="bpi_breakpoint-result-image" draggable="false" style="--bpts-aspect-ratio:%s;">',
@@ -1057,7 +1072,6 @@ final class ReviewRenderer
                 );
         }
 
-        $hiddenCount = (int)($summary['hiddenCount'] ?? 0);
         $unloadedCount = (int)($summary['unloadedCount'] ?? 0);
         $hiddenBadgeTitle = !$currentEnabled ? 'Disabled breakpoint' : 'Hidden ' . $hiddenCount;
         $hiddenBadgeHiddenClass = (!$currentEnabled || $hiddenCount > 0) ? '' : 'bpts-force-hidden';
@@ -1102,7 +1116,9 @@ final class ReviewRenderer
             'breakpointEnableTitle' => $this->escapeReviewHtml(($currentEnabled ? 'Disable' : 'Enable') . ' ' . $displayPx . 'px breakpoint'),
             'breakpointEnableAriaLabel' => $this->escapeReviewHtml(($currentEnabled ? 'Disable' : 'Enable') . ' ' . $displayPx . 'px breakpoint'),
             'breakpointEnableAriaChecked' => $currentEnabled ? 'true' : 'false',
-            'breakpointDisabledAttr' => $renderedRowsPayload === [] ? 'disabled' : '',
+            // Only a genuinely disabled breakpoint blocks "Set to rendered"; a
+            // hidden-but-enabled breakpoint stays clickable so it can be disabled.
+            'breakpointDisabledAttr' => !$currentEnabled ? 'disabled' : '',
             'breakpointRenderedApplyMatchClass' => $renderedApplyNoop ? 'bpts-rendered-apply-single-noop' : '',
             'breakpointRenderedApplyAriaLabel' => $this->escapeReviewHtml(
                 ($renderedApplyNoop ? 'Rendered values already match for ' : 'Apply rendered values for ')

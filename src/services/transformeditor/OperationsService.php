@@ -1164,12 +1164,18 @@ final class OperationsService
     /**
      * @return array<string, mixed>
      */
+    /**
+     * @param array<int, int> $hiddenBreakpointSlotIds Slot ids (1-based) that the
+     *        latest processing run flagged as hidden. Those breakpoints are
+     *        disabled as part of applying the rendered values.
+     */
     public function applyRenderedValuesOperation(
         string $transformName,
         ?string $assetKey = null,
         ?bool $includeEscapeWidth = null,
         bool $clearAuto = false,
         ?string $expectedVersion = null,
+        array $hiddenBreakpointSlotIds = [],
     ): array {
         $validation = Support::defaultValidation();
 
@@ -1203,6 +1209,14 @@ final class OperationsService
         foreach ($definitions as $definition) {
             $breakpointKeysByWidth[(string)$definition['width']][] = $definition['key'];
         }
+
+        // Breakpoints that processing flagged as hidden are disabled when the user
+        // applies rendered values, mirroring the "not visible" eye badge in the review.
+        $disabledHiddenCount = $this->disableHiddenBreakpointVariants(
+            $variants,
+            $definitions,
+            $hiddenBreakpointSlotIds,
+        );
 
         if ($clearAuto) {
             $renderedRowsByKey = [];
@@ -1256,7 +1270,7 @@ final class OperationsService
                 $appliedCount += 1;
             }
 
-            if ($appliedCount < 1) {
+            if ($appliedCount < 1 && $disabledHiddenCount < 1) {
                 return [
                     'persisted' => true,
                     'conflict' => false,
@@ -1324,7 +1338,7 @@ final class OperationsService
                 }
             }
 
-            if ($appliedCount < 1) {
+            if ($appliedCount < 1 && $disabledHiddenCount < 1) {
                 if ($candidateDimensionCount > 0 && $candidateDimensionCount === $autoSkippedDimensionCount) {
                     return [
                         'persisted' => true,
@@ -1430,6 +1444,60 @@ final class OperationsService
         }
 
         return ['sets' => $sets, 'set' => $set, 'includeEscapeWidth' => $resolved];
+    }
+
+    /**
+     * Disable the variants for breakpoints that processing flagged as hidden.
+     *
+     * @param array<string, mixed> $variants Mutated in place.
+     * @param array<int, array<string, mixed>> $definitions Breakpoint catalog definitions (carry `index`/`key`).
+     * @param array<int, int> $hiddenBreakpointSlotIds Slot ids (1-based) flagged as hidden.
+     * @return int Number of breakpoints newly disabled.
+     */
+    private function disableHiddenBreakpointVariants(
+        array &$variants,
+        array $definitions,
+        array $hiddenBreakpointSlotIds,
+    ): int {
+        if ($hiddenBreakpointSlotIds === []) {
+            return 0;
+        }
+
+        $hiddenSlotIdSet = [];
+        foreach ($hiddenBreakpointSlotIds as $slotId) {
+            $normalized = Support::normalizeNullablePositiveInt($slotId);
+            if ($normalized !== null) {
+                $hiddenSlotIdSet[$normalized] = true;
+            }
+        }
+        if ($hiddenSlotIdSet === []) {
+            return 0;
+        }
+
+        $disabledCount = 0;
+        foreach ($definitions as $definition) {
+            $index = $definition['index'] ?? null;
+            if (!is_int($index)) {
+                continue;
+            }
+
+            $slotId = $index + 1;
+            if (!isset($hiddenSlotIdSet[$slotId])) {
+                continue;
+            }
+
+            $breakpointKey = (string)$definition['key'];
+            $entry = self::getOrInitVariant($variants, $breakpointKey);
+            if (($entry['enabled'] ?? true) === false) {
+                continue;
+            }
+
+            $entry['enabled'] = false;
+            $variants[$breakpointKey] = $entry;
+            $disabledCount += 1;
+        }
+
+        return $disabledCount;
     }
 
     private static function getOrInitVariant(array $variants, string $key): array

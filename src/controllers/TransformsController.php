@@ -351,6 +351,7 @@ class TransformsController extends Controller
             $operation->includeEscapeWidth,
             $operation->clearAuto,
             $operation->baseVersion,
+            $operation->hiddenBreakpoints,
         );
     }
 

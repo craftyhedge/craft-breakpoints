@@ -92,6 +92,8 @@ final class CardOperationRequest
         public readonly string $baseVersion,
         public readonly mixed $valueRaw,
         public readonly bool $hasValidOperation,
+        /** @var array<int, int> Slot ids (1-based) flagged as hidden by the latest processing run. */
+        public readonly array $hiddenBreakpoints = [],
     ) {
     }
 
@@ -134,7 +136,28 @@ final class CardOperationRequest
             baseVersion: $resolvedBaseVersion,
             valueRaw: $request->getBodyParam('value'),
             hasValidOperation: $operation !== '',
+            hiddenBreakpoints: self::parseSlotIdList($request->getBodyParam('hiddenBreakpoints')),
         );
+    }
+
+    /**
+     * @return array<int, int> Unique, positive slot ids parsed from a raw request value.
+     */
+    private static function parseSlotIdList(mixed $raw): array
+    {
+        if (!is_array($raw)) {
+            return [];
+        }
+
+        $slotIds = [];
+        foreach ($raw as $value) {
+            $slotId = Support::parseNullablePositiveInt($value);
+            if ($slotId !== null) {
+                $slotIds[$slotId] = $slotId;
+            }
+        }
+
+        return array_values($slotIds);
     }
 
     private static function normalizeOperation(string $operation): string

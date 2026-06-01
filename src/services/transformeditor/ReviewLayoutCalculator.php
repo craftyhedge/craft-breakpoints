@@ -207,6 +207,8 @@ final class ReviewLayoutCalculator
      * @param array<int, int> $transformBreakpoints
      * @param array<string, float> $breakpointColumnWidths
      * @param array<string, int> $referenceWidthsByBreakpoint
+     * @param array<int, int> $excludedBreakpoints Slot ids whose previews are not shown
+     *        (disabled or processing-hidden) and so must not drive the shared height.
      * @return array<string, int>
      */
     public static function calculateBreakpointPreviewLockHeights(
@@ -214,10 +216,16 @@ final class ReviewLayoutCalculator
         array $transformBreakpoints,
         array $breakpointColumnWidths,
         array $referenceWidthsByBreakpoint = [],
+        array $excludedBreakpoints = [],
     ): array {
         $globalLockHeight = 48;
+        $excludedSet = array_fill_keys($excludedBreakpoints, true);
 
         foreach ($transformBreakpoints as $breakpoint) {
+            if (isset($excludedSet[$breakpoint])) {
+                continue;
+            }
+
             $columnWidth = (float)($breakpointColumnWidths[(string)$breakpoint] ?? 0.0);
             $availablePreviewWidth = max(1.0, $columnWidth - 20.0);
 

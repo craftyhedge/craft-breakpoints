@@ -106,7 +106,7 @@
                 data-bpts-action="renderedValues"
                 aria-label="Apply rendered values to all breakpoints"
                 title="Apply rendered values to all breakpoints"
-                data-on:click__throttle.300ms="const card=el.closest('.bpts-transform-card'); @post($_applyCardOperationUrl, {contentType: 'json', headers: {'X-CSRF-Token': $_csrfToken}, payload: {setName: String($editor.cards.{{ signalKey }}.setName || ''), operation: 'renderedValues.apply', includeEscapeWidth: String($editor.cards.{{ signalKey }}.includeEscapeWidth || '0') === '1', selectedAssetKey: String(card?.dataset?.selectedAssetKey || ''), {{ cardModePayload }} baseVersion: String($editor.baseVersion || '')}})">
+                data-on:click__throttle.300ms="const card=el.closest('.bpts-transform-card'); @post($_applyCardOperationUrl, {contentType: 'json', headers: {'X-CSRF-Token': $_csrfToken}, payload: {setName: String($editor.cards.{{ signalKey }}.setName || ''), operation: 'renderedValues.apply', includeEscapeWidth: String($editor.cards.{{ signalKey }}.includeEscapeWidth || '0') === '1', selectedAssetKey: String(card?.dataset?.selectedAssetKey || ''), hiddenBreakpoints: $editor.cards.{{ signalKey }}.processedHiddenBreakpoints || [], {{ cardModePayload }} baseVersion: String($editor.baseVersion || '')}})">
                 <span class="icon bpts-rendered-apply-icon" data-icon="arrow-down" aria-hidden="true"></span>
                 <span class="bpts-rendered-apply-all-label">Apply all rendered values</span>
             </button>
