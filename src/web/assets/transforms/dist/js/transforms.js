@@ -105,10 +105,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
     const RESULTS_COPY = {
         saved: {
-            heading: 'Saved',
-        },
-        processed: {
-            heading: 'Processed',
+            heading: 'Saved Sets',
         },
     };
 
@@ -432,8 +429,8 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     }
 
     function updateResultsHeadingCopy() {
-        const hasRun = state.lastResult !== null;
-        const copy = hasRun ? RESULTS_COPY.processed : RESULTS_COPY.saved;
+        // The results panel only ever lists saved sets, so the heading stays "Saved".
+        const copy = RESULTS_COPY.saved;
 
         if (elements.resultsHeading) {
             elements.resultsHeading.textContent = String(copy.heading || '');
