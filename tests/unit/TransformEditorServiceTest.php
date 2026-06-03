@@ -588,6 +588,80 @@ final class TransformEditorServiceTest extends Unit
         );
     }
 
+    public function testRenderResultReviewHidesDeleteButtonForUnsavedSetOnly(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $result = $this->withReviewFixtureSets(fn() => $editor->renderResultReview([
+            'breakpoints' => [640],
+            'rowsByBreakpoint' => [
+                640 => [
+                    [
+                        'assetId' => '100',
+                        'transform' => 'hero',
+                        'enabled' => true,
+                        'isVisible' => true,
+                        'loaded' => true,
+                        'rendered' => ['width' => 600, 'height' => 340],
+                        'transformDimensions' => ['width' => 600, 'height' => 340, 'autoDimension' => null],
+                    ],
+                    [
+                        'assetId' => '101',
+                        'transform' => 'missing-manifest-set',
+                        'enabled' => true,
+                        'isVisible' => true,
+                        'loaded' => true,
+                        'rendered' => ['width' => 580, 'height' => 320],
+                        'transformDimensions' => ['width' => 580, 'height' => 320, 'autoDimension' => null],
+                    ],
+                ],
+            ],
+        ]));
+
+        $xpath = $this->createReviewMarkupXPath((string)($result['visualResultsHtml'] ?? ''));
+
+        // Saved set: delete button starts visible.
+        $savedDelete = $this->assertSingleCardDeleteButton($xpath, 'hero');
+        $this->assertStringNotContainsString(
+            ' bpts-force-hidden ',
+            ' ' . preg_replace('/\s+/', ' ', trim((string)$savedDelete->getAttribute('class'))) . ' ',
+            'Delete button should be visible for a saved set.',
+        );
+
+        // Unsaved (observed) set: delete button starts hidden, and stays in sync
+        // reactively via the setReviewState signal.
+        $unsavedDelete = $this->assertSingleCardDeleteButton($xpath, 'missing-manifest-set');
+        $this->assertStringContainsString(
+            ' bpts-force-hidden ',
+            ' ' . preg_replace('/\s+/', ' ', trim((string)$unsavedDelete->getAttribute('class'))) . ' ',
+            'Delete button should be hidden for an unsaved set.',
+        );
+
+        // The delete button stays in sync reactively via the setReviewState signal.
+        // (Checked on the raw markup; the `data-class:` attribute name carries a colon
+        // that DOM parsing treats as a namespace prefix.)
+        $this->assertStringContainsString(
+            ".setReviewState || '') === 'missing'",
+            (string)($result['visualResultsHtml'] ?? ''),
+            'Delete button should hide reactively while the set is missing.',
+        );
+    }
+
+    private function assertSingleCardDeleteButton(\DOMXPath $xpath, string $setName): \DOMElement
+    {
+        $buttons = $xpath->query(
+            "//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-card ') and @data-set='" . $setName . "']"
+            . "//button[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-delete-set ')]"
+        );
+        $this->assertNotFalse($buttons);
+        $this->assertSame(1, $buttons->length, "Expected one delete button for '{$setName}'.");
+
+        $button = $buttons->item(0);
+        $this->assertInstanceOf(\DOMElement::class, $button);
+
+        return $button;
+    }
+
     public function testRenderResultReviewPlacesWarningCardsBeforeNonWarningCards(): void
     {
         $editor = Plugin::getInstance()->getTransformEditor();
@@ -826,7 +900,7 @@ final class TransformEditorServiceTest extends Unit
 
         $result = $this->withRuntimeSets([], fn() => $editor->renderInitialStoredReview());
 
-        $this->assertStringContainsString('No transform sets found in results.', (string)($result['visualResultsHtml'] ?? ''));
+        $this->assertStringContainsString('Clean slate! Get processing.', (string)($result['visualResultsHtml'] ?? ''));
     }
 
     public function testRenderInitialStoredReviewOmitsEscapeBreakpointForTransformsWithoutEscapeWidth(): void

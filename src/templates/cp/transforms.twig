@@ -112,9 +112,15 @@
 
 {% block content %}
     {% set initialBaseVersion = currentBaseVersion ?? '' %}
+    {% set initialSavedSetNames = [] %}
+    {% for row in (sidebarTransformRows ?? []) %}
+        {% if not (row.isObservedUnsaved ?? false) and (row.name ?? '') is not empty %}
+            {% set initialSavedSetNames = initialSavedSetNames|merge([row.name]) %}
+        {% endif %}
+    {% endfor %}
     <div
         class="bpts-transforms-page bpts-review-hydrating"
-        data-signals="{_applyCardOperationUrl: '{{ applyCardOperationUrl|e('js') }}', _renderTransformCardUrl: '{{ renderTransformCardUrl|e('js') }}', _csrfToken: '{{ craft.app.request.csrfToken|e('js') }}', showCardSettings: false, ui: {resultsHeading: 'Saved Sets', showWarningOrder: false, resultsOrderingNoteLabel: ''}, sidebar: {savedSetNamesJson: '[]'}, editor: {baseVersion: '{{ initialBaseVersion|e('js') }}', cards: {}}}"
+        data-signals="{_applyCardOperationUrl: '{{ applyCardOperationUrl|e('js') }}', _renderTransformCardUrl: '{{ renderTransformCardUrl|e('js') }}', _csrfToken: '{{ craft.app.request.csrfToken|e('js') }}', showCardSettings: false, ui: {resultsHeading: 'Saved Sets', showWarningOrder: false, resultsOrderingNoteLabel: ''}, sidebar: {savedSetNamesJson: '{{ initialSavedSetNames|json_encode|e('js') }}'}, editor: {baseVersion: '{{ initialBaseVersion|e('js') }}', cards: {}}}"
         data-on-signal-patch="window.bptsSyncPostPatchReviewState && window.bptsSyncPostPatchReviewState(patch)"
         data-on-signal-patch-filter="{include: /^(editor\.baseVersion|sidebar\.savedSetNamesJson|ui\.)/}"
         data-persist:breakpoints-editor__session="{include: /^(showCardSettings|editor\\.cards\\.[^.]+\\.selectedAssetKey)$/}"

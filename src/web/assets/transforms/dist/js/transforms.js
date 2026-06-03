@@ -503,10 +503,13 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     }
 
     function syncPostPatchReviewState() {
+        // The saved-names signal is seeded from the server on load, so it is the
+        // authoritative list of saved sets: reconcile additions, warning state,
+        // and removals against it on every patch (an empty list is meaningful).
         const savedSetNames = getSidebarSavedSetNamesSignalValue();
-        if (savedSetNames.length > 0) {
-            syncSidebarObservedUnsavedFromSavedNames(savedSetNames);
-        }
+        syncSidebarObservedUnsavedFromSavedNames(savedSetNames);
+        ensureSidebarItemsForSavedNames(savedSetNames);
+        removeSidebarItemsNotInSavedNames(savedSetNames);
 
         syncSidebarTransformOrderToCards();
         scheduleBreakpointPreviewHeightSync();
@@ -607,6 +610,66 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             link.classList.toggle('bpts-transform-sidebar-link-disabled', !isAvailable);
             link.setAttribute('aria-disabled', isAvailable ? 'false' : 'true');
             link.tabIndex = isAvailable ? 0 : -1;
+        });
+    }
+
+    function ensureSidebarItemsForSavedNames(savedSetNames) {
+        const list = elements.transformSetsList;
+        if (!(list instanceof HTMLElement) || !Array.isArray(savedSetNames)) {
+            return;
+        }
+
+        const existingSetNames = new Set(
+            Array.from(list.querySelectorAll('li[data-set]'))
+                .map((item) => String(item.getAttribute('data-set') || '').trim())
+                .filter((name) => name !== '')
+        );
+
+        savedSetNames
+            .filter((name) => typeof name === 'string' && name.trim() !== '')
+            .map((name) => String(name))
+            .forEach((setName) => {
+                if (existingSetNames.has(setName)) {
+                    return;
+                }
+                existingSetNames.add(setName);
+
+                const item = document.createElement('li');
+                item.setAttribute('data-set', setName);
+
+                const link = document.createElement('a');
+                link.setAttribute('href', '#');
+                link.className = 'bpts-transform-sidebar-link';
+                link.setAttribute('data-set', setName);
+                link.textContent = setName;
+
+                item.appendChild(link);
+                list.appendChild(item);
+            });
+    }
+
+    function removeSidebarItemsNotInSavedNames(savedSetNames) {
+        const list = elements.transformSetsList;
+        if (!(list instanceof HTMLElement) || !Array.isArray(savedSetNames)) {
+            return;
+        }
+
+        const savedSet = new Set(
+            savedSetNames
+                .filter((name) => typeof name === 'string' && name !== '')
+                .map((name) => String(name))
+        );
+
+        // Observed-unsaved rows are not part of the saved-names signal, so leave
+        // them alone; only drop saved-state rows whose set no longer exists.
+        const items = Array.from(list.querySelectorAll('li[data-set]:not([data-observed-unsaved="1"])'));
+        items.forEach((item) => {
+            const setName = String(item.getAttribute('data-set') || '').trim();
+            if (setName === '' || savedSet.has(setName)) {
+                return;
+            }
+
+            item.remove();
         });
     }
 
@@ -2856,6 +2919,8 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             renderResultReview,
             applyRenderedReviewPayload,
             syncSidebarObservedUnsavedFromSavedNames,
+            ensureSidebarItemsForSavedNames,
+            removeSidebarItemsNotInSavedNames,
             setLastResultForTests: (result) => {
                 state.lastResult = result;
             },

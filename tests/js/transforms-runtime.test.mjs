@@ -1584,4 +1584,106 @@ describe('transforms runtime helper logic', () => {
             expect(staticItem.hasAttribute('data-observed-unsaved')).toBe(false);
         });
     });
+
+    describe('ensureSidebarItemsForSavedNames', () => {
+        it('appends a saved-state row for a first-time-saved set with no existing item', () => {
+            const list = document.getElementById('bpts-transform-sets-list');
+            list.innerHTML = `
+                <li data-set="staticImage">
+                    <a href="#" class="bpts-transform-sidebar-link" data-set="staticImage">staticImage</a>
+                </li>
+            `;
+
+            hooks.ensureSidebarItemsForSavedNames(['staticImage', 'newImage']);
+
+            const created = document.querySelector('li[data-set="newImage"]');
+            expect(created).not.toBeNull();
+            expect(created.hasAttribute('data-observed-unsaved')).toBe(false);
+            expect(created.classList.contains('bpts-transform-sidebar-item-warning')).toBe(false);
+
+            const link = created.querySelector('a.bpts-transform-sidebar-link[data-set="newImage"]');
+            expect(link).not.toBeNull();
+            expect(link.getAttribute('href')).toBe('#');
+            expect(link.textContent).toBe('newImage');
+            expect(link.querySelector('.bpts-transform-sidebar-warning-icon')).toBeNull();
+        });
+
+        it('does not duplicate rows for sets that already exist', () => {
+            const list = document.getElementById('bpts-transform-sets-list');
+            list.innerHTML = `
+                <li data-set="newImage">
+                    <a href="#" class="bpts-transform-sidebar-link" data-set="newImage">newImage</a>
+                </li>
+            `;
+
+            hooks.ensureSidebarItemsForSavedNames(['newImage']);
+            hooks.ensureSidebarItemsForSavedNames(['newImage']);
+
+            expect(document.querySelectorAll('li[data-set="newImage"]').length).toBe(1);
+        });
+
+        it('is a no-op when savedSetNames is not an array', () => {
+            const list = document.getElementById('bpts-transform-sets-list');
+            list.innerHTML = '';
+
+            hooks.ensureSidebarItemsForSavedNames(null);
+            hooks.ensureSidebarItemsForSavedNames('newImage');
+
+            expect(list.querySelectorAll('li[data-set]').length).toBe(0);
+        });
+    });
+
+    describe('removeSidebarItemsNotInSavedNames', () => {
+        const seedSaved = () => {
+            const list = document.getElementById('bpts-transform-sets-list');
+            list.innerHTML = `
+                <li data-set="heroImage">
+                    <a href="#" class="bpts-transform-sidebar-link" data-set="heroImage">heroImage</a>
+                </li>
+                <li data-set="cardImage">
+                    <a href="#" class="bpts-transform-sidebar-link" data-set="cardImage">cardImage</a>
+                </li>
+                <li data-set="observedImage" class="bpts-transform-sidebar-item-warning" data-observed-unsaved="1">
+                    <a href="#" class="bpts-transform-sidebar-link bpts-transform-sidebar-link-warning" data-set="observedImage">observedImage</a>
+                </li>
+            `;
+        };
+
+        it('removes a saved-state row whose set is no longer in saved names', () => {
+            seedSaved();
+
+            hooks.removeSidebarItemsNotInSavedNames(['heroImage']);
+
+            expect(document.querySelector('li[data-set="cardImage"]')).toBeNull();
+            expect(document.querySelector('li[data-set="heroImage"]')).not.toBeNull();
+        });
+
+        it('removes all saved-state rows when saved names is empty', () => {
+            seedSaved();
+
+            hooks.removeSidebarItemsNotInSavedNames([]);
+
+            expect(document.querySelector('li[data-set="heroImage"]')).toBeNull();
+            expect(document.querySelector('li[data-set="cardImage"]')).toBeNull();
+        });
+
+        it('never removes observed-unsaved rows', () => {
+            seedSaved();
+
+            hooks.removeSidebarItemsNotInSavedNames([]);
+
+            const observed = document.querySelector('li[data-set="observedImage"]');
+            expect(observed).not.toBeNull();
+            expect(observed.getAttribute('data-observed-unsaved')).toBe('1');
+        });
+
+        it('is a no-op when savedSetNames is not an array', () => {
+            seedSaved();
+
+            hooks.removeSidebarItemsNotInSavedNames(null);
+            hooks.removeSidebarItemsNotInSavedNames('heroImage');
+
+            expect(document.querySelectorAll('li[data-set]').length).toBe(3);
+        });
+    });
 });

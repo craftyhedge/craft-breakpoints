@@ -949,6 +949,9 @@ final class ReviewRenderer
                 'includeEscapeWidth' => $includeEscapeWidth ? '1' : '0',
                 'selectedAssetKey' => $this->escapeReviewHtml($selectedAssetKey),
                 'renderedApplyHiddenClass' => $hideRenderedApply ? 'bpts-force-hidden' : '',
+                // Delete is only meaningful for a saved set; hide it while the set is
+                // unsaved ('missing'). Kept in sync reactively via setReviewState.
+                'deleteSetHiddenClass' => $setReviewState === 'missing' ? 'bpts-force-hidden' : '',
                 'breakpointColumns' => $breakpointColumns,
                 'assetPaginationHtml' => $assetPaginationHtml,
                 'editPanelId' => $this->escapeReviewHtml($editPanelId),
