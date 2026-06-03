@@ -1515,13 +1515,8 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     function updateGridScrollAffordance(grid) {
         const maxScrollLeft = Math.max(0, grid.scrollWidth - grid.clientWidth);
         const isScrollable = maxScrollLeft > 1;
-        const atStart = grid.scrollLeft <= 1;
-        const atEnd = grid.scrollLeft >= (maxScrollLeft - 1);
 
         grid.classList.toggle('bpts-drag-scrollable', isScrollable);
-        grid.classList.toggle('bpts-scroll-fade-active', isScrollable);
-        grid.classList.toggle('bpts-scroll-fade-left', isScrollable && !atStart);
-        grid.classList.toggle('bpts-scroll-fade-right', isScrollable && !atEnd);
     }
 
     function setupDragToScroll() {

@@ -839,34 +839,6 @@ input.bpts-init-value::placeholder {
     cursor: grab;
 }
 
-.bpts-breakpoint-grid.bpts-scroll-fade-active {
-    --bpts-grid-fade-size: 24px;
-    -webkit-mask-repeat: no-repeat;
-    mask-repeat: no-repeat;
-    -webkit-mask-size: 100% 100%;
-    mask-size: 100% 100%;
-}
-
-.bpts-breakpoint-grid.bpts-scroll-fade-active:not(.bpts-scroll-fade-left):not(.bpts-scroll-fade-right) {
-    -webkit-mask-image: none;
-    mask-image: none;
-}
-
-.bpts-breakpoint-grid.bpts-scroll-fade-active.bpts-scroll-fade-right:not(.bpts-scroll-fade-left) {
-    -webkit-mask-image: linear-gradient(to right, var(--bpts-color-black) 0, var(--bpts-color-black) calc(100% - var(--bpts-grid-fade-size)), transparent 100%);
-    mask-image: linear-gradient(to right, var(--bpts-color-black) 0, var(--bpts-color-black) calc(100% - var(--bpts-grid-fade-size)), transparent 100%);
-}
-
-.bpts-breakpoint-grid.bpts-scroll-fade-active.bpts-scroll-fade-left:not(.bpts-scroll-fade-right) {
-    -webkit-mask-image: linear-gradient(to right, transparent 0, var(--bpts-color-black) var(--bpts-grid-fade-size), var(--bpts-color-black) 100%);
-    mask-image: linear-gradient(to right, transparent 0, var(--bpts-color-black) var(--bpts-grid-fade-size), var(--bpts-color-black) 100%);
-}
-
-.bpts-breakpoint-grid.bpts-scroll-fade-active.bpts-scroll-fade-left.bpts-scroll-fade-right {
-    -webkit-mask-image: linear-gradient(to right, transparent 0, var(--bpts-color-black) var(--bpts-grid-fade-size), var(--bpts-color-black) calc(100% - var(--bpts-grid-fade-size)), transparent 100%);
-    mask-image: linear-gradient(to right, transparent 0, var(--bpts-color-black) var(--bpts-grid-fade-size), var(--bpts-color-black) calc(100% - var(--bpts-grid-fade-size)), transparent 100%);
-}
-
 .bpts-breakpoint-grid.bpts-drag-scrolling {
     cursor: grabbing;
 }
