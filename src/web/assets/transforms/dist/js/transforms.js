@@ -518,6 +518,9 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     }
 
     window.bptsSyncPostPatchReviewState = syncPostPatchReviewState;
+    window.bptsGetLastResultForReview = () => (
+        state.lastResult && typeof state.lastResult === 'object' ? state.lastResult : {}
+    );
 
     function getVisualResultCardOrder() {
         if (!elements.visualResults) {
@@ -1614,67 +1617,6 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         };
     }
 
-    function bindAssetPaginationReviewRerender() {
-        if (document.documentElement.dataset.bpiAssetPaginationBound === '1') {
-            return;
-        }
-
-        document.documentElement.dataset.bpiAssetPaginationBound = '1';
-
-        document.addEventListener('click', (event) => {
-            const target = event.target instanceof Element
-                ? event.target.closest('.bpts-transform-asset-page[data-asset-key]')
-                : null;
-
-            if (!(target instanceof Element)) {
-                return;
-            }
-
-            if (!elements.visualResults) {
-                return;
-            }
-
-            const card = target.closest('.bpts-transform-card[data-set]');
-            if (!(card instanceof Element) || !elements.visualResults.contains(card)) {
-                return;
-            }
-
-            const nextAssetKey = String(target.getAttribute('data-asset-key') || '').trim();
-            if (!nextAssetKey) {
-                return;
-            }
-
-            const transformName = String(card.getAttribute('data-set') || '').trim();
-            if (!transformName) {
-                return;
-            }
-
-            const selectedAssetKeyBySetOverride = {
-                [transformName]: nextAssetKey,
-            };
-
-            event.preventDefault();
-            void (async () => {
-                try {
-                    if (state.lastResult && typeof state.lastResult === 'object') {
-                        await renderResultReview(state.lastResult, {
-                            selectedAssetKeyBySetOverride,
-                            preserveCardOrder: true,
-                        });
-                        return;
-                    }
-
-                    await renderInitialStoredReview({
-                        selectedAssetKeyBySetOverride,
-                        preserveCardOrder: true,
-                    });
-                } catch (error) {
-                    console.error(error);
-                }
-            })();
-        });
-    }
-
     function clearUpdateStatusResetTimer(transformName) {
         const existingTimer = state.updateStatusResetTimersByTransform[transformName] || null;
         if (existingTimer !== null) {
@@ -2149,6 +2091,28 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                 }
                 pendingTransformBySourceElement.delete(sourceElement);
             }
+        });
+    }
+
+    function setupDatastarReviewPatchSync() {
+        document.addEventListener(DATASTAR_FETCH_EVENT, (event) => {
+            const detail = event?.detail || {};
+            const eventType = String(detail.type || '').trim().toLowerCase();
+            if (eventType !== 'finished') {
+                return;
+            }
+
+            const sourceElement = detail.el;
+            if (!sourceElement || typeof sourceElement.closest !== 'function') {
+                return;
+            }
+
+            if (!(sourceElement.closest('[data-bpts-review-patch]') instanceof Element)) {
+                return;
+            }
+
+            window.setTimeout(syncPostPatchReviewState, 0);
+            window.setTimeout(scheduleBreakpointPreviewHeightSync, 120);
         });
     }
 
@@ -2938,12 +2902,12 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     bindEntrySlideoutLinks();
     bindProcessAgainButtons();
     bindProcessObservedEntryButtons();
-    bindAssetPaginationReviewRerender();
     bindTransformSidebarCardNavigation();
     setButtonsDisabled(false);
     setupDragToScroll();
     setupResultsSettingsLightswitchSync();
     setupDatastarCardUpdateStatus();
+    setupDatastarReviewPatchSync();
     window.addEventListener('resize', scheduleBreakpointPreviewHeightSync);
     getConfiguredSlots();
     void renderInitialStoredReview().catch((error) => {

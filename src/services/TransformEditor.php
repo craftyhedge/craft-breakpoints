@@ -470,6 +470,7 @@ class TransformEditor extends Component
         bool $hideRenderedApply = false,
         bool $hideAssetPagination = false,
         string $reviewMode = self::REVIEW_MODE_PROCESSED,
+        ?string $onlyTransformName = null,
     ): array {
         if ($this->_reviewRenderer === null) {
             return [
@@ -492,6 +493,7 @@ class TransformEditor extends Component
             $hideRenderedApply,
             $hideAssetPagination,
             $reviewMode,
+            $onlyTransformName,
         );
     }
 
@@ -501,6 +503,7 @@ class TransformEditor extends Component
         array $selectedAssetKeyBySet = [],
         array $preferredOrderBySet = [],
         array $result = [],
+        ?string $onlyTransformName = null,
     ): array {
         if ($this->_reviewRenderer === null) {
             return [
@@ -519,7 +522,7 @@ class TransformEditor extends Component
             $editTabBySet,
             $selectedAssetKeyBySet,
             $preferredOrderBySet,
-            null,
+            $onlyTransformName,
             $result,
         );
     }

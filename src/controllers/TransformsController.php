@@ -637,6 +637,62 @@ class TransformsController extends Controller
         return $this->asJson($rendered);
     }
 
+    public function actionRenderTransformCard(): Response
+    {
+        $this->requireCpRequest();
+        $this->requirePostRequest();
+
+        $setName = $this->readBodyStringParam('setName');
+        if ($setName === '') {
+            return $this->asDatastarEventStream([]);
+        }
+
+        $cardId = $this->buildCardDomId($setName);
+        if ($cardId === '') {
+            return $this->asDatastarEventStream([]);
+        }
+
+        $editor = Plugin::getInstance()->getTransformEditor();
+        $result = $this->readBodyArrayParam('result');
+        $editScopeBySet = $this->readBodyArrayParam('editScopeBySet');
+        $editTabBySet = $this->readBodyArrayParam('editTabBySet');
+        $selectedAssetKeyBySet = $this->readBodyArrayParam('selectedAssetKeyBySet');
+        $preferredOrderBySet = $this->readBodyArrayParam('preferredOrderBySet');
+
+        $rendered = $result !== []
+            ? $editor->renderResultReview(
+                $result,
+                $editScopeBySet,
+                $editTabBySet,
+                $selectedAssetKeyBySet,
+                $preferredOrderBySet,
+                false,
+                false,
+                TransformEditor::REVIEW_MODE_PROCESSED,
+                $setName,
+            )
+            : $editor->renderInitialStoredReview(
+                $editScopeBySet,
+                $editTabBySet,
+                $selectedAssetKeyBySet,
+                $preferredOrderBySet,
+                [],
+                $setName,
+            );
+
+        $cardHtml = trim((string)($rendered['visualResultsHtml'] ?? ''));
+        if ($cardHtml === '') {
+            return $this->asDatastarEventStream([]);
+        }
+
+        return $this->asDatastarEventStream([
+            new PatchElements($cardHtml, [
+                'selector' => '#' . $cardId,
+                'mode' => 'outer',
+            ]),
+        ]);
+    }
+
     public function actionRenderInitialReview(): Response
     {
         $this->requireCpRequest();
@@ -1075,6 +1131,11 @@ class TransformsController extends Controller
         $rawValue = $this->request->getBodyParam($name, []);
 
         return is_array($rawValue) ? $rawValue : [];
+    }
+
+    private function readBodyStringParam(string $name): string
+    {
+        return trim((string)$this->request->getBodyParam($name, ''));
     }
 
     private function requireTransformEditPermission(?CardOperationRequest $operation = null): void
