@@ -106,7 +106,7 @@ final class InitialStoredReviewBuilder
                     'slotIndex' => $slotIndex,
                     'mediaWidth' => $mediaWidth,
                     'measureWidth' => $measureWidth,
-                    'assetId' => '',
+                    'assetId' => 'saved-preview:' . $setName,
                     'title' => $setName . ' ' . ($slotKey !== '' ? $slotKey : (string)$mediaWidth) . ' placeholder',
                     'enabled' => $enabled,
                     'isVisible' => true,

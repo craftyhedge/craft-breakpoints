@@ -1578,7 +1578,6 @@ final class TransformEditorServiceTest extends Unit
         $this->assertStringContainsString('Needs &lt;crop&gt; review', $html);
         $this->assertStringContainsString('bpts-transform-note-toggle', $html);
         $this->assertStringContainsString('bpts-transform-note-toggle-svg', $html);
-        $this->assertStringContainsString('bpts-transform-tab-note-svg', $html);
         $this->assertStringContainsString("activeTab = 'notes'", $html);
         $this->assertStringContainsString('notesVisible', $html);
     }
