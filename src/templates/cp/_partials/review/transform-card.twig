@@ -7,6 +7,7 @@
 
     Expected variables (all strings unless noted; see renderResultReview() for producers):
       - cardWarningStateClass, cardWarningDangerExpr, transformNameEscaped, signalKey
+      - cardStatusSuccessHiddenClass, cardStatusWarningHiddenClass
             - cardId
       - renderedRowsForTransformJson: removed; server resolves rendered evidence
              - selectedAssetKey
@@ -50,6 +51,20 @@
         <input type="hidden" data-bind="{{ signalPathBase }}.includeEscapeWidth" value="{{ includeEscapeWidth }}">
         <header class="bpts-transform-card-header">
             <div class="bpts-transform-title-wrap">
+                <span class="bpts-transform-title-status-icon bpts-transform-last-process-status-icon bpts-transform-last-process-status-icon-success {{ cardStatusSuccessHiddenClass }}"
+                    role="img"
+                    title="Transform set valid"
+                    aria-label="Transform set valid"
+                    data-class:bpts-force-hidden="{{ cardWarningDangerExpr }}">
+                    <span class="icon" data-icon="check" aria-hidden="true"></span>
+                </span>
+                <span class="bpts-transform-title-status-icon bpts-transform-last-process-status-icon bpts-transform-last-process-status-icon-failed {{ cardStatusWarningHiddenClass }}"
+                    role="img"
+                    title="Transform set needs review"
+                    aria-label="Transform set needs review"
+                    data-class:bpts-force-hidden="!({{ cardWarningDangerExpr }})">
+                    <span class="icon" data-icon="alert" aria-hidden="true"></span>
+                </span>
                 <h2 class="bpts-transform-name">{{ transformNameEscaped }}</h2>
                 <span class="bpts-transform-pass-height-indicator {{ passHeightIndicatorHiddenClass }}"
                     role="img"

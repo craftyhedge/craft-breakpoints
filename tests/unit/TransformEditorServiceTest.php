@@ -588,6 +588,41 @@ final class TransformEditorServiceTest extends Unit
         );
     }
 
+    public function testRenderResultReviewShowsTitleStatusIconForCleanAndWarningCards(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $result = $this->withReviewFixtureSets(fn() => $editor->renderResultReview([
+            'breakpoints' => [640],
+            'rowsByBreakpoint' => [
+                640 => [
+                    [
+                        'assetId' => '100',
+                        'transform' => 'hero',
+                        'enabled' => true,
+                        'isVisible' => true,
+                        'loaded' => true,
+                        'rendered' => ['width' => 640, 'height' => 360],
+                        'transformDimensions' => ['width' => 640, 'height' => null, 'autoDimension' => null],
+                    ],
+                    [
+                        'assetId' => '101',
+                        'transform' => 'missing-manifest-set',
+                        'enabled' => true,
+                        'isVisible' => true,
+                        'loaded' => true,
+                        'rendered' => ['width' => 600, 'height' => 340],
+                        'transformDimensions' => ['width' => 600, 'height' => 340, 'autoDimension' => null],
+                    ],
+                ],
+            ],
+        ]));
+
+        $xpath = $this->createReviewMarkupXPath((string)($result['visualResultsHtml'] ?? ''));
+        $this->assertTitleStatusIconState($xpath, 'hero', true);
+        $this->assertTitleStatusIconState($xpath, 'missing-manifest-set', false);
+    }
+
     public function testRenderResultReviewHidesDeleteButtonForUnsavedSetOnly(): void
     {
         $editor = Plugin::getInstance()->getTransformEditor();
@@ -660,6 +695,40 @@ final class TransformEditorServiceTest extends Unit
         $this->assertInstanceOf(\DOMElement::class, $button);
 
         return $button;
+    }
+
+    private function assertTitleStatusIconState(\DOMXPath $xpath, string $setName, bool $expectClean): void
+    {
+        $successIcons = $xpath->query(
+            "//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-card ') and @data-set='" . $setName . "']"
+            . "//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-title-status-icon ')"
+            . " and contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-last-process-status-icon-success ')]"
+        );
+        $warningIcons = $xpath->query(
+            "//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-card ') and @data-set='" . $setName . "']"
+            . "//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-title-status-icon ')"
+            . " and contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-last-process-status-icon-failed ')]"
+        );
+        $this->assertNotFalse($successIcons);
+        $this->assertNotFalse($warningIcons);
+        $this->assertSame(1, $successIcons->length, "Expected one success status icon for '{$setName}'.");
+        $this->assertSame(1, $warningIcons->length, "Expected one warning status icon for '{$setName}'.");
+
+        $successIcon = $successIcons->item(0);
+        $warningIcon = $warningIcons->item(0);
+        $this->assertInstanceOf(\DOMElement::class, $successIcon);
+        $this->assertInstanceOf(\DOMElement::class, $warningIcon);
+
+        $successClass = ' ' . preg_replace('/\s+/', ' ', trim((string)$successIcon->getAttribute('class'))) . ' ';
+        $warningClass = ' ' . preg_replace('/\s+/', ' ', trim((string)$warningIcon->getAttribute('class'))) . ' ';
+
+        if ($expectClean) {
+            $this->assertStringNotContainsString(' bpts-force-hidden ', $successClass);
+            $this->assertStringContainsString(' bpts-force-hidden ', $warningClass);
+        } else {
+            $this->assertStringContainsString(' bpts-force-hidden ', $successClass);
+            $this->assertStringNotContainsString(' bpts-force-hidden ', $warningClass);
+        }
     }
 
     public function testRenderResultReviewPlacesWarningCardsBeforeNonWarningCards(): void

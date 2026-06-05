@@ -942,6 +942,8 @@ final class ReviewRenderer
                 'cardWarningStateClass' => $cardWarningSeedDanger
                     ? 'bpts-transform-card-warning'
                     : '',
+                'cardStatusSuccessHiddenClass' => $cardWarningSeedDanger ? 'bpts-force-hidden' : '',
+                'cardStatusWarningHiddenClass' => $cardWarningSeedDanger ? '' : 'bpts-force-hidden',
                 'cardWarningDangerExpr' => $cardWarningDangerExpr,
                 'cardWarningsHtml' => $cardWarningsWithMismatch !== ''
                     ? '<div class="bpts-transform-card-warnings">' . $cardWarningsWithMismatch . '</div>'

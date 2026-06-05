@@ -736,10 +736,34 @@
 }
 
 .bpts-transform-name {
-    margin-bottom: 0px;
+    margin-block: 0px;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+    line-height: 1.2;
+}
+
+.bpts-transform-title-status-icon {
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    flex: 0 0 22px;
+    align-self: center;
+    line-height: 1;
+}
+
+.bpts-transform-title-status-icon [data-icon] {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    line-height: 1;
+}
+
+.bpts-transform-title-status-icon [data-icon]:before {
+    font-size: 15px;
+    line-height: 1;
 }
 
 .bpts-transform-note-toggle {
