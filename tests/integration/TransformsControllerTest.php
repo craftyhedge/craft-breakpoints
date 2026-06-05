@@ -577,7 +577,7 @@ final class TransformsControllerTest extends Unit
         $this->assertArrayHasKey('visualResultsHtml', $response->data);
         $this->assertArrayHasKey('warningCount', $response->data);
         $this->assertSame('', $response->data['warningsHtml'] ?? null);
-        $this->assertStringContainsString('No transform sets found in results.', (string)($response->data['visualResultsHtml'] ?? ''));
+        $this->assertStringContainsString('Clean slate! Get processing.', (string)($response->data['visualResultsHtml'] ?? ''));
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
     }
