@@ -32,7 +32,8 @@ php craft plugin/install breakpoints
 
 ## Documentation
 
-- Media and DPR notes: [docs/picture-template-media-and-dpr.md](docs/picture-template-media-and-dpr.md)
+- Responsive images: [docs/responsive-images.md](docs/responsive-images.md)
+- Twig `image()` function: [docs/reference/twig-image-tag.md](docs/reference/twig-image-tag.md)
 - Release history: [CHANGELOG.md](CHANGELOG.md)
 
 ## Support

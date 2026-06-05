@@ -1,6 +1,30 @@
-# Twig Image Tag Reference
+# `image()` Twig Function
 
-Reference for the `image()` Twig function.
+Use the `image()` function when you want Breakpoints to render image markup from a Craft asset.
+
+```twig
+{{ image(asset, 'hero') }}
+```
+
+The function returns safe Twig markup for the transform handle you pass in. Raster assets render as a `<picture>` element with responsive sources and a fallback `<img>`. SVG assets render as a plain `<img>`.
+
+## Basic Usage
+
+```twig
+{{ image(entry.heroImage.one(), 'hero') }}
+```
+
+The first argument is the Craft asset. The second argument is the transform handle configured in Breakpoints. If the asset is `null`, Breakpoints returns an HTML comment instead of image markup.
+
+You can pass a third argument when you need to adjust the output for a specific template:
+
+```twig
+{{ image(asset, 'hero', {
+  loading: 'eager',
+  alt: 'Hero banner',
+  imgClass: 'c-hero__img'
+}) }}
+```
 
 ## Function Signature
 
@@ -13,37 +37,112 @@ Reference for the `image()` Twig function.
 ### `asset` (required)
 **Type**: `craft\elements\Asset|null`
 
-Craft asset element to render.
+The Craft asset to render.
 
 ### `transformName` (required)
 **Type**: `string`
 
-Transform handle configured in plugin settings.
+The Breakpoints transform handle to use.
 
 ### `options` (optional)
 **Type**: `array`
 
-Configuration options.
+Template-level options for this image.
 
-## Core Properties
+## Common Options
+
+### `alt`
+**Type**: `string`
+
+Alternative text for the image. If you do not pass `alt`, Breakpoints falls back to the asset title.
+
+```twig
+{{ image(asset, 'card', {
+  alt: 'Handmade ceramic bowl'
+}) }}
+```
+
+### `loading`
+**Type**: `string`  
+**Default**: `'lazy'`  
+**Values**: `'lazy'` | `'eager'`
+
+Use `eager` for important above-the-fold images, such as a page hero. Leave the default `lazy` for most content images.
+
+The `loading` attribute is only rendered when native lazy loading is enabled in Breakpoints configuration.
+
+### `decoding`
+**Type**: `string`  
+**Default**: `'async'`  
+**Values**: `'sync'` | `'async'` | `'auto'`
+
+Controls the browser's image decoding hint.
+
+### `imgClass` / `pictureClass`
+**Type**: `string`
+
+CSS classes for the generated `<img>` and `<picture>` elements.
+
+```twig
+{{ image(asset, 'hero', {
+  loading: 'eager',
+  decoding: 'async',
+  alt: 'Hero banner',
+  imgClass: 'c-hero__img',
+  pictureClass: 'c-hero__picture'
+}) }}
+```
+
+## Responsive Output
+
+### `disableBreakpoints`
+**Type**: `array`
+
+Skips specific breakpoint slots for this one image. Pass a map of slot handles to `true`.
+
+Slot handles are the labels used by Breakpoints for saved variants. The smallest slot is `base`, followed by your configured breakpoint keys.
+
+```twig
+{{ image(asset, 'hero', {
+  disableBreakpoints: { md: true }
+}) }}
+```
+
+### `dpr`
+**Type**: `array`
+
+Sets the device pixel ratios for this image's `srcset` output.
+
+```twig
+{{ image(asset, 'hero', {
+  dpr: [1, 2, 3]
+}) }}
+```
+
+Breakpoints always includes `1x`. Invalid, zero, negative, and non-finite values are ignored.
 
 ### `includeEscapeWidth`
 **Type**: `boolean`  
 **Default**: `false`
 
-When `true`, includes an extra image variant at the escape width to ensure sharpness on very large viewports.
+Adds an extra image variant at the escape width. This can help keep very large layouts sharp.
 
 ```twig
-{{ image(asset, 'hero', { includeEscapeWidth: true }) }}
+{{ image(asset, 'hero', {
+  includeEscapeWidth: true
+}) }}
 ```
 
-## Initialization Properties
+## First-Time Transform Defaults
+
+The `init*` options are used only when Breakpoints has not yet saved a transform set for the handle. They are useful when you want a new transform to start with sensible initial values directly from your template.
+
+Once a saved transform set exists for the handle, these options are ignored.
 
 ### `initWidth` / `initHeight`
 **Type**: `integer`
 
-Bootstrap dimensions used only when no saved transform set exists for the handle.
-
+Initial width and height for a new transform set.
 
 ```twig
 {{ image(asset, 'content', {
@@ -55,15 +154,14 @@ Bootstrap dimensions used only when no saved transform set exists for the handle
 ### `initRatio`
 **Type**: `string|float|int`
 
-Bootstrap aspect ratio used only when no saved transform set exists for the handle.
+Initial aspect ratio metadata for a new transform set.
 
 Accepted values:
 
-- String `"x:y"` with positive numbers on both sides (e.g. `"16:9"`, `"1.5:1"`)
-- Positive numeric ratio (`1.77778`, `"0.5625"`)
+- A string ratio such as `"16:9"` or `"1.5:1"`
+- A positive numeric ratio such as `1.77778` or `"0.5625"`
 
-Invalid values are ignored and source aspect ratio fallback is used.
-
+Invalid values are ignored. Rendered image dimensions are still calculated from `initWidth`, `initHeight`, saved transform dimensions, or the source image ratio.
 
 ```twig
 {{ image(asset, 'content', {
@@ -76,13 +174,13 @@ Invalid values are ignored and source aspect ratio fallback is used.
 **Type**: `boolean`  
 **Default**: `false`
 
-Bootstrap auto-dimension flags used only when no saved transform set exists for the handle.
+Controls whether the initial transform omits width or height.
 
 `initWidthAuto: true` sends a transform without `width`.
 
 `initHeightAuto: true` sends a transform without `height`.
 
-No implicit auto inference: providing only `initWidth` does not auto-enable height, and providing only `initHeight` does not auto-enable width.
+Providing only `initWidth` does not automatically enable height auto, and providing only `initHeight` does not automatically enable width auto. If both auto flags are passed, `initWidthAuto` takes precedence.
 
 ```twig
 {{ image(asset, 'content', {
@@ -90,88 +188,16 @@ No implicit auto inference: providing only `initWidth` does not auto-enable heig
 }) }}
 ```
 
-```twig
-{{ image(asset, 'content', {
-  initWidthAuto: true
-}) }}
-```
-
-### Init Option Precedence
-
-`init*` options are bootstrap-only. If a saved transform set exists for the handle, all `init*` options are ignored.
-
-When no saved set exists, precedence is:
-
-1. `initWidth` + `initHeight` -> both explicit, `initRatio` ignored.
-2. `initWidth` + `initRatio` -> `height = initWidth / initRatio`.
-3. `initHeight` + `initRatio` -> `width = initHeight * initRatio`.
-4. `initWidth` only -> derive `height` from intrinsic/source ratio.
-5. `initHeight` only -> derive `width` from intrinsic/source ratio.
-6. `initRatio` only -> per-breakpoint width, derive `height` from ratio.
-7. Neither init dimension nor ratio -> intrinsic/source ratio fallback.
-8. `initWidthAuto` / `initHeightAuto` only control whether a transform dimension is omitted; reported dimensions remain computed from the active aspect ratio.
-
-## HTML Attributes
-
-### `loading`
-**Type**: `string`  
-**Default**: `'lazy'`  
-**Values**: `'lazy'` | `'eager'`
-
-### `decoding`
-**Type**: `string`  
-**Default**: `'async'`  
-**Values**: `'sync'` | `'async'` | `'auto'`
-
-### `alt`
-**Type**: `string`
-
-Alternative text. Falls back to asset's alt/title.
-
-### `imgClass` / `pictureClass`
-**Type**: `string`
-
-CSS classes for `<img>` and `<picture>` elements.
-
-```twig
-{{ image(asset, 'hero', {
-  loading: 'eager',
-  decoding: 'async',
-  alt: 'Hero banner',
-  imgClass: 'c-hero__img',
-  pictureClass: 'c-hero__picture'
-}) }}
-```
-
-## Rendering Controls
-
-### `disableBreakpoints`
-**Type**: `array`
-
-Map of breakpoint keys to `true` to skip rendering those breakpoints.
-
-### `dpr`
-**Type**: `array`
-
-Device pixel ratios (e.g., `[1, 2, 3]`). Drives DPR srcset generation.
-
-```twig
-{{ image(asset, 'hero', {
-  disableBreakpoints: { md: true },
-  dpr: [1, 2, 3]
-}) }}
-```
-
 ## Transform Overrides
 
-These options override transform defaults when provided inline. If a saved transform specifies the same fields, the saved transform takes precedence.
+These options can adjust transform behavior for a specific image call when the transform set has not already saved its own value. If the saved transform set defines the same field, the saved transform value takes precedence.
 
-- `format` (string) primary format
-- `secondaryFormat` (string) fallback/secondary format
-- `quality` (int)
-- `mode` (string)
-- `position` (string)
-- `interlace` (string)
+- `format` (string): primary format
+- `secondaryFormat` (string): fallback format
+- `quality` (int): image quality
+- `mode` (string): transform mode
+- `position` (string): crop position
+- `interlace` (string): interlace setting
 
 ```twig
 {{ image(asset, 'hero', {
@@ -186,8 +212,12 @@ These options override transform defaults when provided inline. If a saved trans
 
 ## Template Overrides
 
-- `pictureTemplatePath` — Custom template for raster images.
-- `svgTemplatePath` — Custom template for SVG images.
+Most projects can use the default output. If you need full control, you can point Breakpoints at your own templates.
+
+- `pictureTemplatePath`: custom template for raster images
+- `svgTemplatePath`: custom template for SVG images
+
+Template paths are relative to your site's template root.
 
 ```twig
 {{ image(asset, 'hero', {
@@ -196,32 +226,37 @@ These options override transform defaults when provided inline. If a saved trans
 }) }}
 ```
 
+## Init Option Precedence
+
+When no saved transform set exists, Breakpoints resolves `init*` dimension options like this:
+
+1. `initWidth` + `initHeight` -> use both explicit dimensions.
+2. `initWidth` only -> derive `height` from the source image ratio.
+3. `initHeight` only -> derive `width` from the source image ratio.
+4. No init dimensions -> use the per-slot width and derive `height` from the source image ratio.
+5. `initWidthAuto` and `initHeightAuto` only control whether a transform dimension is omitted; reported dimensions are still computed from the active source image ratio.
+
 ## Full Example
 
 ```twig
 {{ image(asset, 'hero', {
-  {# Core #}
   includeEscapeWidth: true,
 
-  {# Initialization #}
   initWidth: 1200,
   initHeight: 675,
   initRatio: '16:9',
   initWidthAuto: false,
   initHeightAuto: false,
 
-  {# HTML attrs #}
   loading: 'eager',
   decoding: 'async',
   alt: 'Hero banner',
   imgClass: 'c-hero__img',
   pictureClass: 'c-hero__picture',
 
-  {# Rendering controls #}
   disableBreakpoints: { md: true },
   dpr: [1, 2],
 
-  {# Transform overrides #}
   format: 'avif',
   secondaryFormat: 'webp',
   quality: 82,
@@ -229,12 +264,7 @@ These options override transform defaults when provided inline. If a saved trans
   position: 'center-center',
   interlace: 'none',
 
-  {# Templates #}
-  {# relative to site template root #}
   pictureTemplatePath: 'custom/picture',
   svgTemplatePath: 'custom/svg'
 }) }}
 ```
-
-
-
