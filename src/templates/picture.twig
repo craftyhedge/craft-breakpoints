@@ -9,18 +9,26 @@
     - breakpoints: Breakpoint map from plugin configuration
 #}
 
-<picture {% for attr, value in pictureAttributes %}{% if value is not null and value is not empty %}{{ attr }}="{{ value }}" {% endif %}{% endfor %}>
-    {% for key, breakpoint in breakpoints %}
-        {% set breakpointData = craft.images.getBreakpointData(loop.index0, breakpoint, config, image) %}
+{% macro attrs(attributes) %}
+  {%- for attr, value in attributes -%}
+    {%- if value is not null and value is not empty -%}
+      {{- (' ' ~ attr ~ '="' ~ value|e ~ '"')|raw -}}
+    {%- endif -%}
+  {%- endfor -%}
+{% endmacro %}
 
-        {% if breakpointData.primaryFormat %}
-            <source {% for attr, value in breakpointData.primarySourceAttributes %}{% if value is not null and value is not empty %}{{ attr }}="{{ value }}" {% endif %}{% endfor %}>
+<picture{{ _self.attrs(pictureAttributes) }}>
+  {% for key, breakpoint in breakpoints %}
+    {% set breakpointData = craft.images.getBreakpointData(loop.index0, breakpoint, config, image) %}
 
-            {% if breakpointData.secondaryFormat %}
-                <source {% for attr, value in breakpointData.secondarySourceAttributes %}{% if value is not null and value is not empty %}{{ attr }}="{{ value }}" {% endif %}{% endfor %}>
-            {% endif %}
-        {% endif %}
-    {% endfor %}
+    {% if breakpointData.primaryFormat %}
+      <source{{ _self.attrs(breakpointData.primarySourceAttributes) }}>
 
-    <img {% for attr, value in imgAttributes %}{% if value is not null and value is not empty %}{{ attr }}="{{ value }}" {% endif %}{% endfor %}>
+      {% if breakpointData.secondaryFormat %}
+        <source{{ _self.attrs(breakpointData.secondarySourceAttributes) }}>
+      {% endif %}
+    {% endif %}
+  {% endfor %}
+
+  <img{{ _self.attrs(imgAttributes) }}>
 </picture>

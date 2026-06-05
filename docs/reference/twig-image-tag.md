@@ -226,6 +226,8 @@ Template paths are relative to your site's template root.
 }) }}
 ```
 
+See [Custom Image Templates](../custom-templates.md) for the variables passed to custom templates and complete raster/SVG examples.
+
 ## Init Option Precedence
 
 When no saved transform set exists, Breakpoints resolves `init*` dimension options like this:

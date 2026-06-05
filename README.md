@@ -33,6 +33,7 @@ php craft plugin/install breakpoints
 ## Documentation
 
 - Responsive images: [docs/responsive-images.md](docs/responsive-images.md)
+- Custom image templates: [docs/custom-templates.md](docs/custom-templates.md)
 - Twig `image()` function: [docs/reference/twig-image-tag.md](docs/reference/twig-image-tag.md)
 - Release history: [CHANGELOG.md](CHANGELOG.md)
 
