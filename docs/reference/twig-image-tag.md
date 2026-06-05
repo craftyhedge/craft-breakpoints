@@ -54,7 +54,7 @@ Template-level options for this image.
 ### `alt`
 **Type**: `string`
 
-Alternative text for the image. If you do not pass `alt`, Breakpoints falls back to the asset title.
+Alternative text for the image. If you do not pass `alt`, Breakpoints uses Craft's native asset alternative text field. If neither value is available, the rendered `alt` attribute is empty.
 
 ```twig
 {{ image(asset, 'card', {

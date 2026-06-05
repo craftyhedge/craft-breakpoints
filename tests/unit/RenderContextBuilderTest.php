@@ -134,7 +134,7 @@ final class RenderContextBuilderTest extends Unit
         $this->assertSame('no-loading', $attributes['class'] ?? null);
     }
 
-    public function testGetImageAttributesUsesAssetTitleAsFallbackAltAndAllowsOverride(): void
+    public function testGetImageAttributesUsesAssetAltAsFallbackAltAndAllowsOverride(): void
     {
         $builder = Plugin::getInstance()->getRenderContextBuilder();
         $asset = $this->createMockAsset();
@@ -154,8 +154,24 @@ final class RenderContextBuilderTest extends Unit
             'alt' => 'Explicit alt',
         ], $asset);
 
-        $this->assertSame('Mock asset', $fallbackAltAttributes['alt'] ?? null);
+        $this->assertSame('Native asset alt', $fallbackAltAttributes['alt'] ?? null);
         $this->assertSame('Explicit alt', $overrideAltAttributes['alt'] ?? null);
+    }
+
+    public function testGetImageAttributesUsesEmptyAltWhenNoOptionOrAssetAltExists(): void
+    {
+        $builder = Plugin::getInstance()->getRenderContextBuilder();
+        $asset = $this->createMockAsset();
+        $asset->alt = null;
+
+        $attributes = $builder->getImageAttributes([
+            'setName' => 'default',
+            'breakpoints' => ['xs' => 480],
+            'escapeWidth' => 0,
+            'secondaryFormat' => 'none',
+        ], $asset);
+
+        $this->assertSame('', $attributes['alt'] ?? null);
     }
 
     public function testGetPictureAttributesExposeBreakpointStatesAsJsonObject(): void
@@ -201,6 +217,7 @@ final class RenderContextBuilderTest extends Unit
 
         $asset->id = 123;
         $asset->title = 'Mock asset';
+        $asset->alt = 'Native asset alt';
 
         $asset->method('getWidth')->willReturn(1600);
         $asset->method('getHeight')->willReturn(900);

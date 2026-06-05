@@ -111,7 +111,7 @@ class RenderContextBuilder extends Component
             'height' => $height > 0 ? $height : null,
             'class' => (string)($config['imgClass'] ?? ''),
             'decoding' => (string)($config['decoding'] ?? 'async'),
-            'alt' => (string)($config['alt'] ?? $image->title ?? ''),
+            'alt' => (string)($config['alt'] ?? $image->alt ?? ''),
         ];
 
         if ((bool)($config['nativeLazyLoadingEnabled'] ?? true)) {
