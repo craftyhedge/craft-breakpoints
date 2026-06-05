@@ -1387,8 +1387,10 @@ describe('transforms runtime helper logic', () => {
         expect(publishedResult.summary.loadedImageCount).toBe(2);
         expect(hooks.getLastReport().status).toBe('completed');
         expect(hooks.getLastReport().resultPublished).toBe(true);
-        expect(document.getElementById('bpts-status').textContent)
-            .toContain('Done. 1 set processed. 0 warnings to address.');
+        const status = document.getElementById('bpts-status');
+        expect(status.textContent).toContain('All passed');
+        expect(status.classList.contains('bpts-header-status-success')).toBe(true);
+        expect(status.querySelector('[data-icon="check"]')).toBeTruthy();
     });
 
     it('reports cancelled processing when wait is aborted and avoids publishing results', async () => {

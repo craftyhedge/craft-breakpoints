@@ -114,9 +114,32 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         },
     };
 
-    function setStatus(message) {
+    function setStatus(message, options = {}) {
         if (elements.status) {
-            elements.status.textContent = message;
+            const state = ['success', 'warning'].includes(options.state) ? options.state : '';
+            const iconName = state === 'success' ? 'check' : (state === 'warning' ? 'alert' : '');
+
+            elements.status.classList.toggle('bpts-header-status-success', state === 'success');
+            elements.status.classList.toggle('bpts-header-status-warning', state === 'warning');
+            elements.status.replaceChildren();
+
+            if (iconName !== '') {
+                const iconWrap = document.createElement('span');
+                iconWrap.className = 'bpts-header-status-icon';
+                iconWrap.setAttribute('aria-hidden', 'true');
+
+                const icon = document.createElement('span');
+                icon.className = 'icon';
+                icon.dataset.icon = iconName;
+
+                iconWrap.appendChild(icon);
+                elements.status.appendChild(iconWrap);
+            }
+
+            const label = document.createElement('span');
+            label.className = 'bpts-header-status-label';
+            label.textContent = message;
+            elements.status.appendChild(label);
         }
     }
 
@@ -2865,14 +2888,12 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                 console.error(error);
                 snapshotPersisted = false;
             }
-            const setCount = Math.max(0, Number(result.summary.setCount) || 0);
             const warningCount = Math.max(0, Number(result.summary.warningCount) || 0);
-            const setLabel = setCount === 1 ? 'set' : 'sets';
-            const warningLabel = warningCount === 1 ? 'warning' : 'warnings';
-            const completionStatus = `Done. ${setCount} ${setLabel} processed. ${warningCount} ${warningLabel} to address.`;
+            const completionState = warningCount > 0 ? 'warning' : 'success';
+            const completionStatus = warningCount > 0 ? 'Warnings to address' : 'All passed';
             setStatus(snapshotPersisted
                 ? completionStatus
-                : `${completionStatus} Run details were not saved.`);
+                : `${completionStatus}. Run details were not saved.`, { state: completionState });
         } catch (error) {
             const cancelled = error instanceof ProcessingCancelledError;
 
