@@ -353,6 +353,8 @@
 }
 
 #sidebar-container {
+    width: 11rem !important;
+    flex: none;
     #sidebar {
         padding-inline: 16px !important;
         padding-top: 10px;
