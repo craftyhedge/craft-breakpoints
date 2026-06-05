@@ -69,7 +69,9 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         visualResults: document.getElementById('bpts-visual-results'),
         btnOpenPreview: document.getElementById('bpts-open-preview'),
         btnRun: document.getElementById('bpts-run-processing'),
+        btnPreviewRun: document.getElementById('bpts-preview-run-processing'),
         btnStop: document.getElementById('bpts-stop-processing'),
+        btnPreviewStop: document.getElementById('bpts-preview-stop-processing'),
         btnClosePreview: document.getElementById('bpts-close-preview'),
         btnCopy: document.getElementById('bpts-copy-output')
     };
@@ -792,15 +794,17 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     }
 
     function setStopButtonVisibility(isVisible) {
-        if (!elements.btnStop) {
-            return;
-        }
-
         const shouldShow = Boolean(isVisible) && state.waitSoftLimitReached === true;
-        elements.btnStop.hidden = !shouldShow;
-        elements.btnStop.disabled = !shouldShow;
-        elements.btnStop.style.display = shouldShow ? '' : 'none';
-        elements.btnStop.setAttribute('aria-hidden', shouldShow ? 'false' : 'true');
+        [elements.btnStop, elements.btnPreviewStop].forEach((button) => {
+            if (!button) {
+                return;
+            }
+
+            button.hidden = !shouldShow;
+            button.disabled = !shouldShow;
+            button.style.display = shouldShow ? '' : 'none';
+            button.setAttribute('aria-hidden', shouldShow ? 'false' : 'true');
+        });
     }
 
     function getConfiguredSlots() {
@@ -844,10 +848,15 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         const runShouldDisable = disabled || !hasSourceSelection;
         const openShouldDisable = disabled || state.previewVisible || !hasSourceSelection;
 
-        if (elements.btnRun) {
-            elements.btnRun.disabled = runShouldDisable;
-            elements.btnRun.classList.toggle('disabled', runShouldDisable);
-        }
+        [elements.btnRun, elements.btnPreviewRun].forEach((button) => {
+            if (!button) {
+                return;
+            }
+
+            button.disabled = runShouldDisable;
+            button.classList.toggle('disabled', runShouldDisable);
+        });
+
         if (elements.btnOpenPreview) {
             elements.btnOpenPreview.disabled = openShouldDisable;
             elements.btnOpenPreview.classList.toggle('disabled', openShouldDisable);
@@ -2820,6 +2829,12 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         });
     }
 
+    if (elements.btnPreviewRun) {
+        elements.btnPreviewRun.addEventListener('click', async () => {
+            await runProcessing();
+        });
+    }
+
     if (elements.btnCopy) {
         elements.btnCopy.addEventListener('click', async () => {
             if (!state.lastResult) {
@@ -2837,17 +2852,25 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         });
     }
 
-    if (elements.btnStop) {
-        elements.btnStop.addEventListener('click', () => {
+    [elements.btnStop, elements.btnPreviewStop].forEach((button) => {
+        if (!button) {
+            return;
+        }
+
+        button.addEventListener('click', () => {
             if (!state.busy) {
                 return;
             }
 
             state.stopRequested = true;
-            elements.btnStop.disabled = true;
+            [elements.btnStop, elements.btnPreviewStop].forEach((stopButton) => {
+                if (stopButton) {
+                    stopButton.disabled = true;
+                }
+            });
             setStatus('Stopping after the current wait check...');
         });
-    }
+    });
 
     if (elements.btnOpenPreview) {
         elements.btnOpenPreview.addEventListener('click', async () => {

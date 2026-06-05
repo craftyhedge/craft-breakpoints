@@ -140,7 +140,24 @@
                 <strong>Preview</strong>
             </div>
             <div id="bpts-frame-wrapper" class="bpts-frame-wrapper" data-role="preview-wrapper">
-                <button id="bpts-close-preview" class="btn" type="button">Close Preview</button>
+                <div class="bpts-preview-controls">
+                    {% if (canEditTransforms ?? false) and (transformsDeveloperActionsEnabled ?? false) %}
+                        {{ forms.button({
+                            id: 'bpts-preview-run-processing',
+                            label: 'Process'|t('breakpoints'),
+                            disabled: true
+                        }) }}
+                        {{ forms.button({
+                            id: 'bpts-preview-stop-processing',
+                            class: 'bpts-stop-processing bpts-preview-stop-processing',
+                            label: 'Quit Waiting'|t('breakpoints'),
+                            attributes: {
+                                hidden: true
+                            }
+                        }) }}
+                    {% endif %}
+                    <button id="bpts-close-preview" class="btn" type="button">Close Preview</button>
+                </div>
             </div>
         </div>
 
