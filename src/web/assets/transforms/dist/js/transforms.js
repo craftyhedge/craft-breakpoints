@@ -41,6 +41,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     const REPORT_SCHEMA_VERSION = 1;
     const REPORT_ISSUE_LIMIT = 200;
     const PREPARE_NORMALIZATION_SAMPLE_LIMIT = 12;
+    const COMPACT_BREAKPOINT_CARDS_STORAGE_KEY = 'breakpoints.transforms.compactBreakpointCards';
 
     const bpiProcessingConfig = window.bpiProcessingConfig || {};
     const ENTRY_URL_ACTION = 'breakpoints/default/entry-url';
@@ -52,6 +53,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     const elements = {
         page: document.querySelector('.bpts-transforms-page'),
         showCardSettingsSignalBridge: document.getElementById('bpts-show-card-settings-signal-bridge'),
+        compactBreakpointCardsSignalBridge: document.getElementById('bpts-compact-breakpoint-cards-signal-bridge'),
         uiResultsHeadingSignalBridge: document.getElementById('bpts-ui-results-heading-signal-bridge'),
         resultsHeading: document.getElementById('bpts-results-heading'),
         uiShowWarningOrderSignalBridge: document.getElementById('bpts-ui-show-warning-order-signal-bridge'),
@@ -72,6 +74,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         btnPreviewRun: document.getElementById('bpts-preview-run-processing'),
         btnStop: document.getElementById('bpts-stop-processing'),
         btnPreviewStop: document.getElementById('bpts-preview-stop-processing'),
+        btnCompactBreakpointCards: document.getElementById('bpts-compact-breakpoint-cards'),
         btnClosePreview: document.getElementById('bpts-close-preview'),
         btnCopy: document.getElementById('bpts-copy-output')
     };
@@ -2213,6 +2216,85 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         return bridge.checked === true;
     }
 
+    function setCompactBreakpointCardsSignal(isEnabled) {
+        const bridge = elements.compactBreakpointCardsSignalBridge;
+        if (!(bridge instanceof HTMLInputElement) || bridge.type !== 'checkbox') {
+            return;
+        }
+
+        bridge.checked = Boolean(isEnabled);
+        bridge.dispatchEvent(new Event('input', { bubbles: true }));
+        bridge.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    function getCompactBreakpointCardsSignalValue() {
+        const bridge = elements.compactBreakpointCardsSignalBridge;
+        if (!(bridge instanceof HTMLInputElement) || bridge.type !== 'checkbox') {
+            return false;
+        }
+
+        return bridge.checked === true;
+    }
+
+    function readStoredCompactBreakpointCardsValue() {
+        try {
+            const stored = window.localStorage?.getItem(COMPACT_BREAKPOINT_CARDS_STORAGE_KEY);
+            if (stored === '1') {
+                return true;
+            }
+            if (stored === '0') {
+                return false;
+            }
+        } catch (error) {
+            return null;
+        }
+
+        return null;
+    }
+
+    function storeCompactBreakpointCardsValue(isEnabled) {
+        try {
+            window.localStorage?.setItem(COMPACT_BREAKPOINT_CARDS_STORAGE_KEY, isEnabled ? '1' : '0');
+        } catch (error) {
+            // Browser storage can be disabled; the in-page toggle should still work.
+        }
+    }
+
+    function syncCompactBreakpointCardsButtonFromSignal() {
+        const button = elements.btnCompactBreakpointCards;
+        if (!(button instanceof HTMLButtonElement)) {
+            return;
+        }
+
+        const isCompact = getCompactBreakpointCardsSignalValue();
+        button.classList.toggle('active', isCompact);
+        button.setAttribute('aria-pressed', isCompact ? 'true' : 'false');
+        button.setAttribute('aria-label', isCompact ? 'Show previews' : 'Hide previews');
+        button.setAttribute('title', isCompact ? 'Show previews' : 'Hide previews');
+    }
+
+    function preserveScrollAnchorDuringLayoutChange(callback) {
+        const anchor = findScrollAnchorCard();
+        const anchorTop = anchor ? anchor.getBoundingClientRect().top : null;
+
+        callback();
+
+        if (!anchor || anchorTop === null) {
+            return;
+        }
+
+        const observer = new ResizeObserver(() => {
+            observer.disconnect();
+            const newTop = anchor.getBoundingClientRect().top;
+            const drift = newTop - anchorTop;
+            if (Math.abs(drift) > 1) {
+                window.scrollBy(0, drift);
+            }
+        });
+        observer.observe(anchor);
+        requestAnimationFrame(() => requestAnimationFrame(() => observer.disconnect()));
+    }
+
     function getResultsSettingsLightSwitchInstance() {
         if (!(elements.resultsSettingsLightswitch instanceof HTMLElement)) {
             return null;
@@ -2276,25 +2358,9 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                 return;
             }
 
-            const anchor = findScrollAnchorCard();
-            const anchorTop = anchor ? anchor.getBoundingClientRect().top : null;
-
-            setShowCardSettingsSignal(latest.on === true);
-
-            if (anchor && anchorTop !== null) {
-                const observer = new ResizeObserver(() => {
-                    observer.disconnect();
-                    const newTop = anchor.getBoundingClientRect().top;
-                    const drift = newTop - anchorTop;
-                    if (Math.abs(drift) > 1) {
-                        window.scrollBy(0, drift);
-                    }
-                });
-                observer.observe(anchor);
-
-                // Safety: disconnect if no resize fires (e.g. card already at target size)
-                requestAnimationFrame(() => requestAnimationFrame(() => observer.disconnect()));
-            }
+            preserveScrollAnchorDuringLayoutChange(() => {
+                setShowCardSettingsSignal(latest.on === true);
+            });
         };
 
         $lightswitch.off('change.bpiShowCardSettings');
@@ -2308,6 +2374,39 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         }
 
         syncResultsSettingsLightswitchFromSignal();
+    }
+
+    function setupCompactBreakpointCardsToggle() {
+        if (elements.compactBreakpointCardsSignalBridge instanceof HTMLInputElement
+            && elements.compactBreakpointCardsSignalBridge.dataset.bpiSignalBridgeBound !== '1') {
+            elements.compactBreakpointCardsSignalBridge.addEventListener('change', () => {
+                storeCompactBreakpointCardsValue(getCompactBreakpointCardsSignalValue());
+                syncCompactBreakpointCardsButtonFromSignal();
+                scheduleBreakpointPreviewHeightSync();
+            });
+            elements.compactBreakpointCardsSignalBridge.addEventListener('input', () => {
+                syncCompactBreakpointCardsButtonFromSignal();
+                scheduleBreakpointPreviewHeightSync();
+            });
+            elements.compactBreakpointCardsSignalBridge.dataset.bpiSignalBridgeBound = '1';
+        }
+
+        if (elements.btnCompactBreakpointCards instanceof HTMLButtonElement
+            && elements.btnCompactBreakpointCards.dataset.bpiCompactToggleBound !== '1') {
+            elements.btnCompactBreakpointCards.addEventListener('click', () => {
+                preserveScrollAnchorDuringLayoutChange(() => {
+                    setCompactBreakpointCardsSignal(!getCompactBreakpointCardsSignalValue());
+                });
+            });
+            elements.btnCompactBreakpointCards.dataset.bpiCompactToggleBound = '1';
+        }
+
+        const storedValue = readStoredCompactBreakpointCardsValue();
+        if (storedValue !== null && storedValue !== getCompactBreakpointCardsSignalValue()) {
+            setCompactBreakpointCardsSignal(storedValue);
+        }
+
+        syncCompactBreakpointCardsButtonFromSignal();
     }
 
     function applyRenderedReviewPayload(payload) {
@@ -2986,6 +3085,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     setButtonsDisabled(false);
     setupDragToScroll();
     setupResultsSettingsLightswitchSync();
+    setupCompactBreakpointCardsToggle();
     setupDatastarCardUpdateStatus();
     setupDatastarReviewPatchSync();
     window.addEventListener('resize', scheduleBreakpointPreviewHeightSync);

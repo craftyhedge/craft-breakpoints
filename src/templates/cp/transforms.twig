@@ -74,6 +74,10 @@
 
 {% block actionButton %}
     <div class="buttons bpts-header-controls"{% if not (canEditTransforms ?? false) %} hidden aria-hidden="true" style="display: none !important;"{% endif %}>
+        <button id="bpts-compact-breakpoint-cards" class="bpts-compact-breakpoint-cards" type="button" aria-pressed="false" title="{{ 'Hide previews'|t('breakpoints') }}" aria-label="{{ 'Hide previews'|t('breakpoints') }}">
+            <span class="icon bpts-compact-breakpoint-cards-icon bpts-compact-breakpoint-cards-icon-expanded" data-icon="view" aria-hidden="true"></span>
+            <span class="icon bpts-compact-breakpoint-cards-icon bpts-compact-breakpoint-cards-icon-compact" data-icon="eye-slash" aria-hidden="true"></span>
+        </button>
         <div class="bpts-source-entry-control"{% if not (canEditTransforms ?? false) %} hidden aria-hidden="true"{% endif %}>
             {{ forms.elementSelect({
                 id: 'bpts-source-entry',
@@ -120,16 +124,19 @@
     {% endfor %}
     <div
         class="bpts-transforms-page bpts-review-hydrating"
-        data-signals="{_applyCardOperationUrl: '{{ applyCardOperationUrl|e('js') }}', _renderTransformCardUrl: '{{ renderTransformCardUrl|e('js') }}', _csrfToken: '{{ craft.app.request.csrfToken|e('js') }}', showCardSettings: false, ui: {resultsHeading: 'Saved Sets', showWarningOrder: false, resultsOrderingNoteLabel: ''}, sidebar: {savedSetNamesJson: '{{ initialSavedSetNames|json_encode|e('js') }}'}, editor: {baseVersion: '{{ initialBaseVersion|e('js') }}', cards: {}}}"
+        data-signals="{_applyCardOperationUrl: '{{ applyCardOperationUrl|e('js') }}', _renderTransformCardUrl: '{{ renderTransformCardUrl|e('js') }}', _csrfToken: '{{ craft.app.request.csrfToken|e('js') }}', showCardSettings: false, compactBreakpointCards: false, ui: {resultsHeading: 'Saved Sets', showWarningOrder: false, resultsOrderingNoteLabel: ''}, sidebar: {savedSetNamesJson: '{{ initialSavedSetNames|json_encode|e('js') }}'}, editor: {baseVersion: '{{ initialBaseVersion|e('js') }}', cards: {}}}"
         data-on-signal-patch="window.bptsSyncPostPatchReviewState && window.bptsSyncPostPatchReviewState(patch)"
         data-on-signal-patch-filter="{include: /^(editor\.baseVersion|sidebar\.savedSetNamesJson|ui\.)/}"
         data-persist:breakpoints-editor__session="{include: /^(showCardSettings|editor\\.cards\\.[^.]+\\.selectedAssetKey)$/}"
         data-show-card-settings="0"
         data-attr:data-show-card-settings="(String($showCardSettings) === 'true' || String($showCardSettings) === '1') ? '1' : '0'"
+        data-compact-breakpoint-cards="0"
+        data-attr:data-compact-breakpoint-cards="(String($compactBreakpointCards) === 'true' || String($compactBreakpointCards) === '1') ? '1' : '0'"
         data-preview-center="{{ (previewCenter ?? true) ? '1' : '0' }}"
         data-site-id="{{ currentSite.id ?? 0 }}"
     >
         <input id="bpts-show-card-settings-signal-bridge" type="checkbox" hidden aria-hidden="true" tabindex="-1" data-bind="showCardSettings">
+        <input id="bpts-compact-breakpoint-cards-signal-bridge" type="checkbox" hidden aria-hidden="true" tabindex="-1" data-bind="compactBreakpointCards">
         <input id="bpts-ui-results-heading-signal-bridge" type="text" hidden aria-hidden="true" tabindex="-1" data-bind="ui.resultsHeading">
         <input id="bpts-ui-show-warning-order-signal-bridge" type="checkbox" hidden aria-hidden="true" tabindex="-1" data-bind="ui.showWarningOrder">
         <input id="bpts-ui-results-ordering-note-label-signal-bridge" type="text" hidden aria-hidden="true" tabindex="-1" data-bind="ui.resultsOrderingNoteLabel">

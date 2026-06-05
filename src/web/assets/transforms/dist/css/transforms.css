@@ -370,6 +370,60 @@
     margin-right: 0;
 }
 
+.bpts-compact-breakpoint-cards {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    color: var(--fg-subtle);
+    cursor: pointer;
+    appearance: none;
+}
+
+.bpts-compact-breakpoint-cards:hover,
+.bpts-compact-breakpoint-cards:focus-visible,
+.bpts-compact-breakpoint-cards.active {
+    background: transparent;
+    box-shadow: none;
+    color: var(--text-color);
+}
+
+.bpts-compact-breakpoint-cards:focus-visible {
+    outline: 2px solid rgba(var(--bpts-rgb-accent-blue), 0.48);
+    outline-offset: 2px;
+}
+
+.bpts-compact-breakpoint-cards-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    margin: 0;
+}
+
+.bpts-compact-breakpoint-cards-icon::before {
+    display: block;
+    font-size: 14px;
+    line-height: 14px;
+    margin: 0;
+}
+
+.bpts-compact-breakpoint-cards-icon-compact,
+.bpts-compact-breakpoint-cards.active .bpts-compact-breakpoint-cards-icon-expanded {
+    display: none;
+}
+
+.bpts-compact-breakpoint-cards.active .bpts-compact-breakpoint-cards-icon-compact {
+    display: inline-flex;
+}
+
 .bpts-transforms-page[data-show-card-settings="0"] .bpts-transform-header-actions,
 .bpts-transforms-page[data-show-card-settings="0"] .bpts-breakpoint-grid-actions,
 .bpts-transforms-page[data-show-card-settings="0"] .bpts-transform-quick-row,
@@ -383,6 +437,15 @@
 }
 
 .bpts-transforms-page.bpts-review-hydrating .bpts-visual-results .bpts-transform-card {
+    display: none;
+}
+
+.bpts-transforms-page[data-compact-breakpoint-cards="1"] .bpts-breakpoint-column-wrap {
+    flex-basis: 176px;
+    max-width: 176px;
+}
+
+.bpts-transforms-page[data-compact-breakpoint-cards="1"] .bpi_image-display-section {
     display: none;
 }
 
