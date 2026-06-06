@@ -22,7 +22,6 @@ final class SnapshotReader
 
     private ?array $latestRunRowsByTransformAndBreakpoint = null;
     private ?array $previewCacheRows = null;
-    private ?array $observedDataByTransform = null;
 
     /** Null = not yet resolved; key 'value' holds the resolved value to distinguish from "no data". */
     private ?array $resolvedRunEntryCache = null;
@@ -103,6 +102,74 @@ final class SnapshotReader
         $transforms = $this->transformStore->getTransforms();
 
         return is_array($transforms) ? $transforms : [];
+    }
+
+    /**
+     * @return array{transformHandle: string, includeEscapeWidth: ?bool, setExists: ?bool}|null
+     */
+    public function resolveTransformMetadata(string $transformName): ?array
+    {
+        if ($transformName === '') {
+            return null;
+        }
+
+        $snapshot = $this->getLatestRunSnapshot();
+        $metadata = is_array($snapshot) && isset($snapshot['transformMetadata']) && is_array($snapshot['transformMetadata'])
+            ? $snapshot['transformMetadata']
+            : [];
+        $entry = $metadata[$transformName] ?? null;
+
+        return is_array($entry) ? $entry : null;
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    public function resolveHiddenSlotIdsForTransform(string $transformName, ?string $assetKey = null): array
+    {
+        if ($transformName === '') {
+            return [];
+        }
+
+        $snapshot = $this->getLatestRunSnapshot();
+        $perAssetRows = is_array($snapshot) && isset($snapshot['rowsPayload']) && is_array($snapshot['rowsPayload'])
+            ? $snapshot['rowsPayload']
+            : [];
+        if ($perAssetRows === []) {
+            return [];
+        }
+
+        $hiddenSlotIds = [];
+        foreach ($perAssetRows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            if ($this->extractTransformHandleFromRow($row) !== $transformName) {
+                continue;
+            }
+
+            if ($assetKey !== null && $assetKey !== '') {
+                $rowAssetId = $this->extractAssetIdFromRow($row);
+                if (!$this->assetKeyMatchesRowAsset($assetKey, $rowAssetId, $transformName)) {
+                    continue;
+                }
+            }
+
+            if (($row['isVisible'] ?? null) !== false) {
+                continue;
+            }
+
+            $slotId = $this->extractSlotIdFromRow($row);
+            if ($slotId > 0) {
+                $hiddenSlotIds[] = $slotId;
+            }
+        }
+
+        $hiddenSlotIds = array_values(array_unique($hiddenSlotIds));
+        sort($hiddenSlotIds, SORT_NUMERIC);
+
+        return $hiddenSlotIds;
     }
 
     /**
@@ -210,7 +277,7 @@ final class SnapshotReader
 
                 if ($assetKey !== null && $assetKey !== '') {
                     $rowAssetId = $this->extractAssetIdFromRow($row);
-                    if ($rowAssetId === $assetKey) {
+                    if ($this->assetKeyMatchesRowAsset($assetKey, $rowAssetId, $transformName)) {
                         $matchedByAsset = $row;
                         break;
                     }
@@ -279,7 +346,7 @@ final class SnapshotReader
 
                 if ($assetKey !== null && $assetKey !== '') {
                     $rowAssetId = $this->extractAssetIdFromRow($row);
-                    if ($rowAssetId === $assetKey) {
+                    if ($this->assetKeyMatchesRowAsset($assetKey, $rowAssetId, $transformName)) {
                         $assetMatchByBreakpoint[$rowBreakpointWidth] = $row;
                     }
                 }
@@ -366,81 +433,6 @@ final class SnapshotReader
         ];
     }
 
-    /**
-     * @return array<string, array<string, mixed>>
-     */
-    public function resolveObservedDataByTransform(): array
-    {
-        if ($this->observedDataByTransform !== null) {
-            return $this->observedDataByTransform;
-        }
-
-        if (!$this->telemetry->isTelemetryEnabled()) {
-            return $this->observedDataByTransform = [];
-        }
-
-        $mostRecent = $this->telemetry->getMostRecentByHandle();
-        if ($mostRecent === []) {
-            return $this->observedDataByTransform = [];
-        }
-
-        $byTransform = [];
-        $entryIds = [];
-        foreach ($mostRecent as $handle => $row) {
-            $sourceElementId = (int)($row['entryId'] ?? 0);
-            $byTransform[$handle] = [
-                'lastSeenAt' => $row['lastSeenAt'] ?? null,
-                'sourceElementId' => $sourceElementId,
-                'sourceUrl' => $row['sourceUrl'] ?? null,
-                'includeEscapeWidth' => $row['includeEscapeWidth'] ?? null,
-                'entry' => null,
-            ];
-
-            if ($sourceElementId > 0) {
-                $entryIds[$sourceElementId] = true;
-            }
-        }
-
-        $entryIds = array_keys($entryIds);
-        $entriesById = [];
-        if ($entryIds !== []) {
-            $currentSiteId = Craft::$app->getSites()->getCurrentSite()->id;
-            $currentSiteEntries = Entry::find()
-                ->id($entryIds)
-                ->status(null)
-                ->siteId($currentSiteId)
-                ->indexBy('id')
-                ->all();
-
-            foreach ($currentSiteEntries as $id => $entry) {
-                $entriesById[(int)$id] = $this->mapObservedEntryData($entry, true);
-            }
-
-            $remainingIds = array_values(array_diff($entryIds, array_keys($entriesById)));
-            if ($remainingIds !== []) {
-                $otherSiteEntries = Entry::find()
-                    ->id($remainingIds)
-                    ->status(null)
-                    ->site('*')
-                    ->indexBy('id')
-                    ->all();
-                foreach ($otherSiteEntries as $id => $entry) {
-                    $entriesById[(int)$id] = $this->mapObservedEntryData($entry, false);
-                }
-            }
-        }
-
-        foreach ($byTransform as $handle => &$data) {
-            $elementId = (int)($data['sourceElementId'] ?? 0);
-            if ($elementId > 0 && isset($entriesById[$elementId])) {
-                $data['entry'] = $entriesById[$elementId];
-            }
-        }
-        unset($data);
-
-        return $this->observedDataByTransform = $byTransform;
-    }
-
     private function buildTransformBreakpointKey(string $transformHandle, string $slotKey): string
     {
         return $transformHandle . '|' . $slotKey;
@@ -498,17 +490,19 @@ final class SnapshotReader
         return trim((string)($row['assetId'] ?? ''));
     }
 
-    /**
-     * @return array{id: int, title: string, cpEditUrl: string, siteId: int, availableInCurrentSite: bool}
-     */
-    private function mapObservedEntryData(Entry $entry, bool $availableInCurrentSite): array
+    private function assetKeyMatchesRowAsset(string $assetKey, string $rowAssetId, string $transformName): bool
     {
-        return [
-            'id' => $entry->id,
-            'title' => (string)$entry->title,
-            'cpEditUrl' => $entry->cpEditUrl ?? '#',
-            'siteId' => $entry->siteId,
-            'availableInCurrentSite' => $availableInCurrentSite,
-        ];
+        $assetKey = trim($assetKey);
+        $rowAssetId = trim($rowAssetId);
+        if ($assetKey === '' || $rowAssetId === '') {
+            return false;
+        }
+
+        if ($assetKey === $rowAssetId) {
+            return true;
+        }
+
+        return $assetKey === 'asset:' . $transformName . ':' . $rowAssetId;
     }
+
 }

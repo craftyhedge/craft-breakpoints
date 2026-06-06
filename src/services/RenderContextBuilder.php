@@ -66,11 +66,23 @@ class RenderContextBuilder extends Component
         return [
             'data-set' => $setName,
             'data-set-exists' => $set !== null ? 'true' : 'false',
+            'data-include-escape-width' => $this->resolveIncludeEscapeWidth($config, $set) ? 'true' : 'false',
             'data-picture-id' => $pictureId,
             'data-asset-id' => $assetId,
             'data-asset-title' => (string)($config['assetTitle'] ?? ''),
             'data-breakpoint-states' => $this->buildBreakpointStatesJson($config),
         ];
+    }
+
+    private function resolveIncludeEscapeWidth(array $config, ?array $set): bool
+    {
+        if (array_key_exists('includeEscapeWidth', $config)) {
+            return (bool)$config['includeEscapeWidth'] === true;
+        }
+
+        return $set !== null
+            && array_key_exists('includeEscapeWidth', $set)
+            && $set['includeEscapeWidth'] === true;
     }
 
     public function getImageAttributes(array $config, Asset $image): ?array

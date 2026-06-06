@@ -312,6 +312,11 @@ class TelemetryService extends Component
         if (!is_string($failureReasonCountsJson)) {
             $failureReasonCountsJson = '{}';
         }
+        $transformMetadata = $this->normalizeTransformMetadata($payload['transformMetadata'] ?? []);
+        $transformMetadataJson = json_encode($transformMetadata, JSON_UNESCAPED_SLASHES);
+        if (!is_string($transformMetadataJson)) {
+            $transformMetadataJson = '{}';
+        }
         $snapshotRows = $this->normalizeSnapshotRowsBySlot($payload['rowsBySlot'] ?? []);
         $savedDimensionsByTransform = $this->collectSavedDimensionsAtPersistTime();
 
@@ -327,6 +332,7 @@ class TelemetryService extends Component
                 'sourceUrl' => $sourceUrl,
                 'runId' => $runId,
                 'failureReasonCounts' => $failureReasonCountsJson,
+                'transformMetadata' => $transformMetadataJson,
             ]);
 
             $db->createCommand()
@@ -347,6 +353,7 @@ class TelemetryService extends Component
                         $row['assetId'],
                         $row['displayAssetUrl'],
                         $row['rowStatus'],
+                        $row['isVisible'],
                         $row['renderedWidth'],
                         $row['renderedHeight'],
                         $row['autoDimension'],
@@ -358,7 +365,7 @@ class TelemetryService extends Component
                 $db->createCommand()
                     ->batchInsert(
                         self::RUN_SNAPSHOT_ROWS_TABLE,
-                        ['snapshotId', 'transformHandle', 'slotKey', 'slotIndex', 'breakpointWidth', 'measureWidth', 'assetId', 'displayAssetUrl', 'rowStatus', 'renderedWidth', 'renderedHeight', 'autoDimension', 'dateCreated', 'dateUpdated'],
+                        ['snapshotId', 'transformHandle', 'slotKey', 'slotIndex', 'breakpointWidth', 'measureWidth', 'assetId', 'displayAssetUrl', 'rowStatus', 'isVisible', 'renderedWidth', 'renderedHeight', 'autoDimension', 'dateCreated', 'dateUpdated'],
                         $batchRows
                     )
                     ->execute();
@@ -458,7 +465,7 @@ class TelemetryService extends Component
         $perAssetRows = [];
         if ($snapshotId > 0) {
             $perAssetRows = (new Query())
-                ->select(['transformHandle', 'slotKey', 'slotIndex', 'breakpointWidth', 'measureWidth', 'assetId', 'displayAssetUrl', 'rowStatus', 'renderedWidth', 'renderedHeight', 'autoDimension'])
+                ->select(['transformHandle', 'slotKey', 'slotIndex', 'breakpointWidth', 'measureWidth', 'assetId', 'displayAssetUrl', 'rowStatus', 'isVisible', 'renderedWidth', 'renderedHeight', 'autoDimension'])
                 ->from(self::RUN_SNAPSHOT_ROWS_TABLE)
                 ->where(['snapshotId' => $snapshotId])
                 ->orderBy(['transformHandle' => SORT_ASC, 'slotIndex' => SORT_ASC, 'id' => SORT_ASC])
@@ -489,6 +496,7 @@ class TelemetryService extends Component
                 'assetId' => (string)($row['assetId'] ?? ''),
                 'displayAssetUrl' => $row['displayAssetUrl'] !== null ? (string)$row['displayAssetUrl'] : null,
                 'rowStatus' => (string)($row['rowStatus'] ?? 'unprocessed'),
+                'isVisible' => ($row['isVisible'] ?? null) === null ? null : ((int)$row['isVisible'] === 1),
                 'renderedWidth' => max(0, (int)($row['renderedWidth'] ?? 0)),
                 'renderedHeight' => max(0, (int)($row['renderedHeight'] ?? 0)),
                 'autoDimension' => $row['autoDimension'] !== null && $row['autoDimension'] !== '' ? (string)$row['autoDimension'] : null,
@@ -504,6 +512,7 @@ class TelemetryService extends Component
                     'measureWidth' => $measureWidth,
                     'displayAssetUrl' => $row['displayAssetUrl'] !== null ? (string)$row['displayAssetUrl'] : null,
                     'rowStatus' => (string)($row['rowStatus'] ?? 'unprocessed'),
+                    'isVisible' => ($row['isVisible'] ?? null) === null ? null : ((int)$row['isVisible'] === 1),
                 ];
             }
         }
@@ -540,6 +549,7 @@ class TelemetryService extends Component
         }
 
         $snapshot['failureReasonCounts'] = $this->decodeFailureReasonCountsColumn($snapshot['failureReasonCounts'] ?? null);
+        $snapshot['transformMetadata'] = $this->decodeTransformMetadataColumn($snapshot['transformMetadata'] ?? null);
         $snapshot['rowsPayload'] = $rowsPayload;
         $snapshot['savedDimensionsByTransform'] = $savedDimensionsByTransform;
         $snapshot['rows'] = array_values($rowsByKey);
@@ -558,6 +568,19 @@ class TelemetryService extends Component
 
         $decoded = json_decode($raw, true);
         return $this->normalizeFailureReasonCounts(is_array($decoded) ? $decoded : []);
+    }
+
+    /**
+     * @return array<string, array{transformHandle: string, includeEscapeWidth: ?bool, setExists: ?bool}>
+     */
+    private function decodeTransformMetadataColumn(mixed $raw): array
+    {
+        if (!is_string($raw) || trim($raw) === '') {
+            return [];
+        }
+
+        $decoded = json_decode($raw, true);
+        return $this->normalizeTransformMetadata(is_array($decoded) ? $decoded : []);
     }
 
     private function normalizeSourceUrl(mixed $sourceUrl): ?string
@@ -623,6 +646,70 @@ class TelemetryService extends Component
     }
 
     /**
+     * @return array<string, array{transformHandle: string, includeEscapeWidth: ?bool, setExists: ?bool}>
+     */
+    private function normalizeTransformMetadata(mixed $rawMetadata): array
+    {
+        if (!is_array($rawMetadata)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($rawMetadata as $key => $rawEntry) {
+            if (!is_array($rawEntry)) {
+                continue;
+            }
+
+            $transformHandle = trim((string)($rawEntry['transformHandle'] ?? (is_string($key) ? $key : '')));
+            if ($transformHandle === '') {
+                continue;
+            }
+
+            $includeEscapeWidth = $this->normalizeNullableBool($rawEntry['includeEscapeWidth'] ?? null);
+            $setExists = $this->normalizeNullableBool($rawEntry['setExists'] ?? null);
+
+            $normalized[$transformHandle] = [
+                'transformHandle' => $transformHandle,
+                'includeEscapeWidth' => $includeEscapeWidth,
+                'setExists' => $setExists,
+            ];
+        }
+
+        ksort($normalized, SORT_STRING);
+
+        return $normalized;
+    }
+
+    private function normalizeNullableBool(mixed $value): ?bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_int($value)) {
+            if ($value === 1) {
+                return true;
+            }
+            if ($value === 0) {
+                return false;
+            }
+            return null;
+        }
+
+        if (is_string($value)) {
+            $normalized = strtolower(trim($value));
+            if (in_array($normalized, ['1', 'true', 'yes', 'on'], true)) {
+                return true;
+            }
+            if (in_array($normalized, ['0', 'false', 'no', 'off'], true)) {
+                return false;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @return array<int, array<string, mixed>>
      */
     private function normalizeSnapshotRowsBySlot(mixed $rawRowsBySlot): array
@@ -670,6 +757,7 @@ class TelemetryService extends Component
                 }
 
                 $enabled = ($row['enabled'] ?? true) === true;
+                $isVisible = $this->normalizeNullableBool($row['isVisible'] ?? null);
                 $loaded = ($row['loaded'] ?? false) === true;
                 $broken = ($row['broken'] ?? false) === true;
                 $unresolved = ($row['unresolved'] ?? false) === true;
@@ -692,6 +780,7 @@ class TelemetryService extends Component
                     'assetId' => $assetId !== '' ? $assetId : null,
                     'displayAssetUrl' => $displayAssetUrl,
                     'rowStatus' => $rowStatus,
+                    'isVisible' => $isVisible,
                     'renderedWidth' => $renderedWidth,
                     'renderedHeight' => $renderedHeight,
                     'autoDimension' => $autoDimension,

@@ -1189,7 +1189,6 @@ final class OperationsService
         }
 
         $renderedRows = $this->snapshotReader?->resolveRenderedRowsForTransform($transformName, $assetKey) ?? [];
-
         if ($renderedRows === []) {
             Support::addGlobalError($validation, 'No rendered evidence found for this breakpoint. If a processing run exists, refresh the review panel.');
 
@@ -1202,75 +1201,16 @@ final class OperationsService
         ['sets' => $sets, 'set' => $setDefinition, 'includeEscapeWidth' => $resolvedIncludeEscapeWidth] =
             $this->loadOrInitSet($transformName, $includeEscapeWidth);
 
-        $variants = $setDefinition['variants'] ?? [];
-        $definitions = $this->breakpointCatalog->getDefinitionsForIncludeEscapeWidth($resolvedIncludeEscapeWidth);
-
-        $breakpointKeysByWidth = [];
-        foreach ($definitions as $definition) {
-            $breakpointKeysByWidth[(string)$definition['width']][] = $definition['key'];
-        }
-
-        // Breakpoints that processing flagged as hidden are disabled when the user
-        // applies rendered values, mirroring the "not visible" eye badge in the review.
-        $disabledHiddenCount = $this->disableHiddenBreakpointVariants(
-            $variants,
-            $definitions,
+        $mutation = $this->buildRenderedValuesSetDefinition(
+            $setDefinition,
+            $resolvedIncludeEscapeWidth,
+            $renderedRows,
             $hiddenBreakpointSlotIds,
+            $clearAuto,
         );
 
-        if ($clearAuto) {
-            $renderedRowsByKey = [];
-            $renderedRowsByWidth = [];
-            foreach ($renderedRows as $renderedRow) {
-                if (!is_array($renderedRow)) {
-                    continue;
-                }
-                $slotKey = Support::parseNullableNonEmptyString($renderedRow['slotKey'] ?? null);
-                if ($slotKey !== null) {
-                    $renderedRowsByKey[$slotKey] = $renderedRow;
-                }
-                $bp = Support::normalizeNullablePositiveInt($renderedRow['breakpoint'] ?? null);
-                if ($bp !== null) {
-                    $renderedRowsByWidth[(string)$bp] = $renderedRow;
-                }
-            }
-
-            $appliedCount = 0;
-            foreach ($definitions as $definition) {
-                $breakpointKey = $definition['key'];
-                $breakpointWidth = $definition['width'];
-
-                $currentEntry = self::getOrInitVariant($variants, $breakpointKey);
-
-                $autoDimension = Support::normalizeAutoDimension($currentEntry['autoDimension'] ?? null);
-                if ($autoDimension === null) {
-                    continue;
-                }
-
-                $renderedRow = $renderedRowsByKey[(string)$breakpointKey] ?? ($renderedRowsByWidth[(string)$breakpointWidth] ?? null);
-
-                if ($autoDimension === 'width') {
-                    $rendered = $renderedRow !== null
-                        ? Support::normalizeNullablePositiveInt($renderedRow['width'] ?? null)
-                        : null;
-                    if ($rendered !== null) {
-                        $currentEntry['width'] = $rendered;
-                    }
-                } elseif ($autoDimension === 'height') {
-                    $rendered = $renderedRow !== null
-                        ? Support::normalizeNullablePositiveInt($renderedRow['height'] ?? null)
-                        : null;
-                    if ($rendered !== null) {
-                        $currentEntry['height'] = $rendered;
-                    }
-                }
-
-                $currentEntry['autoDimension'] = null;
-                $variants[$breakpointKey] = $currentEntry;
-                $appliedCount += 1;
-            }
-
-            if ($appliedCount < 1 && $disabledHiddenCount < 1) {
+        if (($mutation['changed'] ?? false) !== true) {
+            if (($mutation['noop'] ?? false) === true) {
                 return [
                     'persisted' => true,
                     'conflict' => false,
@@ -1278,91 +1218,113 @@ final class OperationsService
                     'validation' => $validation,
                 ];
             }
-        } else {
-            $appliedCount = 0;
-            $candidateDimensionCount = 0;
-            $autoSkippedDimensionCount = 0;
-            foreach ($renderedRows as $renderedRow) {
-                if (!is_array($renderedRow)) {
-                    continue;
-                }
 
-                $renderedSlotKey = Support::parseNullableNonEmptyString($renderedRow['slotKey'] ?? null);
-                $breakpointWidth = Support::normalizeNullablePositiveInt($renderedRow['breakpoint'] ?? null);
-                if ($renderedSlotKey === null && $breakpointWidth === null) {
-                    continue;
-                }
+            Support::addGlobalError($validation, (string)($mutation['reason'] ?? 'No valid rendered values were provided.'));
 
-                $breakpointKeys = $renderedSlotKey !== null
-                    ? [$renderedSlotKey]
-                    : ($breakpointKeysByWidth[(string)$breakpointWidth] ?? []);
-                if ($breakpointKeys === []) {
-                    continue;
-                }
-
-                foreach ($breakpointKeys as $breakpointKey) {
-                    $currentEntry = self::getOrInitVariant($variants, (string)$breakpointKey);
-
-                    $autoDimension = Support::normalizeAutoDimension($currentEntry['autoDimension'] ?? null);
-
-                    $updated = false;
-
-                    $width = Support::normalizeNullablePositiveInt($renderedRow['width'] ?? null);
-                    if ($width !== null) {
-                        $candidateDimensionCount += 1;
-
-                        if ($autoDimension === 'width') {
-                            $autoSkippedDimensionCount += 1;
-                        } else {
-                            $currentEntry['width'] = $width;
-                            $updated = true;
-                        }
-                    }
-
-                    $height = Support::normalizeNullablePositiveInt($renderedRow['height'] ?? null);
-                    if ($height !== null) {
-                        $candidateDimensionCount += 1;
-
-                        if ($autoDimension === 'height') {
-                            $autoSkippedDimensionCount += 1;
-                        } else {
-                            $currentEntry['height'] = $height;
-                            $updated = true;
-                        }
-                    }
-
-                    if ($updated) {
-                        $variants[(string)$breakpointKey] = $currentEntry;
-                        $appliedCount += 1;
-                    }
-                }
-            }
-
-            if ($appliedCount < 1 && $disabledHiddenCount < 1) {
-                if ($candidateDimensionCount > 0 && $candidateDimensionCount === $autoSkippedDimensionCount) {
-                    return [
-                        'persisted' => true,
-                        'conflict' => false,
-                        'currentVersion' => $this->transformStore->getCurrentVersion(),
-                        'validation' => $validation,
-                    ];
-                }
-
-                Support::addGlobalError($validation, 'No valid rendered values were provided.');
-
-                return [
-                    'persisted' => false,
-                    'validation' => $validation,
-                ];
-            }
+            return [
+                'persisted' => false,
+                'validation' => $validation,
+            ];
         }
 
-        $setDefinition['variants'] = $variants;
+        $setDefinition = is_array($mutation['set'] ?? null) ? $mutation['set'] : $setDefinition;
         $setDefinition['name'] = (string)($setDefinition['name'] ?? $transformName);
 
         $sets[$transformName] = $setDefinition;
 
         return $this->persistOperationSets($sets, $validation, $expectedVersion);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $requestedSets
+     * @return array<string, mixed>
+     */
+    public function autoApplyRenderedValuesForNewSets(array $requestedSets, ?string $expectedVersion = null): array
+    {
+        $validation = Support::defaultValidation();
+        $sets = $this->transformStore->getSets();
+        $skipped = [];
+        $appliedCount = 0;
+        $seenNames = [];
+
+        foreach ($requestedSets as $requestedSet) {
+            if (!is_array($requestedSet)) {
+                $skipped[] = ['name' => '', 'reason' => 'invalid_descriptor'];
+                continue;
+            }
+
+            $transformName = Support::parseNullableNonEmptyString($requestedSet['name'] ?? null) ?? '';
+            if ($transformName === '') {
+                $skipped[] = ['name' => '', 'reason' => 'invalid_name'];
+                continue;
+            }
+
+            if (isset($seenNames[$transformName])) {
+                $skipped[] = ['name' => $transformName, 'reason' => 'duplicate'];
+                continue;
+            }
+            $seenNames[$transformName] = true;
+
+            if (isset($sets[$transformName]) && is_array($sets[$transformName])) {
+                $skipped[] = ['name' => $transformName, 'reason' => 'already_saved'];
+                continue;
+            }
+
+            $assetKey = Support::parseNullableNonEmptyString($requestedSet['selectedAssetKey'] ?? null);
+            $metadata = $this->snapshotReader?->resolveTransformMetadata($transformName);
+            $includeEscapeWidth = ($metadata['includeEscapeWidth'] ?? null) === true;
+            $hiddenSlotIds = $this->snapshotReader?->resolveHiddenSlotIdsForTransform($transformName, $assetKey) ?? [];
+            $renderedRows = $this->snapshotReader?->resolveRenderedRowsForTransform($transformName, $assetKey) ?? [];
+            if ($renderedRows === []) {
+                $skipped[] = ['name' => $transformName, 'reason' => 'no_rendered_evidence'];
+                continue;
+            }
+
+            $setDefinition = [
+                'name' => $transformName,
+                'includeEscapeWidth' => $includeEscapeWidth,
+                'variants' => [],
+                'config' => [],
+            ];
+
+            $mutation = $this->buildRenderedValuesSetDefinition(
+                $setDefinition,
+                $includeEscapeWidth,
+                $renderedRows,
+                $hiddenSlotIds,
+                false,
+            );
+
+            if (($mutation['changed'] ?? false) !== true || !is_array($mutation['set'] ?? null)) {
+                $skipped[] = [
+                    'name' => $transformName,
+                    'reason' => (string)($mutation['reasonCode'] ?? 'no_valid_rendered_values'),
+                ];
+                continue;
+            }
+
+            $sets[$transformName] = $mutation['set'];
+            $appliedCount += 1;
+        }
+
+        if ($appliedCount < 1) {
+            return [
+                'persisted' => true,
+                'conflict' => false,
+                'currentVersion' => $this->transformStore->getCurrentVersion(),
+                'appliedCount' => 0,
+                'skippedCount' => count($skipped),
+                'skipped' => $skipped,
+                'validation' => $validation,
+            ];
+        }
+
+        $result = $this->persistOperationSets($sets, $validation, $expectedVersion);
+        $result['appliedCount'] = (($result['persisted'] ?? false) === true) ? $appliedCount : 0;
+        $result['skippedCount'] = count($skipped);
+        $result['skipped'] = $skipped;
+
+        return $result;
     }
 
     /**
@@ -1445,6 +1407,181 @@ final class OperationsService
         }
 
         return ['sets' => $sets, 'set' => $set, 'includeEscapeWidth' => $resolved];
+    }
+
+    /**
+     * @param array<string, mixed> $setDefinition
+     * @param array<int, mixed> $renderedRows
+     * @param array<int, int> $hiddenBreakpointSlotIds
+     * @return array{changed: bool, noop?: bool, set?: array<string, mixed>, reason?: string, reasonCode?: string}
+     */
+    private function buildRenderedValuesSetDefinition(
+        array $setDefinition,
+        bool $includeEscapeWidth,
+        array $renderedRows,
+        array $hiddenBreakpointSlotIds,
+        bool $clearAuto,
+    ): array {
+        $variants = isset($setDefinition['variants']) && is_array($setDefinition['variants'])
+            ? $setDefinition['variants']
+            : [];
+        $definitions = $this->breakpointCatalog->getDefinitionsForIncludeEscapeWidth($includeEscapeWidth);
+
+        $breakpointKeysByWidth = [];
+        foreach ($definitions as $definition) {
+            $breakpointKeysByWidth[(string)$definition['width']][] = $definition['key'];
+        }
+
+        // Slots that processing flagged as hidden are disabled when rendered values
+        // are applied, mirroring the "not visible" eye badge in the review.
+        $disabledHiddenCount = $this->disableHiddenBreakpointVariants(
+            $variants,
+            $definitions,
+            $hiddenBreakpointSlotIds,
+        );
+
+        if ($clearAuto) {
+            $renderedRowsByKey = [];
+            $renderedRowsByWidth = [];
+            foreach ($renderedRows as $renderedRow) {
+                if (!is_array($renderedRow)) {
+                    continue;
+                }
+                $slotKey = Support::parseNullableNonEmptyString($renderedRow['slotKey'] ?? null);
+                if ($slotKey !== null) {
+                    $renderedRowsByKey[$slotKey] = $renderedRow;
+                }
+                $bp = Support::normalizeNullablePositiveInt($renderedRow['breakpoint'] ?? null);
+                if ($bp !== null) {
+                    $renderedRowsByWidth[(string)$bp] = $renderedRow;
+                }
+            }
+
+            $appliedCount = 0;
+            foreach ($definitions as $definition) {
+                $breakpointKey = $definition['key'];
+                $breakpointWidth = $definition['width'];
+
+                $currentEntry = self::getOrInitVariant($variants, $breakpointKey);
+
+                $autoDimension = Support::normalizeAutoDimension($currentEntry['autoDimension'] ?? null);
+                if ($autoDimension === null) {
+                    continue;
+                }
+
+                $renderedRow = $renderedRowsByKey[(string)$breakpointKey] ?? ($renderedRowsByWidth[(string)$breakpointWidth] ?? null);
+
+                if ($autoDimension === 'width') {
+                    $rendered = $renderedRow !== null
+                        ? Support::normalizeNullablePositiveInt($renderedRow['width'] ?? null)
+                        : null;
+                    if ($rendered !== null) {
+                        $currentEntry['width'] = $rendered;
+                    }
+                } elseif ($autoDimension === 'height') {
+                    $rendered = $renderedRow !== null
+                        ? Support::normalizeNullablePositiveInt($renderedRow['height'] ?? null)
+                        : null;
+                    if ($rendered !== null) {
+                        $currentEntry['height'] = $rendered;
+                    }
+                }
+
+                $currentEntry['autoDimension'] = null;
+                $variants[$breakpointKey] = $currentEntry;
+                $appliedCount += 1;
+            }
+
+            if ($appliedCount < 1 && $disabledHiddenCount < 1) {
+                return [
+                    'changed' => false,
+                    'noop' => true,
+                    'reasonCode' => 'nothing_to_apply',
+                ];
+            }
+        } else {
+            $appliedCount = 0;
+            $candidateDimensionCount = 0;
+            $autoSkippedDimensionCount = 0;
+            foreach ($renderedRows as $renderedRow) {
+                if (!is_array($renderedRow)) {
+                    continue;
+                }
+
+                $renderedSlotKey = Support::parseNullableNonEmptyString($renderedRow['slotKey'] ?? null);
+                $breakpointWidth = Support::normalizeNullablePositiveInt($renderedRow['breakpoint'] ?? null);
+                if ($renderedSlotKey === null && $breakpointWidth === null) {
+                    continue;
+                }
+
+                $breakpointKeys = $renderedSlotKey !== null
+                    ? [$renderedSlotKey]
+                    : ($breakpointKeysByWidth[(string)$breakpointWidth] ?? []);
+                if ($breakpointKeys === []) {
+                    continue;
+                }
+
+                foreach ($breakpointKeys as $breakpointKey) {
+                    $currentEntry = self::getOrInitVariant($variants, (string)$breakpointKey);
+
+                    $autoDimension = Support::normalizeAutoDimension($currentEntry['autoDimension'] ?? null);
+
+                    $updated = false;
+
+                    $width = Support::normalizeNullablePositiveInt($renderedRow['width'] ?? null);
+                    if ($width !== null) {
+                        $candidateDimensionCount += 1;
+
+                        if ($autoDimension === 'width') {
+                            $autoSkippedDimensionCount += 1;
+                        } else {
+                            $currentEntry['width'] = $width;
+                            $updated = true;
+                        }
+                    }
+
+                    $height = Support::normalizeNullablePositiveInt($renderedRow['height'] ?? null);
+                    if ($height !== null) {
+                        $candidateDimensionCount += 1;
+
+                        if ($autoDimension === 'height') {
+                            $autoSkippedDimensionCount += 1;
+                        } else {
+                            $currentEntry['height'] = $height;
+                            $updated = true;
+                        }
+                    }
+
+                    if ($updated) {
+                        $variants[(string)$breakpointKey] = $currentEntry;
+                        $appliedCount += 1;
+                    }
+                }
+            }
+
+            if ($appliedCount < 1 && $disabledHiddenCount < 1) {
+                if ($candidateDimensionCount > 0 && $candidateDimensionCount === $autoSkippedDimensionCount) {
+                    return [
+                        'changed' => false,
+                        'noop' => true,
+                        'reasonCode' => 'auto_dimensions_only',
+                    ];
+                }
+
+                return [
+                    'changed' => false,
+                    'reason' => 'No valid rendered values were provided.',
+                    'reasonCode' => 'no_valid_rendered_values',
+                ];
+            }
+        }
+
+        $setDefinition['variants'] = $variants;
+
+        return [
+            'changed' => true,
+            'set' => $setDefinition,
+        ];
     }
 
     /**

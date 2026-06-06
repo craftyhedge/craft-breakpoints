@@ -39,6 +39,7 @@ class Install extends Migration
                 'sourceUrl' => $this->string(255)->null()->defaultValue(null),
                 'runId' => $this->string(64)->null()->defaultValue(null),
                 'failureReasonCounts' => $this->text()->notNull(),
+                'transformMetadata' => $this->text()->null()->defaultValue(null),
                 'dateCreated' => $this->dateTime()->notNull(),
                 'dateUpdated' => $this->dateTime()->notNull(),
             ]);
@@ -59,6 +60,7 @@ class Install extends Migration
                 'assetId' => $this->string(255)->null()->defaultValue(null),
                 'displayAssetUrl' => $this->string(1024)->null()->defaultValue(null),
                 'rowStatus' => $this->string(24)->notNull()->defaultValue('unprocessed'),
+                'isVisible' => $this->boolean()->null()->defaultValue(null),
                 'renderedWidth' => $this->integer()->notNull()->defaultValue(0),
                 'renderedHeight' => $this->integer()->notNull()->defaultValue(0),
                 'autoDimension' => $this->string(16)->null()->defaultValue(null),

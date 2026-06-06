@@ -48,6 +48,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     const RENDER_RESULT_REVIEW_ACTION = 'breakpoints/transforms/render-result-review';
     const RENDER_INITIAL_REVIEW_ACTION = 'breakpoints/transforms/render-initial-review';
     const PERSIST_RUN_SNAPSHOT_ACTION = 'breakpoints/transforms/persist-run-snapshot';
+    const AUTO_APPLY_NEW_SETS_ACTION = 'breakpoints/transforms/auto-apply-new-sets';
     const DATASTAR_FETCH_EVENT = 'datastar-fetch';
 
     const elements = {
@@ -59,6 +60,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         uiShowWarningOrderSignalBridge: document.getElementById('bpts-ui-show-warning-order-signal-bridge'),
         uiResultsOrderingNoteLabelSignalBridge: document.getElementById('bpts-ui-results-ordering-note-label-signal-bridge'),
         sidebarSavedSetNamesSignalBridge: document.getElementById('bpts-sidebar-saved-set-names-signal-bridge'),
+        editorBaseVersionSignalBridge: document.getElementById('bpts-editor-base-version-signal-bridge'),
         transformSetsSidebar: document.getElementById('bpts-transform-sets-sidebar'),
         transformSetsList: document.getElementById('bpts-transform-sets-list'),
         sourceEntry: document.getElementById('bpts-source-entry'),
@@ -107,6 +109,16 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         testRunProcessingOverrides: null,
     };
     const pendingTransformBySourceElement = new WeakMap();
+
+    function getRunOverride(name) {
+        const overrides = state.testRunProcessingOverrides;
+        if (!overrides || typeof overrides !== 'object') {
+            return null;
+        }
+
+        const candidate = overrides[name];
+        return typeof candidate === 'function' ? candidate : null;
+    }
 
     const RESULTS_COPY = {
         saved: {
@@ -528,6 +540,33 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         } catch (_error) {
             return [];
         }
+    }
+
+    function setSidebarSavedSetNamesSignalValue(savedSetNames) {
+        const bridge = elements.sidebarSavedSetNamesSignalBridge;
+        if (!(bridge instanceof HTMLInputElement) || !Array.isArray(savedSetNames)) {
+            return;
+        }
+
+        bridge.value = JSON.stringify(savedSetNames.filter((name) => typeof name === 'string' && name.trim() !== ''));
+        bridge.dispatchEvent(new Event('input', { bubbles: true }));
+        bridge.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    function getEditorBaseVersionSignalValue() {
+        const bridge = elements.editorBaseVersionSignalBridge;
+        return bridge instanceof HTMLInputElement ? String(bridge.value || '').trim() : '';
+    }
+
+    function setEditorBaseVersionSignalValue(baseVersion) {
+        const bridge = elements.editorBaseVersionSignalBridge;
+        if (!(bridge instanceof HTMLInputElement)) {
+            return;
+        }
+
+        bridge.value = String(baseVersion || '').trim();
+        bridge.dispatchEvent(new Event('input', { bubbles: true }));
+        bridge.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
     function syncPostPatchReviewState() {
@@ -2606,7 +2645,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         return counts;
     }
 
-    async function persistRunSnapshot(report, rowsBySlot) {
+    async function persistRunSnapshot(report, rowsBySlot, options = null) {
         if (!report || typeof report !== 'object') {
             return false;
         }
@@ -2624,6 +2663,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                 entryId: getSelectedEntryId(),
                 sourceUrl: String(report.sourceUrl || ''),
                 failureReasonCounts: summarizeFailureReasonCountsFromReport(report),
+                transformMetadata: buildTransformMetadataFromRowsBySlot(rowsBySlot),
                 rowsBySlot: rowsBySlot && typeof rowsBySlot === 'object' ? rowsBySlot : {},
             },
         });
@@ -2633,7 +2673,8 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             return false;
         }
 
-        if (state.lastResult && typeof state.lastResult === 'object') {
+        const shouldRenderReview = !(options && typeof options === 'object' && options.renderReview === false);
+        if (shouldRenderReview && state.lastResult && typeof state.lastResult === 'object') {
             try {
                 await renderResultReview(state.lastResult);
             } catch (error) {
@@ -2643,6 +2684,184 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         }
 
         return true;
+    }
+
+    function buildTransformMetadataFromRowsBySlot(rowsBySlot) {
+        if (!rowsBySlot || typeof rowsBySlot !== 'object') {
+            return {};
+        }
+
+        const metadata = {};
+        Object.values(rowsBySlot).forEach((slotRows) => {
+            if (!Array.isArray(slotRows)) {
+                return;
+            }
+
+            slotRows.forEach((row) => {
+                const transformHandle = String(row?.transform || '').trim();
+                if (!transformHandle) {
+                    return;
+                }
+
+                if (!metadata[transformHandle]) {
+                    metadata[transformHandle] = {
+                        transformHandle,
+                        includeEscapeWidth: null,
+                        setExists: null,
+                    };
+                }
+
+                if (row?.includeEscapeWidth === true) {
+                    metadata[transformHandle].includeEscapeWidth = true;
+                } else if (metadata[transformHandle].includeEscapeWidth === null && row?.includeEscapeWidth === false) {
+                    metadata[transformHandle].includeEscapeWidth = false;
+                }
+
+                if (row?.setExists === true) {
+                    metadata[transformHandle].setExists = true;
+                } else if (metadata[transformHandle].setExists === null && row?.setExists === false) {
+                    metadata[transformHandle].setExists = false;
+                }
+            });
+        });
+
+        return metadata;
+    }
+
+    function flattenResultRowsBySlot(result) {
+        const rowsBySlot = result && typeof result === 'object' && result.rowsBySlot && typeof result.rowsBySlot === 'object'
+            ? result.rowsBySlot
+            : (result && typeof result === 'object' && result.rowsByBreakpoint && typeof result.rowsByBreakpoint === 'object'
+                ? result.rowsByBreakpoint
+                : {});
+        const rows = [];
+        Object.values(rowsBySlot).forEach((slotRows) => {
+            if (!Array.isArray(slotRows)) {
+                return;
+            }
+            slotRows.forEach((row) => {
+                if (row && typeof row === 'object') {
+                    rows.push(row);
+                }
+            });
+        });
+        return rows;
+    }
+
+    function buildReviewAssetKeyFromRow(transformName, row) {
+        const assetId = String(row?.assetId || '').trim();
+        if (assetId !== '') {
+            return `asset:${transformName}:${assetId}`;
+        }
+        return '';
+    }
+
+    function buildAutoApplyNewSetDescriptors(result) {
+        const savedSetNames = new Set(getSidebarSavedSetNamesSignalValue());
+        const rows = flattenResultRowsBySlot(result);
+        const byTransform = new Map();
+
+        rows.forEach((row) => {
+            const transformName = String(row?.transform || '').trim();
+            if (!transformName || savedSetNames.has(transformName)) {
+                return;
+            }
+
+            if (!byTransform.has(transformName)) {
+                byTransform.set(transformName, {
+                    name: transformName,
+                    selectedAssetKey: '',
+                    selectedAssetId: '',
+                });
+            }
+
+            const descriptor = byTransform.get(transformName);
+
+            if (!descriptor.selectedAssetKey) {
+                const assetKey = buildReviewAssetKeyFromRow(transformName, row);
+                if (assetKey !== '') {
+                    descriptor.selectedAssetKey = assetKey;
+                    descriptor.selectedAssetId = String(row?.assetId || '').trim();
+                }
+            }
+        });
+
+        byTransform.forEach((descriptor) => {
+            delete descriptor.selectedAssetId;
+        });
+
+        return Array.from(byTransform.values());
+    }
+
+    async function autoApplyNewSetsForResult(result) {
+        const requestedSets = buildAutoApplyNewSetDescriptors(result);
+        if (requestedSets.length < 1) {
+            return {
+                ok: true,
+                persisted: true,
+                appliedCount: 0,
+                skippedCount: 0,
+                skipped: [],
+            };
+        }
+
+        const autoApplyOverride = getRunOverride('autoApplyNewSets');
+        if (autoApplyOverride) {
+            return await autoApplyOverride(requestedSets);
+        }
+
+        if (typeof Craft === 'undefined' || typeof Craft.sendActionRequest !== 'function') {
+            return {
+                ok: false,
+                persisted: false,
+                appliedCount: 0,
+                skippedCount: requestedSets.length,
+                skipped: requestedSets.map((set) => ({ name: set.name, reason: 'transport_unavailable' })),
+            };
+        }
+
+        const response = await Craft.sendActionRequest('POST', AUTO_APPLY_NEW_SETS_ACTION, {
+            data: {
+                baseVersion: getEditorBaseVersionSignalValue(),
+                sets: requestedSets,
+            },
+        });
+        const data = response?.data && typeof response.data === 'object' ? response.data : {};
+
+        if (typeof data.currentVersion === 'string' && data.currentVersion.trim() !== '') {
+            setEditorBaseVersionSignalValue(data.currentVersion);
+        }
+        if (Array.isArray(data.savedSetNames)) {
+            setSidebarSavedSetNamesSignalValue(data.savedSetNames);
+            syncSidebarObservedUnsavedFromSavedNames(data.savedSetNames);
+        }
+
+        return data;
+    }
+
+    function buildCompletionStatusFromResult(result, snapshotPersisted, autoApplySummary = null) {
+        const warningCount = Math.max(0, Number(result?.summary?.warningCount) || 0);
+        const completionState = warningCount > 0 ? 'warning' : 'success';
+        let completionStatus = warningCount > 0 ? 'Warnings to address' : 'All passed';
+        const appliedCount = Math.max(0, Number(autoApplySummary?.appliedCount) || 0);
+        const skippedCount = Math.max(0, Number(autoApplySummary?.skippedCount) || 0);
+
+        if (appliedCount > 0) {
+            completionStatus += `. ${appliedCount} new set${appliedCount === 1 ? '' : 's'} saved and verified`;
+            if (skippedCount > 0) {
+                completionStatus += `, ${skippedCount} skipped`;
+            }
+            completionStatus += '.';
+        } else if (skippedCount > 0) {
+            completionStatus += `. ${skippedCount} new set${skippedCount === 1 ? '' : 's'} could not be auto-saved.`;
+        }
+
+        return {
+            message: snapshotPersisted
+                ? completionStatus
+                : `${completionStatus}. Run details were not saved.`,
+            state: completionState,
+        };
     }
 
     function buildWaitingStatusMessage(breakpoint, pendingCount, waitedMs = null) {
@@ -2686,20 +2905,15 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         });
     }
 
-    async function runProcessing() {
-        if (state.busy) {
+    async function runProcessing(options = null) {
+        const runOptions = options && typeof options === 'object' ? options : {};
+        const isAutoVerification = runOptions.autoVerification === true;
+        const autoVerifyAfterSave = runOptions.autoVerifyAfterSave !== false && !isAutoVerification;
+        const autoApplySummary = runOptions.autoApplySummary || null;
+
+        if (state.busy && !isAutoVerification) {
             return;
         }
-
-        const getRunOverride = (name) => {
-            const overrides = state.testRunProcessingOverrides;
-            if (!overrides || typeof overrides !== 'object') {
-                return null;
-            }
-
-            const candidate = overrides[name];
-            return typeof candidate === 'function' ? candidate : null;
-        };
 
         const slots = getConfiguredSlots();
         const totalProgressSteps = slots.length + 1;
@@ -2710,15 +2924,17 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             return;
         }
 
-        state.busy = true;
-        state.stopRequested = false;
-        state.waitSoftLimitReached = false;
-        setProcessingFrameMounted(true);
-        setProcessingState(true);
-        setStopButtonVisibility(false);
-        setButtonsDisabled(true);
+        if (!isAutoVerification) {
+            state.busy = true;
+            state.stopRequested = false;
+            state.waitSoftLimitReached = false;
+            setProcessingFrameMounted(true);
+            setProcessingState(true);
+            setStopButtonVisibility(false);
+            setButtonsDisabled(true);
+        }
         startProcessingProgress(totalProgressSteps);
-        setStatus('Getting ready...');
+        setStatus(isAutoVerification ? 'Verifying saved transform sets...' : 'Getting ready...');
         const diagnosticsEnabled = isAuthorDiagnosticsEnabled();
         const startedAt = Date.now();
         let failureStage = 'initialization';
@@ -2877,23 +3093,57 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
             const result = buildStructuredOutput(state.previewUrl || runReport.sourceUrl || '', slots, rowsBySlot, startedAt, finalizedReport);
 
-            const resultPublisher = getRunOverride('publishResult') || publishResult;
-            await resultPublisher(result);
             let snapshotPersisted = true;
             try {
                 const snapshotPersister = getRunOverride('persistRunSnapshot') || persistRunSnapshot;
-                snapshotPersisted = await snapshotPersister(finalizedReport, rowsBySlot);
+                snapshotPersisted = await snapshotPersister(finalizedReport, rowsBySlot, {
+                    renderReview: !autoVerifyAfterSave,
+                });
             } catch (error) {
                 // Snapshot persistence should never block processing completion UX.
                 console.error(error);
                 snapshotPersisted = false;
             }
-            const warningCount = Math.max(0, Number(result.summary.warningCount) || 0);
-            const completionState = warningCount > 0 ? 'warning' : 'success';
-            const completionStatus = warningCount > 0 ? 'Warnings to address' : 'All passed';
-            setStatus(snapshotPersisted
-                ? completionStatus
-                : `${completionStatus}. Run details were not saved.`, { state: completionState });
+
+            if (autoVerifyAfterSave && snapshotPersisted) {
+                setStatus('Saving new transform sets...');
+                const autoApplyResult = await autoApplyNewSetsForResult(result);
+                const autoAppliedCount = Math.max(0, Number(autoApplyResult?.appliedCount) || 0);
+                const autoApplyOk = autoApplyResult?.ok === true || autoApplyResult?.persisted === true;
+
+                if (!autoApplyOk) {
+                    const autoApplyConflict = autoApplyResult?.conflict === true;
+                    setStatus(autoApplyConflict
+                        ? 'New transform sets could not be saved because the draft changed. Refresh and process again.'
+                        : 'New transform sets could not be saved automatically.', { state: 'warning' });
+                    return;
+                }
+
+                if (autoAppliedCount > 0) {
+                    const verificationRunner = getRunOverride('runVerificationProcessing') || runProcessing;
+                    state.busy = false;
+                    await verificationRunner({
+                        autoVerification: true,
+                        autoVerifyAfterSave: false,
+                        autoApplySummary: autoApplyResult,
+                    });
+                    return;
+                }
+
+                const skippedCount = Math.max(0, Number(autoApplyResult?.skippedCount) || 0);
+                if (skippedCount > 0) {
+                    const resultPublisher = getRunOverride('publishResult') || publishResult;
+                    await resultPublisher(result);
+                    const status = buildCompletionStatusFromResult(result, snapshotPersisted, autoApplyResult);
+                    setStatus(status.message, { state: status.state });
+                    return;
+                }
+            }
+
+            const resultPublisher = getRunOverride('publishResult') || publishResult;
+            await resultPublisher(result);
+            const status = buildCompletionStatusFromResult(result, snapshotPersisted, autoApplySummary);
+            setStatus(status.message, { state: status.state });
         } catch (error) {
             const cancelled = error instanceof ProcessingCancelledError;
 

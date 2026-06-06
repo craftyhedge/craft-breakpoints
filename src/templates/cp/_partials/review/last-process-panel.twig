@@ -8,8 +8,7 @@
       - statusIconName      (string)
       - ranAtLabel          (string)
       - runEntry            (map|null)   expects { id, title, cpEditUrl, siteId, canProcessAgain }
-      - observedEntry       (map|null)   expects { id, title, cpEditUrl, siteId }
-      - observedSourceUrl   (string)
+      - runSourceUrl        (string)
 #}
 {%- if not hasSnapshot -%}
 <aside class="bpts-transform-last-process-pane"><div class="bpts-transform-last-process-header"><span class="bpts-transform-last-process-status-icon bpts-transform-last-process-status-icon-unknown" aria-label="Unknown" title="Unknown"><span data-icon="alert" aria-hidden="true"></span></span></div><p class="light bpts-transform-last-process-empty">No saved run data yet.</p></aside>
@@ -32,19 +31,8 @@
         {%- set canProcessAgain = (runEntry.canProcessAgain ?? false) == true -%}
 <button type="button" class="bpts-transform-last-process-icon-btn bpts-process-again-button" data-bpts-process-again="true" data-entry-id="{{ processAgainEntryId }}" title="Process this entry again" aria-label="Process this entry again"{{ not canProcessAgain ? ' disabled aria-disabled="true"' : '' }}><span data-icon="refresh" aria-hidden="true"></span></button>
     {%- endif -%}
-    {%- if observedEntry is not null and (observedEntry.id ?? 0) > 0 -%}
-        {%- set observedTitle = (observedEntry.title ?? '')|trim -%}
-        {%- set observedTooltip = observedTitle != '' ? 'Last observed entry: ' ~ observedTitle : 'Open last observed entry' -%}
-{% include 'breakpoints/cp/_partials/review/entry-link' with {
-    id: observedEntry.id,
-    href: (observedEntry.cpEditUrl ?? '#')|trim ?: '#',
-    siteId: max(0, (observedEntry.siteId ?? 0)),
-    tooltip: observedTooltip,
-    iconName: 'view',
-} only %}
-    {%- endif -%}
-    {%- if observedSourceUrl|trim != '' -%}
-<a href="{{ observedSourceUrl }}" target="_blank" rel="noopener" class="bpts-transform-last-process-icon-btn" title="Open observed page: {{ observedSourceUrl }}" aria-label="Open observed page"><span data-icon="world" aria-hidden="true"></span></a>
+    {%- if runSourceUrl|trim != '' -%}
+<a href="{{ runSourceUrl }}" target="_blank" rel="noopener" class="bpts-transform-last-process-icon-btn" title="Open processed page: {{ runSourceUrl }}" aria-label="Open processed page"><span data-icon="world" aria-hidden="true"></span></a>
     {%- endif -%}
 </aside>
 {%- endif -%}

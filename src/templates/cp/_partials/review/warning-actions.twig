@@ -11,7 +11,6 @@
 #}
 {%- if code == 'missing-set-definitions' and canEditTransforms -%}
     {%- if reviewMode == 'processed' -%}
-<div class="bpts-warning-actions"><button type="button" class="btn small bpts-warning-apply-rendered" data-bpts-action="renderedValues" aria-label="Set all breakpoints to rendered values" title="Set all breakpoints to rendered values" data-on:click="@post($_applyCardOperationUrl, {contentType: 'json', headers: {'X-CSRF-Token': $_csrfToken}, payload: {setName: el.closest('.bpts-transform-card').dataset.set || '', operation: 'renderedValues.apply', includeEscapeWidth: (el.closest('.bpts-transform-card').dataset.includeEscapeWidth || '0') === '1', selectedAssetKey: String(el.closest('.bpts-transform-card')?.dataset?.selectedAssetKey || ''), hiddenBreakpoints: (($editor.cards[String(el.closest('.bpts-transform-card')?.dataset?.signalKey || '')] || {}).processedHiddenBreakpoints) || [], baseVersion: String($editor.baseVersion || '')}})">Set to rendered</button></div>
     {%- else -%}
         {%- if entryId <= 0 or not entryAvailable -%}
             {%- set tooltip = entryId <= 0

@@ -493,16 +493,7 @@ class TransformsController extends Controller
         }
 
         if ($persisted || $conflict) {
-            $savedSetNames = array_values(array_filter(
-                array_map(
-                    static fn(array $row): string => trim((string)($row['name'] ?? '')),
-                    array_filter(
-                        $editor->buildSidebarTransformRows(),
-                        static fn(mixed $row): bool => is_array($row) && (($row['isObservedUnsaved'] ?? false) !== true),
-                    ),
-                ),
-                static fn(string $name): bool => $name !== '',
-            ));
+            $savedSetNames = $this->buildSavedSetNames($editor);
 
             $events[] = new PatchSignals([
                 'sidebar' => [
@@ -732,6 +723,7 @@ class TransformsController extends Controller
             'entryId' => $this->request->getBodyParam('entryId'),
             'sourceUrl' => $this->request->getBodyParam('sourceUrl'),
             'failureReasonCounts' => $this->request->getBodyParam('failureReasonCounts', []),
+            'transformMetadata' => $this->request->getBodyParam('transformMetadata', []),
             'rowsByBreakpoint' => $this->request->getBodyParam('rowsByBreakpoint', []),
             'rowsBySlot' => $this->request->getBodyParam('rowsBySlot', []),
         ];
@@ -746,6 +738,27 @@ class TransformsController extends Controller
         return $this->asJson([
             'ok' => true,
         ]);
+    }
+
+    public function actionAutoApplyNewSets(): Response
+    {
+        $this->requireCpRequest();
+        $this->requireAcceptsJson();
+        $this->requirePostRequest();
+
+        $this->requireTransformEditPermission();
+
+        $editor = Plugin::getInstance()->getTransformEditor();
+        $baseVersion = $this->resolveBaseVersion(Plugin::getInstance()->getTransformStore()->getCurrentVersion());
+        $requestedSets = $this->normalizeAutoApplyRequestedSets($this->readBodyArrayParam('sets'));
+
+        $result = $editor->autoApplyRenderedValuesForNewSets($requestedSets, $baseVersion);
+        $savedSetNames = $this->buildSavedSetNames($editor);
+
+        return $this->asJson(array_merge($result, [
+            'ok' => ($result['persisted'] ?? false) === true,
+            'savedSetNames' => $savedSetNames,
+        ]));
     }
 
     private function asDatastarSignalsPatch(array $signals): Response
@@ -1136,6 +1149,54 @@ class TransformsController extends Controller
     private function readBodyStringParam(string $name): string
     {
         return trim((string)$this->request->getBodyParam($name, ''));
+    }
+
+    /**
+     * @param array<int, mixed> $rawSets
+     * @return array<int, array{name: string, selectedAssetKey: string}>
+     */
+    private function normalizeAutoApplyRequestedSets(array $rawSets): array
+    {
+        $normalized = [];
+
+        foreach ($rawSets as $rawSet) {
+            if (!is_array($rawSet)) {
+                continue;
+            }
+
+            $name = trim((string)($rawSet['name'] ?? ''));
+            if ($name === '') {
+                $normalized[] = [
+                    'name' => '',
+                    'selectedAssetKey' => '',
+                ];
+                continue;
+            }
+
+            $normalized[] = [
+                'name' => $name,
+                'selectedAssetKey' => trim((string)($rawSet['selectedAssetKey'] ?? '')),
+            ];
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function buildSavedSetNames(TransformEditor $editor): array
+    {
+        return array_values(array_filter(
+            array_map(
+                static fn(array $row): string => trim((string)($row['name'] ?? '')),
+                array_filter(
+                    $editor->buildSidebarTransformRows(),
+                    static fn(mixed $row): bool => is_array($row) && (($row['isObservedUnsaved'] ?? false) !== true),
+                ),
+            ),
+            static fn(string $name): bool => $name !== '',
+        ));
     }
 
     private function requireTransformEditPermission(?CardOperationRequest $operation = null): void

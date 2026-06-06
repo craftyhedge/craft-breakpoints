@@ -537,7 +537,9 @@ final class ReviewRenderer
         }
 
         $runEntryData = $this->resolveRunEntryData($latestRunSnapshot);
-        $observedDataByTransform = $this->resolveObservedDataByTransform();
+        $snapshotTransformMetadata = isset($latestRunSnapshot['transformMetadata']) && is_array($latestRunSnapshot['transformMetadata'])
+            ? $latestRunSnapshot['transformMetadata']
+            : [];
         $cards = [];
 
         foreach ($transformNames as $transformName) {
@@ -560,7 +562,7 @@ final class ReviewRenderer
             $cardWarnings = $warningsByTransform[$transformName] ?? [];
             $includeEscapeWidth = ($storedTransformConfig['includeEscapeWidth'] ?? false) === true;
             if ($storedTransformConfig === null) {
-                $includeEscapeWidth = ($observedDataByTransform[$transformName]['includeEscapeWidth'] ?? null) === true;
+                $includeEscapeWidth = ($snapshotTransformMetadata[$transformName]['includeEscapeWidth'] ?? null) === true;
             }
 
             $transformBreakpoints = $observedBreakpoints !== []
@@ -740,6 +742,7 @@ final class ReviewRenderer
                 $referenceWidthsById,
                 $lockHeightExcludedBreakpoints,
             );
+            $hideRenderedApplyForCard = $hideRenderedApply || $setReviewState === 'missing';
             foreach ($transformBreakpoints as $breakpoint) {
                 $breakpointKey = (string)$breakpoint;
                 $rowsByBreakpointSignal[$breakpointKey] = array_merge(
@@ -753,7 +756,7 @@ final class ReviewRenderer
                         $storedSavedWidthsByTransform[$transformName][$breakpoint] ?? null,
                         $storedSavedHeightsByTransform[$transformName][$breakpoint] ?? null,
                         $allowAnyHeight,
-                        $hideRenderedApply,
+                        $hideRenderedApplyForCard,
                         $reviewMode,
                         $referenceWidthsById[(string)$breakpoint] ?? null,
                     )
@@ -789,7 +792,7 @@ final class ReviewRenderer
                     $includeEscapeWidth && $breakpoint === $lastBreakpoint
                         ? ($this->getReviewSlotMeasureWidthById($breakpoint, true) ?? $mediaWidth)
                         : null,
-                    $hideRenderedApply,
+                    $hideRenderedApplyForCard,
                     $reviewMode,
                     $passHeightWhenRenderedLteSaved,
                     $storedSavedWidthsByTransform[$transformName][$breakpoint] ?? null,
@@ -882,10 +885,7 @@ final class ReviewRenderer
                     'setReviewState' => $setReviewState,
                     'missingMessage' => $missingSetMessage,
                     'processAgainMessage' => 'Process again to double check application.',
-                    'applyButtonHtml' => $this->buildReviewWarningActionsMarkup(
-                        ['code' => 'missing-set-definitions'],
-                        self::REVIEW_MODE_PROCESSED,
-                    ),
+                    'applyButtonHtml' => '',
                 ])
                 : '';
 
@@ -931,7 +931,6 @@ final class ReviewRenderer
                 $latestRunSummaryForTransform,
                 $transformName,
                 $runEntryData,
-                $observedDataByTransform[$transformName] ?? null,
             );
 
             $cards[] = $this->renderReviewPartial('_partials/review/transform-card', [
@@ -950,7 +949,7 @@ final class ReviewRenderer
                     : '',
                 'includeEscapeWidth' => $includeEscapeWidth ? '1' : '0',
                 'selectedAssetKey' => $this->escapeReviewHtml($selectedAssetKey),
-                'renderedApplyHiddenClass' => $hideRenderedApply ? 'bpts-force-hidden' : '',
+                'renderedApplyHiddenClass' => $hideRenderedApplyForCard ? 'bpts-force-hidden' : '',
                 // Delete is only meaningful for a saved set; hide it while the set is
                 // unsaved ('missing'). Kept in sync reactively via setReviewState.
                 'deleteSetHiddenClass' => $setReviewState === 'missing' ? 'bpts-force-hidden' : '',
@@ -1605,14 +1604,12 @@ final class ReviewRenderer
      * @param array<string, mixed>|null $transformSummary
      * @param string $transformHandle
      * @param array<string, mixed>|null $runEntryData
-     * @param array<string, mixed>|null $observedData
      */
     private function buildLastProcessPanelMarkup(
         ?array $snapshot,
         ?array $transformSummary,
         string $transformHandle,
         ?array $runEntryData,
-        ?array $observedData,
     ): string {
         if (!is_array($snapshot)) {
             return $this->renderReviewPartial('_partials/review/last-process-panel', [
@@ -1622,8 +1619,7 @@ final class ReviewRenderer
                 'statusIconName' => '',
                 'ranAtLabel' => '',
                 'runEntry' => null,
-                'observedEntry' => null,
-                'observedSourceUrl' => '',
+                'runSourceUrl' => '',
             ]);
         }
 
@@ -1651,12 +1647,7 @@ final class ReviewRenderer
             $statusIconName = 'check';
         }
 
-        $observedEntry = is_array($observedData) && is_array($observedData['entry'] ?? null)
-            ? $observedData['entry']
-            : null;
-        $observedSourceUrl = is_array($observedData)
-            ? trim((string)($observedData['sourceUrl'] ?? ''))
-            : '';
+        $runSourceUrl = trim((string)($snapshot['sourceUrl'] ?? ''));
 
         return $this->renderReviewPartial('_partials/review/last-process-panel', [
             'hasSnapshot' => true,
@@ -1665,8 +1656,7 @@ final class ReviewRenderer
             'statusIconName' => $statusIconName,
             'ranAtLabel' => $ranAtLabel,
             'runEntry' => is_array($runEntryData) ? $runEntryData : null,
-            'observedEntry' => $observedEntry,
-            'observedSourceUrl' => $observedSourceUrl,
+            'runSourceUrl' => $runSourceUrl,
         ]);
     }
 
@@ -1730,18 +1720,6 @@ final class ReviewRenderer
         }
 
         return $this->snapshotReader->resolveRunEntryData($snapshot);
-    }
-
-    /**
-     * @return array<string, array<string, mixed>>
-     */
-    private function resolveObservedDataByTransform(): array
-    {
-        if ($this->snapshotReader === null) {
-            return [];
-        }
-
-        return $this->snapshotReader->resolveObservedDataByTransform();
     }
 
     private function normalizeLatestRunStatus(string $status): string

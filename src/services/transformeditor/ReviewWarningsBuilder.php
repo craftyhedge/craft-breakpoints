@@ -9,7 +9,7 @@ use craftyhedge\craftbreakpoints\services\TelemetryService;
  * Builds per-transform review warnings (currently: missing set definitions)
  * and provides warning metadata used for rendering (class, label).
  *
- * Depends on SnapshotReader for observed entry data, ConfigService for
+ * Depends on SnapshotReader for latest run entry data, ConfigService for
  * configured breakpoints, and TelemetryService for edit-permission decisions
  * on warning message text.
  */
@@ -54,24 +54,15 @@ final class ReviewWarningsBuilder
             return $warningsByTransform;
         }
 
-        $observedDataByTransform = $this->snapshotReader->resolveObservedDataByTransform();
+        $snapshot = $this->snapshotReader->getLatestRunSnapshot();
+        $runEntryData = $this->snapshotReader->resolveRunEntryData($snapshot);
+        $entryId = is_array($runEntryData) ? (int)($runEntryData['id'] ?? 0) : 0;
+        $entryAvailable = is_array($runEntryData)
+            && $entryId > 0
+            && (string)($runEntryData['cpEditUrl'] ?? '') !== '#';
+        $entryMissing = $entryId > 0 && !$entryAvailable;
 
         foreach ($missingDefinitions as $transformName) {
-            $observed = $observedDataByTransform[$transformName] ?? null;
-            $entryId = 0;
-            $entryAvailable = false;
-            $entryMissing = false;
-            if (is_array($observed)) {
-                $entryCandidate = $observed['entry'] ?? null;
-                if (is_array($entryCandidate) && (int)($entryCandidate['id'] ?? 0) > 0) {
-                    $entryId = (int)$entryCandidate['id'];
-                    $entryAvailable = ($entryCandidate['availableInCurrentSite'] ?? false) === true;
-                } elseif (($observed['sourceElementId'] ?? 0) > 0) {
-                    $entryId = (int)$observed['sourceElementId'];
-                    $entryMissing = true;
-                }
-            }
-
             $warningsByTransform[$transformName][] = $this->buildMissingSetDefinitionWarning(
                 $entryId,
                 $entryAvailable,

@@ -402,6 +402,19 @@ class TransformEditor extends Component
         );
     }
 
+    /**
+     * @param array<int, array<string, mixed>> $requestedSets
+     * @return array<string, mixed>
+     */
+    public function autoApplyRenderedValuesForNewSets(array $requestedSets, ?string $expectedVersion = null): array
+    {
+        if ($this->_operationsService === null) {
+            return ['persisted' => false, 'validation' => $this->defaultValidation()];
+        }
+
+        return $this->_operationsService->autoApplyRenderedValuesForNewSets($requestedSets, $expectedVersion);
+    }
+
     public function applySetWidthOperation(
         string $transformName,
         string $scopeMode,
