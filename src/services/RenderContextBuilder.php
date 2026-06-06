@@ -65,7 +65,6 @@ class RenderContextBuilder extends Component
 
         return [
             'data-set' => $setName,
-            'data-set-exists' => $set !== null ? 'true' : 'false',
             'data-include-escape-width' => $this->resolveIncludeEscapeWidth($config, $set) ? 'true' : 'false',
             'data-picture-id' => $pictureId,
             'data-asset-id' => $assetId,

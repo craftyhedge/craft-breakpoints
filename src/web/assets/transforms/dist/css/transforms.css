@@ -353,8 +353,6 @@
 }
 
 #sidebar-container {
-    width: 11rem !important;
-    flex: none;
     #sidebar {
         padding-inline: 16px !important;
         padding-top: 10px;
@@ -576,7 +574,7 @@
     margin-top: 8px;
 }
 
-.bpts-warning-item .btn.bpts-warning-process-observed {
+.bpts-warning-item .btn.bpts-warning-process-entry {
     --button-bg: var(--blue-600, #2f6fdb);
     --button-bg--hover: var(--blue-700, var(--bpts-color-primary-700));
     --button-bg--active: var(--blue-800, var(--bpts-color-primary-800));
@@ -589,12 +587,12 @@
     color: var(--text-color);
 }
 
-.bpts-warning-item .btn.bpts-warning-process-observed:hover,
-.bpts-warning-item .btn.bpts-warning-process-observed:active {
+.bpts-warning-item .btn.bpts-warning-process-entry:hover,
+.bpts-warning-item .btn.bpts-warning-process-entry:active {
     color: var(--bpts-color-white, #fff);
 }
 
-.bpts-warning-item .btn.bpts-warning-process-observed:focus-visible {
+.bpts-warning-item .btn.bpts-warning-process-entry:focus-visible {
     outline: 2px solid var(--blue-300, #91b5f5);
     outline-offset: 1px;
 }

@@ -83,7 +83,7 @@ final class ReviewWarningsBuilder
     ): array {
         $canEdit = $this->telemetry->canEditTransforms();
         $message = $canEdit
-            ? 'No transforms are saved for this set. Process the observed entry to capture rendered dimensions, or edit the transforms.'
+            ? 'No transforms are saved for this set. Process the entry to capture rendered dimensions, or edit the transforms.'
             : 'No transforms are saved for this set. Process in a development environment.';
 
         return [

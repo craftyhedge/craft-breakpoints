@@ -14,12 +14,12 @@
     {%- else -%}
         {%- if entryId <= 0 or not entryAvailable -%}
             {%- set tooltip = entryId <= 0
-                ? 'No observed entry is available to process.'
-                : (entryMissing ? 'Observed entry could not be found.' : 'Observed entry is not available in the current site.')
+                ? 'No processed entry is available to process.'
+                : (entryMissing ? 'Processed entry could not be found.' : 'Processed entry is not available in the current site.')
             -%}
-<div class="bpts-warning-actions"><button type="button" class="btn small bpts-warning-process-observed" data-bpts-action="processObservedEntry" disabled aria-label="{{ tooltip }}" title="{{ tooltip }}">Process observed entry</button></div>
+<div class="bpts-warning-actions"><button type="button" class="btn small bpts-warning-process-entry" data-bpts-action="processWarningEntry" disabled aria-label="{{ tooltip }}" title="{{ tooltip }}">Process entry</button></div>
         {%- else -%}
-<div class="bpts-warning-actions"><button type="button" class="btn small bpts-warning-process-observed" data-bpts-action="processObservedEntry" data-entry-id="{{ entryId }}" aria-label="Process observed entry" title="Process observed entry">Process observed entry</button></div>
+<div class="bpts-warning-actions"><button type="button" class="btn small bpts-warning-process-entry" data-bpts-action="processWarningEntry" data-entry-id="{{ entryId }}" aria-label="Process entry" title="Process entry">Process entry</button></div>
         {%- endif -%}
     {%- endif -%}
 {%- endif -%}

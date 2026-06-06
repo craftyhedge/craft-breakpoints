@@ -137,13 +137,14 @@ final class InitialStoredReviewBuilder
             static fn($name): bool => is_string($name) && $name !== '',
         ));
         $observedUnsaved = $this->plugin->getTelemetry()->getObservedUnsavedHandles($configuredNames);
-        $observedSlots = $this->plugin->getBreakpointSlots()->getSlots(false);
         foreach ($observedUnsaved as $observedEntry) {
             $handle = (string)$observedEntry['handle'];
             if ($handle === '') {
                 continue;
             }
 
+            $includeEscapeWidth = ($observedEntry['includeEscapeWidth'] ?? null) === true;
+            $observedSlots = $this->plugin->getBreakpointSlots()->getSlots($includeEscapeWidth);
             $placeholderSrc = ReviewLayoutCalculator::buildInitialPlaceholderDataUri(null, null, null);
             foreach ($observedSlots as $slot) {
                 $slotKey = (string)($slot['key'] ?? '');

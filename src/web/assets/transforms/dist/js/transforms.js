@@ -415,16 +415,16 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         });
     }
 
-    function bindProcessObservedEntryButtons() {
-        if (document.documentElement.dataset.bpiProcessObservedBound === '1') {
+    function bindProcessWarningEntryButtons() {
+        if (document.documentElement.dataset.bpiProcessWarningEntryBound === '1') {
             return;
         }
 
-        document.documentElement.dataset.bpiProcessObservedBound = '1';
+        document.documentElement.dataset.bpiProcessWarningEntryBound = '1';
 
         document.addEventListener('click', (event) => {
             const target = event.target instanceof Element
-                ? event.target.closest('button.bpts-warning-process-observed[data-bpts-action="processObservedEntry"]')
+                ? event.target.closest('button.bpts-warning-process-entry[data-bpts-action="processWarningEntry"]')
                 : null;
 
             if (!(target instanceof HTMLButtonElement) || target.disabled) {
@@ -440,13 +440,13 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             void (async () => {
                 const entryId = parsePositiveInt(target.dataset.entryId);
                 if (!entryId) {
-                    setStatus('No observed entry is available to process.');
+                    setStatus('No entry is available to process.');
                     return;
                 }
 
                 const selected = await setSourceEntryFromRun(entryId);
                 if (!selected) {
-                    setStatus('Could not select the observed entry.');
+                    setStatus('Could not select the entry.');
                     return;
                 }
 
@@ -2707,7 +2707,6 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                     metadata[transformHandle] = {
                         transformHandle,
                         includeEscapeWidth: null,
-                        setExists: null,
                     };
                 }
 
@@ -2715,12 +2714,6 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                     metadata[transformHandle].includeEscapeWidth = true;
                 } else if (metadata[transformHandle].includeEscapeWidth === null && row?.includeEscapeWidth === false) {
                     metadata[transformHandle].includeEscapeWidth = false;
-                }
-
-                if (row?.setExists === true) {
-                    metadata[transformHandle].setExists = true;
-                } else if (metadata[transformHandle].setExists === null && row?.setExists === false) {
-                    metadata[transformHandle].setExists = false;
                 }
             });
         });
@@ -3351,7 +3344,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     bindSourceSelectionSync();
     bindEntrySlideoutLinks();
     bindProcessAgainButtons();
-    bindProcessObservedEntryButtons();
+    bindProcessWarningEntryButtons();
     bindTransformSidebarCardNavigation();
     setButtonsDisabled(false);
     setupDragToScroll();

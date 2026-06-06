@@ -958,7 +958,6 @@ export function extractRowsForBreakpoint({
             transform: picture?.getAttribute('data-set') || 'unknown',
             title: picture?.getAttribute('data-asset-title') || '',
             includeEscapeWidth: picture?.getAttribute('data-include-escape-width') === 'true',
-            setExists: picture?.getAttribute('data-set-exists') === 'true',
             enabled,
             isVisible: img.offsetWidth > 0 || img.offsetHeight > 0,
             src: img.currentSrc || img.getAttribute('src') || '',

@@ -571,7 +571,7 @@ class TelemetryService extends Component
     }
 
     /**
-     * @return array<string, array{transformHandle: string, includeEscapeWidth: ?bool, setExists: ?bool}>
+     * @return array<string, array{transformHandle: string, includeEscapeWidth: ?bool}>
      */
     private function decodeTransformMetadataColumn(mixed $raw): array
     {
@@ -646,7 +646,7 @@ class TelemetryService extends Component
     }
 
     /**
-     * @return array<string, array{transformHandle: string, includeEscapeWidth: ?bool, setExists: ?bool}>
+     * @return array<string, array{transformHandle: string, includeEscapeWidth: ?bool}>
      */
     private function normalizeTransformMetadata(mixed $rawMetadata): array
     {
@@ -666,12 +666,10 @@ class TelemetryService extends Component
             }
 
             $includeEscapeWidth = $this->normalizeNullableBool($rawEntry['includeEscapeWidth'] ?? null);
-            $setExists = $this->normalizeNullableBool($rawEntry['setExists'] ?? null);
 
             $normalized[$transformHandle] = [
                 'transformHandle' => $transformHandle,
                 'includeEscapeWidth' => $includeEscapeWidth,
-                'setExists' => $setExists,
             ];
         }
 

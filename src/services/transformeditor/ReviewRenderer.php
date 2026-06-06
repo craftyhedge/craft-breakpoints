@@ -869,7 +869,7 @@ final class ReviewRenderer
                 : $cardWarnings;
             $staticWarningsMarkup = $this->renderReviewWarningsMarkup($staticCardWarnings, false, $reviewMode);
 
-            $missingSetMessage = 'No transforms are saved for this set. Process the observed entry to capture rendered dimensions, or edit the transforms.';
+            $missingSetMessage = 'No transforms are saved for this set. Process the entry to capture rendered dimensions, or edit the transforms.';
             foreach ($cardWarnings as $w) {
                 if (is_array($w)
                     && (string)($w['code'] ?? '') === 'missing-set-definitions'

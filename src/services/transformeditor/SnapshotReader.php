@@ -105,7 +105,7 @@ final class SnapshotReader
     }
 
     /**
-     * @return array{transformHandle: string, includeEscapeWidth: ?bool, setExists: ?bool}|null
+     * @return array{transformHandle: string, includeEscapeWidth: ?bool}|null
      */
     public function resolveTransformMetadata(string $transformName): ?array
     {
