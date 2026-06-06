@@ -2,6 +2,7 @@
 
 namespace craftyhedge\craftbreakpoints\services\transformeditor;
 
+use craftyhedge\craftbreakpoints\services\BreakpointPolicy;
 use craftyhedge\craftbreakpoints\services\ConfigService;
 use craftyhedge\craftbreakpoints\services\TelemetryService;
 
@@ -19,6 +20,7 @@ final class ReviewWarningsBuilder
         private readonly SnapshotReader $snapshotReader,
         private readonly ConfigService $configService,
         private readonly TelemetryService $telemetry,
+        private readonly BreakpointPolicy $breakpointPolicy,
     ) {
     }
 
@@ -164,7 +166,7 @@ final class ReviewWarningsBuilder
      */
     private function collectEmptyEnabledBreakpoints(array $transformDefinition): array
     {
-        $includeEscapeWidth = ($transformDefinition['includeEscapeWidth'] ?? false) === true;
+        $includeEscapeWidth = $this->breakpointPolicy->resolveIncludeEscapeWidth([], $transformDefinition);
         $breakpoints = $this->resolveBreakpointsForTransform($includeEscapeWidth);
 
         if ($breakpoints === []) {

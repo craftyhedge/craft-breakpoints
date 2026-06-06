@@ -42,7 +42,7 @@ final class InitialStoredReviewBuilder
                 continue;
             }
 
-            $includeEscapeWidth = ($transformDefinition['includeEscapeWidth'] ?? false) === true;
+            $includeEscapeWidth = $this->plugin->getBreakpointPolicy()->resolveIncludeEscapeWidth([], $transformDefinition);
             $slots = $this->plugin->getBreakpointSlots()->getSlots($includeEscapeWidth);
             $entries = isset($transformDefinition['transforms']) && is_array($transformDefinition['transforms'])
                 ? array_values($transformDefinition['transforms'])

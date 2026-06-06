@@ -4,6 +4,7 @@ namespace craftyhedge\craftbreakpoints\services\transformeditor;
 
 use Throwable;
 use craftyhedge\craftbreakpoints\Plugin;
+use craftyhedge\craftbreakpoints\services\BreakpointPolicy;
 use craftyhedge\craftbreakpoints\services\ConfigService;
 use craftyhedge\craftbreakpoints\services\TelemetryService;
 use craftyhedge\craftbreakpoints\services\TransformStore;
@@ -29,9 +30,10 @@ final class OperationsService
         private readonly TransformStore $transformStore,
         private readonly ConfigService $configService,
         private readonly TelemetryService $telemetry,
+        private readonly BreakpointPolicy $breakpointPolicy,
         private readonly ?SnapshotReader $snapshotReader = null,
     ) {
-        $this->breakpointCatalog = new BreakpointCatalog($configService);
+        $this->breakpointCatalog = new BreakpointCatalog($configService, $breakpointPolicy);
     }
 
     /**
@@ -1395,7 +1397,7 @@ final class OperationsService
         $sets = $this->transformStore->getSets();
         if (isset($sets[$transformName]) && is_array($sets[$transformName])) {
             $set = $sets[$transformName];
-            $resolved = ($set['includeEscapeWidth'] ?? false) === true;
+            $resolved = $this->resolveIncludeEscapeWidthForSet($set);
         } else {
             $resolved = $includeEscapeWidth === true;
             $set = [
@@ -1727,7 +1729,7 @@ final class OperationsService
                 continue;
             }
 
-            $includeEscapeWidth = ($setDefinition['includeEscapeWidth'] ?? false) === true;
+            $includeEscapeWidth = $this->resolveIncludeEscapeWidthForSet($setDefinition);
             $existingVariants = isset($setDefinition['variants']) && is_array($setDefinition['variants'])
                 ? $setDefinition['variants']
                 : [];
@@ -1766,7 +1768,7 @@ final class OperationsService
             return null;
         }
 
-        $includeEscapeWidth = ($setDefinition['includeEscapeWidth'] ?? false) === true;
+        $includeEscapeWidth = $this->resolveIncludeEscapeWidthForSet($setDefinition);
         $targetResolution = $this->breakpointCatalog->resolveOperationTarget($breakpointKey, null, $includeEscapeWidth);
         if ($targetResolution === null) {
             return null;
@@ -1792,6 +1794,11 @@ final class OperationsService
         }
 
         return null;
+    }
+
+    private function resolveIncludeEscapeWidthForSet(array $setDefinition): bool
+    {
+        return $this->breakpointPolicy->resolveIncludeEscapeWidth([], $setDefinition);
     }
 
 }

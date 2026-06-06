@@ -42,20 +42,24 @@ class TransformEditor extends Component
             $this->_healthAnalyzer = new HealthAnalyzer(
                 $this->_snapshotReader,
                 $this->_plugin->getConfigService(),
+                $this->_plugin->getBreakpointPolicy(),
             );
             $this->_warningsBuilder = new ReviewWarningsBuilder(
                 $this->_snapshotReader,
                 $this->_plugin->getConfigService(),
                 $this->_plugin->getTelemetry(),
+                $this->_plugin->getBreakpointPolicy(),
             );
             $this->_draftService = new DraftService(
                 $this->_plugin->getTransformStore(),
                 $this->_plugin->getConfigService(),
+                $this->_plugin->getBreakpointPolicy(),
             );
             $this->_operationsService = new OperationsService(
                 $this->_plugin->getTransformStore(),
                 $this->_plugin->getConfigService(),
                 $this->_plugin->getTelemetry(),
+                $this->_plugin->getBreakpointPolicy(),
                 $this->_snapshotReader,
             );
             $this->_reviewRenderer = new ReviewRenderer(

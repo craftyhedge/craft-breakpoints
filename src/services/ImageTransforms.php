@@ -762,13 +762,7 @@ class ImageTransforms extends Component
 
     private function isEscapeWidthIncluded(array $config, ?array $set): bool
     {
-        if (array_key_exists('includeEscapeWidth', $config)) {
-            return (bool)$config['includeEscapeWidth'] === true;
-        }
-
-        return $set !== null
-            && array_key_exists('includeEscapeWidth', $set)
-            && $set['includeEscapeWidth'] === true;
+        return $this->_plugin?->getBreakpointPolicy()->resolveIncludeEscapeWidth($config, $set) ?? false;
     }
 
     private function resolveEffectiveSecondaryFormat(array $config, array $mergedConfig): string

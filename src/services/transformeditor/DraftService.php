@@ -2,6 +2,7 @@
 
 namespace craftyhedge\craftbreakpoints\services\transformeditor;
 
+use craftyhedge\craftbreakpoints\services\BreakpointPolicy;
 use craftyhedge\craftbreakpoints\services\ConfigService;
 use craftyhedge\craftbreakpoints\services\TransformStore;
 
@@ -18,6 +19,7 @@ final class DraftService
     public function __construct(
         private readonly TransformStore $transformStore,
         private readonly ConfigService $configService,
+        private readonly BreakpointPolicy $breakpointPolicy,
     ) {
     }
 
@@ -96,7 +98,7 @@ final class DraftService
                 continue;
             }
 
-            $includeEscapeWidth = ($transformDefinition['includeEscapeWidth'] ?? false) === true;
+            $includeEscapeWidth = $this->breakpointPolicy->resolveIncludeEscapeWidth([], $transformDefinition);
             $breakpoints = $this->getBreakpointsForTransform($includeEscapeWidth);
             $rows = [];
 
@@ -155,7 +157,7 @@ final class DraftService
                 continue;
             }
 
-            $includeEscapeWidth = ($transformDraft['includeEscapeWidth'] ?? false) === true;
+            $includeEscapeWidth = $this->breakpointPolicy->resolveIncludeEscapeWidth([], $transformDraft);
             $rowsByBreakpoint = isset($transformDraft['rows']) && is_array($transformDraft['rows'])
                 ? $transformDraft['rows']
                 : [];

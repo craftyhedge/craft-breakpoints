@@ -2,6 +2,7 @@
 
 namespace craftyhedge\craftbreakpoints\services\transformeditor;
 
+use craftyhedge\craftbreakpoints\services\BreakpointPolicy;
 use craftyhedge\craftbreakpoints\services\ConfigService;
 
 /**
@@ -16,6 +17,7 @@ final class BreakpointCatalog
 {
     public function __construct(
         private readonly ConfigService $configService,
+        private readonly BreakpointPolicy $breakpointPolicy,
     ) {
     }
 
@@ -24,7 +26,7 @@ final class BreakpointCatalog
      */
     public function getDefinitionsForSet(array $setDefinition): array
     {
-        $includeEscapeWidth = ($setDefinition['includeEscapeWidth'] ?? false) === true;
+        $includeEscapeWidth = $this->breakpointPolicy->resolveIncludeEscapeWidth([], $setDefinition);
         return $this->getDefinitionsForIncludeEscapeWidth($includeEscapeWidth);
     }
 

@@ -297,7 +297,7 @@ class TransformStore extends Component
                 'name' => (string)($setDefinition['name'] ?? $setName),
                 'notes' => $notes,
                 'variants' => $canonicalVariants,
-                'includeEscapeWidth' => ($setDefinition['includeEscapeWidth'] ?? false) === true,
+                'includeEscapeWidth' => $this->resolveIncludeEscapeWidthForSet($setDefinition),
                 'config' => $config,
                 'lastUpdatedAt' => $lastUpdatedAt,
             ]);
@@ -426,7 +426,7 @@ class TransformStore extends Component
                 'notes' => is_string($setDefinition['notes'] ?? null)
                     ? $this->normalizeNotes((string)$setDefinition['notes'])
                     : '',
-                'includeEscapeWidth' => ($setDefinition['includeEscapeWidth'] ?? false) === true,
+                'includeEscapeWidth' => $this->resolveIncludeEscapeWidthForSet($setDefinition),
                 'transforms' => $entries,
                 'config' => isset($setDefinition['config']) && is_array($setDefinition['config'])
                     ? $setDefinition['config']
@@ -446,7 +446,7 @@ class TransformStore extends Component
                 continue;
             }
 
-            $includeEscapeWidth = ($legacyDefinition['includeEscapeWidth'] ?? false) === true;
+            $includeEscapeWidth = $this->resolveIncludeEscapeWidthForSet($legacyDefinition);
             $entries = isset($legacyDefinition['transforms']) && is_array($legacyDefinition['transforms'])
                 ? array_values($legacyDefinition['transforms'])
                 : [];
@@ -473,9 +473,15 @@ class TransformStore extends Component
 
     private function getBreakpointNamesForSetDefinition(array $setDefinition): array
     {
-        $includeEscapeWidth = ($setDefinition['includeEscapeWidth'] ?? false) === true;
+        $includeEscapeWidth = $this->resolveIncludeEscapeWidthForSet($setDefinition);
 
         return $this->getBreakpointNamesForIncludeEscapeWidth($includeEscapeWidth);
+    }
+
+    private function resolveIncludeEscapeWidthForSet(array $setDefinition): bool
+    {
+        return $this->_plugin !== null
+            && $this->_plugin->getBreakpointPolicy()->resolveIncludeEscapeWidth([], $setDefinition);
     }
 
     private function getBreakpointNamesForIncludeEscapeWidth(bool $includeEscapeWidth): array

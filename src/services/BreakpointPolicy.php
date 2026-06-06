@@ -21,7 +21,7 @@ class BreakpointPolicy extends Component
             return [];
         }
 
-        $includeEscapeWidth = $this->shouldIncludeEscapeWidth($config);
+        $includeEscapeWidth = $this->resolveIncludeEscapeWidth($config);
         $breakpoints = [];
         foreach ($this->_plugin->getBreakpointSlots()->getSlots($includeEscapeWidth) as $slot) {
             $breakpoints[$slot['key']] = (int)$slot['mediaWidth'];
@@ -121,13 +121,13 @@ class BreakpointPolicy extends Component
         return $labels[$index] ?? null;
     }
 
-    private function shouldIncludeEscapeWidth(array $config): bool
+    public function resolveIncludeEscapeWidth(array $config = [], ?array $set = null): bool
     {
         if (array_key_exists('includeEscapeWidth', $config)) {
             return (bool)$config['includeEscapeWidth'] === true;
         }
 
-        $namedSet = $this->getNamedSet($config);
+        $namedSet = $set ?? $this->getNamedSetIfConfigured($config);
 
         return $namedSet !== null
             && array_key_exists('includeEscapeWidth', $namedSet)
@@ -143,6 +143,20 @@ class BreakpointPolicy extends Component
         $setName = (string)($config['setName'] ?? $config['transformName'] ?? '');
         if (trim($setName) === '') {
             throw new \InvalidArgumentException('A non-empty set name is required in config.');
+        }
+
+        return $this->_plugin->getTransformSets()->getSet($setName);
+    }
+
+    private function getNamedSetIfConfigured(array $config): ?array
+    {
+        if ($this->_plugin === null) {
+            return null;
+        }
+
+        $setName = trim((string)($config['setName'] ?? $config['transformName'] ?? ''));
+        if ($setName === '') {
+            return null;
         }
 
         return $this->_plugin->getTransformSets()->getSet($setName);

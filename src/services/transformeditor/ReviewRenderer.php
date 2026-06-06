@@ -30,7 +30,7 @@ final class ReviewRenderer
         $this->cardStateBuilder = new CardStateBuilder();
         $this->breakpointStateBuilder = new ReviewBreakpointStateBuilder($healthAnalyzer);
         $this->initialStoredReviewBuilder = new InitialStoredReviewBuilder($plugin, $snapshotReader);
-        $this->breakpointCatalog = new BreakpointCatalog($plugin->getConfigService());
+        $this->breakpointCatalog = new BreakpointCatalog($plugin->getConfigService(), $plugin->getBreakpointPolicy());
     }
 
     public function renderResultReview(
@@ -158,7 +158,7 @@ final class ReviewRenderer
         }
 
         if ($includeEscapeWidth === null) {
-            $includeEscapeWidth = ($transformConfig['includeEscapeWidth'] ?? false) === true;
+            $includeEscapeWidth = $this->plugin->getBreakpointPolicy()->resolveIncludeEscapeWidth([], $transformConfig);
         }
         $transformBreakpoints = $this->getBreakpointsForTransform($includeEscapeWidth);
         if ($transformBreakpoints === []) {
@@ -194,7 +194,7 @@ final class ReviewRenderer
         }
 
         if ($includeEscapeWidth === null) {
-            $includeEscapeWidth = ($transformConfig['includeEscapeWidth'] ?? false) === true;
+            $includeEscapeWidth = $this->plugin->getBreakpointPolicy()->resolveIncludeEscapeWidth([], $transformConfig);
         }
         $transformBreakpoints = $this->getBreakpointsForTransform($includeEscapeWidth);
         if ($transformBreakpoints === []) {
@@ -255,7 +255,7 @@ final class ReviewRenderer
         }
 
         $configuredBreakpoints = $this->getReviewConfiguredBreakpoints();
-        $includeEscapeWidth = ($transformConfig['includeEscapeWidth'] ?? false) === true;
+        $includeEscapeWidth = $this->plugin->getBreakpointPolicy()->resolveIncludeEscapeWidth([], $transformConfig);
         $transformBreakpoints = $this->getReviewBreakpointsForTransformConfig($includeEscapeWidth, $configuredBreakpoints);
         if ($transformBreakpoints === []) {
             return ['signalKey' => $signalKey, 'rowsByBreakpoint' => []];
@@ -560,7 +560,7 @@ final class ReviewRenderer
 
             $storedTransformConfig = $this->getReviewTransformConfig($storedTransforms, $transformName);
             $cardWarnings = $warningsByTransform[$transformName] ?? [];
-            $includeEscapeWidth = ($storedTransformConfig['includeEscapeWidth'] ?? false) === true;
+            $includeEscapeWidth = $this->plugin->getBreakpointPolicy()->resolveIncludeEscapeWidth([], $storedTransformConfig);
             if ($storedTransformConfig === null) {
                 $includeEscapeWidth = ($snapshotTransformMetadata[$transformName]['includeEscapeWidth'] ?? null) === true;
             }
@@ -2084,7 +2084,7 @@ final class ReviewRenderer
         $entries = isset($transformConfig['transforms']) && is_array($transformConfig['transforms'])
             ? array_values($transformConfig['transforms'])
             : [];
-        $includeEscapeWidth = ($transformConfig['includeEscapeWidth'] ?? false) === true;
+        $includeEscapeWidth = $this->plugin->getBreakpointPolicy()->resolveIncludeEscapeWidth([], $transformConfig);
         $entryIndexByBreakpoint = [];
         foreach ($this->getBreakpointsForTransform($includeEscapeWidth) as $index => $breakpoint) {
             if (is_int($breakpoint)) {

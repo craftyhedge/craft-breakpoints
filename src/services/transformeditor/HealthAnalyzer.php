@@ -2,6 +2,7 @@
 
 namespace craftyhedge\craftbreakpoints\services\transformeditor;
 
+use craftyhedge\craftbreakpoints\services\BreakpointPolicy;
 use craftyhedge\craftbreakpoints\services\ConfigService;
 
 /**
@@ -21,6 +22,7 @@ final class HealthAnalyzer
     public function __construct(
         private readonly SnapshotReader $snapshotReader,
         private readonly ConfigService $configService,
+        private readonly BreakpointPolicy $breakpointPolicy,
     ) {
     }
 
@@ -723,7 +725,7 @@ final class HealthAnalyzer
                 continue;
             }
 
-            $includeEscapeWidth = ($transformDefinition['includeEscapeWidth'] ?? false) === true;
+            $includeEscapeWidth = $this->breakpointPolicy->resolveIncludeEscapeWidth([], $transformDefinition);
             $breakpoints = $this->getBreakpointsForTransform($includeEscapeWidth);
             $entries = isset($transformDefinition['transforms']) && is_array($transformDefinition['transforms'])
                 ? array_values($transformDefinition['transforms'])
@@ -763,7 +765,7 @@ final class HealthAnalyzer
                 continue;
             }
 
-            $includeEscapeWidth = ($transformDefinition['includeEscapeWidth'] ?? false) === true;
+            $includeEscapeWidth = $this->breakpointPolicy->resolveIncludeEscapeWidth([], $transformDefinition);
             $slots = $this->configService->getBreakpointSlotDefinitions($includeEscapeWidth);
             $entries = isset($transformDefinition['transforms']) && is_array($transformDefinition['transforms'])
                 ? array_values($transformDefinition['transforms'])
@@ -803,7 +805,7 @@ final class HealthAnalyzer
                 continue;
             }
 
-            $includeEscapeWidth = ($transformDefinition['includeEscapeWidth'] ?? false) === true;
+            $includeEscapeWidth = $this->breakpointPolicy->resolveIncludeEscapeWidth([], $transformDefinition);
             foreach ($this->configService->getBreakpointSlotDefinitions($includeEscapeWidth) as $slot) {
                 $slotKey = trim((string)($slot['key'] ?? ''));
                 $slotIndex = isset($slot['index']) && is_numeric($slot['index']) ? (int)$slot['index'] : -1;
