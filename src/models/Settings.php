@@ -16,8 +16,8 @@ class Settings extends Model
     ];
 
     public int $escapeWidth = 0;
-    public int $defaultWidth = 6;
-    public int $defaultHeight = 9;
+    public int $defaultWidth = 1600;
+    public int $defaultHeight = 900;
 
     public string $mode = 'crop';
     public string $position = 'center-center';
