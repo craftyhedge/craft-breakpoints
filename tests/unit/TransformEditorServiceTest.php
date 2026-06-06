@@ -1980,7 +1980,7 @@ final class TransformEditorServiceTest extends Unit
 
         // The missing-set warning is rendered as a reactive pair: a visible danger item
         // and a hidden neutral "Process Again" notice that the setReviewState signal swaps
-        // to after "Set to rendered". Both items live in the DOM at all times.
+        // to once the set is reprocessed. Both items live in the DOM at all times.
         $warningItems = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-card-warnings ')]//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-warning-item ')]");
         $this->assertNotFalse($warningItems);
         $this->assertSame(2, $warningItems->length);
@@ -1996,10 +1996,11 @@ final class TransformEditorServiceTest extends Unit
             (string)($processAgainItem->textContent ?? ''),
         );
 
+        // The "Set to rendered" action was removed from the processed-mode missing-set
+        // warning; the reactive banner no longer carries an apply-rendered button.
         $applyButtons = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpts-warning-apply-rendered ')]");
         $this->assertNotFalse($applyButtons);
-        $this->assertSame(1, $applyButtons->length);
-        $this->assertSame('Set to rendered', trim((string)($applyButtons->item(0)?->textContent ?? '')));
+        $this->assertSame(0, $applyButtons->length);
     }
 
     /**

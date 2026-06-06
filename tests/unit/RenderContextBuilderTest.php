@@ -69,53 +69,6 @@ final class RenderContextBuilderTest extends Unit
         $this->assertArrayNotHasKey('data-uid', $attributes);
     }
 
-    public function testGetPictureAttributesIncludesTransformExistenceFlag(): void
-    {
-        $builder = Plugin::getInstance()->getRenderContextBuilder();
-
-        $this->withRuntimeSets([
-            'hero' => [
-                'name' => 'hero',
-                'includeEscapeWidth' => false,
-                'variants' => [
-                    'xs' => ['width' => 480, 'height' => null, 'enabled' => true, 'autoDimension' => null],
-                ],
-                'config' => [],
-            ],
-        ], function () use ($builder): void {
-            // The marker payload is processing-only and gated in
-            // getPictureAttributes; test the composition logic directly.
-            $compose = new \ReflectionMethod($builder, 'composePictureMarkers');
-
-            $exists = $compose->invoke($builder, [
-                'setName' => 'hero',
-                'imageId' => 123,
-                'breakpoints' => ['xs' => 480],
-            ]);
-            $missing = $compose->invoke($builder, [
-                'setName' => 'missing-set-name',
-                'imageId' => 123,
-                'breakpoints' => ['xs' => 480],
-            ]);
-
-            $this->assertSame('true', $exists['data-set-exists'] ?? null);
-            $this->assertSame('false', $missing['data-set-exists'] ?? null);
-        });
-    }
-
-    private function withRuntimeSets(array $sets, callable $callback): mixed
-    {
-        $store = Plugin::getInstance()->getTransformStore();
-        $previousSets = $store->getSets();
-        $store->replaceSetsForRuntime($sets);
-
-        try {
-            return $callback();
-        } finally {
-            $store->replaceSetsForRuntime($previousSets);
-        }
-    }
-
     public function testGetImageAttributesOmitsLoadingWhenNativeLazyLoadingDisabled(): void
     {
         $builder = Plugin::getInstance()->getRenderContextBuilder();

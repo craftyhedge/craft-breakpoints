@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace craftyhedge\craftbreakpoints\tests\unit;
 
 use Codeception\Test\Unit;
+use craftyhedge\craftbreakpoints\Plugin;
 use craftyhedge\craftbreakpoints\services\ConfigService;
 use craftyhedge\craftbreakpoints\services\transformeditor\BreakpointCatalog;
 
@@ -16,7 +17,7 @@ final class BreakpointCatalogTest extends Unit
             'xs' => 480,
             'sm' => 640,
             'escape' => 1281,
-        ]));
+        ]), Plugin::getInstance()->getBreakpointPolicy());
 
         $withoutEscape = $catalog->getDefinitionsForIncludeEscapeWidth(false);
         $withEscape = $catalog->getDefinitionsForIncludeEscapeWidth(true);
@@ -37,7 +38,7 @@ final class BreakpointCatalogTest extends Unit
         $catalog = new BreakpointCatalog($this->buildConfigService([
             'sm' => 640,
             'md' => 640,
-        ]));
+        ]), Plugin::getInstance()->getBreakpointPolicy());
 
         $result = $catalog->resolveOperationTargetOrReject(null, null, false);
 

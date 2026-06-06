@@ -37,6 +37,7 @@ final class ServerAuthorityOperationsTest extends Unit
                 $plugin->getTransformStore(),
                 $plugin->getConfigService(),
                 $plugin->getTelemetry(),
+                $plugin->getBreakpointPolicy(),
                 $snapshotReader,
             );
 
@@ -100,6 +101,7 @@ final class ServerAuthorityOperationsTest extends Unit
                     $plugin->getTransformStore(),
                     $plugin->getConfigService(),
                     $plugin->getTelemetry(),
+                    $plugin->getBreakpointPolicy(),
                     $snapshotReader,
                 );
 
@@ -170,6 +172,7 @@ final class ServerAuthorityOperationsTest extends Unit
                     $plugin->getTransformStore(),
                     $plugin->getConfigService(),
                     $plugin->getTelemetry(),
+                    $plugin->getBreakpointPolicy(),
                     $snapshotReader,
                 );
 
@@ -210,6 +213,7 @@ final class ServerAuthorityOperationsTest extends Unit
                 $plugin->getTransformStore(),
                 $plugin->getConfigService(),
                 $plugin->getTelemetry(),
+                $plugin->getBreakpointPolicy(),
                 null,
             );
 
@@ -247,6 +251,7 @@ final class ServerAuthorityOperationsTest extends Unit
                 $plugin->getTransformStore(),
                 $plugin->getConfigService(),
                 $plugin->getTelemetry(),
+                $plugin->getBreakpointPolicy(),
                 null,
             );
 
@@ -276,6 +281,7 @@ final class ServerAuthorityOperationsTest extends Unit
                 $plugin->getTransformStore(),
                 $plugin->getConfigService(),
                 $plugin->getTelemetry(),
+                $plugin->getBreakpointPolicy(),
                 null,
             );
 
@@ -342,6 +348,7 @@ final class ServerAuthorityOperationsTest extends Unit
                     $plugin->getTransformStore(),
                     $plugin->getConfigService(),
                     $plugin->getTelemetry(),
+                    $plugin->getBreakpointPolicy(),
                     $snapshotReader,
                 );
 
@@ -372,6 +379,7 @@ final class ServerAuthorityOperationsTest extends Unit
             $plugin->getTransformStore(),
             $plugin->getConfigService(),
             $plugin->getTelemetry(),
+            $plugin->getBreakpointPolicy(),
             null,
         );
 
@@ -457,6 +465,7 @@ final class ServerAuthorityOperationsTest extends Unit
                 $plugin->getTransformStore(),
                 $plugin->getConfigService(),
                 $plugin->getTelemetry(),
+                $plugin->getBreakpointPolicy(),
                 null,
             );
 
@@ -527,6 +536,7 @@ final class ServerAuthorityOperationsTest extends Unit
                     $plugin->getTransformStore(),
                     $plugin->getConfigService(),
                     $plugin->getTelemetry(),
+                    $plugin->getBreakpointPolicy(),
                     $snapshotReader,
                 );
 
@@ -599,6 +609,7 @@ final class ServerAuthorityOperationsTest extends Unit
                     $plugin->getTransformStore(),
                     $plugin->getConfigService(),
                     $plugin->getTelemetry(),
+                    $plugin->getBreakpointPolicy(),
                     $snapshotReader,
                 );
 
@@ -676,6 +687,7 @@ final class ServerAuthorityOperationsTest extends Unit
                     $plugin->getTransformStore(),
                     $plugin->getConfigService(),
                     $plugin->getTelemetry(),
+                    $plugin->getBreakpointPolicy(),
                     $snapshotReader,
                 );
 

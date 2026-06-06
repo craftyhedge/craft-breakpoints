@@ -1376,6 +1376,15 @@ describe('transforms runtime helper logic', () => {
                 persistCallCount += 1;
                 return true;
             },
+            // Auto-save runs by default after a successful process; with no new
+            // sets applied the flow falls straight through to publishing.
+            autoApplyNewSets: async () => ({
+                ok: true,
+                persisted: true,
+                appliedCount: 0,
+                skippedCount: 0,
+                skipped: [],
+            }),
         });
 
         await hooks.runProcessing();
