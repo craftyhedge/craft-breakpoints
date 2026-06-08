@@ -2,44 +2,27 @@
 
 Start in the template, not the control panel. Breakpoints gives you usable
 responsive image markup immediately, so you can keep building the component with
-a sensible placeholder ratio instead of stopping to configure every transform.
+a sensible placeholder ratio instead of stopping to configure transforms.
 
 Once the layout has settled, process the page in the control panel.
 Breakpoints measures the rendered image sizes, applies new transform sets
 automatically, and lets you review or edit the final dimensions.
 
-> Processing is intended for local development only with the transform sets being commited to git.
+> Processing is intended for local development only, with the transform sets being
+> committed to git.
 
-## 1. Install
-
-Breakpoints is currently in beta. Install the current beta with Composer, then
-enable the plugin:
-
-```sh
-composer require craftyhedge/breakpoints:^0.1.0@beta
-php craft plugin/install breakpoints
-```
-
-To pin the exact beta release:
-
-```sh
-composer require craftyhedge/breakpoints:0.1.0-beta.1
-php craft plugin/install breakpoints
-```
-
-You can also install **Breakpoints** from the control panel Plugin Store. See
-the [README](../README.md#install) for both paths.
-
-## 2. Render a usable image
+## 1. Render a usable image
 
 Call `image()` with the asset and a transform set name:
 
 ```twig
 {{ image(entry.heroImage.one(), 'hero') }}
 ```
-In this example, the image tag will use an existing transform set named 'hero' or create a new set for it when processed.
+In this example, the image tag will use an existing transform set named `hero`,
+or create a new set for it when processed.
 
-Until a set exists for 'hero' the defaults will be used unless you specify init values.
+Until a set exists for `hero`, Breakpoints uses the defaults unless you specify
+init values.
 
 ```twig
 {{ image(entry.heroImage.one(), 'hero', {
@@ -50,42 +33,13 @@ Until a set exists for 'hero' the defaults will be used unless you specify init 
 }) }}
 ```
 
-That is enough to keep working on the surrounding component. Raster assets render
-as a `<picture>` with one `<source>` per breakpoint and an `<img>` fallback; SVG
-assets render as a plain `<img>`. If the asset is `null`, Breakpoints returns an
-HTML comment instead of markup.
+By using these init values you can leave the task of configuring breakpoint transforms until later. 
 
-See the [`image()` reference](reference/twig-image-tag.md) for every option.
+See the [`image()` reference](reference/twig-image-tag.md) for every option. For
+setting system defaults, see
+[Configuration](configuration.md).
 
-## 3. Set project defaults in config
-
-Your projects should put their shared Breakpoints defaults in
-`config/breakpoints.php` so they can be version-controlled. This is where you define the viewport breakpoints your design uses:
-
-```php
-<?php
-
-return [
-    'breakpoints' => [
-        'sm' => 640,
-        'md' => 768,
-        'lg' => 1024,
-        'xl' => 1280,
-    ],
-    'format' => 'webp',
-    'secondaryFormat' => 'jpg',
-    'quality' => 82,
-    'dpr' => [1, 2],
-];
-```
-
-See [Configuration](configuration.md) for every setting and how the config layers
-combine.
-
-## 4. Process and save the transform set
-
-A **transform set** is a named object (e.g. `hero`) describing the image at each
-breakpoint. 
+## 2. Process and save the transform set
 
 Once your component layout is ready, process the page to measure the
 real rendered image sizes.
@@ -94,9 +48,11 @@ real rendered image sizes.
 
    ![Choose a source entry for processing](images/choose-source.png)
 
-2. Once processing is complete, any new image transform sets will be applied and saved automatically. New sets trigger a reprocessing to verify the applied dimensions haven't drifted.
+2. Once processing is complete, any new image transform sets will be applied and saved automatically. If there are any new sets, processing is run again to verify the applied dimensions haven't drifted.
 
-   ![Choose a source entry for processing](images/results.png)
+   ![Processing results](images/results.png)
+
+If front-end image layout is not stable, dimensions can drift between processing runs.
 
 Image transforms should support the component layout, not define it. Use CSS
 constraints such as `width`, `max-width`, `aspect-ratio`, or grid/flex rules to

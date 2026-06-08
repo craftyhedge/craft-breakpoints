@@ -90,7 +90,7 @@ See [Getting Started](docs/getting-started.md) for the full walkthrough.
 
 ## Documentation
 
-- [Getting Started](docs/getting-started.md) — install, render a usable image, finalize the set.
+- [Getting Started](docs/getting-started.md) — render a usable image, finalize the set.
 - [Configuration](docs/configuration.md) — settings, the config file, and precedence.
 - [Responsive Images](docs/responsive-images.md) — the output model and standards.
 - [Media Queries & DPR](docs/picture-media-and-dpr.md) — how sources, media ranges, and DPR are built.

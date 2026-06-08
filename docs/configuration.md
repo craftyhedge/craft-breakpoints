@@ -70,10 +70,10 @@ Create the file at your project root's `config/` directory. Only include the key
 you want to override — anything omitted uses the built-in default or control-panel
 value.
 
-Keep `allowTransformEditing` enabled only in local development. The plugin should
-still be installed and enabled in staging and production so templates can render
-saved transform sets, but processing and saving transform-set changes should
-happen locally before committing `config/breakpoints/transform-sets.json`.
+Keep `allowTransformEditing` enabled only in local development. Staging and
+production still need Breakpoints available so templates can render saved
+transform sets, but processing and saving transform-set changes should happen
+locally before committing `config/breakpoints/transform-sets.json`.
 
 ```php
 <?php
