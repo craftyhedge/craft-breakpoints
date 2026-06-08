@@ -70,6 +70,11 @@ Create the file at your project root's `config/` directory. Only include the key
 you want to override — anything omitted uses the built-in default or control-panel
 value.
 
+Keep `allowTransformEditing` enabled only in local development. The plugin should
+still be installed and enabled in staging and production so templates can render
+saved transform sets, but processing and saving transform-set changes should
+happen locally before committing `config/breakpoints/transform-sets.json`.
+
 ```php
 <?php
 
@@ -91,7 +96,7 @@ return [
     'pictureTemplatePath' => '_images/breakpoints-picture.twig',
     'svgTemplatePath' => '_images/breakpoints-svg.twig',
 
-    // Optional: disable control-panel transform editing outside chosen environments.
+    // Local development only: enables processing and transform-set saving.
     'allowTransformEditing' => App::env('ALLOW_TRANSFORM_EDITING') ?? false,
 ];
 ```

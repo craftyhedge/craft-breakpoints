@@ -57,8 +57,8 @@ are internal to Breakpoints and are not part of the public output. Using the tho
 
 ## Caching During Processing
 
-Image processing needs fresh, uncached page markup so Breakpoints can read its
-processing markers. Breakpoints disables Craft template caching for the
+When processing locally, Breakpoints needs fresh, uncached page markup so it can
+read its processing markers. Breakpoints disables Craft template caching for the
 processing request.
 
 Do **not** serve full-page or static cached pages while processing locally.

@@ -5,21 +5,12 @@
 [![PHP 8.2+](https://img.shields.io/badge/PHP-8.2%20|%208.3%20|%208.4-777BB4?logo=php&logoColor=white)](https://github.com/craftyhedge/craft-breakpoints)
 [![Craft 5.3+](https://img.shields.io/badge/Craft%20CMS-5.3%2B-e5422b?logo=craft-cms&logoColor=white)](https://github.com/craftyhedge/craft-breakpoints)
 
-Responsive breakpoint image helpers for Craft CMS 5.
-
 > Breakpoints is currently in beta. APIs, configuration, and generated
 > transform-set structure may change before the stable `1.0.0` release.
 
-Breakpoints renders standard `<picture>` / `<img>` markup from a Craft asset and a
-named **transform set**. Add the Twig call first to get a usable responsive image
-while you build the component, then process the finished page later to create accurate sets:
+Breakpoints handles the front end markup for your Craft assets and provides a developer processing tool to accurately measure each breakpoint rendering size and create transform sets without any manual work.
 
-```twig
-{{ image(entry.heroImage.one(), 'hero') }}
-```
-
-The result is one `<source>` per breakpoint (with optional secondary-format and DPR
-variants) and an `<img>` fallback — clean markup with no client-side runtime.
+Processing is intended for local development environments with the resulting transform sets being commited to git.
 
 ## Key concepts
 

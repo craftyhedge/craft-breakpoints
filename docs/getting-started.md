@@ -4,9 +4,11 @@ Start in the template, not the control panel. Breakpoints gives you usable
 responsive image markup immediately, so you can keep building the component with
 a sensible placeholder ratio instead of stopping to configure every transform.
 
-Once the layout has settled, process the real page in the control panel.
+Once the layout has settled, process the page in the control panel.
 Breakpoints measures the rendered image sizes, applies new transform sets
 automatically, and lets you review or edit the final dimensions.
+
+> Processing is intended for local development only with the transform sets being commited to git.
 
 ## 1. Install
 
