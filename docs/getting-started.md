@@ -10,15 +10,23 @@ automatically, and lets you review or edit the final dimensions.
 
 ## 1. Install
 
-Install with Composer, then enable the plugin:
+Breakpoints is currently in beta. Install the current beta with Composer, then
+enable the plugin:
 
 ```sh
-composer require craftyhedge/breakpoints
+composer require craftyhedge/breakpoints:^0.1.0@beta
 php craft plugin/install breakpoints
 ```
 
-Or install **Breakpoints** from the control panel Plugin Store. See the
-[README](../README.md#install) for both paths.
+To pin the exact beta release:
+
+```sh
+composer require craftyhedge/breakpoints:0.1.0-beta.1
+php craft plugin/install breakpoints
+```
+
+You can also install **Breakpoints** from the control panel Plugin Store. See
+the [README](../README.md#install) for both paths.
 
 ## 2. Render a usable image
 

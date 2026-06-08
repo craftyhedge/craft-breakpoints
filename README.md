@@ -1,6 +1,14 @@
 # Breakpoints
 
+[![CI](https://github.com/craftyhedge/breakpoints/actions/workflows/ci.yml/badge.svg)](https://github.com/craftyhedge/breakpoints/actions/workflows/ci.yml)
+[![PHPStan Level 7](https://img.shields.io/badge/PHPStan-level%207-brightgreen?logo=php)](https://github.com/craftyhedge/breakpoints/blob/main/phpstan.neon)
+[![PHP 8.2+](https://img.shields.io/badge/PHP-8.2%20|%208.3%20|%208.4-777BB4?logo=php&logoColor=white)](https://github.com/craftyhedge/breakpoints)
+[![Craft 5.3+](https://img.shields.io/badge/Craft%20CMS-5.3%2B-e5422b?logo=craft-cms&logoColor=white)](https://github.com/craftyhedge/breakpoints)
+
 Responsive breakpoint image helpers for Craft CMS 5.
+
+> Breakpoints is currently in beta. APIs, configuration, and generated
+> transform-set structure may change before the stable `1.0.0` release.
 
 Breakpoints renders standard `<picture>` / `<img>` markup from a Craft asset and a
 named **transform set**. Add the Twig call first to get a usable responsive image
@@ -44,17 +52,18 @@ variants) and an `<img>` fallback — clean markup with no client-side runtime.
 
 ## Install
 
-### Option 1: Plugin Store (Control Panel)
+### Option 1: Composer
 
-1. Open the Craft Control Panel.
-2. Go to **Plugin Store**.
-3. Find **Breakpoints**.
-4. Click **Install**.
-
-### Option 2: Composer
+Install the current beta with Composer:
 
 ```sh
-composer require craftyhedge/breakpoints
+composer require craftyhedge/breakpoints:^0.1.0@beta
+```
+
+To pin the exact beta release:
+
+```sh
+composer require craftyhedge/breakpoints:0.1.0-beta.1
 ```
 
 Then install the plugin:
@@ -62,6 +71,13 @@ Then install the plugin:
 ```sh
 php craft plugin/install breakpoints
 ```
+
+### Option 2: Plugin Store (Control Panel)
+
+1. Open the Craft Control Panel.
+2. Go to **Plugin Store**.
+3. Find **Breakpoints**.
+4. Click **Install**.
 
 ## Quick start
 

@@ -1,5 +1,5 @@
 # Changelog
 
-## 0.1.0 - 2026-04-11
+## 0.1.0-beta.1 - 2026-06-08
 
-- Initial Craft CMS 5 plugin scaffold.
+- Initial beta release for Craft CMS 5.
