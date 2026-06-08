@@ -217,7 +217,8 @@ Most projects can use the default output. If you need full control, you can poin
 - `pictureTemplatePath`: custom template for raster images
 - `svgTemplatePath`: custom template for SVG images
 
-Template paths are relative to your site's template root.
+Put custom template files in your Craft `templates/` directory and set each path
+relative to that directory. Leave either option blank to use the plugin default.
 
 ```twig
 {{ image(asset, 'hero', {
@@ -227,6 +228,14 @@ Template paths are relative to your site's template root.
 ```
 
 See [Custom Image Templates](../custom-templates.md) for the variables passed to custom templates and complete raster/SVG examples.
+
+## Building sources directly with `craft.images`
+
+`image()` is a thin wrapper around `craft.images.render(asset, transformName, options)`,
+which returns the same markup. Inside a custom template you can also call
+`craft.images.getBreakpointData(loopIndex, breakpoint, config, image)` to build each
+`<source>` yourself — it returns the primary/secondary source attributes and format
+data for one slot. See [Custom Image Templates](../custom-templates.md).
 
 ## Init Option Precedence
 
@@ -270,3 +279,9 @@ When no saved transform set exists, Breakpoints resolves `init*` dimension optio
   svgTemplatePath: 'custom/svg'
 }) }}
 ```
+
+## See also
+
+- [Getting Started](../getting-started.md)
+- [Media Queries & DPR](../picture-media-and-dpr.md) — how options become markup.
+- [Custom Image Templates](../custom-templates.md)

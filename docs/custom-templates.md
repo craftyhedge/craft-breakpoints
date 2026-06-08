@@ -7,7 +7,8 @@ Custom templates are configured with two paths:
 - `pictureTemplatePath`: template used for raster assets
 - `svgTemplatePath`: template used for SVG assets
 
-Paths are resolved in Craft's site template mode and are relative to your site's template root. Leave either setting blank to use the plugin default.
+Put custom template files in your Craft `templates/` directory and set each path
+relative to that directory. Leave either setting blank to use the plugin default.
 
 ## Configure Template Paths
 
@@ -111,9 +112,15 @@ This example mirrors the built-in SVG template.
 
 Render all attributes Breakpoints provides unless you have a specific reason to remove one.
 
-During normal front-end requests, the attribute arrays contain clean production attributes. During a processing run, Breakpoints temporarily adds internal marker attributes to `<picture>`, `<source>`, and `<img>` so the editor can inspect rendered image behavior. Custom templates that omit those attributes can prevent processing and review from reading the image correctly.
+During normal front-end requests, the attribute arrays contain clean production
+attributes. During processing, Breakpoints temporarily adds internal marker
+attributes to `<picture>`, `<source>`, and `<img>` so the editor can inspect
+rendered image behavior. Custom templates that omit those attributes can prevent
+processing and review from reading the image correctly.
 
-Do not write CSS or JavaScript that depends on internal marker attributes such as `data-bp-*`, `data-set-*`, or `data-picture-id`. They are processing-only implementation details.
+Do not write CSS or JavaScript that depends on internal marker attributes such as
+`data-bp-*`, `data-set-*`, or `data-picture-id`. They are processing-only
+implementation details.
 
 ## Failure Behavior
 
@@ -197,3 +204,9 @@ That fallback keeps the page from failing hard, but it will not include the full
 
 
 ```
+
+## See also
+
+- [`image()` Twig Function](reference/twig-image-tag.md) — including `pictureTemplatePath` / `svgTemplatePath`.
+- [Media Queries & DPR](picture-media-and-dpr.md) — what `getBreakpointData()` returns and how sources are built.
+- [Responsive Images](responsive-images.md) — the output model.

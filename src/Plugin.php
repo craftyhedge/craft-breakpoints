@@ -93,6 +93,8 @@ class Plugin extends BasePlugin
                 $event->rules['breakpoints'] = 'breakpoints/default/index';
                 $event->rules['breakpoints/settings'] = 'breakpoints/default/settings';
                 $event->rules['breakpoints/processing'] = 'breakpoints/default/transforms';
+                $event->rules['breakpoints/docs'] = 'breakpoints/default/docs';
+                $event->rules['breakpoints/docs/<slug:.+>'] = 'breakpoints/default/docs';
                 $event->rules['POST breakpoints/database/cleanup-orphaned'] = 'breakpoints/database/cleanup-orphaned';
                 $event->rules['POST breakpoints/database/clear-all'] = 'breakpoints/database/clear-all';
             }
@@ -211,6 +213,10 @@ class Plugin extends BasePlugin
             'settings' => [
                 'label' => Craft::t('breakpoints', 'Settings'),
                 'url' => 'breakpoints/settings',
+            ],
+            'docs' => [
+                'label' => Craft::t('breakpoints', 'Docs'),
+                'url' => 'breakpoints/docs',
             ],
         ];
 

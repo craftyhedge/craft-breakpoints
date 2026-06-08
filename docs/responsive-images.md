@@ -2,7 +2,7 @@
 
 ## Overview
 
-Breakpoints helps Craft output responsive images that work with the browser instead of fighting it. You choose the breakpoints, image formats, and DPR ratios in the plugin settings; Breakpoints turns those choices into standard HTML:
+Breakpoints outputs responsive images using standard picture markup. You choose the breakpoints, image formats, and DPR ratios in the plugin settings; Breakpoints turns those choices into standard HTML:
 
 - `<picture>`
 - `<source>`
@@ -45,21 +45,25 @@ The default breakpoint set includes familiar labels such as `xs`, `sm`, `md`, `l
 
 ## Processing Markers
 
-When Breakpoints processes images, it temporarily adds internal `data-bp-*` attributes to each generated `<source>`. These attributes help the plugin detect the configured sources during processing.
+When Breakpoints processes images, it temporarily adds internal `data-bp-*`
+attributes to each generated `<source>`. These attributes help the plugin detect
+the configured sources during processing.
 
-Those markers are only added during image processing. Normal front-end output is clean and does not include them.
+Those markers are only added during image processing. Normal front-end output is
+clean and does not include them.
 
-Do not rely on `data-bp-*` attributes in your templates, CSS, or JavaScript. They are internal to Breakpoints and are not part of the public output.
+Do not rely on `data-bp-*` attributes in your templates, CSS, or JavaScript. They
+are internal to Breakpoints and are not part of the public output. Using the those attributes in your project may break processing.
 
 ## Caching During Processing
 
-Image processing needs fresh, uncached page markup so Breakpoints can read its processing markers.
+Image processing needs fresh, uncached page markup so Breakpoints can read its
+processing markers. Breakpoints disables Craft template caching for the
+processing request.
 
-Do **not** serve cached pages while processing locally. Cached pages may not include the markers Breakpoints needs, which can prevent processing from seeing your configured breakpoints.
-
-## Standards Alignment
-
-Breakpoints uses standard responsive image behavior based on `picture`, `source`, `img`, and `srcset` density descriptors.
+Do **not** serve full-page or static cached pages while processing locally.
+Cached pages may not include the markers Breakpoints needs, which can prevent
+processing from seeing your configured breakpoints.
 
 ## References
 
@@ -71,3 +75,8 @@ Breakpoints uses standard responsive image behavior based on `picture`, `source`
   - https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/source
 - Craft CMS Image Transforms
   - https://craftcms.com/docs/5.x/development/image-transforms.html
+
+## See also
+
+- [Media Queries & DPR](picture-media-and-dpr.md) — how slots become media ranges and `srcset`.
+- [`image()` Twig Function](reference/twig-image-tag.md) — the rendering API.

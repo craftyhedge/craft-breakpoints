@@ -1,0 +1,9 @@
+# Documentation screenshots
+#
+# Placeholder images referenced from the docs live here. Replace the following
+# with real control-panel screenshots (PNG):
+#
+#   settings.png              - Breakpoints → Settings (getting-started.md, configuration.md)
+#   transform-sets.png        - Breakpoints → Transform Sets (getting-started.md)
+#   transform-sets-list.png   - Transform Sets list + editor (transform-sets.md)
+#   processing-results.png    - Processing results/review grid (transform-sets.md)

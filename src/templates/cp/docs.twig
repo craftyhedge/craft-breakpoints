@@ -1,0 +1,25 @@
+{% extends "_layouts/cp" %}
+{% set title = currentDoc.title|t('breakpoints') %}
+{% set selectedSubnavItem = selectedSubnavItem ?? 'docs' %}
+
+{% block sidebar %}
+    <nav aria-label="{{ 'Documentation'|t('breakpoints') }}">
+        <ul>
+            {% for doc in docs %}
+                <li>
+                    <a href="{{ doc.url }}" class="{% if doc.slug == currentDoc.slug %}sel{% endif %}">
+                        {{ doc.title }}
+                    </a>
+                </li>
+            {% endfor %}
+        </ul>
+    </nav>
+{% endblock %}
+
+{% block content %}
+    <div class="bpts-docs-layout">
+        <article class="bpts-docs-content">
+            {{ contentHtml|raw }}
+        </article>
+    </div>
+{% endblock %}

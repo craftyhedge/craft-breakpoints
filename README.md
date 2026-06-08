@@ -1,6 +1,41 @@
-# Craft Breakpoints
+# Breakpoints
 
-Craft CMS 5 plugin for responsive breakpoint image helpers.
+Responsive breakpoint image helpers for Craft CMS 5.
+
+Breakpoints renders standard `<picture>` / `<img>` markup from a Craft asset and a
+named **transform set**. Add the Twig call first to get a usable responsive image
+while you build the component, then process the finished page later to create accurate sets:
+
+```twig
+{{ image(entry.heroImage.one(), 'hero') }}
+```
+
+The result is one `<source>` per breakpoint (with optional secondary-format and DPR
+variants) and an `<img>` fallback — clean markup with no client-side runtime.
+
+## Key concepts
+
+- **Transform set** — a named, reusable recipe (e.g. `hero`, `card`) describing the
+  image dimensions, format, and quality at each breakpoint. Stored as JSON in
+  `config/breakpoints/transform-sets.json`.
+- **Breakpoint slots** — every set has a `base` slot (smallest viewport) followed by
+  one slot per configured breakpoint (`xs`, `sm`, `md`, …), in width order.
+- **Processing run** — a control-panel pass that renders a chosen entry, measures
+  the rendered size of each breakpoint image, and lets you apply those
+  measurements back into the set.
+- **Escape width** — an optional extra-large variant for the final slot, to keep very
+  wide layouts sharp.
+- **DPR variants** — high-density `srcset` descriptors (`1x` always; opt in to `2x`/`3x`).
+
+## Features
+
+- One `<source>` per enabled breakpoint, with correct `media` ranges.
+- Primary format plus an optional secondary `<source>` fallback (e.g. AVIF + WebP).
+- DPR `srcset` density descriptors.
+- SVG assets pass through to a plain `<img>` (no `<picture>`).
+- Native `loading="lazy"` / `decoding` control.
+- Fully overridable Twig templates for custom markup and lazy-loading integrations.
+- File-backed transform sets that are commit-friendly and reviewable in version control.
 
 ## Requirements
 
@@ -12,13 +47,11 @@ Craft CMS 5 plugin for responsive breakpoint image helpers.
 ### Option 1: Plugin Store (Control Panel)
 
 1. Open the Craft Control Panel.
-2. Go to Plugin Store.
-3. Find Breakpoints.
-4. Click Install.
+2. Go to **Plugin Store**.
+3. Find **Breakpoints**.
+4. Click **Install**.
 
 ### Option 2: Composer
-
-Install with Composer in your Craft project:
 
 ```sh
 composer require craftyhedge/breakpoints
@@ -30,12 +63,33 @@ Then install the plugin:
 php craft plugin/install breakpoints
 ```
 
+## Quick start
+
+1. Render the image in a template:
+
+   ```twig
+   {{ image(entry.heroImage.one(), 'hero', {
+     initWidth: 1200,
+     initHeight: 675
+   }) }}
+   ```
+2. Keep building the component with that usable output.
+3. When the layout is ready, open **Breakpoints → Transform Sets**, process the
+   entry to create the transform set. Review and edit as needed.
+4. Put shared defaults, especially breakpoint widths, in `config/breakpoints.php`.
+   Use **Breakpoints → Settings** for quick output/default changes.
+
+See [Getting Started](docs/getting-started.md) for the full walkthrough.
+
 ## Documentation
 
-- Responsive images: [docs/responsive-images.md](docs/responsive-images.md)
-- Custom image templates: [docs/custom-templates.md](docs/custom-templates.md)
-- Twig `image()` function: [docs/reference/twig-image-tag.md](docs/reference/twig-image-tag.md)
-- Release history: [CHANGELOG.md](CHANGELOG.md)
+- [Getting Started](docs/getting-started.md) — install, render a usable image, finalize the set.
+- [Configuration](docs/configuration.md) — settings, the config file, and precedence.
+- [Responsive Images](docs/responsive-images.md) — the output model and standards.
+- [Media Queries & DPR](docs/picture-media-and-dpr.md) — how sources, media ranges, and DPR are built.
+- [Custom Image Templates](docs/custom-templates.md) — render through your own Twig.
+- [`image()` Twig Function](docs/reference/twig-image-tag.md) — full API reference.
+- [Release history](CHANGELOG.md)
 
 ## Support
 

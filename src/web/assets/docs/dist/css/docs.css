@@ -1,0 +1,127 @@
+.bpts-docs-layout {
+    max-width: 720px;
+}
+
+.bpts-docs-content {
+    color: var(--text-color);
+    font-size: 15px;
+    line-height: 1.6;
+}
+
+.bpts-docs-content > :first-child {
+    margin-top: 0;
+}
+
+.bpts-docs-content h1,
+.bpts-docs-content h2,
+.bpts-docs-content h3,
+.bpts-docs-content h4 {
+    color: var(--text-color);
+    line-height: 1.25;
+    margin: 28px 0 12px;
+}
+
+.bpts-docs-content h1 {
+    font-size: 26px;
+}
+
+.bpts-docs-content h2 {
+    border-top: 1px solid var(--hairline-color);
+    font-size: 20px;
+    padding-top: 24px;
+}
+
+.bpts-docs-content h3 {
+    font-size: 16px;
+}
+
+.bpts-docs-content p,
+.bpts-docs-content ul,
+.bpts-docs-content ol,
+.bpts-docs-content blockquote,
+.bpts-docs-content pre,
+.bpts-docs-content table {
+    margin: 0 0 16px;
+}
+
+.bpts-docs-content ul,
+.bpts-docs-content ol {
+    padding-left: 24px;
+}
+
+.bpts-docs-content ul {
+    list-style: disc;
+}
+
+.bpts-docs-content ol {
+    list-style: decimal;
+}
+
+.bpts-docs-content ul ul {
+    list-style: circle;
+}
+
+.bpts-docs-content ul ul ul {
+    list-style: square;
+}
+
+.bpts-docs-content li + li {
+    margin-top: 5px;
+}
+
+.bpts-docs-content code {
+    background: var(--gray-050);
+    border: 1px solid var(--hairline-color);
+    border-radius: 4px;
+    color: var(--code-text-color, var(--text-color));
+    font-size: 0.92em;
+    padding: 1px 4px;
+}
+
+.bpts-docs-content pre {
+    background: var(--gray-050);
+    border: 1px solid var(--hairline-color);
+    border-radius: 6px;
+    overflow-x: auto;
+    padding: 14px 16px;
+}
+
+.bpts-docs-content pre code {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    color: inherit;
+    display: block;
+    padding: 0;
+}
+
+.bpts-docs-content blockquote {
+    border-left: 4px solid var(--blue-500);
+    color: var(--medium-text-color);
+    padding: 2px 0 2px 16px;
+}
+
+.bpts-docs-content img {
+    border: 1px solid var(--hairline-color);
+    border-radius: 6px;
+    height: auto;
+    max-width: 100%;
+}
+
+.bpts-docs-content table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+.bpts-docs-content th,
+.bpts-docs-content td {
+    border: 1px solid var(--hairline-color);
+    padding: 8px 10px;
+    text-align: left;
+    vertical-align: top;
+}
+
+.bpts-docs-content th {
+    background: var(--gray-050);
+    font-weight: 600;
+}
