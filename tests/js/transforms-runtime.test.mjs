@@ -220,6 +220,42 @@ describe('transforms runtime helper logic', () => {
         expect(report.issues[0].source).toBe('https://example.test/image-0.jpg');
     });
 
+    it('inspects processing marker health for empty, tracked, and cached image markup', () => {
+        const createFrameDocument = (html) => {
+            const frameDocument = document.implementation.createHTMLDocument('Preview');
+            frameDocument.body.innerHTML = html;
+            return frameDocument;
+        };
+
+        expect(hooks.inspectProcessingMarkerHealth(createFrameDocument('<main>No images</main>'))).toEqual({
+            trackedPictureCount: 0,
+            pictureCount: 0,
+            imageCount: 0,
+            hasImageMarkup: false,
+            missingMarkers: false,
+        });
+
+        expect(hooks.inspectProcessingMarkerHealth(createFrameDocument(`
+            <picture data-set="hero"><img src="/hero.jpg" /></picture>
+        `))).toEqual({
+            trackedPictureCount: 1,
+            pictureCount: 1,
+            imageCount: 1,
+            hasImageMarkup: true,
+            missingMarkers: false,
+        });
+
+        expect(hooks.inspectProcessingMarkerHealth(createFrameDocument(`
+            <picture><img src="/cached-hero.jpg" /></picture>
+        `))).toEqual({
+            trackedPictureCount: 0,
+            pictureCount: 1,
+            imageCount: 1,
+            hasImageMarkup: true,
+            missingMarkers: true,
+        });
+    });
+
     it('finalizes run report totals and strips internal timing marker', () => {
         const report = hooks.createRunReport('https://example.test/source?secret=1', [480], false);
 
@@ -1112,6 +1148,7 @@ describe('transforms runtime helper logic', () => {
                 { code: 'decode-failure' },
                 { code: 'unsupported-source' },
                 { code: 'unresolved-on-cancel' },
+                { code: 'processing-markers-missing' },
                 { code: 'other' },
             ],
         });
@@ -1121,7 +1158,46 @@ describe('transforms runtime helper logic', () => {
             decode: 1,
             'unsupported-source': 1,
             cancelled: 1,
+            'markers-missing': 1,
         });
+    });
+
+    it('fails processing before measurement when iframe image markup has no processing markers', async () => {
+        const frameDocument = document.implementation.createHTMLDocument('Cached preview');
+        frameDocument.body.innerHTML = '<picture><source srcset="/cached.webp 1x"><img src="/cached.jpg"></picture>';
+        hooks.setPreviewFrameForTests(frameDocument);
+
+        const setPreviewWidth = vi.fn();
+        const publishResult = vi.fn();
+        const persistRunSnapshot = vi.fn().mockResolvedValue(true);
+
+        hooks.setRunProcessingOverridesForTests({
+            resolveSelectedEntryUrl: vi.fn().mockResolvedValue('https://example.test/source'),
+            ensurePreviewFrame: vi.fn().mockResolvedValue(undefined),
+            setPreviewWidth,
+            publishResult,
+            persistRunSnapshot,
+        });
+
+        await hooks.runProcessing();
+
+        expect(setPreviewWidth).not.toHaveBeenCalled();
+        expect(publishResult).not.toHaveBeenCalled();
+        expect(persistRunSnapshot).toHaveBeenCalledTimes(1);
+
+        const [report, rowsBySlot] = persistRunSnapshot.mock.calls[0];
+        expect(report.status).toBe('failed');
+        expect(report.failure.stage).toBe('inspect-processing-markers');
+        expect(report.issues).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                severity: 'error',
+                code: 'processing-markers-missing',
+                message: 'Breakpoints processing markers were not found. Check whether local full-page/static caching is enabled.',
+            }),
+        ]));
+        expect(rowsBySlot).toEqual({});
+        expect(document.getElementById('bpts-status').textContent)
+            .toContain('Breakpoints processing markers were not found.');
     });
 
     it('persists run snapshots and refreshes review when persistence succeeds', async () => {

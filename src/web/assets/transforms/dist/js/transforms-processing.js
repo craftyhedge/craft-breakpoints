@@ -89,6 +89,35 @@ export function createBreakpointReportEntry(breakpoint) {
     };
 }
 
+export function inspectProcessingMarkerHealth(frameDocument) {
+    const document = frameDocument && typeof frameDocument.querySelectorAll === 'function'
+        ? frameDocument
+        : null;
+
+    if (!document) {
+        return {
+            trackedPictureCount: 0,
+            pictureCount: 0,
+            imageCount: 0,
+            hasImageMarkup: false,
+            missingMarkers: false,
+        };
+    }
+
+    const trackedPictureCount = document.querySelectorAll('picture[data-set]').length;
+    const pictureCount = document.querySelectorAll('picture').length;
+    const imageCount = document.querySelectorAll('img').length;
+    const hasImageMarkup = pictureCount > 0 || imageCount > 0;
+
+    return {
+        trackedPictureCount,
+        pictureCount,
+        imageCount,
+        hasImageMarkup,
+        missingMarkers: hasImageMarkup && trackedPictureCount === 0,
+    };
+}
+
 export function appendRunIssue({
     report,
     issue,

@@ -14,6 +14,7 @@ import {
     extractRowsForBreakpoint as processingExtractRowsForBreakpoint,
     finalizeRunReport as processingFinalizeRunReport,
     getMeasurementWidthForBreakpoint as processingGetMeasurementWidthForBreakpoint,
+    inspectProcessingMarkerHealth as processingInspectProcessingMarkerHealth,
     isImageLikelyBroken as processingIsImageLikelyBroken,
     isImageRenderable as processingIsImageRenderable,
     isTransparentPixelSrcset as processingIsTransparentPixelSrcset,
@@ -2617,6 +2618,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             decode: 0,
             'unsupported-source': 0,
             cancelled: 0,
+            'markers-missing': 0,
         };
 
         const issues = Array.isArray(report?.issues) ? report.issues : [];
@@ -2639,6 +2641,11 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
             if (code === 'unresolved-on-cancel') {
                 counts.cancelled += 1;
+                return;
+            }
+
+            if (code === 'processing-markers-missing') {
+                counts['markers-missing'] += 1;
             }
         });
 
@@ -2888,6 +2895,13 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         }
     }
 
+    class MissingProcessingMarkersError extends Error {
+        constructor(message) {
+            super(message);
+            this.name = 'MissingProcessingMarkersError';
+        }
+    }
+
     function appendBreakpointReadinessIssues(report, breakpointReport, breakpoint, readinessByKey) {
         processingAppendBreakpointReadinessIssues({
             report,
@@ -2896,6 +2910,10 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             readinessByKey,
             appendIssue: appendRunIssue,
         });
+    }
+
+    function inspectProcessingMarkerHealth(frameDocument = getFrameDocument()) {
+        return processingInspectProcessingMarkerHealth(frameDocument);
     }
 
     async function runProcessing(options = null) {
@@ -2948,6 +2966,20 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             await ensureFrame(sourceUrl, true);
             completedProgressSteps += 1;
             updateProcessingProgress(completedProgressSteps);
+
+            failureStage = 'inspect-processing-markers';
+            const markerHealthInspector = getRunOverride('inspectProcessingMarkerHealth') || inspectProcessingMarkerHealth;
+            const markerHealth = markerHealthInspector(getFrameDocument());
+            if (markerHealth?.missingMarkers === true) {
+                const message = 'Breakpoints processing markers were not found. Check whether local full-page/static caching is enabled.';
+                appendRunIssue(runReport, {
+                    severity: 'error',
+                    code: 'processing-markers-missing',
+                    message,
+                    source: sourceUrl,
+                });
+                throw new MissingProcessingMarkersError(message);
+            }
 
             for (const slot of slots) {
                 const breakpoint = slot.mediaWidth;
@@ -3139,6 +3171,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             setStatus(status.message, { state: status.state });
         } catch (error) {
             const cancelled = error instanceof ProcessingCancelledError;
+            const missingMarkers = error instanceof MissingProcessingMarkersError;
 
             if (runReport.authorDiagnostics) {
                 runReport.authorDiagnostics.failure = {
@@ -3169,6 +3202,8 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             const snapshotFailureNote = snapshotPersisted ? '' : ' Run details were not saved.';
             if (cancelled) {
                 setStatus(`Processing cancelled. No partial results were published.${snapshotFailureNote}`);
+            } else if (missingMarkers) {
+                setStatus(`${error.message}${snapshotFailureNote}`, { state: 'warning' });
             } else {
                 setStatus(`Error: ${error.message}${snapshotFailureNote}`);
             }
@@ -3293,6 +3328,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             waitForImagesToSettle,
             preloadBreakpointSources,
             appendBreakpointReadinessIssues,
+            inspectProcessingMarkerHealth,
             buildWaitingStatusMessage,
             publishRunReport,
             getLastReport: () => state.lastReport,
