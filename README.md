@@ -1,9 +1,9 @@
 # Breakpoints
 
-[![CI](https://github.com/craftyhedge/breakpoints/actions/workflows/ci.yml/badge.svg)](https://github.com/craftyhedge/breakpoints/actions/workflows/ci.yml)
-[![PHPStan Level 7](https://img.shields.io/badge/PHPStan-level%207-brightgreen?logo=php)](https://github.com/craftyhedge/breakpoints/blob/main/phpstan.neon)
-[![PHP 8.2+](https://img.shields.io/badge/PHP-8.2%20|%208.3%20|%208.4-777BB4?logo=php&logoColor=white)](https://github.com/craftyhedge/breakpoints)
-[![Craft 5.3+](https://img.shields.io/badge/Craft%20CMS-5.3%2B-e5422b?logo=craft-cms&logoColor=white)](https://github.com/craftyhedge/breakpoints)
+[![CI](https://github.com/craftyhedge/craft-breakpoints/actions/workflows/ci.yml/badge.svg)](https://github.com/craftyhedge/craft-breakpoints/actions/workflows/ci.yml)
+[![PHPStan Level 7](https://img.shields.io/badge/PHPStan-level%207-brightgreen?logo=php)](https://github.com/craftyhedge/craft-breakpoints/blob/main/phpstan.neon)
+[![PHP 8.2+](https://img.shields.io/badge/PHP-8.2%20|%208.3%20|%208.4-777BB4?logo=php&logoColor=white)](https://github.com/craftyhedge/craft-breakpoints)
+[![Craft 5.3+](https://img.shields.io/badge/Craft%20CMS-5.3%2B-e5422b?logo=craft-cms&logoColor=white)](https://github.com/craftyhedge/craft-breakpoints)
 
 Responsive breakpoint image helpers for Craft CMS 5.
 
