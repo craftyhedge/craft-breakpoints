@@ -6,6 +6,7 @@ namespace craftyhedge\craftbreakpoints\tests\integration;
 
 use Codeception\Test\Unit;
 use Craft;
+use craft\web\Request;
 use craftyhedge\craftbreakpoints\controllers\TransformsController;
 use craftyhedge\craftbreakpoints\Plugin;
 use craftyhedge\craftbreakpoints\services\TelemetryService;
@@ -674,24 +675,22 @@ final class TransformsControllerTest extends Unit
         $this->assertStringNotContainsString('const gcd=', $visualResults);
     }
 
-    private function controllerWithBody(array $bodyParams): TransformsController
+    /**
+     * @param array<string, mixed> $bodyParams
+     */
+    private function controllerWithBody(array $bodyParams): TestTransformsController
     {
-        Craft::$app->getRequest()->setBodyParams($bodyParams);
+        $this->request()->setBodyParams($bodyParams);
 
-        return new class('transforms', Craft::$app) extends TransformsController {
-            public bool $cpRequestChecked = false;
-            public bool $postRequestChecked = false;
+        return new TestTransformsController('transforms', Craft::$app);
+    }
 
-            public function requireCpRequest(): void
-            {
-                $this->cpRequestChecked = true;
-            }
+    private function request(): Request
+    {
+        $request = Craft::$app->getRequest();
+        assert($request instanceof Request);
 
-            public function requirePostRequest(): void
-            {
-                $this->postRequestChecked = true;
-            }
-        };
+        return $request;
     }
 
     private function buildSignalKey(string $setName): string
@@ -703,5 +702,21 @@ final class TransformsControllerTest extends Unit
         }
 
         return 't_' . str_replace('-', '_', $slug) . '_' . substr(sha1($setName), 0, 8);
+    }
+}
+
+final class TestTransformsController extends TransformsController
+{
+    public bool $cpRequestChecked = false;
+    public bool $postRequestChecked = false;
+
+    public function requireCpRequest(): void
+    {
+        $this->cpRequestChecked = true;
+    }
+
+    public function requirePostRequest(): void
+    {
+        $this->postRequestChecked = true;
     }
 }

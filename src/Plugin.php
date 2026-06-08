@@ -34,6 +34,8 @@ use Psr\Log\LogLevel;
 use yii\base\Event;
 use yii\base\Application;
 use yii\log\Logger;
+use yii\web\Controller;
+use yii\web\Response;
 
 class Plugin extends BasePlugin
 {
@@ -45,6 +47,9 @@ class Plugin extends BasePlugin
     public bool $hasCpSettings = true;
     public bool $hasCpSection = true;
 
+    /**
+     * @return array{components: array<string, class-string>}
+     */
     public static function config(): array
     {
         return [
@@ -112,67 +117,93 @@ class Plugin extends BasePlugin
 
     public function getImages(): Images
     {
-        return $this->get('images');
+        /** @var Images $component */
+        $component = $this->get('images');
+        return $component;
     }
 
     public function getConfigService(): ConfigService
     {
-        return $this->get('configService');
+        /** @var ConfigService $component */
+        $component = $this->get('configService');
+        return $component;
     }
 
     public function getBreakpointPolicy(): BreakpointPolicy
     {
-        return $this->get('breakpointPolicy');
+        /** @var BreakpointPolicy $component */
+        $component = $this->get('breakpointPolicy');
+        return $component;
     }
 
     public function getBreakpointSlots(): BreakpointSlotResolver
     {
-        return $this->get('breakpointSlots');
+        /** @var BreakpointSlotResolver $component */
+        $component = $this->get('breakpointSlots');
+        return $component;
     }
 
     public function getImageRenderer(): ImageRenderer
     {
-        return $this->get('imageRenderer');
+        /** @var ImageRenderer $component */
+        $component = $this->get('imageRenderer');
+        return $component;
     }
 
     public function getRenderContextBuilder(): RenderContextBuilder
     {
-        return $this->get('renderContextBuilder');
+        /** @var RenderContextBuilder $component */
+        $component = $this->get('renderContextBuilder');
+        return $component;
     }
 
     public function getTransformSets(): TransformSets
     {
-        return $this->get('transformSets');
+        /** @var TransformSets $component */
+        $component = $this->get('transformSets');
+        return $component;
     }
 
     public function getTransformStore(): TransformStore
     {
-        return $this->get('transformStore');
+        /** @var TransformStore $component */
+        $component = $this->get('transformStore');
+        return $component;
     }
 
     public function getImageTransforms(): ImageTransforms
     {
-        return $this->get('imageTransforms');
+        /** @var ImageTransforms $component */
+        $component = $this->get('imageTransforms');
+        return $component;
     }
 
     public function getProcessingConfig(): ProcessingConfig
     {
-        return $this->get('processingConfig');
+        /** @var ProcessingConfig $component */
+        $component = $this->get('processingConfig');
+        return $component;
     }
 
     public function getTransformEditor(): TransformEditor
     {
-        return $this->get('transformEditor');
+        /** @var TransformEditor $component */
+        $component = $this->get('transformEditor');
+        return $component;
     }
 
     public function getTelemetry(): TelemetryService
     {
-        return $this->get('telemetry');
+        /** @var TelemetryService $component */
+        $component = $this->get('telemetry');
+        return $component;
     }
 
     public function getDatabase(): DatabaseService
     {
-        return $this->get('database');
+        /** @var DatabaseService $component */
+        $component = $this->get('database');
+        return $component;
     }
 
     public static function info(string $message): void
@@ -195,6 +226,9 @@ class Plugin extends BasePlugin
         Craft::getLogger()->log($message, Logger::LEVEL_TRACE, self::LOG_CATEGORY);
     }
 
+    /**
+     * @return array<string, mixed>|null
+     */
     public function getCpNavItem(): ?array
     {
         $item = parent::getCpNavItem();
@@ -225,7 +259,17 @@ class Plugin extends BasePlugin
 
     public function getSettingsResponse(): mixed
     {
-        return Craft::$app->controller->redirect(UrlHelper::cpUrl('breakpoints/settings'));
+        $controller = Craft::$app->controller;
+        if ($controller instanceof Controller) {
+            return $controller->redirect(UrlHelper::cpUrl('breakpoints/settings'));
+        }
+
+        $response = Craft::$app->getResponse();
+        if ($response instanceof Response) {
+            return $response->redirect(UrlHelper::cpUrl('breakpoints/settings'));
+        }
+
+        return null;
     }
 
     private function registerLogTarget(): void
@@ -275,6 +319,10 @@ class Plugin extends BasePlugin
             CraftVariable::EVENT_INIT,
             static function(Event $event): void {
                 $variable = $event->sender;
+                if (!$variable instanceof CraftVariable) {
+                    return;
+                }
+
                 $variable->set('images', Images::class);
             }
         );

@@ -33,6 +33,14 @@ final class ReviewRenderer
         $this->breakpointCatalog = new BreakpointCatalog($plugin->getConfigService(), $plugin->getBreakpointPolicy());
     }
 
+    /**
+     * @param array<string, mixed> $result
+     * @param array<string, mixed> $editScopeBySet
+     * @param array<string, mixed> $editTabBySet
+     * @param array<string, mixed> $selectedAssetKeyBySet
+     * @param array<string, mixed> $preferredOrderBySet
+     * @return array<string, mixed>
+     */
     public function renderResultReview(
         array $result,
         array $editScopeBySet = [],
@@ -66,6 +74,14 @@ final class ReviewRenderer
         );
     }
 
+    /**
+     * @param array<string, mixed> $editScopeBySet
+     * @param array<string, mixed> $editTabBySet
+     * @param array<string, mixed> $selectedAssetKeyBySet
+     * @param array<string, mixed> $preferredOrderBySet
+     * @param array<string, mixed> $result
+     * @return array<string, mixed>
+     */
     public function renderInitialStoredReview(
         array $editScopeBySet = [],
         array $editTabBySet = [],
@@ -93,6 +109,15 @@ final class ReviewRenderer
         );
     }
 
+    /**
+     * @param array<int, array<int, array<string, mixed>>> $rowsByBreakpoint
+     * @param array<int, int> $breakpoints
+     * @param array<string, mixed> $editScopeBySet
+     * @param array<string, mixed> $editTabBySet
+     * @param array<string, mixed> $selectedAssetKeyBySet
+     * @param array<string, mixed> $preferredOrderBySet
+     * @return array<string, mixed>
+     */
     private function renderReview(
         array $rowsByBreakpoint,
         array $breakpoints,
@@ -230,6 +255,9 @@ final class ReviewRenderer
         ];
     }
 
+    /**
+     * @return array{signalKey: string, rowsByBreakpoint: array<int|string, array<string, mixed>>}
+     */
     public function buildSignalDeltasForTransform(
         string $setName,
         ?string $selectedAssetKey = null,
@@ -313,6 +341,10 @@ final class ReviewRenderer
     /**
      * Build the UI-only signal fields for one breakpoint (mismatch, apply button state, classes, etc.).
      * Replicates the logic that used to live inside renderReviewBreakpointColumn.
+     *
+     * @param array<int, array<string, mixed>> $rows
+     * @param array<string, mixed> $currentRow
+     * @return array<string, string>
      */
     private function buildBreakpointUiState(
         string $transformName,
@@ -380,7 +412,7 @@ final class ReviewRenderer
      * Build result array from latest persisted snapshot for a specific transform.
      * Used by the signal delta path to reuse the same normalized evidence shape as rendering.
      *
-     * @return array{breakpoints: int[], rowsByBreakpoint: array<int, array<string, mixed>>}
+     * @return array{breakpoints: array<int, int>, rowsByBreakpoint: array<int, array<int, array<string, mixed>>>}
      */
     private function buildResultFromLatestSnapshot(string $transformName): array
     {
@@ -450,6 +482,9 @@ final class ReviewRenderer
         return ['breakpoints' => $breakpoints, 'rowsByBreakpoint' => $rowsByBreakpoint];
     }
 
+    /**
+     * @param array<int, array<string, mixed>> $warnings
+     */
     private function renderReviewWarningsMarkup(array $warnings, bool $showEmptyState = true, string $reviewMode = self::REVIEW_MODE_PROCESSED): string
     {
         $normalized = [];
@@ -463,24 +498,22 @@ final class ReviewRenderer
             'warnings' => $normalized,
             'showEmptyState' => $showEmptyState,
             'reviewMode' => $reviewMode,
-            'canEditTransforms' => $this->plugin !== null
-                && $this->plugin->getTelemetry()->canEditTransforms(),
+            'canEditTransforms' => $this->plugin->getTelemetry()->canEditTransforms(),
         ]);
     }
 
-    private function buildReviewWarningActionsMarkup(array $warning, string $reviewMode = self::REVIEW_MODE_PROCESSED): string
-    {
-        return $this->renderReviewPartial('_partials/review/warning-actions', [
-            'code' => (string)($warning['code'] ?? ''),
-            'reviewMode' => $reviewMode,
-            'canEditTransforms' => $this->plugin !== null
-                && $this->plugin->getTelemetry()->canEditTransforms(),
-            'entryId' => (int)($warning['entryId'] ?? 0),
-            'entryAvailable' => ($warning['entryAvailable'] ?? false) === true,
-            'entryMissing' => ($warning['entryMissing'] ?? false) === true,
-        ]);
-    }
-
+    /**
+     * @param array<int, array<int, array<string, mixed>>> $rowsByBreakpoint
+     * @param array<int, int> $breakpoints
+     * @param array<string, array<int, array<string, mixed>>> $warningsByTransform
+     * @param array<string, mixed> $editScopeBySet
+     * @param array<string, mixed> $editTabBySet
+     * @param array<string, mixed> $selectedAssetKeyBySet
+     * @param array<string, mixed> $preferredOrderBySet
+     * @param array<string, mixed> $normalizedScopeState
+     * @param array<string, mixed> $normalizedTabState
+     * @param array<string, mixed> $normalizedSelectedAssetKeyBySet
+     */
     private function buildReviewCardsMarkup(
         array $rowsByBreakpoint,
         array $breakpoints,
@@ -771,7 +804,7 @@ final class ReviewRenderer
 
             $breakpointColumns = '';
             $breakpointKeysByWidth = $this->getBreakpointKeysByWidth($includeEscapeWidth);
-            $lastBreakpoint = $transformBreakpoints === [] ? null : end($transformBreakpoints);
+            $lastBreakpoint = end($transformBreakpoints);
             reset($transformBreakpoints);
             $previousMediaWidth = null;
             foreach ($transformBreakpoints as $breakpoint) {
@@ -1002,6 +1035,12 @@ final class ReviewRenderer
         return implode('', $cards);
     }
 
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @param array<string, mixed> $currentRow
+     * @param array<int|string, float> $breakpointColumnWidths
+     * @param array<int|string, int> $previewLockHeightsByBreakpoint
+     */
     private function renderReviewBreakpointColumn(
         string $transformName,
         int $breakpoint,
@@ -1189,6 +1228,9 @@ final class ReviewRenderer
         return $start . ' - ' . $end . 'px';
     }
 
+    /**
+     * @return array<int, array<int, array<string, mixed>>>
+     */
     private function normalizeReviewRowsByBreakpoint(mixed $rawRowsByBreakpoint): array
     {
         if (!is_array($rawRowsByBreakpoint)) {
@@ -1269,6 +1311,9 @@ final class ReviewRenderer
         return $normalized;
     }
 
+    /**
+     * @param array<string, mixed> $row
+     */
     private function resolveReviewSlotIdFromRow(array $row, int|string $fallbackKey): ?int
     {
         $slotIndex = Support::normalizeNullablePositiveInt($row['slotIndex'] ?? null);
@@ -1287,6 +1332,9 @@ final class ReviewRenderer
         return Support::normalizeNullablePositiveInt($fallbackKey);
     }
 
+    /**
+     * @return array<int, int>
+     */
     private function normalizeReviewBreakpoints(mixed $rawBreakpoints): array
     {
         if (!is_array($rawBreakpoints)) {
@@ -1307,6 +1355,10 @@ final class ReviewRenderer
         return $normalized;
     }
 
+    /**
+     * @param array<int, array<int, array<string, mixed>>> $rowsByBreakpoint
+     * @return array<int, string>
+     */
     private function collectReviewTransformNames(array $rowsByBreakpoint): array
     {
         $names = [];
@@ -1325,6 +1377,14 @@ final class ReviewRenderer
         return $transformNames;
     }
 
+    /**
+     * @param array<int, string> $transformNames
+     * @param array<string, array<int, array<string, mixed>>> $warningsByTransform
+     * @param array<string, mixed> $preferredOrderBySet
+     * @param array<string, bool> $breakpointMismatchTransformNames
+     * @param array<string, bool> $assetMismatchTransformNames
+     * @return array<int, string>
+     */
     private function orderReviewTransformNames(
         array $transformNames,
         array $warningsByTransform,
@@ -1394,24 +1454,23 @@ final class ReviewRenderer
         return $transformNames;
     }
 
+    /**
+     * @param array<int, int> $breakpoints
+     * @return array<int, int>
+     */
     private function getReviewBreakpointsForTransformConfig(bool $includeEscapeWidth, array $breakpoints): array
     {
-        if ($this->plugin !== null) {
-            return array_map(
-                static fn(array $slot): int => ((int)$slot['index']) + 1,
-                $this->plugin->getBreakpointSlots()->getSlots($includeEscapeWidth),
-            );
-        }
-
-        return array_values(array_filter($breakpoints, static fn(int $breakpoint): bool => $breakpoint > 0));
+        return array_map(
+            static fn(array $slot): int => ((int)$slot['index']) + 1,
+            $this->plugin->getBreakpointSlots()->getSlots($includeEscapeWidth),
+        );
     }
 
+    /**
+     * @return array<int, int>
+     */
     private function getReviewConfiguredBreakpoints(): array
     {
-        if ($this->plugin === null) {
-            return [];
-        }
-
         return array_map(
             static fn(array $slot): int => ((int)$slot['index']) + 1,
             $this->plugin->getBreakpointSlots()->getSlots(false),
@@ -1419,14 +1478,10 @@ final class ReviewRenderer
     }
 
     /**
-     * @return array<string, string>
+     * @return array<int|string, string>
      */
     private function getBreakpointKeysByWidth(bool $includeEscapeWidth): array
     {
-        if ($this->plugin === null) {
-            return [];
-        }
-
         // Labels come from the catalog (the canonical variant-key source:
         // `base` first, no `escape`), not the raw config map — otherwise column
         // labels disagree with the saved variant keys by one slot.
@@ -1447,7 +1502,7 @@ final class ReviewRenderer
 
     private function getReviewSlotIdByKey(string $slotKey): ?int
     {
-        if ($this->plugin === null || $slotKey === '') {
+        if ($slotKey === '') {
             return null;
         }
 
@@ -1462,7 +1517,7 @@ final class ReviewRenderer
 
     private function getReviewSlotKeyById(int $slotId): ?string
     {
-        if ($this->plugin === null || $slotId <= 0) {
+        if ($slotId <= 0) {
             return null;
         }
 
@@ -1477,7 +1532,7 @@ final class ReviewRenderer
 
     private function getReviewSlotMediaWidthById(int $slotId, bool $includeEscapeWidth = false): ?int
     {
-        if ($this->plugin === null || $slotId <= 0) {
+        if ($slotId <= 0) {
             return null;
         }
 
@@ -1492,7 +1547,7 @@ final class ReviewRenderer
 
     private function getReviewSlotMeasureWidthById(int $slotId, bool $includeEscapeWidth = false): ?int
     {
-        if ($this->plugin === null || $slotId <= 0) {
+        if ($slotId <= 0) {
             return null;
         }
 
@@ -1505,45 +1560,19 @@ final class ReviewRenderer
         return null;
     }
 
+    /**
+     * @return array<string, array<string, mixed>>
+     */
     private function getReviewStoredTransforms(): array
     {
-        if ($this->snapshotReader === null) {
-            return [];
-        }
-
         return $this->snapshotReader->getStoredTransforms();
     }
 
     /**
-     * @return array<string, array<string, mixed>>
+     * @return array<string, mixed>|null
      */
-    private function getLatestRunSnapshotRowsByTransformAndBreakpoint(): array
-    {
-        if ($this->snapshotReader === null) {
-            return [];
-        }
-
-        return $this->snapshotReader->getLatestRunRowsByTransformAndBreakpoint();
-    }
-
-    /**
-     * @return array<string, array<string, mixed>>
-     */
-    private function getPreviewCacheRowsByTransformAndBreakpoint(): array
-    {
-        if ($this->snapshotReader === null) {
-            return [];
-        }
-
-        return $this->snapshotReader->getPreviewCacheRowsByTransformAndBreakpoint();
-    }
-
     private function getLatestRunSnapshotForReview(): ?array
     {
-        if ($this->snapshotReader === null) {
-            return null;
-        }
-
         return $this->snapshotReader->getLatestRunSnapshot();
     }
 
@@ -1553,24 +1582,7 @@ final class ReviewRenderer
      */
     private function buildEditedTransformsMap(?array $latestRunSnapshot, bool $isProcessedReview): array
     {
-        if ($this->healthAnalyzer === null) {
-            return [];
-        }
-
         return $this->healthAnalyzer->buildEditedTransformsMap($latestRunSnapshot, $isProcessedReview);
-    }
-
-    /**
-     * @param array<int|string, array{w: int|null, h: int|null}> $a
-     * @param array<int|string, array{w: int|null, h: int|null}> $b
-     */
-    private function savedDimensionsDiffer(array $a, array $b): bool
-    {
-        if ($this->healthAnalyzer === null) {
-            return false;
-        }
-
-        return $this->healthAnalyzer->savedDimensionsDiffer($a, $b);
     }
 
     /**
@@ -1579,10 +1591,6 @@ final class ReviewRenderer
      */
     public function buildLatestRunHealthByTransform(?array $snapshot = null): array
     {
-        if ($this->healthAnalyzer === null) {
-            return [];
-        }
-
         return $this->healthAnalyzer->buildLatestRunHealthByTransform($snapshot);
     }
 
@@ -1592,10 +1600,6 @@ final class ReviewRenderer
      */
     private function buildLatestRunSummaryByTransform(?array $snapshot): array
     {
-        if ($this->healthAnalyzer === null) {
-            return [];
-        }
-
         return $this->healthAnalyzer->buildLatestRunSummaryByTransform($snapshot);
     }
 
@@ -1661,36 +1665,6 @@ final class ReviewRenderer
     }
 
     /**
-     * @param array<string, mixed> $entryData
-     */
-    private function buildEntryIconLinkMarkup(array $entryData, string $iconName, string $tooltip = ''): string
-    {
-        $id = (int)($entryData['id'] ?? 0);
-        if ($id <= 0) {
-            return '';
-        }
-
-        if ($tooltip === '') {
-            $title = trim((string)($entryData['title'] ?? ''));
-            $tooltip = $title !== '' ? $title : 'Entry #' . $id;
-        }
-
-        $href = trim((string)($entryData['cpEditUrl'] ?? '#'));
-        if ($href === '') {
-            $href = '#';
-        }
-        $siteId = max(0, (int)($entryData['siteId'] ?? 0));
-
-        return $this->renderReviewPartial('_partials/review/entry-link', [
-            'id' => $id,
-            'href' => $href,
-            'siteId' => $siteId,
-            'tooltip' => $tooltip,
-            'iconName' => $iconName,
-        ]);
-    }
-
-    /**
      * @param array<string, mixed> $variables
      */
     private function renderReviewPartial(string $template, array $variables): string
@@ -1715,23 +1689,7 @@ final class ReviewRenderer
      */
     private function resolveRunEntryData(?array $snapshot): ?array
     {
-        if ($this->snapshotReader === null) {
-            return null;
-        }
-
         return $this->snapshotReader->resolveRunEntryData($snapshot);
-    }
-
-    private function normalizeLatestRunStatus(string $status): string
-    {
-        $normalized = strtolower(trim($status));
-
-        return match ($normalized) {
-            'completed', 'success' => 'completed',
-            'failed' => 'failed',
-            'cancelled' => 'cancelled',
-            default => 'unknown',
-        };
     }
 
     private function formatLatestRunTimestamp(mixed $rawValue): string
@@ -1749,6 +1707,10 @@ final class ReviewRenderer
         }
     }
 
+    /**
+     * @param array<string, array<string, mixed>> $storedTransforms
+     * @return array<string, mixed>|null
+     */
     private function getReviewTransformConfig(array $storedTransforms, string $transformName): ?array
     {
         $config = $storedTransforms[$transformName] ?? null;
@@ -1765,6 +1727,11 @@ final class ReviewRenderer
         return ReviewAssetCollector::buildAssetKey($transformName, $assetId, $sourceUsed, $src, $title);
     }
 
+    /**
+     * @param array<int, string> $assetKeys
+     * @param array<string, string> $assetLabelsByKey
+     * @param array<string, bool> $assetMismatchByKey
+     */
     private function buildReviewAssetPaginationMarkup(
         array $assetKeys,
         array $assetLabelsByKey,
@@ -1787,10 +1754,6 @@ final class ReviewRenderer
      * @param array<int, string> $assetKeys
      * @param array<string, array<int, array<int, array<string, mixed>>>> $rowsByAssetByBreakpoint
      * @param array<int, int> $transformBreakpoints
-    /**
-     * @param array<int, string> $assetKeys
-     * @param array<string, array<int, array<int, array<string, mixed>>>> $rowsByAssetByBreakpoint
-     * @param array<int, int> $transformBreakpoints
      * @param array<int, int|null> $savedHeightsByBreakpoint
      * @return array<string, bool>
      */
@@ -1802,10 +1765,6 @@ final class ReviewRenderer
         array $savedHeightsByBreakpoint,
         bool $allowAnyHeight = false,
     ): array {
-        if ($this->healthAnalyzer === null) {
-            return [];
-        }
-
         return $this->healthAnalyzer->buildAssetMismatchByKey(
             $assetKeys,
             $rowsByAssetByBreakpoint,
@@ -1816,66 +1775,19 @@ final class ReviewRenderer
         );
     }
 
-    private function hasAssetMismatchForBreakpoint(
-        array $rows,
-        ?array $referenceRendered,
-        bool $passHeightWhenRenderedLteSaved,
-        ?int $savedHeight,
-        bool $allowAnyHeight = false,
-    ): bool {
-        if ($this->healthAnalyzer === null) {
-            return false;
-        }
-
-        return $this->healthAnalyzer->hasAssetMismatchForBreakpoint(
-            $rows,
-            $referenceRendered,
-            $passHeightWhenRenderedLteSaved,
-            $savedHeight,
-            $allowAnyHeight,
-        );
-    }
-
     /**
-     * @param array<int, array<string, mixed>> $rows
-     * @return array{compareWidth: bool, compareHeight: bool}
+     * @param array<string, mixed>|null $transformDefinition
      */
-    private function resolveReviewDimensionComparison(array $rows): array
-    {
-        if ($this->healthAnalyzer === null) {
-            return ['compareWidth' => true, 'compareHeight' => true];
-        }
-
-        return $this->healthAnalyzer->resolveReviewDimensionComparison($rows);
-    }
-
-    /**
-     * @return array<string, array<int, string|null>>
-     */
-    private function buildStoredAutoDimensionsByTransformAndBreakpoint(): array
-    {
-        if ($this->healthAnalyzer === null) {
-            return [];
-        }
-
-        return $this->healthAnalyzer->buildStoredAutoDimensionsByTransformAndBreakpoint();
-    }
-
     private function isPassHeightWhenRenderedLteSavedEnabled(?array $transformDefinition): bool
     {
-        if ($this->healthAnalyzer === null) {
-            return false;
-        }
-
         return $this->healthAnalyzer->isPassHeightWhenRenderedLteSavedEnabled($transformDefinition);
     }
 
+    /**
+     * @param array<string, mixed>|null $transformDefinition
+     */
     private function isAllowAnyHeightEnabled(?array $transformDefinition): bool
     {
-        if ($this->healthAnalyzer === null) {
-            return false;
-        }
-
         return $this->healthAnalyzer->isAllowAnyHeightEnabled($transformDefinition);
     }
 
@@ -1893,29 +1805,7 @@ final class ReviewRenderer
      */
     private function buildStoredSavedHeightsByTransformAndBreakpoint(): array
     {
-        if ($this->healthAnalyzer === null) {
-            return [];
-        }
-
         return $this->healthAnalyzer->buildStoredSavedHeightsByTransformAndBreakpoint();
-    }
-
-    private function shouldIgnoreHeightMismatch(
-        bool $passHeightWhenRenderedLteSaved,
-        int $renderedHeight,
-        ?int $savedHeight,
-        bool $allowAnyHeight = false,
-    ): bool {
-        if ($this->healthAnalyzer === null) {
-            return false;
-        }
-
-        return $this->healthAnalyzer->shouldIgnoreHeightMismatch(
-            $passHeightWhenRenderedLteSaved,
-            $renderedHeight,
-            $savedHeight,
-            $allowAnyHeight,
-        );
     }
 
     /**
@@ -1923,10 +1813,6 @@ final class ReviewRenderer
      */
     private function buildStoredSavedWidthsByTransformAndBreakpoint(): array
     {
-        if ($this->healthAnalyzer === null) {
-            return [];
-        }
-
         return $this->healthAnalyzer->buildStoredSavedWidthsByTransformAndBreakpoint();
     }
 
@@ -1943,50 +1829,7 @@ final class ReviewRenderer
      */
     public function buildSavedDimensionsByTransformAndBreakpoint(): array
     {
-        if ($this->healthAnalyzer === null) {
-            return [];
-        }
-
         return $this->healthAnalyzer->buildSavedDimensionsByTransformAndBreakpoint();
-    }
-
-    /**
-     * @return array{widthStatus: string, heightStatus: string, isBreakpointMismatch: bool}
-     */
-    private function evaluateBreakpointMatch(
-        int $renderedWidth,
-        int $renderedHeight,
-        ?int $savedWidth,
-        ?int $savedHeight,
-        ?string $autoDimension,
-        bool $passHeightWhenRenderedLteSaved,
-        bool $allowAnyHeight = false,
-    ): array {
-        if ($this->healthAnalyzer === null) {
-            return ['widthStatus' => 'no-transform', 'heightStatus' => 'no-transform', 'isBreakpointMismatch' => false];
-        }
-
-        return $this->healthAnalyzer->evaluateBreakpointMatch(
-            $renderedWidth,
-            $renderedHeight,
-            $savedWidth,
-            $savedHeight,
-            $autoDimension,
-            $passHeightWhenRenderedLteSaved,
-            $allowAnyHeight,
-        );
-    }
-
-    private function evaluateDimensionMatch(
-        int $renderedValue,
-        ?int $savedValue,
-        bool $isAuto,
-    ): string {
-        if ($this->healthAnalyzer === null) {
-            return 'no-transform';
-        }
-
-        return $this->healthAnalyzer->evaluateDimensionMatch($renderedValue, $savedValue, $isAuto);
     }
 
     private function getReviewCurrentDimensionDisplay(?int $value, ?string $autoDimension, string $dimension): string
@@ -2007,12 +1850,6 @@ final class ReviewRenderer
         return 't_' . $base . '_' . substr(sha1($transformName), 0, 8);
     }
 
-    private function normalizeReviewTab(mixed $rawTab): string
-    {
-        $tab = is_string($rawTab) ? $rawTab : '';
-        return in_array($tab, ['dimensions', 'ratio', 'settings', 'notes'], true) ? $tab : 'dimensions';
-    }
-
     private function normalizeReviewMode(mixed $rawReviewMode): string
     {
         $reviewMode = is_string($rawReviewMode) ? strtolower(trim($rawReviewMode)) : '';
@@ -2021,63 +1858,31 @@ final class ReviewRenderer
             : self::REVIEW_MODE_PROCESSED;
     }
 
-    private function normalizeReviewScope(mixed $rawScope, array $transformBreakpoints): array
-    {
-        if (!is_array($rawScope)) {
-            return ['mode' => 'unset', 'breakpoint' => null];
-        }
-
-        $mode = strtolower(trim((string)($rawScope['mode'] ?? 'unset')));
-        if ($mode === 'all') {
-            return ['mode' => 'all', 'breakpoint' => null];
-        }
-
-        if ($mode === 'breakpoint') {
-            $breakpoint = Support::normalizeNullablePositiveInt($rawScope['breakpoint'] ?? null);
-            if ($breakpoint !== null && in_array($breakpoint, $transformBreakpoints, true)) {
-                return ['mode' => 'breakpoint', 'breakpoint' => $breakpoint];
-            }
-        }
-
-        return ['mode' => 'unset', 'breakpoint' => null];
-    }
-
+    /**
+     * @param array<int, array<int, array<string, mixed>>> $rowsByBreakpoint
+     * @return array<string, array<int, array<string, mixed>>>
+     */
     private function buildReviewWarningsByTransform(array $rowsByBreakpoint): array
     {
-        if ($this->warningsBuilder === null) {
-            return [];
-        }
-
         return $this->warningsBuilder->buildWarningsByTransform(
             $rowsByBreakpoint,
             $this->getReviewStoredTransforms(),
         );
     }
 
-    private function buildMissingSetDefinitionWarning(int $entryId = 0, bool $entryAvailable = false, bool $entryMissing = false): array
-    {
-        if ($this->warningsBuilder === null) {
-            return [
-                'code' => 'missing-set-definitions',
-                'message' => 'No transforms are saved for this set.',
-                'entryId' => $entryId,
-                'entryAvailable' => $entryAvailable,
-                'entryMissing' => $entryMissing,
-            ];
-        }
-
-        return $this->warningsBuilder->buildMissingSetDefinitionWarning(
-            $entryId,
-            $entryAvailable,
-            $entryMissing,
-        );
-    }
-
+    /**
+     * @param array<string, array<int, array<string, mixed>>> $warningsByTransform
+     */
     private function countReviewWarningsByTransform(array $warningsByTransform): int
     {
         return ReviewWarningsBuilder::countWarningsByTransform($warningsByTransform);
     }
 
+    /**
+     * @param array<string, mixed>|null $transformConfig
+     * @param array<int, int> $transformBreakpoints
+     * @return array<int, array<string, mixed>>
+     */
     private function buildReviewCurrentRowsForTransform(?array $transformConfig, array $transformBreakpoints): array
     {
         $rows = [];
@@ -2111,6 +1916,9 @@ final class ReviewRenderer
 
     // ---- Support-backed helper delegators (private) ----
 
+    /**
+     * @return array<int, int>
+     */
     private function getBreakpointsForTransform(bool $includeEscapeWidth): array
     {
         return array_map(

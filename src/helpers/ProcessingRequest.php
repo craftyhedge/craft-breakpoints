@@ -3,6 +3,7 @@
 namespace craftyhedge\craftbreakpoints\helpers;
 
 use Craft;
+use craft\web\Request;
 
 /**
  * Single source of truth for detecting a Breakpoints processing run.
@@ -25,7 +26,7 @@ final class ProcessingRequest
     public static function isActive(): bool
     {
         $request = Craft::$app->getRequest();
-        if ($request->getIsConsoleRequest()) {
+        if (!$request instanceof Request || $request->getIsConsoleRequest()) {
             return false;
         }
 

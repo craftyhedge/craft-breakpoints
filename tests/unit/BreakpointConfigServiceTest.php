@@ -85,7 +85,7 @@ final class BreakpointConfigServiceTest extends Unit
         $plugin = Plugin::getInstance();
         $service = $plugin->getConfigService();
 
-        $pluginConfigRoot = require CRAFT_ROOT_PATH . '/src/config.php';
+        $pluginConfigRoot = require dirname(__DIR__, 2) . '/src/config.php';
         $pluginConfig = is_array($pluginConfigRoot['*'] ?? null) ? $pluginConfigRoot['*'] : $pluginConfigRoot;
         $this->assertIsArray($pluginConfig);
 

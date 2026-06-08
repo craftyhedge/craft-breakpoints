@@ -7,6 +7,9 @@ use yii\base\Component;
 
 class TransformSets extends Component
 {
+    /**
+     * @return array<string, array<string, mixed>>
+     */
     public function getSets(): array
     {
         $plugin = Plugin::getInstance();
@@ -14,6 +17,9 @@ class TransformSets extends Component
         return $plugin->getTransformStore()->getSets();
     }
 
+    /**
+     * @return array<string, mixed>|null
+     */
     public function getSet(string $setName): ?array
     {
         $sets = $this->getSets();

@@ -799,7 +799,7 @@ final class TransformEditorServiceTest extends Unit
             ],
             [],
             [],
-            ['hero', 'alpha']
+            ['hero' => 'hero', 'alpha' => 'alpha']
         ));
 
         $this->assertReviewTransformOrder(
@@ -840,7 +840,7 @@ final class TransformEditorServiceTest extends Unit
             ],
             [],
             [],
-            ['hero', 'missing-manifest-set']
+            ['hero' => 'hero', 'missing' => 'missing-manifest-set']
         ));
 
         $this->assertReviewTransformOrder(
@@ -1839,6 +1839,7 @@ final class TransformEditorServiceTest extends Unit
                         'initRatio' => null,
                         'initWidthAuto' => false,
                         'initHeightAuto' => false,
+                        'includeEscapeWidth' => false,
                     ],
                 ];
             }
@@ -1882,6 +1883,7 @@ final class TransformEditorServiceTest extends Unit
                         'initRatio' => null,
                         'initWidthAuto' => true,
                         'initHeightAuto' => false,
+                        'includeEscapeWidth' => false,
                     ],
                 ];
             }
@@ -1930,6 +1932,9 @@ final class TransformEditorServiceTest extends Unit
         ], $callback);
     }
 
+    /**
+     * @param array<string, array<string, mixed>> $sets
+     */
     private function withRuntimeSets(array $sets, callable $callback): mixed
     {
         $configService = Plugin::getInstance()->getConfigService();
@@ -2039,6 +2044,9 @@ final class TransformEditorServiceTest extends Unit
         ];
     }
 
+    /**
+     * @param list<string> $expectedOrder
+     */
     private function assertReviewTransformOrder(string $html, array $expectedOrder): void
     {
         $xpath = $this->createReviewMarkupXPath($html);

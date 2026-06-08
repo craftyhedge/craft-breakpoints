@@ -28,7 +28,7 @@ final class OperationsService
 
     public function __construct(
         private readonly TransformStore $transformStore,
-        private readonly ConfigService $configService,
+        ConfigService $configService,
         private readonly TelemetryService $telemetry,
         private readonly BreakpointPolicy $breakpointPolicy,
         private readonly ?SnapshotReader $snapshotReader = null,
@@ -111,7 +111,7 @@ final class OperationsService
                 $resolvedIncludeEscapeWidth,
             );
 
-            if (isset($targetResolution['error'])) {
+            if (array_key_exists('error', $targetResolution)) {
                 Support::addGlobalError($validation, $targetResolution['error']);
 
                 return [
@@ -120,7 +120,7 @@ final class OperationsService
                 ];
             }
 
-            $breakpointKey = $targetResolution['key'];
+            $breakpointKey = self::breakpointKeyFromResolution($targetResolution);
             $variants[$breakpointKey] = $applyDimensionValue(self::getOrInitVariant($variants, $breakpointKey));
         } else {
             $definitions = $this->breakpointCatalog->getDefinitionsForIncludeEscapeWidth($resolvedIncludeEscapeWidth);
@@ -187,7 +187,7 @@ final class OperationsService
                 $resolvedIncludeEscapeWidth,
             );
 
-            if (isset($targetResolution['error'])) {
+            if (array_key_exists('error', $targetResolution)) {
                 Support::addGlobalError($validation, $targetResolution['error']);
 
                 return [
@@ -196,7 +196,7 @@ final class OperationsService
                 ];
             }
 
-            $breakpointKey = $targetResolution['key'];
+            $breakpointKey = self::breakpointKeyFromResolution($targetResolution);
             $currentEntry = self::getOrInitVariant($variants, $breakpointKey);
 
             $autoDimension = Support::normalizeAutoDimension($currentEntry['autoDimension'] ?? null);
@@ -460,7 +460,7 @@ final class OperationsService
                 $resolvedIncludeEscapeWidth,
             );
 
-            if (isset($targetResolution['error'])) {
+            if (array_key_exists('error', $targetResolution)) {
                 Support::addGlobalError($validation, $targetResolution['error']);
 
                 return [
@@ -470,7 +470,7 @@ final class OperationsService
             }
 
             if ($targetResolution !== null) {
-                $breakpointKey = $targetResolution['key'];
+                $breakpointKey = self::breakpointKeyFromResolution($targetResolution);
                 $variants = $setDefinition['variants'] ?? [];
                 $entry = self::getOrInitVariant($variants, $breakpointKey);
                 $isAutoEnabledForScope = Support::normalizeAutoDimension($entry['autoDimension'] ?? null) === $autoDimension;
@@ -781,7 +781,7 @@ final class OperationsService
                 $resolvedIncludeEscapeWidth,
             );
 
-            if (isset($targetResolution['error'])) {
+            if (array_key_exists('error', $targetResolution)) {
                 Support::addGlobalError($validation, $targetResolution['error']);
 
                 return [
@@ -790,8 +790,8 @@ final class OperationsService
                 ];
             }
 
-            $breakpointKey = $targetResolution['key'];
-            $breakpointWidth = $targetResolution['width'];
+            $breakpointKey = self::breakpointKeyFromResolution($targetResolution);
+            $breakpointWidth = self::breakpointWidthFromResolution($targetResolution);
 
             $currentEntry = self::getOrInitVariant($variants, $breakpointKey);
 
@@ -986,7 +986,7 @@ final class OperationsService
             $resolvedIncludeEscapeWidth,
         );
 
-        if (isset($targetResolution['error'])) {
+        if (array_key_exists('error', $targetResolution)) {
             Support::addGlobalError($validation, $targetResolution['error']);
 
             return [
@@ -995,7 +995,7 @@ final class OperationsService
             ];
         }
 
-        $breakpointKey = $targetResolution['key'];
+        $breakpointKey = self::breakpointKeyFromResolution($targetResolution);
         $variants = $setDefinition['variants'] ?? [];
 
         $currentEntry = self::getOrInitVariant($variants, $breakpointKey);
@@ -1164,12 +1164,10 @@ final class OperationsService
     }
 
     /**
-     * @return array<string, mixed>
-     */
-    /**
      * @param array<int, int> $hiddenBreakpointSlotIds Slot ids (1-based) that the
      *        latest processing run flagged as hidden. Those breakpoints are
      *        disabled as part of applying the rendered values.
+     * @return array<string, mixed>
      */
     public function applyRenderedValuesOperation(
         string $transformName,
@@ -1640,6 +1638,10 @@ final class OperationsService
         return $disabledCount;
     }
 
+    /**
+     * @param array<string, mixed> $variants
+     * @return array<string, mixed>
+     */
     private static function getOrInitVariant(array $variants, string $key): array
     {
         return isset($variants[$key]) && is_array($variants[$key])
@@ -1681,6 +1683,11 @@ final class OperationsService
         ];
     }
 
+    /**
+     * @param array<string, mixed> $sets
+     * @param array<string, mixed> $validation
+     * @param array<string, mixed> $extra
+     */
     private function formatPersistLogContext(array $sets, array $validation, string $expectedVersion, array $extra = []): string
     {
         $encoded = json_encode(array_merge([
@@ -1695,6 +1702,10 @@ final class OperationsService
         return is_string($encoded) ? $encoded : '[unencodable context]';
     }
 
+    /**
+     * @param array<string, mixed> $validation
+     * @return array<string, mixed>
+     */
     private function summarizeValidationForLog(array $validation): array
     {
         return array_filter([
@@ -1703,6 +1714,9 @@ final class OperationsService
         ], static fn(mixed $value): bool => $value !== [] && $value !== false);
     }
 
+    /**
+     * @return array<int, string>
+     */
     private function stringListForLog(mixed $value): array
     {
         if (!is_array($value)) {
@@ -1796,9 +1810,28 @@ final class OperationsService
         return null;
     }
 
+    /**
+     * @param array<string, mixed> $setDefinition
+     */
     private function resolveIncludeEscapeWidthForSet(array $setDefinition): bool
     {
         return $this->breakpointPolicy->resolveIncludeEscapeWidth([], $setDefinition);
+    }
+
+    /**
+     * @param array<string, mixed> $targetResolution
+     */
+    private static function breakpointKeyFromResolution(array $targetResolution): string
+    {
+        return (string)($targetResolution['key'] ?? '');
+    }
+
+    /**
+     * @param array<string, mixed> $targetResolution
+     */
+    private static function breakpointWidthFromResolution(array $targetResolution): int
+    {
+        return (int)($targetResolution['width'] ?? 0);
     }
 
 }

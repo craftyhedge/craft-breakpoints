@@ -24,7 +24,7 @@ final class DraftService
     }
 
     /**
-     * @return array{transforms: array<string, array{includeEscapeWidth: bool, rows: array<string, array<string, mixed>>}>}
+     * @return array{transforms: array<string, array{includeEscapeWidth: bool, rows: array<int|string, array<string, mixed>>}>}
      */
     public function buildDraftFromStore(): array
     {
@@ -88,7 +88,7 @@ final class DraftService
 
     /**
      * @param array<string, mixed> $storedTransforms
-     * @return array<string, array{includeEscapeWidth: bool, rows: array<string, array<string, mixed>>}>
+     * @return array<string, array{includeEscapeWidth: bool, rows: array<int|string, array<string, mixed>>}>
      */
     public function buildDraftTransforms(array $storedTransforms): array
     {
@@ -100,12 +100,13 @@ final class DraftService
 
             $includeEscapeWidth = $this->breakpointPolicy->resolveIncludeEscapeWidth([], $transformDefinition);
             $breakpoints = $this->getBreakpointsForTransform($includeEscapeWidth);
-            $rows = [];
 
             $entries = isset($transformDefinition['transforms']) && is_array($transformDefinition['transforms'])
                 ? array_values($transformDefinition['transforms'])
                 : [];
 
+            /** @var array<int|string, array<string, mixed>> $rows */
+            $rows = [];
             foreach ($breakpoints as $index => $breakpoint) {
                 $entry = isset($entries[$index]) && is_array($entries[$index]) ? $entries[$index] : [];
                 $normalizedEntry = Support::normalizeTransformEntry($entry);

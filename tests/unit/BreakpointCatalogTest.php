@@ -47,9 +47,15 @@ final class BreakpointCatalogTest extends Unit
         ], $result);
     }
 
+    /**
+     * @param array<string, int> $breakpoints
+     */
     private function buildConfigService(array $breakpoints): ConfigService
     {
         return new class($breakpoints) extends ConfigService {
+            /**
+             * @param array<string, int> $testBreakpoints
+             */
             public function __construct(private readonly array $testBreakpoints)
             {
             }

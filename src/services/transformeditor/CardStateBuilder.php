@@ -18,7 +18,7 @@ final class CardStateBuilder
     /**
      * @param array<int, array<string, mixed>> $currentRowsByBreakpoint
      * @param array<int, int> $transformBreakpoints
-     * @return array{scope: array{mode: string, breakpoint: ?int}, tab: string, rowsByBreakpoint: array<string, array<string, mixed>>, scopeValues: array<string, string>, firstBreakpoint: ?int, initSeedAppliedAny: bool}
+     * @return array{scope: array{mode: string, breakpoint: ?int}, tab: string, rowsByBreakpoint: array<int|string, array<string, mixed>>, scopeValues: array<string, string>, firstBreakpoint: ?int, initSeedAppliedAny: bool}
      */
     public function build(
         array $currentRowsByBreakpoint,
@@ -98,10 +98,11 @@ final class CardStateBuilder
     /**
      * @param array<int, array<string, mixed>> $currentRowsByBreakpoint
      * @param array<int, int> $transformBreakpoints
-     * @return array<string, array<string, mixed>>
+     * @return array<int|string, array<string, mixed>>
      */
     private function buildRowsByBreakpointState(array $currentRowsByBreakpoint, array $transformBreakpoints): array
     {
+        /** @var array<int|string, array<string, mixed>> $rows */
         $rows = [];
 
         foreach ($transformBreakpoints as $breakpoint) {
@@ -186,7 +187,7 @@ final class CardStateBuilder
     }
 
     /**
-     * @param array<string, array<string, mixed>> $rowsByBreakpoint
+     * @param array<int|string, array<string, mixed>> $rowsByBreakpoint
      * @param array{mode: string, breakpoint: ?int} $scope
      * @return array<string, string>
      */
@@ -253,7 +254,7 @@ final class CardStateBuilder
     }
 
     /**
-     * @param array<string, array<string, mixed>> $rowsByBreakpoint
+     * @param array<int|string, array<string, mixed>> $rowsByBreakpoint
      */
     private function allEnabledRowsUseAutoDimension(array $rowsByBreakpoint, string $dimension): bool
     {
@@ -274,7 +275,7 @@ final class CardStateBuilder
     }
 
     /**
-     * @param array<string, array<string, mixed>> $rowsByBreakpoint
+     * @param array<int|string, array<string, mixed>> $rowsByBreakpoint
      * @return array<string, string>|null
      */
     private function resolveSharedEnabledRowsRatio(array $rowsByBreakpoint): ?array

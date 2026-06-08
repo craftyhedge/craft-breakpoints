@@ -15,6 +15,11 @@ class BreakpointPolicy extends Component
         $this->_plugin = Plugin::getInstance();
     }
 
+    /**
+     * @param array<string, mixed> $config
+     * @param array<string, mixed> $mergedConfig
+     * @return array<string, int>
+     */
     public function getBreakpointsForSet(array $config, array $mergedConfig): array
     {
         if ($this->_plugin === null) {
@@ -30,6 +35,10 @@ class BreakpointPolicy extends Component
         return $breakpoints;
     }
 
+    /**
+     * @param array<string, mixed> $config
+     * @return array<string, string>
+     */
     public function getBreakpointStates(array $config = []): array
     {
         if ($this->_plugin === null) {
@@ -54,6 +63,11 @@ class BreakpointPolicy extends Component
         return $states;
     }
 
+    /**
+     * @param array<string, int> $breakpoints
+     * @param array<string, mixed> $config
+     * @return array<string, int>
+     */
     public function getEnabledBreakpoints(array $breakpoints, array $config): array
     {
         $enabled = [];
@@ -79,6 +93,8 @@ class BreakpointPolicy extends Component
      *   shown in the editor UI), resolved from the slot position — NOT the
      *   width-map name. So `disableBreakpoints['base']` disables the smallest
      *   slot, matching the UI.
+     *
+     * @param array<string, mixed> $config
      */
     public function isBreakpointDisabled(?string $breakpointName, int $index, array $config): bool
     {
@@ -109,6 +125,8 @@ class BreakpointPolicy extends Component
 
     /**
      * Canonical variant label for a slot position, matching saved-set keys.
+     *
+     * @param array<string, mixed> $config
      */
     private function getCanonicalKeyForIndex(int $index, array $config): ?string
     {
@@ -121,6 +139,10 @@ class BreakpointPolicy extends Component
         return $labels[$index] ?? null;
     }
 
+    /**
+     * @param array<string, mixed> $config
+     * @param array<string, mixed>|null $set
+     */
     public function resolveIncludeEscapeWidth(array $config = [], ?array $set = null): bool
     {
         if (array_key_exists('includeEscapeWidth', $config)) {
@@ -134,6 +156,10 @@ class BreakpointPolicy extends Component
             && $namedSet['includeEscapeWidth'] === true;
     }
 
+    /**
+     * @param array<string, mixed> $config
+     * @return array<string, mixed>|null
+     */
     private function getNamedSet(array $config): ?array
     {
         if ($this->_plugin === null) {
@@ -148,6 +174,10 @@ class BreakpointPolicy extends Component
         return $this->_plugin->getTransformSets()->getSet($setName);
     }
 
+    /**
+     * @param array<string, mixed> $config
+     * @return array<string, mixed>|null
+     */
     private function getNamedSetIfConfigured(array $config): ?array
     {
         if ($this->_plugin === null) {
@@ -165,6 +195,9 @@ class BreakpointPolicy extends Component
     /**
      * Resolve a variant by its slot position rather than its key, so callers
      * do not depend on variant keys matching the configured breakpoint names.
+     *
+     * @param array<string, mixed>|null $set
+     * @return array<string, mixed>|null
      */
     public function getVariantByIndex(?array $set, int $index): ?array
     {

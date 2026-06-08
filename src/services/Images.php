@@ -17,6 +17,9 @@ class Images extends Component
         $this->_plugin = Plugin::getInstance();
     }
 
+    /**
+     * @param array<string, mixed> $config
+     */
     public function render(?Asset $image, string $setName, array $config = []): Markup
     {
         $plugin = $this->plugin();
@@ -27,6 +30,10 @@ class Images extends Component
         return $plugin->getImageRenderer()->render($image, $setName, $config);
     }
 
+    /**
+     * @param array<string, mixed> $config
+     * @return array<string, mixed>
+     */
     public function getBreakpointData(int $loopIndex, int $breakpoint, array $config, Asset $image): array
     {
         $plugin = $this->plugin();

@@ -6,6 +6,9 @@ use craft\base\Model;
 
 class Settings extends Model
 {
+    /**
+     * @var array<string, int>
+     */
     public array $breakpoints = [
         'xs' => 480,
         'sm' => 640,
@@ -31,8 +34,14 @@ class Settings extends Model
     public string $svgTemplatePath = '';
     public bool $nativeLazyLoadingEnabled = true;
     public bool $previewCenter = true;
+    /**
+     * @var array<int, int|float>
+     */
     public array $dpr = [1];
 
+    /**
+     * @return array<int, mixed>
+     */
     protected function defineRules(): array
     {
         return array_merge(parent::defineRules(), [

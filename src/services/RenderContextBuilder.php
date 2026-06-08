@@ -19,6 +19,10 @@ class RenderContextBuilder extends Component
         $this->_plugin = Plugin::getInstance();
     }
 
+    /**
+     * @param array<string, mixed> $config
+     * @return array<string, mixed>|null
+     */
     public function build(array $config, Asset $image): ?array
     {
         if ($this->_plugin === null) {
@@ -41,6 +45,10 @@ class RenderContextBuilder extends Component
         ];
     }
 
+    /**
+     * @param array<string, mixed> $config
+     * @return array<string, mixed>
+     */
     public function getPictureAttributes(array $config): array
     {
         $attributes = [
@@ -56,6 +64,10 @@ class RenderContextBuilder extends Component
         return array_merge($attributes, $this->composePictureMarkers($config));
     }
 
+    /**
+     * @param array<string, mixed> $config
+     * @return array<string, mixed>
+     */
     private function composePictureMarkers(array $config): array
     {
         $setName = $this->resolveSetName($config);
@@ -75,6 +87,10 @@ class RenderContextBuilder extends Component
         ];
     }
 
+    /**
+     * @param array<string, mixed> $config
+     * @return array<string, mixed>|null
+     */
     public function getImageAttributes(array $config, Asset $image): ?array
     {
         if ($this->_plugin === null) {
@@ -130,6 +146,9 @@ class RenderContextBuilder extends Component
         return $attributes;
     }
 
+    /**
+     * @param array<string, mixed> $config
+     */
     private function resolveSetName(array $config): string
     {
         $setName = (string)($config['setName'] ?? $config['transformName'] ?? '');
@@ -140,6 +159,9 @@ class RenderContextBuilder extends Component
         return $setName;
     }
 
+    /**
+     * @param array<string, mixed> $config
+     */
     private function buildPictureId(string $setName, string $assetId, array $config): string
     {
         $variantSeed = json_encode([
@@ -163,6 +185,9 @@ class RenderContextBuilder extends Component
         return sprintf('%s-%s-%s', $setName, $assetId, $hash);
     }
 
+    /**
+     * @param array<string, mixed> $config
+     */
     private function buildBreakpointStatesJson(array $config): string
     {
         if ($this->_plugin === null) {

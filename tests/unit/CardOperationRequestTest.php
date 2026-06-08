@@ -7,12 +7,13 @@ namespace craftyhedge\craftbreakpoints\tests\unit;
 use Codeception\Test\Unit;
 use Craft;
 use craftyhedge\craftbreakpoints\services\transformeditor\CardOperationRequest;
+use craft\web\Request;
 
 final class CardOperationRequestTest extends Unit
 {
     public function testFromRequestNormalizesSupportedOperationAndScalars(): void
     {
-        Craft::$app->getRequest()->setBodyParams([
+        $this->request()->setBodyParams([
             'setName' => 'hero',
             'scopeMode' => 'breakpoint',
             'scopeBreakpoint' => '640',
@@ -27,7 +28,7 @@ final class CardOperationRequestTest extends Unit
             'baseVersion' => 'v123',
         ]);
 
-        $operation = CardOperationRequest::fromRequest(Craft::$app->getRequest(), 'fallback-version');
+        $operation = CardOperationRequest::fromRequest($this->request(), 'fallback-version');
 
         $this->assertTrue($operation->hasValidOperation);
         $this->assertSame('dimensions.apply', $operation->operation);
@@ -47,11 +48,11 @@ final class CardOperationRequestTest extends Unit
 
     public function testFromRequestRejectsUnsupportedOperation(): void
     {
-        Craft::$app->getRequest()->setBodyParams([
+        $this->request()->setBodyParams([
             'operation' => 'legacy.field.width',
         ]);
 
-        $operation = CardOperationRequest::fromRequest(Craft::$app->getRequest(), 'fallback-version');
+        $operation = CardOperationRequest::fromRequest($this->request(), 'fallback-version');
 
         $this->assertFalse($operation->hasValidOperation);
         $this->assertSame('', $operation->operation);
@@ -61,13 +62,13 @@ final class CardOperationRequestTest extends Unit
 
     public function testFromRequestDoesNotFallbackToLegacyFieldPayload(): void
     {
-        Craft::$app->getRequest()->setBodyParams([
+        $this->request()->setBodyParams([
             'field' => 'breakpointEnabled',
             'setName' => 'hero',
             'enabled' => true,
         ]);
 
-        $operation = CardOperationRequest::fromRequest(Craft::$app->getRequest(), 'fallback-version');
+        $operation = CardOperationRequest::fromRequest($this->request(), 'fallback-version');
 
         $this->assertFalse($operation->hasValidOperation);
         $this->assertSame('', $operation->operation);
@@ -75,13 +76,13 @@ final class CardOperationRequestTest extends Unit
 
     public function testFromRequestNormalizesSelectedAssetKeyAndValueRaw(): void
     {
-        Craft::$app->getRequest()->setBodyParams([
+        $this->request()->setBodyParams([
             'operation' => 'settings.setAllowAnyHeight',
             'value' => 'on',
             'selectedAssetKey' => '  asset:hero:100  ',
         ]);
 
-        $operation = CardOperationRequest::fromRequest(Craft::$app->getRequest(), 'fallback-version');
+        $operation = CardOperationRequest::fromRequest($this->request(), 'fallback-version');
 
         $this->assertTrue($operation->hasValidOperation);
         $this->assertSame('settings.setAllowAnyHeight', $operation->operation);
@@ -92,13 +93,13 @@ final class CardOperationRequestTest extends Unit
 
     public function testFromRequestAcceptsNotesOperation(): void
     {
-        Craft::$app->getRequest()->setBodyParams([
+        $this->request()->setBodyParams([
             'operation' => 'set.notes.update',
             'setName' => 'hero',
             'notes' => "  Line one\r\nLine two  ",
         ]);
 
-        $operation = CardOperationRequest::fromRequest(Craft::$app->getRequest(), 'fallback-version');
+        $operation = CardOperationRequest::fromRequest($this->request(), 'fallback-version');
 
         $this->assertTrue($operation->hasValidOperation);
         $this->assertSame('set.notes.update', $operation->operation);
@@ -108,25 +109,25 @@ final class CardOperationRequestTest extends Unit
 
     public function testFromRequestNormalizesEmptySelectedAssetKeyToNull(): void
     {
-        Craft::$app->getRequest()->setBodyParams([
+        $this->request()->setBodyParams([
             'operation' => 'renderedValues.apply',
             'setName' => 'hero',
         ]);
 
-        $operation = CardOperationRequest::fromRequest(Craft::$app->getRequest(), 'fallback-version');
+        $operation = CardOperationRequest::fromRequest($this->request(), 'fallback-version');
 
         $this->assertNull($operation->selectedAssetKey);
     }
 
     public function testFromRequestNormalizesScopeSelectBreakpointOperation(): void
     {
-        Craft::$app->getRequest()->setBodyParams([
+        $this->request()->setBodyParams([
             'setName' => 'hero',
             'operation' => 'scope.selectBreakpoint',
             'scopeBreakpoint' => '768',
         ]);
 
-        $operation = CardOperationRequest::fromRequest(Craft::$app->getRequest(), 'fallback-version');
+        $operation = CardOperationRequest::fromRequest($this->request(), 'fallback-version');
 
         $this->assertTrue($operation->hasValidOperation);
         $this->assertSame('scope.selectBreakpoint', $operation->operation);
@@ -137,12 +138,12 @@ final class CardOperationRequestTest extends Unit
 
     public function testFromRequestNormalizesScopeSelectAllOperation(): void
     {
-        Craft::$app->getRequest()->setBodyParams([
+        $this->request()->setBodyParams([
             'setName' => 'hero',
             'operation' => 'scope.selectAll',
         ]);
 
-        $operation = CardOperationRequest::fromRequest(Craft::$app->getRequest(), 'fallback-version');
+        $operation = CardOperationRequest::fromRequest($this->request(), 'fallback-version');
 
         $this->assertTrue($operation->hasValidOperation);
         $this->assertSame('scope.selectAll', $operation->operation);
@@ -153,12 +154,12 @@ final class CardOperationRequestTest extends Unit
 
     public function testFromRequestNormalizesDimensionsToggleAutoWidthOperation(): void
     {
-        Craft::$app->getRequest()->setBodyParams([
+        $this->request()->setBodyParams([
             'setName' => 'hero',
             'operation' => 'dimensions.toggleAutoWidth',
         ]);
 
-        $operation = CardOperationRequest::fromRequest(Craft::$app->getRequest(), 'fallback-version');
+        $operation = CardOperationRequest::fromRequest($this->request(), 'fallback-version');
 
         $this->assertTrue($operation->hasValidOperation);
         $this->assertSame('dimensions.toggleAutoWidth', $operation->operation);
@@ -167,12 +168,12 @@ final class CardOperationRequestTest extends Unit
 
     public function testFromRequestNormalizesDimensionsToggleAutoHeightOperation(): void
     {
-        Craft::$app->getRequest()->setBodyParams([
+        $this->request()->setBodyParams([
             'setName' => 'hero',
             'operation' => 'dimensions.toggleAutoHeight',
         ]);
 
-        $operation = CardOperationRequest::fromRequest(Craft::$app->getRequest(), 'fallback-version');
+        $operation = CardOperationRequest::fromRequest($this->request(), 'fallback-version');
 
         $this->assertTrue($operation->hasValidOperation);
         $this->assertSame('dimensions.toggleAutoHeight', $operation->operation);
@@ -181,14 +182,14 @@ final class CardOperationRequestTest extends Unit
 
     public function testFromRequestNormalizesRatioCopyFromRenderedBreakpointOperation(): void
     {
-        Craft::$app->getRequest()->setBodyParams([
+        $this->request()->setBodyParams([
             'setName' => 'hero',
             'operation' => 'ratio.copyFromRenderedBreakpoint',
             'ratioSourceBreakpoint' => '2',
             'ratioSourceBreakpointKey' => 'xs',
         ]);
 
-        $operation = CardOperationRequest::fromRequest(Craft::$app->getRequest(), 'fallback-version');
+        $operation = CardOperationRequest::fromRequest($this->request(), 'fallback-version');
 
         $this->assertTrue($operation->hasValidOperation);
         $this->assertSame('ratio.copyFromRenderedBreakpoint', $operation->operation);
@@ -199,13 +200,13 @@ final class CardOperationRequestTest extends Unit
 
     public function testFromRequestNormalizesRatioApplyFloatPayload(): void
     {
-        Craft::$app->getRequest()->setBodyParams([
+        $this->request()->setBodyParams([
             'setName' => 'hero',
             'operation' => 'ratio.apply',
             'ratioFloat' => '1.7777',
         ]);
 
-        $operation = CardOperationRequest::fromRequest(Craft::$app->getRequest(), 'fallback-version');
+        $operation = CardOperationRequest::fromRequest($this->request(), 'fallback-version');
 
         $this->assertTrue($operation->hasValidOperation);
         $this->assertSame('ratio.apply', $operation->operation);
@@ -216,14 +217,22 @@ final class CardOperationRequestTest extends Unit
 
     public function testFromRequestDecodesSelectedAssetKey(): void
     {
-        Craft::$app->getRequest()->setBodyParams([
+        $this->request()->setBodyParams([
             'setName' => 'hero',
             'operation' => 'ratio.copyFromRenderedBreakpoint',
             'selectedAssetKey' => 'asset:hero:100',
         ]);
 
-        $operation = CardOperationRequest::fromRequest(Craft::$app->getRequest(), 'fallback-version');
+        $operation = CardOperationRequest::fromRequest($this->request(), 'fallback-version');
 
         $this->assertSame('asset:hero:100', $operation->selectedAssetKey);
+    }
+
+    private function request(): Request
+    {
+        $request = Craft::$app->getRequest();
+        assert($request instanceof Request);
+
+        return $request;
     }
 }

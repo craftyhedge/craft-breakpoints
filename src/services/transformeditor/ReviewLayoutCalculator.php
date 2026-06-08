@@ -174,8 +174,8 @@ final class ReviewLayoutCalculator
 
     /**
      * @param array<int, int> $breakpoints
-     * @param array<string, int> $referenceWidthsByBreakpoint
-     * @return array<string, float>
+     * @param array<int|string, int> $referenceWidthsByBreakpoint
+     * @return array<int|string, float>
      */
     public static function calculateBreakpointColumnWidths(array $breakpoints, array $referenceWidthsByBreakpoint = []): array
     {
@@ -193,6 +193,7 @@ final class ReviewLayoutCalculator
         }
         $firstRef = $firstRef ?? 1;
 
+        /** @var array<int|string, float> $widths */
         $widths = [];
         foreach ($breakpoints as $breakpoint) {
             $ref = $referenceWidthsByBreakpoint[(string)$breakpoint] ?? $breakpoint;
@@ -205,11 +206,11 @@ final class ReviewLayoutCalculator
     /**
      * @param array<string, array<int, array<int, array<string, mixed>>>> $rowsByAssetByBreakpoint
      * @param array<int, int> $transformBreakpoints
-     * @param array<string, float> $breakpointColumnWidths
-     * @param array<string, int> $referenceWidthsByBreakpoint
+     * @param array<int|string, float> $breakpointColumnWidths
+     * @param array<int|string, int> $referenceWidthsByBreakpoint
      * @param array<int, int> $excludedBreakpoints Slot ids whose previews are not shown
      *        (disabled or processing-hidden) and so must not drive the shared height.
-     * @return array<string, int>
+     * @return array<int|string, int>
      */
     public static function calculateBreakpointPreviewLockHeights(
         array $rowsByAssetByBreakpoint,
@@ -254,6 +255,7 @@ final class ReviewLayoutCalculator
         }
 
         $globalLockHeight = max(48, $globalLockHeight);
+        /** @var array<int|string, int> $lockHeightsByBreakpoint */
         $lockHeightsByBreakpoint = [];
         foreach ($transformBreakpoints as $breakpoint) {
             $lockHeightsByBreakpoint[(string)$breakpoint] = $globalLockHeight;

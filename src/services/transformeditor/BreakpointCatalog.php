@@ -22,7 +22,8 @@ final class BreakpointCatalog
     }
 
     /**
-     * @return array<int, array{key: string, width: int, mediaWidth: int, measureWidth: int, isEscape: bool}>
+     * @param array<string, mixed> $setDefinition
+     * @return array<int, array{key: string, index: int|null, width: int, mediaWidth: int, measureWidth: int, isEscape: bool}>
      */
     public function getDefinitionsForSet(array $setDefinition): array
     {
@@ -31,7 +32,7 @@ final class BreakpointCatalog
     }
 
     /**
-     * @return array<int, array{key: string, width: int, mediaWidth: int, measureWidth: int, isEscape: bool}>
+     * @return array<int, array{key: string, index: int|null, width: int, mediaWidth: int, measureWidth: int, isEscape: bool}>
      */
     public function getDefinitionsForIncludeEscapeWidth(bool $includeEscapeWidth): array
     {
@@ -50,6 +51,9 @@ final class BreakpointCatalog
         return $definitions;
     }
 
+    /**
+     * @return array{key: string, index: int|null, width: int, mediaWidth: int, measureWidth: int, isEscape: bool}|null
+     */
     public function findDefinitionByKey(string $key, bool $includeEscapeWidth): ?array
     {
         $definitions = $this->getDefinitionsForIncludeEscapeWidth($includeEscapeWidth);
@@ -72,7 +76,7 @@ final class BreakpointCatalog
     ): ?array {
         if ($scopeBreakpointKey !== null && $scopeBreakpointKey !== '') {
             $definition = $this->findDefinitionByKey($scopeBreakpointKey, $includeEscapeWidth);
-            return $definition;
+            return $definition !== null ? $this->toOperationTarget($definition) : null;
         }
 
         return null;
@@ -92,9 +96,22 @@ final class BreakpointCatalog
             if ($definition === null) {
                 return ['error' => 'Invalid breakpoint key.'];
             }
-            return $definition;
+            return $this->toOperationTarget($definition);
         }
 
         return ['error' => 'breakpoint key is required.'];
+    }
+
+    /**
+     * @param array{key: string, width: int, isEscape: bool} $definition
+     * @return array{key: string, width: int, isEscape: bool}
+     */
+    private function toOperationTarget(array $definition): array
+    {
+        return [
+            'key' => $definition['key'],
+            'width' => $definition['width'],
+            'isEscape' => $definition['isEscape'],
+        ];
     }
 }

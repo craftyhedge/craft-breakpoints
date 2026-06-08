@@ -343,6 +343,9 @@ class TransformsController extends Controller
         ]);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     private function dispatchRenderedValuesApply(CardOperationRequest $operation, TransformEditor $editor): array
     {
         return $editor->applyRenderedValuesOperation(
@@ -355,6 +358,9 @@ class TransformsController extends Controller
         );
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     private function dispatchDimensionsApply(CardOperationRequest $operation, TransformEditor $editor): array
     {
         $requestedScope = $this->readRequestedCardScope($operation->setName);
@@ -377,6 +383,9 @@ class TransformsController extends Controller
         );
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     private function dispatchToggleAutoWidth(CardOperationRequest $operation, TransformEditor $editor): array
     {
         $requestedScope = $this->readRequestedCardScope($operation->setName);
@@ -396,6 +405,9 @@ class TransformsController extends Controller
         );
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     private function dispatchToggleAutoHeight(CardOperationRequest $operation, TransformEditor $editor): array
     {
         $requestedScope = $this->readRequestedCardScope($operation->setName);
@@ -415,6 +427,9 @@ class TransformsController extends Controller
         );
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     private function dispatchRatioApply(CardOperationRequest $operation, TransformEditor $editor): array
     {
         $requestedScope = $this->readRequestedCardScope($operation->setName);
@@ -449,6 +464,9 @@ class TransformsController extends Controller
         );
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     private function dispatchBreakpointToggle(CardOperationRequest $operation, TransformEditor $editor): array
     {
         $requestBody = $this->request->getBodyParams();
@@ -465,6 +483,9 @@ class TransformsController extends Controller
         );
     }
 
+    /**
+     * @param array<string, mixed> $operationResult
+     */
     private function buildOperationResponse(CardOperationRequest $operation, array $operationResult, TransformEditor $editor): Response
     {
         $persisted = ($operationResult['persisted'] ?? false) === true;
@@ -761,6 +782,9 @@ class TransformsController extends Controller
         ]));
     }
 
+    /**
+     * @param array<string, mixed> $signals
+     */
     private function asDatastarSignalsPatch(array $signals): Response
     {
         $event = new PatchSignals($signals);
@@ -775,6 +799,10 @@ class TransformsController extends Controller
         $headers = ServerSentEventGenerator::headers();
 
         $response = Craft::$app->getResponse();
+        if (!$response instanceof Response) {
+            throw new \RuntimeException('Datastar event streams require a web response.');
+        }
+
         $response->format = Response::FORMAT_RAW;
         foreach ($headers as $name => $value) {
             if ($name === 'Content-Type') {
@@ -835,62 +863,6 @@ class TransformsController extends Controller
     }
 
     /**
-     * @return array<string, array{mode: string, breakpoint: ?int}>
-     */
-    private function buildCardEditScope(string $setName, string $scopeMode, ?int $scopeBreakpoint): array
-    {
-        if ($setName === '') {
-            return [];
-        }
-
-        if ($scopeMode === 'breakpoint' && $scopeBreakpoint !== null) {
-            return [
-                $setName => [
-                    'mode' => 'breakpoint',
-                    'breakpoint' => $scopeBreakpoint,
-                ],
-            ];
-        }
-
-        if ($scopeMode === 'all') {
-            return [
-                $setName => [
-                    'mode' => 'all',
-                    'breakpoint' => null,
-                ],
-            ];
-        }
-
-        return [];
-    }
-
-    /**
-     * @return array{string, ?int}
-     */
-    private function resolveCardEditScopeForOperation(string $setName, string $scopeMode, ?int $scopeBreakpoint): array
-    {
-        if ($setName === '') {
-            return [$scopeMode, $scopeBreakpoint];
-        }
-
-        $requestBody = $this->request->getBodyParams();
-        if (is_array($requestBody) && array_key_exists('scopeMode', $requestBody)) {
-            return [$scopeMode, $scopeBreakpoint];
-        }
-
-        $requestedScope = $this->readRequestedCardScope($setName);
-        if ($requestedScope === null) {
-            if ($scopeBreakpoint !== null) {
-                return ['breakpoint', $scopeBreakpoint];
-            }
-
-            return [$scopeMode, $scopeBreakpoint];
-        }
-
-        return [$requestedScope['mode'], $requestedScope['breakpoint']];
-    }
-
-    /**
      * @return array{mode: string, breakpoint: ?int, key: ?string}|null
      */
     private function readRequestedCardScope(string $setName): ?array
@@ -928,25 +900,6 @@ class TransformsController extends Controller
     /**
      * @return array<string, string>
      */
-    private function buildCardEditTab(string $setName, string $field): array
-    {
-        if ($setName === '') {
-            return [];
-        }
-
-        $tab = match ($field) {
-            'ratio' => 'ratio',
-            'notes' => 'notes',
-            'passHeightWhenRenderedLteSaved', 'allowAnyHeight' => 'settings',
-            default => 'dimensions',
-        };
-
-        return [$setName => $tab];
-    }
-
-    /**
-     * @return array<string, string>
-     */
     private function buildCardSelectedAssetKey(string $setName): array
     {
         if ($setName === '') {
@@ -959,28 +912,6 @@ class TransformsController extends Controller
         }
 
         return [$setName => $selectedAssetKey];
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    private function buildCardRequestedEditTab(string $setName): array
-    {
-        if ($setName === '') {
-            return [];
-        }
-
-        $requestedTab = trim((string)$this->readRequestedCardSignalString($setName, 'activeTab'));
-        if ($requestedTab === '') {
-            return [];
-        }
-
-        $normalizedTab = strtolower($requestedTab);
-        if (!in_array($normalizedTab, ['dimensions', 'ratio', 'settings', 'notes'], true)) {
-            return [];
-        }
-
-        return [$setName => $normalizedTab];
     }
 
     /**
@@ -1017,7 +948,7 @@ class TransformsController extends Controller
     }
 
     /**
-     * @param array<string, array<string, mixed>> $rowsByBreakpoint
+     * @param array<int|string, array<string, mixed>> $rowsByBreakpoint
      * @return array{widthAuto: string, heightAuto: string}
      */
     private function buildAllScopeAutoSignalsFromRows(array $rowsByBreakpoint): array
@@ -1029,7 +960,7 @@ class TransformsController extends Controller
     }
 
     /**
-     * @param array<string, array<string, mixed>> $rowsByBreakpoint
+     * @param array<int|string, array<string, mixed>> $rowsByBreakpoint
      */
     private function allEnabledRowsUseAutoDimension(array $rowsByBreakpoint, string $dimension): bool
     {
@@ -1120,6 +1051,9 @@ class TransformsController extends Controller
         return 'sess_' . substr(sha1((string)microtime(true)), 0, 12);
     }
 
+    /**
+     * @return array{assetCount: mixed, breakpointCount: mixed, warningCount: mixed}
+     */
     private function extractResultSummaryFromRequest(): array
     {
         return [
@@ -1139,6 +1073,9 @@ class TransformsController extends Controller
         return $fallbackVersion;
     }
 
+    /**
+     * @return array<mixed>
+     */
     private function readBodyArrayParam(string $name): array
     {
         $rawValue = $this->request->getBodyParam($name, []);
@@ -1189,10 +1126,10 @@ class TransformsController extends Controller
     {
         return array_values(array_filter(
             array_map(
-                static fn(array $row): string => trim((string)($row['name'] ?? '')),
+                static fn(array $row): string => trim($row['name']),
                 array_filter(
                     $editor->buildSidebarTransformRows(),
-                    static fn(mixed $row): bool => is_array($row) && (($row['isObservedUnsaved'] ?? false) !== true),
+                    static fn(array $row): bool => $row['isObservedUnsaved'] !== true,
                 ),
             ),
             static fn(string $name): bool => $name !== '',
@@ -1213,6 +1150,9 @@ class TransformsController extends Controller
         }
     }
 
+    /**
+     * @param array<string, mixed> $operationResult
+     */
     private function buildOperationStatusMessage(string $field, bool $persisted, bool $conflict, array $operationResult = []): string
     {
         if (!$persisted && $conflict) {
@@ -1301,6 +1241,9 @@ class TransformsController extends Controller
         };
     }
 
+    /**
+     * @param array<string, mixed> $extra
+     */
     private function logCardOperationResponseFailure(CardOperationRequest $operation, string $message, array $extra = []): void
     {
         Plugin::warning('Transform card operation failed: ' . $this->formatOperationLogContext($operation, array_merge([
@@ -1308,6 +1251,9 @@ class TransformsController extends Controller
         ], $extra)));
     }
 
+    /**
+     * @param array<string, mixed> $extra
+     */
     private function formatOperationLogContext(CardOperationRequest $operation, array $extra = []): string
     {
         $context = array_filter([
@@ -1341,6 +1287,9 @@ class TransformsController extends Controller
         return is_string($encoded) ? $encoded : '[unencodable context]';
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     private function summarizeValidationForLog(mixed $validation): array
     {
         if (!is_array($validation)) {
@@ -1353,6 +1302,9 @@ class TransformsController extends Controller
         ], static fn(mixed $value): bool => $value !== [] && $value !== false);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     private function summarizeOperationDetailsForLog(mixed $details): array
     {
         if (!is_array($details)) {
@@ -1365,6 +1317,9 @@ class TransformsController extends Controller
         ], static fn(mixed $value): bool => $value !== []);
     }
 
+    /**
+     * @return array<int, string>
+     */
     private function stringListForLog(mixed $value): array
     {
         if (!is_array($value)) {
@@ -1377,6 +1332,9 @@ class TransformsController extends Controller
         ), static fn(string $item): bool => $item !== ''));
     }
 
+    /**
+     * @param array<int, mixed> $skippedBreakpoints
+     */
     private function formatSkippedBreakpoints(array $skippedBreakpoints): string
     {
         $parts = [];

@@ -15,6 +15,9 @@ class ProcessingConfig extends Component
         $this->_plugin = Plugin::getInstance();
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function getConfig(): array
     {
         if ($this->_plugin === null) {

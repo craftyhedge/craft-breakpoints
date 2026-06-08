@@ -20,6 +20,9 @@ class ImageRenderer extends Component
         $this->_plugin = Plugin::getInstance();
     }
 
+    /**
+     * @param array<string, mixed> $config
+     */
     public function render(?Asset $image, string $setName, array $config = []): Markup
     {
         if ($image === null) {
@@ -33,6 +36,9 @@ class ImageRenderer extends Component
         return $this->renderTemplateMarkup($config, $image);
     }
 
+    /**
+     * @param array<string, mixed> $config
+     */
     private function renderTemplateMarkup(array $config, Asset $image): Markup
     {
         if ($this->_plugin === null) {
@@ -74,6 +80,10 @@ class ImageRenderer extends Component
         return new Markup($markup, 'UTF-8');
     }
 
+    /**
+     * @param array<string, mixed> $config
+     * @return array<string, mixed>
+     */
     public function getPictureAttributes(array $config): array
     {
         if ($this->_plugin === null) {
@@ -83,6 +93,10 @@ class ImageRenderer extends Component
         return $this->_plugin->getRenderContextBuilder()->getPictureAttributes($config);
     }
 
+    /**
+     * @param array<string, mixed> $config
+     * @return array<string, mixed>|null
+     */
     public function getImageAttributes(array $config, Asset $image): ?array
     {
         if ($this->_plugin === null) {
@@ -92,6 +106,9 @@ class ImageRenderer extends Component
         return $this->_plugin->getRenderContextBuilder()->getImageAttributes($config, $image);
     }
 
+    /**
+     * @param array<string, mixed> $imgAttributes
+     */
     private function renderFallbackImage(array $imgAttributes): string
     {
         $normalizedAttributes = [];

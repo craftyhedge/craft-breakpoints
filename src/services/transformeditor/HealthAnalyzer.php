@@ -459,6 +459,7 @@ final class HealthAnalyzer
 
     /**
      * @param array<int, array<string, mixed>> $rows
+     * @param array<string, mixed>|null $referenceRendered
      */
     public function hasAssetMismatchForBreakpoint(
         array $rows,

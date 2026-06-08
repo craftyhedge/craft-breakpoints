@@ -102,6 +102,9 @@ final class BreakpointPolicyTest extends Unit
         });
     }
 
+    /**
+     * @param array<string, array<string, mixed>> $transforms
+     */
     private function withTemporaryTransforms(array $transforms, callable $callback): void
     {
         $plugin = Plugin::getInstance();

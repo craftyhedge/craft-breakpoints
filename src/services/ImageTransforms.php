@@ -13,7 +13,13 @@ class ImageTransforms extends Component
     private const PROCESSING_MEDIA_OVERSIZE_PX = 20;
 
     private ?Plugin $_plugin = null;
+    /**
+     * @var array<string, array<int, array<string, mixed>>>
+     */
     private array $_transformedImagesCache = [];
+    /**
+     * @var array<string, array<string, mixed>>
+     */
     private array $_breakpointDataCache = [];
 
     public function init(): void
@@ -28,6 +34,10 @@ class ImageTransforms extends Component
         $this->_breakpointDataCache = [];
     }
 
+    /**
+     * @param array<string, mixed> $config
+     * @return array<string, mixed>
+     */
     public function getBreakpointData(int $loopIndex, int $breakpoint, array $config, Asset $image): array
     {
         $cacheKey = $this->getBreakpointCacheKey($loopIndex, $breakpoint, $config, $image);
@@ -42,7 +52,7 @@ class ImageTransforms extends Component
         $mergedConfig = $this->_plugin->getConfigService()->getConfig($config);
         $effectiveSecondaryFormat = $this->resolveEffectiveSecondaryFormat($config, $mergedConfig);
         $allBreakpoints = $this->_plugin->getBreakpointPolicy()->getBreakpointsForSet($config, $mergedConfig);
-        $breakpointNames = array_keys($allBreakpoints);
+        $breakpointNames = array_map('strval', array_keys($allBreakpoints));
         $breakpointName = $breakpointNames[$loopIndex] ?? null;
         $namedSet = $this->getNamedSet($config);
         $initOptions = InitOptions::fromConfig($config, $namedSet !== null);
@@ -209,6 +219,9 @@ class ImageTransforms extends Component
         return $result;
     }
 
+    /**
+     * @param array<string, mixed> $config
+     */
     public function getFirstEnabledBreakpointIndex(array $config = []): ?int
     {
         if ($this->_plugin === null) {
@@ -248,6 +261,10 @@ class ImageTransforms extends Component
         return sprintf('(max-width: %srem)', $remValue);
     }
 
+    /**
+     * @param array<string, mixed> $config
+     * @return array<string, int>
+     */
     public function getBreakpoints(array $config = []): array
     {
         if ($this->_plugin === null) {
@@ -257,6 +274,10 @@ class ImageTransforms extends Component
         return $this->_plugin->getConfigService()->getBreakpoints($config);
     }
 
+    /**
+     * @param array<string, mixed> $config
+     * @return array<string, int>
+     */
     public function getBreakpointsForTemplate(array $config = []): array
     {
         if ($this->_plugin === null) {
@@ -268,6 +289,10 @@ class ImageTransforms extends Component
         return $this->_plugin->getBreakpointPolicy()->getBreakpointsForSet($config, $mergedConfig);
     }
 
+    /**
+     * @param array<string, mixed> $config
+     * @return array<string, string>
+     */
     public function getBreakpointStates(array $config = []): array
     {
         if ($this->_plugin === null) {
@@ -277,6 +302,10 @@ class ImageTransforms extends Component
         return $this->_plugin->getBreakpointPolicy()->getBreakpointStates($config);
     }
 
+    /**
+     * @param array<string, mixed> $config
+     * @return array<int, array<string, mixed>>
+     */
     public function getTransformedImages(Asset $image, string $setName, string $formatIndex = 'primary', array $config = []): array
     {
         if ($this->_plugin === null) {
@@ -472,6 +501,9 @@ class ImageTransforms extends Component
         return $transformed;
     }
 
+    /**
+     * @param array<string, mixed>|null $namedSetVariant
+     */
     private function resolveAutoDimension(?array $namedSetVariant, InitOptions $initOptions): ?string
     {
         if ($namedSetVariant !== null && isset($namedSetVariant['autoDimension'])) {
@@ -523,6 +555,9 @@ class ImageTransforms extends Component
         return ProcessingRequest::isActive() ? self::PROCESSING_MEDIA_OVERSIZE_PX : 0;
     }
 
+    /**
+     * @param array<string, mixed> $config
+     */
     private function isSecondaryFormatEnabled(array $config): bool
     {
         $secondaryFormat = $this->normalizeSecondaryFormat((string)($config['secondaryFormat'] ?? 'none'));
@@ -530,6 +565,10 @@ class ImageTransforms extends Component
         return $secondaryFormat !== 'none';
     }
 
+    /**
+     * @param array<string, mixed> $config
+     * @return array<int, float>
+     */
     private function getDprRatios(array $config): array
     {
         $rawRatios = $config['dpr'] ?? [1];
@@ -561,6 +600,10 @@ class ImageTransforms extends Component
         return $ratios;
     }
 
+    /**
+     * @param array<string, mixed> $baseTransform
+     * @param array<string, mixed> $config
+     */
     private function generateDprSrcset(Asset $image, array $baseTransform, array $config): string
     {
         $baseUrl = (string)($baseTransform['url'] ?? self::TRANSPARENT_PIXEL_DATA_URI);
@@ -635,6 +678,11 @@ class ImageTransforms extends Component
         return $this->normalizeTargetFormat($normalized, 'none');
     }
 
+    /**
+     * @param array<string, mixed>|null $variant
+     * @param array<string, mixed>|null $fallbackTransform
+     * @return array<string, mixed>
+     */
     private function buildSourceDataAttributes(
         int $breakpoint,
         bool $enabled,
@@ -664,6 +712,11 @@ class ImageTransforms extends Component
         );
     }
 
+    /**
+     * @param array<string, mixed>|null $variant
+     * @param array<string, mixed>|null $fallbackTransform
+     * @return array<string, mixed>
+     */
     private function composeSourceDataAttributes(
         int $breakpoint,
         bool $enabled,
@@ -715,6 +768,10 @@ class ImageTransforms extends Component
         return $attributes;
     }
 
+    /**
+     * @param array<string, mixed> $config
+     * @return array<string, mixed>|null
+     */
     private function getNamedSet(array $config): ?array
     {
         if ($this->_plugin === null) {
@@ -724,6 +781,9 @@ class ImageTransforms extends Component
         return $this->_plugin->getTransformSets()->getSet($this->resolveSetName($config));
     }
 
+    /**
+     * @param array<string, mixed> $config
+     */
     private function resolveSetName(array $config): string
     {
         $setName = (string)($config['setName'] ?? $config['transformName'] ?? '');
@@ -741,6 +801,9 @@ class ImageTransforms extends Component
      * variant for a given source is the one at the same slot — independent of
      * what key it is stored under. This decouples the render path from any
      * assumption that variant keys match the configured breakpoint names.
+     *
+     * @param array<string, mixed>|null $set
+     * @return array<string, mixed>|null
      */
     private function getVariantByIndex(?array $set, int $index): ?array
     {
@@ -751,6 +814,10 @@ class ImageTransforms extends Component
         return $this->_plugin->getBreakpointPolicy()->getVariantByIndex($set, $index);
     }
 
+    /**
+     * @param array<string, mixed>|null $set
+     * @return array<string, mixed>
+     */
     private function getNamedSetConfig(?array $set): array
     {
         if ($set === null || !isset($set['config']) || !is_array($set['config'])) {
@@ -760,11 +827,19 @@ class ImageTransforms extends Component
         return $set['config'];
     }
 
+    /**
+     * @param array<string, mixed> $config
+     * @param array<string, mixed>|null $set
+     */
     private function isEscapeWidthIncluded(array $config, ?array $set): bool
     {
         return $this->_plugin?->getBreakpointPolicy()->resolveIncludeEscapeWidth($config, $set) ?? false;
     }
 
+    /**
+     * @param array<string, mixed> $config
+     * @param array<string, mixed> $mergedConfig
+     */
     private function resolveEffectiveSecondaryFormat(array $config, array $mergedConfig): string
     {
         $namedSet = $this->getNamedSet($config);
@@ -775,6 +850,9 @@ class ImageTransforms extends Component
         );
     }
 
+    /**
+     * @param array<string, mixed> $config
+     */
     private function getTransformCacheKey(Asset $image, string $formatIndex, array $config): string
     {
         $configJson = json_encode($config);
@@ -789,6 +867,9 @@ class ImageTransforms extends Component
         ]);
     }
 
+    /**
+     * @param array<string, mixed> $config
+     */
     private function getBreakpointCacheKey(int $loopIndex, int $breakpoint, array $config, Asset $image): string
     {
         $configJson = json_encode($config);

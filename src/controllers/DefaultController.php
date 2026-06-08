@@ -157,7 +157,7 @@ class DefaultController extends Controller
             ->status(null)
             ->one();
 
-        if (!$entry) {
+        if (!$entry instanceof Entry) {
             throw new BadRequestHttpException('Entry not found for the current site.');
         }
 
@@ -171,6 +171,9 @@ class DefaultController extends Controller
         ]);
     }
 
+    /**
+     * @return array<int, array{slug: string, title: string, url: string}>
+     */
     private function docsNav(): array
     {
         $nav = [];

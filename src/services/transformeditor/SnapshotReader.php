@@ -18,12 +18,25 @@ use craftyhedge\craftbreakpoints\services\TransformStore;
 final class SnapshotReader
 {
     private bool $snapshotLoaded = false;
+    /**
+     * @var array<string, mixed>|null
+     */
     private ?array $snapshot = null;
 
+    /**
+     * @var array<string, array<string, mixed>>|null
+     */
     private ?array $latestRunRowsByTransformAndBreakpoint = null;
+    /**
+     * @var array<string, array<string, mixed>>|null
+     */
     private ?array $previewCacheRows = null;
 
-    /** Null = not yet resolved; key 'value' holds the resolved value to distinguish from "no data". */
+    /**
+     * Null = not yet resolved; key 'value' holds the resolved value to distinguish from "no data".
+     *
+     * @var array{value: array<string, mixed>|null}|null
+     */
     private ?array $resolvedRunEntryCache = null;
 
     public function __construct(
@@ -32,6 +45,9 @@ final class SnapshotReader
     ) {
     }
 
+    /**
+     * @return array<string, mixed>|null
+     */
     public function getLatestRunSnapshot(): ?array
     {
         if ($this->snapshotLoaded === false) {
@@ -95,7 +111,7 @@ final class SnapshotReader
     }
 
     /**
-     * @return array<string, array<int, array<string, mixed>>>
+     * @return array<string, array<string, mixed>>
      */
     public function getStoredTransforms(): array
     {
@@ -119,7 +135,14 @@ final class SnapshotReader
             : [];
         $entry = $metadata[$transformName] ?? null;
 
-        return is_array($entry) ? $entry : null;
+        if (!is_array($entry)) {
+            return null;
+        }
+
+        return [
+            'transformHandle' => (string)($entry['transformHandle'] ?? ''),
+            'includeEscapeWidth' => is_bool($entry['includeEscapeWidth'] ?? null) ? $entry['includeEscapeWidth'] : null,
+        ];
     }
 
     /**
@@ -210,7 +233,7 @@ final class SnapshotReader
             ->siteId($siteId)
             ->one();
 
-        if ($entry === null) {
+        if (!$entry instanceof Entry) {
             return [
                 'id' => $entryId,
                 'title' => '',
@@ -449,18 +472,14 @@ final class SnapshotReader
     /**
      * @param array<string, mixed> $row
      */
-    private function extractBreakpointWidthFromRow(array $row): int
-    {
-        return isset($row['breakpointWidth']) && is_numeric($row['breakpointWidth'])
-            ? (int)$row['breakpointWidth']
-            : 0;
-    }
-
     private function extractSlotKeyFromRow(array $row): string
     {
         return trim((string)($row['slotKey'] ?? ''));
     }
 
+    /**
+     * @param array<string, mixed> $row
+     */
     private function extractSlotIdFromRow(array $row): int
     {
         if (isset($row['slotIndex']) && is_numeric($row['slotIndex'])) {

@@ -60,6 +60,9 @@ final class InitOptionsTest extends Unit
         $this->assertNull($options->ratio);
     }
 
+    /**
+     * @return array<string, array{0: string|null}>
+     */
     public function invalidRatioProvider(): array
     {
         return [

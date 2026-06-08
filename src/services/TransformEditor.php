@@ -73,6 +73,9 @@ class TransformEditor extends Component
 
     // ---- Draft ----
 
+    /**
+     * @return array<string, mixed>
+     */
     public function buildDraftFromStore(): array
     {
         if ($this->_draftService === null) {
@@ -82,6 +85,9 @@ class TransformEditor extends Component
         return $this->_draftService->buildDraftFromStore();
     }
 
+    /**
+     * @param array<string, mixed> $draft
+     */
     public function encodeDraftJson(array $draft): string
     {
         if ($this->_draftService === null) {
@@ -92,6 +98,10 @@ class TransformEditor extends Component
         return $this->_draftService->encodeDraftJson($draft);
     }
 
+    /**
+     * @param array<string, mixed> $draft
+     * @return array<string, mixed>
+     */
     public function applyDraft(array $draft, ?string $expectedVersion = null): array
     {
         if ($this->_draftService === null) {
@@ -154,6 +164,9 @@ class TransformEditor extends Component
 
     // ---- Operation wrappers ----
 
+    /**
+     * @return array<string, mixed>
+     */
     public function applySetDimensionOperation(
         string $transformName,
         string $scopeMode,
@@ -180,6 +193,9 @@ class TransformEditor extends Component
         );
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function applySetDimensionsOperation(
         string $transformName,
         string $scopeMode,
@@ -212,6 +228,9 @@ class TransformEditor extends Component
         );
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function applySetToggleAutoWidthOperation(
         string $transformName,
         string $scopeMode,
@@ -238,6 +257,9 @@ class TransformEditor extends Component
         );
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function applySetToggleAutoHeightOperation(
         string $transformName,
         string $scopeMode,
@@ -264,6 +286,9 @@ class TransformEditor extends Component
         );
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function applySetRatioOperation(
         string $transformName,
         string $scopeMode,
@@ -292,6 +317,9 @@ class TransformEditor extends Component
         );
     }
 
+    /**
+     * @return array<string, mixed>|null
+     */
     public function applySetCopyRatioFromRenderedBreakpointOperation(
         string $transformName,
         string $sourceBreakpointKey,
@@ -303,6 +331,9 @@ class TransformEditor extends Component
         return $this->_operationsService->resolveRenderedRatioByBreakpoint($transformName, $sourceBreakpointKey);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function applySetBreakpointEnabledOperation(
         string $transformName,
         ?int $scopeBreakpoint,
@@ -327,6 +358,9 @@ class TransformEditor extends Component
         );
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function applySetPassHeightWhenRenderedLteSavedOperation(
         string $transformName,
         mixed $value,
@@ -345,6 +379,9 @@ class TransformEditor extends Component
         );
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function applySetAllowAnyHeightOperation(
         string $transformName,
         mixed $value,
@@ -363,6 +400,9 @@ class TransformEditor extends Component
         );
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function applySetNotesOperation(
         string $transformName,
         mixed $value,
@@ -383,6 +423,7 @@ class TransformEditor extends Component
 
     /**
      * @param array<int, int> $hiddenBreakpointSlotIds Slot ids (1-based) flagged as hidden by processing.
+     * @return array<string, mixed>
      */
     public function applyRenderedValuesOperation(
         string $transformName,
@@ -419,6 +460,9 @@ class TransformEditor extends Component
         return $this->_operationsService->autoApplyRenderedValuesForNewSets($requestedSets, $expectedVersion);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function applySetWidthOperation(
         string $transformName,
         string $scopeMode,
@@ -441,6 +485,9 @@ class TransformEditor extends Component
         );
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function deleteSetOperation(string $transformName, ?string $expectedVersion = null): array
     {
         if ($this->_operationsService === null) {
@@ -452,6 +499,10 @@ class TransformEditor extends Component
 
     // ---- Summary / Validation ----
 
+    /**
+     * @param array<string, mixed> $summary
+     * @return array{assetCount: int, breakpointCount: int, warningCount: int}
+     */
     public function buildResultSummary(array $summary = []): array
     {
         if ($this->_plugin === null) {
@@ -471,6 +522,9 @@ class TransformEditor extends Component
         ];
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function defaultValidation(): array
     {
         return Support::defaultValidation();
@@ -478,6 +532,14 @@ class TransformEditor extends Component
 
     // ---- Review rendering (delegated) ----
 
+    /**
+     * @param array<string, mixed> $result
+     * @param array<string, mixed> $editScopeBySet
+     * @param array<string, mixed> $editTabBySet
+     * @param array<string, mixed> $selectedAssetKeyBySet
+     * @param array<string, mixed> $preferredOrderBySet
+     * @return array<string, mixed>
+     */
     public function renderResultReview(
         array $result,
         array $editScopeBySet = [],
@@ -514,6 +576,14 @@ class TransformEditor extends Component
         );
     }
 
+    /**
+     * @param array<string, mixed> $editScopeBySet
+     * @param array<string, mixed> $editTabBySet
+     * @param array<string, mixed> $selectedAssetKeyBySet
+     * @param array<string, mixed> $preferredOrderBySet
+     * @param array<string, mixed> $result
+     * @return array<string, mixed>
+     */
     public function renderInitialStoredReview(
         array $editScopeBySet = [],
         array $editTabBySet = [],
@@ -548,7 +618,7 @@ class TransformEditor extends Component
      * Compute the current signal deltas for all breakpoints of a transform.
      * Used after operations to send PatchSignals instead of re-rendering the card.
      *
-     * @return array{signalKey: string, rowsByBreakpoint: array<string, array<string, mixed>>}
+     * @return array{signalKey: string, rowsByBreakpoint: array<int|string, array<string, mixed>>}
      */
     public function buildSignalDeltasForTransform(
         string $setName,

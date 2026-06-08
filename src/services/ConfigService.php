@@ -17,6 +17,9 @@ class ConfigService extends Component
     private const PROCESSING_DIAGNOSTICS_ENV = 'CRAFT_BREAKPOINTS_PROCESSING_DIAGNOSTICS';
 
     private ?Plugin $_plugin = null;
+    /**
+     * @var array<string, mixed>|null
+     */
     private ?array $_mergedConfig = null;
 
     public function init(): void
@@ -25,6 +28,10 @@ class ConfigService extends Component
         $this->_plugin = Plugin::getInstance();
     }
 
+    /**
+     * @param array<string, mixed> $overrides
+     * @return array<string, mixed>
+     */
     public function getConfig(array $overrides = []): array
     {
         if ($this->_mergedConfig === null) {
@@ -38,6 +45,9 @@ class ConfigService extends Component
         return array_merge($this->_mergedConfig, $overrides);
     }
 
+    /**
+     * @param array<string, mixed> $overrides
+     */
     public function get(string $key, mixed $default = null, array $overrides = []): mixed
     {
         $config = $this->getConfig($overrides);
@@ -45,6 +55,10 @@ class ConfigService extends Component
         return $config[$key] ?? $default;
     }
 
+    /**
+     * @param array<string, mixed> $config
+     * @return array<string, int>
+     */
     public function getBreakpoints(array $config = []): array
     {
         $merged = empty($config) ? $this->getConfig() : $this->getConfig($config);
@@ -114,7 +128,7 @@ class ConfigService extends Component
      * configured breakpoint name. `includeEscapeWidth` only changes the final
      * slot's width; it never changes the slot count or keys.
      *
-     * @return array<int, array{key: string, width: int, mediaWidth: int, measureWidth: int, isBase: bool, isFinal: bool}>
+     * @return array<int, array{key: string, index: int, width: int, mediaWidth: int, measureWidth: int, isBase: bool, isFinal: bool}>
      */
     public function getBreakpointSlotDefinitions(bool $includeEscapeWidth): array
     {
@@ -156,6 +170,9 @@ class ConfigService extends Component
         return array_keys($this->getBreakpointMap(false));
     }
 
+    /**
+     * @param array<string, mixed> $overrides
+     */
     public function getPictureTemplatePath(array $overrides = []): string
     {
         return $this->normalizeTemplatePath(
@@ -164,6 +181,9 @@ class ConfigService extends Component
         );
     }
 
+    /**
+     * @param array<string, mixed> $overrides
+     */
     public function getSvgTemplatePath(array $overrides = []): string
     {
         return $this->normalizeTemplatePath(
@@ -174,6 +194,8 @@ class ConfigService extends Component
 
     /**
      * Resolve author diagnostics enablement from config, with env override precedence.
+     *
+     * @param array<string, mixed> $overrides
      */
     public function isProcessingDiagnosticsEnabled(array $overrides = []): bool
     {
@@ -189,6 +211,9 @@ class ConfigService extends Component
         return $configValue ?? false;
     }
 
+    /**
+     * @param array<string, mixed> $overrides
+     */
     public function areTransformsDeveloperActionsEnabled(array $overrides = []): bool
     {
         return App::parseBooleanEnv(
@@ -196,6 +221,9 @@ class ConfigService extends Component
         ) ?? false;
     }
 
+    /**
+     * @param array<string, mixed> $overrides
+     */
     public function isTelemetryEnabled(array $overrides = []): bool
     {
         return App::parseBooleanEnv(
@@ -203,6 +231,9 @@ class ConfigService extends Component
         ) ?? true;
     }
 
+    /**
+     * @param array<string, mixed> $overrides
+     */
     public function allowTransformEditing(array $overrides = []): bool
     {
         return App::parseBooleanEnv(
@@ -210,6 +241,9 @@ class ConfigService extends Component
         ) ?? false;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     private function buildMergedConfig(): array
     {
         return array_merge(
@@ -219,6 +253,9 @@ class ConfigService extends Component
         );
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     private function getDefaultConfig(): array
     {
         if ($this->_plugin === null) {
@@ -238,6 +275,9 @@ class ConfigService extends Component
         return $this->resolveEnvironmentConfig($config);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     private function getPluginSettingsArray(): array
     {
         if ($this->_plugin === null) {
@@ -286,6 +326,9 @@ class ConfigService extends Component
         return $overrides;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     private function getUserConfig(): array
     {
         try {
@@ -297,6 +340,10 @@ class ConfigService extends Component
         }
     }
 
+    /**
+     * @param array<string, mixed> $config
+     * @return array<string, mixed>
+     */
     private function resolveEnvironmentConfig(array $config): array
     {
         if (!array_key_exists('*', $config)) {
@@ -322,6 +369,9 @@ class ConfigService extends Component
         return $mergedConfig;
     }
 
+    /**
+     * @return array<string, int>
+     */
     private function normalizeBreakpoints(mixed $breakpoints): array
     {
         if (!is_array($breakpoints)) {
@@ -380,6 +430,9 @@ class ConfigService extends Component
         return ltrim($normalizedPath, '/');
     }
 
+    /**
+     * @return array<int, float>
+     */
     private function normalizeDpr(mixed $value): array
     {
         $values = is_array($value) ? $value : [$value];

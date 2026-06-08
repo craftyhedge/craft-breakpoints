@@ -170,6 +170,9 @@ final class Support
         return null;
     }
 
+    /**
+     * @return array{width: ?int, height: ?int, enabled: bool, autoDimension: ?string, ratioWidth: ?int, ratioHeight: ?int, ratioSourceDimension: string, ratioLocked: bool}
+     */
     public static function normalizeTransformEntry(mixed $entry): array
     {
         $entry = is_array($entry) ? $entry : [];
@@ -202,6 +205,11 @@ final class Support
         return $normalizedEntry;
     }
 
+    /**
+     * @param array<int, int> $breakpoints
+     * @param array<int, mixed> $rawEntries
+     * @return array<int, array{width: ?int, height: ?int, enabled: bool, autoDimension: ?string, ratioWidth: ?int, ratioHeight: ?int, ratioSourceDimension: string, ratioLocked: bool}>
+     */
     public static function normalizeTransformEntriesForBreakpoints(array $breakpoints, array $rawEntries): array
     {
         $entries = [];
@@ -217,6 +225,9 @@ final class Support
         return $entries;
     }
 
+    /**
+     * @return array{width: ?int, height: ?int, enabled: bool, autoDimension: ?string, ratioWidth: ?int, ratioHeight: ?int, ratioSourceDimension: string, ratioLocked: bool}
+     */
     public static function buildDefaultTransformEntry(): array
     {
         return [
@@ -323,12 +334,18 @@ final class Support
         return mb_substr($display, 0, $maxLength - 1) . '…';
     }
 
+    /**
+     * @param array<string, mixed> $validation
+     */
     public static function addGlobalError(array &$validation, string $message): void
     {
         $validation['hasErrors'] = true;
         $validation['global'][] = $message;
     }
 
+    /**
+     * @param array<string, mixed> $validation
+     */
     public static function addFieldError(array &$validation, string $fieldPath, string $message): void
     {
         $validation['hasErrors'] = true;
@@ -340,6 +357,9 @@ final class Support
         $validation['fields'][$fieldPath][] = $message;
     }
 
+    /**
+     * @return array{hasErrors: bool, global: array<int, string>, fields: array<string, array<int, string>>}
+     */
     public static function defaultValidation(): array
     {
         return [

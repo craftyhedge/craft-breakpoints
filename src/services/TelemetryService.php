@@ -268,6 +268,9 @@ class TelemetryService extends Component
         return array_values($byHandle);
     }
 
+    /**
+     * @param array<string, mixed> $payload
+     */
     public function persistRunSnapshot(array $payload): bool
     {
         $db = Craft::$app->getDb();
@@ -445,6 +448,9 @@ class TelemetryService extends Component
         return true;
     }
 
+    /**
+     * @return array<string, mixed>|null
+     */
     public function getLatestRunSnapshot(): ?array
     {
         $db = Craft::$app->getDb();

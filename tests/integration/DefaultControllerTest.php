@@ -6,6 +6,7 @@ namespace craftyhedge\craftbreakpoints\tests\integration;
 
 use Codeception\Test\Unit;
 use Craft;
+use craft\web\Request;
 use craft\helpers\UrlHelper;
 use craftyhedge\craftbreakpoints\controllers\DefaultController;
 use craftyhedge\craftbreakpoints\web\assets\transforms\TransformsAsset;
@@ -37,8 +38,12 @@ final class DefaultControllerTest extends Unit
     public function testSettingsActionUsesEffectiveConfigOverridesForDisplay(): void
     {
         $controller = new class('default', Craft::$app) extends DefaultController {
+            /** @var array{template: string, variables: array<string, mixed>, templateMode: string|null}|null */
             public ?array $capturedTemplatePayload = null;
 
+            /**
+             * @param array<string, mixed> $variables
+             */
             public function renderTemplate(string $template, array $variables = [], ?string $templateMode = null): Response
             {
                 $this->capturedTemplatePayload = [
@@ -78,8 +83,12 @@ final class DefaultControllerTest extends Unit
     public function testTransformsActionCanRenderDeveloperToolbarActionsWhenEnabledByConfig(): void
     {
         $controller = new class('default', Craft::$app) extends DefaultController {
+            /** @var array{template: string, variables: array<string, mixed>, templateMode: string|null}|null */
             public ?array $capturedTemplatePayload = null;
 
+            /**
+             * @param array<string, mixed> $variables
+             */
             public function renderTemplate(string $template, array $variables = [], ?string $templateMode = null): Response
             {
                 $this->capturedTemplatePayload = [
@@ -142,7 +151,7 @@ final class DefaultControllerTest extends Unit
             }
         };
 
-        Craft::$app->getRequest()->setBodyParams([
+        $this->request()->setBodyParams([
             'entryId' => 0,
         ]);
 
@@ -161,5 +170,13 @@ final class DefaultControllerTest extends Unit
     private function controller(): DefaultController
     {
         return new DefaultController('default', Craft::$app);
+    }
+
+    private function request(): Request
+    {
+        $request = Craft::$app->getRequest();
+        assert($request instanceof Request);
+
+        return $request;
     }
 }

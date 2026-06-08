@@ -29,6 +29,7 @@ final class TwigExtensionTest extends Unit
         $function = $extension->getFunctions()[0];
 
         $callable = $function->getCallable();
+        assert(is_callable($callable));
         $result = $callable(null, 'default', []);
 
         $this->assertSame('<!-- Breakpoints: no image provided -->', (string)$result);
@@ -39,6 +40,7 @@ final class TwigExtensionTest extends Unit
         $extension = new Extension();
         $function = $extension->getFunctions()[0];
         $callable = $function->getCallable();
+        assert(is_callable($callable));
 
         $asset = $this->createMockAsset();
         $config = [

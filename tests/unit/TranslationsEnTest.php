@@ -10,7 +10,7 @@ final class TranslationsEnTest extends Unit
 {
     public function testEnglishTranslationsContainExpectedKeysAndValues(): void
     {
-        $translations = require CRAFT_ROOT_PATH . '/src/translations/en/breakpoints.php';
+        $translations = require dirname(__DIR__, 2) . '/src/translations/en/breakpoints.php';
 
         $this->assertIsArray($translations);
         $this->assertArrayHasKey('Processing', $translations);

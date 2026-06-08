@@ -17,6 +17,9 @@ readonly class InitOptions
     ) {
     }
 
+    /**
+     * @param array<string, mixed> $config
+     */
     public static function fromConfig(array $config, bool $hasSavedSet): self
     {
         if ($hasSavedSet) {
@@ -40,6 +43,9 @@ readonly class InitOptions
         return new self($width, $height, $ratio, $widthAuto, $heightAuto, $ratioRaw);
     }
 
+    /**
+     * @return array{width: ?int, height: ?int, ratio: ?float, widthAuto: bool, heightAuto: bool}
+     */
     public function toSeedArray(): array
     {
         return [

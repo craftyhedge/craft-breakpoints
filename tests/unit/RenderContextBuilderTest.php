@@ -11,8 +11,6 @@ use craftyhedge\craftbreakpoints\services\RenderContextBuilder;
 
 final class RenderContextBuilderTest extends Unit
 {
-    private const TRANSPARENT_PIXEL_DATA_URI = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
-
     public function testBuildReturnsNullWhenPluginMissing(): void
     {
         $builder = new RenderContextBuilder();

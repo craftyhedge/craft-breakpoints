@@ -399,7 +399,7 @@ final class ServerAuthorityOperationsTest extends Unit
                 ],
                 'config' => [],
             ],
-        ], function () use ($plugin, $service): void {
+        ], function () use ($service): void {
             $ratio = $service->resolveRenderedRatioByBreakpoint('hero', 'xs');
             $this->assertNull($ratio);
         });
@@ -714,6 +714,9 @@ final class ServerAuthorityOperationsTest extends Unit
         }
     }
 
+    /**
+     * @param array<string, array<string, mixed>> $sets
+     */
     private function withRuntimeSets(array $sets, callable $callback): mixed
     {
         $configService = Plugin::getInstance()->getConfigService();

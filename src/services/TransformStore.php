@@ -14,6 +14,9 @@ class TransformStore extends Component
     private const SETS_CONFIG_PATH = '/breakpoints/transform-sets.json';
 
     private ?Plugin $_plugin = null;
+    /**
+     * @var array<string, array<string, mixed>>|null
+     */
     private ?array $_sets = null;
     private string $_version = '';
 
@@ -37,6 +40,9 @@ class TransformStore extends Component
         $this->reload();
     }
 
+    /**
+     * @return array<string, array<string, mixed>>
+     */
     public function reload(): array
     {
         $this->_sets = $this->loadSetsConfiguration();
@@ -45,6 +51,9 @@ class TransformStore extends Component
         return $this->_sets;
     }
 
+    /**
+     * @return array<string, array<string, mixed>>
+     */
     public function getSets(): array
     {
         if ($this->_sets === null) {
@@ -63,32 +72,51 @@ class TransformStore extends Component
         return $this->_version;
     }
 
+    /**
+     * @return array<string, array<string, mixed>>
+     */
     public function getTransforms(): array
     {
         return $this->convertSetsToLegacyTransforms($this->getSets());
     }
 
+    /**
+     * @param array<string, mixed> $sets
+     */
     public function replaceSetsForRuntime(array $sets): void
     {
         $this->_sets = $this->validateSets($sets);
         $this->resetImageTransformCaches();
     }
 
+    /**
+     * @param array<string, mixed> $transforms
+     */
     public function replaceTransformsForRuntime(array $transforms): void
     {
         $this->replaceSetsForRuntime($this->convertLegacyTransformsToSets($transforms));
     }
 
+    /**
+     * @param array<string, mixed> $sets
+     */
     public function setSets(array $sets): void
     {
         $this->replaceSetsForRuntime($sets);
     }
 
+    /**
+     * @param array<string, mixed> $transforms
+     */
     public function setTransforms(array $transforms): void
     {
         $this->replaceTransformsForRuntime($transforms);
     }
 
+    /**
+     * @param array<string, mixed> $sets
+     * @return array<string, mixed>
+     */
     public function persistSets(array $sets, string $expectedVersion): array
     {
         $currentVersion = $this->getCurrentVersion();
@@ -134,6 +162,10 @@ class TransformStore extends Component
         ];
     }
 
+    /**
+     * @param array<string, mixed> $transforms
+     * @return array<string, mixed>
+     */
     public function persistTransforms(array $transforms, string $expectedVersion): array
     {
         $persistResult = $this->persistSets(
@@ -151,6 +183,9 @@ class TransformStore extends Component
         ];
     }
 
+    /**
+     * @return array<string, mixed>|null
+     */
     public function getSet(string $setName): ?array
     {
         $sets = $this->getSets();
@@ -162,6 +197,9 @@ class TransformStore extends Component
         return $sets[$setName];
     }
 
+    /**
+     * @return array<string, mixed>|null
+     */
     public function getTransform(string $transformName): ?array
     {
         $transforms = $this->getTransforms();
@@ -206,6 +244,9 @@ class TransformStore extends Component
         }
     }
 
+    /**
+     * @return array<string, array<string, mixed>>
+     */
     private function loadSetsConfiguration(): array
     {
         $filePath = $this->getSetsConfigPath();
@@ -247,6 +288,10 @@ class TransformStore extends Component
         }
     }
 
+    /**
+     * @param array<string, mixed> $sets
+     * @return array<string, array<string, mixed>>
+     */
     private function validateSets(array $sets): array
     {
         $normalized = [];
@@ -311,6 +356,11 @@ class TransformStore extends Component
         return trim(str_replace(["\r\n", "\r"], "\n", $value));
     }
 
+    /**
+     * @param array<string, array<string, mixed>> $sets
+     * @param array<string, array<string, mixed>> $existingSets
+     * @return array<string, array<string, mixed>>
+     */
     private function stampProcessedTimestamps(array $sets, array $existingSets): array
     {
         $now = gmdate('c');
@@ -374,6 +424,9 @@ class TransformStore extends Component
         return $basePath . self::SETS_CONFIG_PATH;
     }
 
+    /**
+     * @return array{version: string, sets: array<string, array<string, mixed>>}
+     */
     private function buildDefaultSets(): array
     {
         return [
@@ -401,6 +454,10 @@ class TransformStore extends Component
         return $candidate;
     }
 
+    /**
+     * @param array<string, mixed> $sets
+     * @return array<string, array<string, mixed>>
+     */
     private function convertSetsToLegacyTransforms(array $sets): array
     {
         $legacy = [];
@@ -437,6 +494,10 @@ class TransformStore extends Component
         return $legacy;
     }
 
+    /**
+     * @param array<string, mixed> $transforms
+     * @return array<string, array<string, mixed>>
+     */
     private function convertLegacyTransformsToSets(array $transforms): array
     {
         $sets = [];
@@ -471,6 +532,10 @@ class TransformStore extends Component
         return $sets;
     }
 
+    /**
+     * @param array<string, mixed> $setDefinition
+     * @return array<int, string>
+     */
     private function getBreakpointNamesForSetDefinition(array $setDefinition): array
     {
         $includeEscapeWidth = $this->resolveIncludeEscapeWidthForSet($setDefinition);
@@ -478,12 +543,18 @@ class TransformStore extends Component
         return $this->getBreakpointNamesForIncludeEscapeWidth($includeEscapeWidth);
     }
 
+    /**
+     * @param array<string, mixed> $setDefinition
+     */
     private function resolveIncludeEscapeWidthForSet(array $setDefinition): bool
     {
         return $this->_plugin !== null
             && $this->_plugin->getBreakpointPolicy()->resolveIncludeEscapeWidth([], $setDefinition);
     }
 
+    /**
+     * @return array<int, string>
+     */
     private function getBreakpointNamesForIncludeEscapeWidth(bool $includeEscapeWidth): array
     {
         if ($this->_plugin === null) {
