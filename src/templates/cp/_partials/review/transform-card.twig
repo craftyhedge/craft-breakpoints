@@ -50,62 +50,64 @@
         <input type="hidden" data-bind="{{ signalPathBase }}.setName" value="{{ transformNameEscaped }}">
         <input type="hidden" data-bind="{{ signalPathBase }}.includeEscapeWidth" value="{{ includeEscapeWidth }}">
         <header class="bpts-transform-card-header">
-            <div class="bpts-transform-title-wrap">
-                <span class="bpts-transform-title-status-icon bpts-transform-last-process-status-icon bpts-transform-last-process-status-icon-success {{ cardStatusSuccessHiddenClass }}"
-                    role="img"
-                    title="Transform set valid"
-                    aria-label="Transform set valid"
-                    data-class:bpts-force-hidden="{{ cardWarningDangerExpr }}">
-                    <span class="icon" data-icon="check" aria-hidden="true"></span>
-                </span>
-                <span class="bpts-transform-title-status-icon bpts-transform-last-process-status-icon bpts-transform-last-process-status-icon-failed {{ cardStatusWarningHiddenClass }}"
-                    role="img"
-                    title="Transform set needs review"
-                    aria-label="Transform set needs review"
-                    data-class:bpts-force-hidden="!({{ cardWarningDangerExpr }})">
-                    <span class="icon" data-icon="alert" aria-hidden="true"></span>
-                </span>
-                <h2 class="bpts-transform-name">{{ transformNameEscaped }}</h2>
-                <span class="bpts-transform-pass-height-indicator {{ passHeightIndicatorHiddenClass }}"
-                    role="img"
-                    title="Height tolerance is enabled"
-                    aria-label="Height tolerance is enabled"
-                    data-class:bpts-force-hidden="$editor.cards.{{ signalKey }}.passHeightWhenRenderedLteSaved === true || $editor.cards.{{ signalKey }}.allowAnyHeight === true ? false : true"
-                    data-attr:title="$editor.cards.{{ signalKey }}.allowAnyHeight === true ? 'Allow Any Height is enabled' : ($editor.cards.{{ signalKey }}.passHeightWhenRenderedLteSaved === true ? 'Allow Shorter heights is enabled' : '')"
-                    data-attr:aria-label="$editor.cards.{{ signalKey }}.allowAnyHeight === true ? 'Allow Any Height is enabled' : ($editor.cards.{{ signalKey }}.passHeightWhenRenderedLteSaved === true ? 'Allow Shorter heights is enabled' : '')">
-                    <svg class="bpts-transform-pass-height-indicator-svg" viewBox="0 0 20 20" focusable="false" aria-hidden="true">
-                        <rect x="2.5" y="3.5" width="8" height="13" rx="1.2" class="bpts-transform-pass-height-indicator-ruler"></rect>
-                        <path d="M5 6.5h2.5M5 8.8h1.8M5 11.1h2.5M5 13.4h1.8" class="bpts-transform-pass-height-indicator-ticks"></path>
-                        <path d="M11.4 12.3l2.2 2.2 3.9-4.1" class="bpts-transform-pass-height-indicator-check"></path>
-                    </svg>
-                </span>
-                <span class="bpts-transform-update-status" data-role="transform-update-status" data-state="idle" aria-live="polite" aria-label="">
-                    <span class="bpts-transform-update-status-icon bpts-transform-update-status-icon-saving" aria-hidden="true"><span class="icon" data-icon="refresh"></span></span>
-                    <span class="bpts-transform-update-status-icon bpts-transform-update-status-icon-success" aria-hidden="true"><span class="icon" data-icon="check"></span></span>
-                    <span class="bpts-transform-update-status-label" data-role="transform-update-status-label"></span>
-                </span>
-                <span class="bpts-transform-init-applied-indicator"
-                    role="img"
-                    title="Init options in use"
-                    aria-label="Init options in use"
-                    data-class:bpts-force-hidden="$editor.cards.{{ signalKey }}.initSeedAppliedAny === true ? false : true">
-                    <span class="icon" data-icon="settings" aria-hidden="true"></span>
-                    <span class="bpts-transform-init-applied-label">Init options in use</span>
-                </span>
-            </div>
-            <div class="bpts-transform-note-preview {{ notesInput == '' ? 'bpts-force-hidden' : '' }}"
-                data-class:bpts-force-hidden="String($editor.cards.{{ signalKey }}.notesInput || '').trim() === ''">
-                <button type="button"
-                    class="bpts-transform-note-toggle"
-                    title="Edit notes"
-                    aria-label="Edit notes"
-                    data-attr:aria-expanded="$editor.cards.{{ signalKey }}.notesVisible === true ? 'true' : 'false'"
-                    data-on:click="if(String($showCardSettings) === 'true' || String($showCardSettings) === '1'){ $editor.cards.{{ signalKey }}.activeTab = 'notes'; $editor.cards.{{ signalKey }}.notesVisible = false; setTimeout(() => document.getElementById('{{ notesInputId }}')?.focus(), 0); } else { $editor.cards.{{ signalKey }}.notesVisible = $editor.cards.{{ signalKey }}.notesVisible === true ? false : true; }">
-                    <svg class="bpts-transform-note-toggle-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" focusable="false" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125"></path>
-                    </svg>
-                </button>
-                <div class="bpts-transform-note-preview-body" data-text="$editor.cards.{{ signalKey }}.notesInput || ''">{{ notesInput }}</div>
+            <div class="bpts-transform-heading">
+                <div class="bpts-transform-title-wrap">
+                    <span class="bpts-transform-title-status-icon bpts-transform-last-process-status-icon bpts-transform-last-process-status-icon-success {{ cardStatusSuccessHiddenClass }}"
+                        role="img"
+                        title="Transform set valid"
+                        aria-label="Transform set valid"
+                        data-class:bpts-force-hidden="{{ cardWarningDangerExpr }}">
+                        <span class="icon" data-icon="check" aria-hidden="true"></span>
+                    </span>
+                    <span class="bpts-transform-title-status-icon bpts-transform-last-process-status-icon bpts-transform-last-process-status-icon-failed {{ cardStatusWarningHiddenClass }}"
+                        role="img"
+                        title="Transform set needs review"
+                        aria-label="Transform set needs review"
+                        data-class:bpts-force-hidden="!({{ cardWarningDangerExpr }})">
+                        <span class="icon" data-icon="alert" aria-hidden="true"></span>
+                    </span>
+                    <h2 class="bpts-transform-name">{{ transformNameEscaped }}</h2>
+                    <span class="bpts-transform-pass-height-indicator {{ passHeightIndicatorHiddenClass }}"
+                        role="img"
+                        title="Height tolerance is enabled"
+                        aria-label="Height tolerance is enabled"
+                        data-class:bpts-force-hidden="$editor.cards.{{ signalKey }}.passHeightWhenRenderedLteSaved === true || $editor.cards.{{ signalKey }}.allowAnyHeight === true ? false : true"
+                        data-attr:title="$editor.cards.{{ signalKey }}.allowAnyHeight === true ? 'Allow Any Height is enabled' : ($editor.cards.{{ signalKey }}.passHeightWhenRenderedLteSaved === true ? 'Allow Shorter heights is enabled' : '')"
+                        data-attr:aria-label="$editor.cards.{{ signalKey }}.allowAnyHeight === true ? 'Allow Any Height is enabled' : ($editor.cards.{{ signalKey }}.passHeightWhenRenderedLteSaved === true ? 'Allow Shorter heights is enabled' : '')">
+                        <svg class="bpts-transform-pass-height-indicator-svg" viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+                            <rect x="2.5" y="3.5" width="8" height="13" rx="1.2" class="bpts-transform-pass-height-indicator-ruler"></rect>
+                            <path d="M5 6.5h2.5M5 8.8h1.8M5 11.1h2.5M5 13.4h1.8" class="bpts-transform-pass-height-indicator-ticks"></path>
+                            <path d="M11.4 12.3l2.2 2.2 3.9-4.1" class="bpts-transform-pass-height-indicator-check"></path>
+                        </svg>
+                    </span>
+                    <span class="bpts-transform-update-status" data-role="transform-update-status" data-state="idle" aria-live="polite" aria-label="">
+                        <span class="bpts-transform-update-status-icon bpts-transform-update-status-icon-saving" aria-hidden="true"><span class="icon" data-icon="refresh"></span></span>
+                        <span class="bpts-transform-update-status-icon bpts-transform-update-status-icon-success" aria-hidden="true"><span class="icon" data-icon="check"></span></span>
+                        <span class="bpts-transform-update-status-label" data-role="transform-update-status-label"></span>
+                    </span>
+                    <span class="bpts-transform-init-applied-indicator"
+                        role="img"
+                        title="Init options in use"
+                        aria-label="Init options in use"
+                        data-class:bpts-force-hidden="$editor.cards.{{ signalKey }}.initSeedAppliedAny === true ? false : true">
+                        <span class="icon" data-icon="settings" aria-hidden="true"></span>
+                        <span class="bpts-transform-init-applied-label">Init options in use</span>
+                    </span>
+                </div>
+                <div class="bpts-transform-note-preview {{ notesInput == '' ? 'bpts-force-hidden' : '' }}"
+                    data-class:bpts-force-hidden="String($editor.cards.{{ signalKey }}.notesInput || '').trim() === ''">
+                    <button type="button"
+                        class="bpts-transform-note-toggle"
+                        title="Edit notes"
+                        aria-label="Edit notes"
+                        data-attr:aria-expanded="$editor.cards.{{ signalKey }}.notesVisible === true ? 'true' : 'false'"
+                        data-on:click="if(String($showCardSettings) === 'true' || String($showCardSettings) === '1'){ $editor.cards.{{ signalKey }}.activeTab = 'notes'; $editor.cards.{{ signalKey }}.notesVisible = false; setTimeout(() => document.getElementById('{{ notesInputId }}')?.focus(), 0); } else { $editor.cards.{{ signalKey }}.notesVisible = $editor.cards.{{ signalKey }}.notesVisible === true ? false : true; }">
+                        <svg class="bpts-transform-note-toggle-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" focusable="false" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125"></path>
+                        </svg>
+                    </button>
+                    <div class="bpts-transform-note-preview-body" data-text="$editor.cards.{{ signalKey }}.notesInput || ''">{{ notesInput }}</div>
+                </div>
             </div>
             <div class="bpts-transform-header-actions">
                 <button type="button" class="btn small bpts-transform-delete-set {{ deleteSetHiddenClass }}"

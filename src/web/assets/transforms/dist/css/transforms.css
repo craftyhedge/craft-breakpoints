@@ -645,10 +645,19 @@
 
 .bpts-transform-card-header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     margin-bottom: 16px;
     padding: 24px 24px 0px;
     gap: 10px;
+}
+
+.bpts-transform-heading {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    min-width: 0;
+    flex: 1 1 auto;
 }
 
 .bpts-transform-title-wrap {
@@ -656,7 +665,7 @@
     align-items: center;
     gap: 8px;
     min-width: 0;
-    flex: 0 1 auto;
+    max-width: 100%;
 }
 
 .bpts-transform-header-actions {
@@ -888,6 +897,7 @@
     color: var(--text-color);
     padding: 2px 6px;
     border-radius: 4px;
+    max-width: 100%;
 }
 
 .bpts-transform-note-preview-body {
