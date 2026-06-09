@@ -80,21 +80,7 @@ Editing is only available when `allowTransformEditing` is enabled in
 `config/breakpoints.php`. Keep that enabled for local development only. See
 [Configuration](configuration.md#sample-configbreakpointsphp).
 
-## 4. Hidden breakpoints
-
-If an image is not visible at a breakpoint during processing, Breakpoints
-automatically disables that breakpoint for the saved transform set.
-Visibility is based on the browser's rendered layout box for the image:
-Breakpoints treats it as visible when the processed `<img>` has a non-zero
-`offsetWidth` or `offsetHeight`.
-
-   ![Disabled toggle](images/disabled.png)
-
-Front-end output still includes a source for the disabled breakpoint, but parks
-it with a blank SVG placeholder. That prevents the browser from downloading an
-image that is not needed for that layout.
-
-## 5. Collapse the breakpoint view
+## 4. Collapse the breakpoint view
 
 The Transform Sets view shows breakpoints as relatively sized screen and image
 representations. That makes the saved sizes easier to understand visually, but

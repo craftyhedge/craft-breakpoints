@@ -58,7 +58,6 @@ The returned array includes:
 - `secondaryFormat`: secondary transform data, or `null` when no secondary format is enabled
 - `primarySourceAttributes`: attributes for the primary `<source>`
 - `secondarySourceAttributes`: attributes for the secondary `<source>`
-- `disabled`: present and `true` when the breakpoint slot is disabled
 
 The source attribute arrays can include `srcset`, `type`, `width`, `height`, and `media`.
 

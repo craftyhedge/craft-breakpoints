@@ -28,7 +28,7 @@ Processing is intended for local development environments with the resulting tra
 
 ## Features
 
-- One `<source>` per enabled breakpoint, with correct `media` ranges.
+- One `<source>` per configured breakpoint, with correct `media` ranges.
 - Primary format plus an optional secondary `<source>` fallback (e.g. AVIF + WebP).
 - DPR `srcset` density descriptors.
 - SVG assets pass through to a plain `<img>` (no `<picture>`).

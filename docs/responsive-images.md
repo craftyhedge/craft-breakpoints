@@ -12,7 +12,7 @@ From there, the browser chooses the best available image for the visitor's scree
 
 ## What Gets Rendered
 
-For each enabled breakpoint, Breakpoints can render:
+For each configured breakpoint, Breakpoints can render:
 
 - A primary `<source>` for your main image format
 - A secondary `<source>` when you have configured a fallback format
@@ -22,7 +22,7 @@ This keeps the markup compatible with normal browser behavior while still giving
 
 ## Breakpoints
 
-Your configured breakpoints are ordered and turned into media ranges. Smaller breakpoints use `max-width` rules, and the largest enabled breakpoint uses `min-width`.
+Your configured breakpoints are ordered and turned into media ranges. Smaller breakpoints use `max-width` rules, and the largest breakpoint uses `min-width`.
 
 That means each viewport width has a clear matching source, from the smallest screens through to the largest layouts.
 

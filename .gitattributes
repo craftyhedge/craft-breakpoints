@@ -10,8 +10,6 @@
 /.github/**        export-ignore
 /.idea             export-ignore
 /.idea/**          export-ignore
-/.litho            export-ignore
-/.litho/**         export-ignore
 /.nocommit         export-ignore
 /.nocommit/**      export-ignore
 /.vscode           export-ignore

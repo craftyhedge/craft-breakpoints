@@ -32,9 +32,9 @@ One further rule applies on top of this:
 
 ## Settings reference
 
-The table lists each setting, its built-in default, and what it controls. Every
-setting can be set in `config/breakpoints.php`; the control panel exposes the
-common output, transform, template, and editor defaults.
+The table lists each project-level setting, its built-in default, and what it
+controls. These settings can be set in `config/breakpoints.php`; the control
+panel exposes the common output, transform, template, and editor defaults.
 
 | Setting | Type | Default | Purpose |
 | --- | --- | --- | --- |
@@ -57,8 +57,8 @@ common output, transform, template, and editor defaults.
 
 Notes:
 
-- `breakpoints` keys are the canonical slot labels used everywhere (the editor,
-  `disableBreakpoints`, and the saved-set variants), preceded by a `base` slot.
+- `breakpoints` keys are the canonical slot labels used by the editor and the
+  saved-set variants, preceded by a `base` slot.
 - For template path resolution and custom markup, see
   [Custom Image Templates](custom-templates.md).
 - For how `breakpoints`, `escapeWidth`, and `dpr` turn into media queries and

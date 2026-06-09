@@ -95,19 +95,6 @@ CSS classes for the generated `<img>` and `<picture>` elements.
 
 ## Responsive Output
 
-### `disableBreakpoints`
-**Type**: `array`
-
-Skips specific breakpoint slots for this one image. Pass a map of slot handles to `true`.
-
-Slot handles are the labels used by Breakpoints for saved variants. The smallest slot is `base`, followed by your configured breakpoint keys.
-
-```twig
-{{ image(asset, 'hero', {
-  disableBreakpoints: { md: true }
-}) }}
-```
-
 ### `dpr`
 **Type**: `array`
 
@@ -138,6 +125,15 @@ Adds an extra image variant at the escape width. This can help keep very large l
 The `init*` options are used only when Breakpoints has not yet saved a transform set for the handle. They are useful when you want a new transform to start with sensible initial values directly from your template.
 
 Once a saved transform set exists for the handle, these options are ignored.
+
+When a transform set is first created, Breakpoints applies the initial values
+like this:
+
+1. `initWidth` + `initHeight` use both explicit dimensions.
+2. `initRatio` seeds the editor ratio metadata, unless both `initWidth` and `initHeight` are provided.
+3. `initWidth` only derives the initial height from the source image ratio.
+4. `initHeight` only derives the initial width from the source image ratio.
+5. `initWidthAuto` and `initHeightAuto` mark which dimension should stay auto when the transform set is saved.
 
 ### `initWidth` / `initHeight`
 **Type**: `integer`
@@ -174,13 +170,17 @@ Invalid values are ignored. Rendered image dimensions are still calculated from 
 **Type**: `boolean`  
 **Default**: `false`
 
-Controls whether the initial transform omits width or height.
+Marks one dimension as auto for the initial transform set. This is useful when a
+single transform set will be used by images with different intrinsic ratios.
 
-`initWidthAuto: true` sends a transform without `width`.
+`initWidthAuto: true` saves width as auto. The saved height is used for every
+image using the set, and each image's width is derived from its own ratio.
 
-`initHeightAuto: true` sends a transform without `height`.
+`initHeightAuto: true` saves height as auto. The saved width is used for every
+image using the set, and each image's height is derived from its own ratio.
 
-Providing only `initWidth` does not automatically enable height auto, and providing only `initHeight` does not automatically enable width auto. If both auto flags are passed, `initWidthAuto` takes precedence.
+Choose one auto dimension for a transform set. If both auto flags are passed,
+Breakpoints treats width as auto.
 
 ```twig
 {{ image(asset, 'content', {
@@ -212,7 +212,7 @@ These options can adjust transform behavior for a specific image call when the t
 
 ## Template Overrides
 
-Most projects can use the default output. If you need full control, you can point Breakpoints at your own templates.
+Images will use the default or configured templates but, if you need full control, you can specify different templates in the image options.
 
 - `pictureTemplatePath`: custom template for raster images
 - `svgTemplatePath`: custom template for SVG images
@@ -228,57 +228,6 @@ relative to that directory. Leave either option blank to use the plugin default.
 ```
 
 See [Custom Image Templates](../custom-templates.md) for the variables passed to custom templates and complete raster/SVG examples.
-
-## Building sources directly with `craft.images`
-
-`image()` is a thin wrapper around `craft.images.render(asset, transformName, options)`,
-which returns the same markup. Inside a custom template you can also call
-`craft.images.getBreakpointData(loopIndex, breakpoint, config, image)` to build each
-`<source>` yourself — it returns the primary/secondary source attributes and format
-data for one slot. See [Custom Image Templates](../custom-templates.md).
-
-## Init Option Precedence
-
-When no saved transform set exists, Breakpoints resolves `init*` dimension options like this:
-
-1. `initWidth` + `initHeight` -> use both explicit dimensions.
-2. `initWidth` only -> derive `height` from the source image ratio.
-3. `initHeight` only -> derive `width` from the source image ratio.
-4. No init dimensions -> use the per-slot width and derive `height` from the source image ratio.
-5. `initWidthAuto` and `initHeightAuto` only control whether a transform dimension is omitted; reported dimensions are still computed from the active source image ratio.
-
-## Full Example
-
-```twig
-{{ image(asset, 'hero', {
-  includeEscapeWidth: true,
-
-  initWidth: 1200,
-  initHeight: 675,
-  initRatio: '16:9',
-  initWidthAuto: false,
-  initHeightAuto: false,
-
-  loading: 'eager',
-  decoding: 'async',
-  alt: 'Hero banner',
-  imgClass: 'c-hero__img',
-  pictureClass: 'c-hero__picture',
-
-  disableBreakpoints: { md: true },
-  dpr: [1, 2],
-
-  format: 'avif',
-  secondaryFormat: 'webp',
-  quality: 82,
-  mode: 'crop',
-  position: 'center-center',
-  interlace: 'none',
-
-  pictureTemplatePath: 'custom/picture',
-  svgTemplatePath: 'custom/svg'
-}) }}
-```
 
 ## See also
 
