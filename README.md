@@ -45,16 +45,16 @@ Processing is intended for local development environments with the resulting tra
 
 ### Option 1: Composer
 
-Install the current beta with Composer:
+Install with Composer:
 
 ```sh
-composer require craftyhedge/breakpoints:^0.1.0@beta
+composer require craftyhedge/breakpoints:^0.1.0
 ```
 
-To pin the exact beta release:
+To pin the exact release:
 
 ```sh
-composer require craftyhedge/breakpoints:0.1.0-beta.1
+composer require craftyhedge/breakpoints:0.1.0
 ```
 
 Then install the plugin:
