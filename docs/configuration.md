@@ -48,7 +48,7 @@ panel exposes the common output, transform, template, and editor defaults.
 | `format` | string | `'jpg'` | Primary image format (`jpg`, `jpeg`, `png`, `webp`, `avif`, `gif`). |
 | `secondaryFormat` | string | `'none'` | Optional fallback `<source>` format. `none` emits no secondary source. |
 | `interlace` | string | `'none'` | Interlace setting passed to the transform. |
-| `allowUpscale` | int | `0` | Whether transforms may upscale beyond the source size. |
+| `allowUpscale` | bool | `false` | Whether transforms may upscale beyond the source size. |
 | `pictureTemplatePath` | string | *(plugin default)* | Custom template for raster assets. Project paths are relative to Craft's `templates/` directory; blank uses the built-in template. |
 | `svgTemplatePath` | string | *(plugin default)* | Custom template for SVG assets. Project paths are relative to Craft's `templates/` directory; blank uses the built-in template. |
 | `nativeLazyLoadingEnabled` | bool | `true` | When on, the `<img>` gets a `loading` attribute (`lazy` by default). |

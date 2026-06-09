@@ -18,7 +18,7 @@ return [
     'format' => 'jpg',
     'secondaryFormat' => 'none',
     'interlace' => 'none',
-    'allowUpscale' => 0,
+    'allowUpscale' => false,
     'pictureTemplatePath' => 'breakpoints/picture.twig',
     'svgTemplatePath' => 'breakpoints/svg.twig',
     'nativeLazyLoadingEnabled' => true,
