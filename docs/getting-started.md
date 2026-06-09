@@ -84,6 +84,9 @@ Editing is only available when `allowTransformEditing` is enabled in
 
 If an image is not visible at a breakpoint during processing, Breakpoints
 automatically disables that breakpoint for the saved transform set.
+Visibility is based on the browser's rendered layout box for the image:
+Breakpoints treats it as visible when the processed `<img>` has a non-zero
+`offsetWidth` or `offsetHeight`.
 
    ![Disabled toggle](images/disabled.png)
 
