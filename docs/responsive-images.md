@@ -26,6 +26,26 @@ Your configured breakpoints are ordered and turned into media ranges. Smaller br
 
 That means each viewport width has a clear matching source, from the smallest screens through to the largest layouts.
 
+This works well with frameworks like Tailwind.
+
+## Escape Width
+
+Escape width is an optional extra-large target for the final slot. Use it when a
+layout can grow wider than your largest breakpoint, such as a full-bleed hero on
+very wide displays.
+
+It does not add another breakpoint slot. It only changes the final slot's target
+image width when enabled.
+
+```twig
+{{ image(asset, 'hero', {
+  includeEscapeWidth: true
+}) }}
+```
+
+The width comes from the `escapeWidth` setting. The default is `1920`; set it to
+`0` to disable escape width project-wide.
+
 ## High-Density Displays
 
 Breakpoints also supports DPR variants through `srcset` density descriptors.
@@ -37,6 +57,7 @@ The `1x` image is always included. If you enable additional ratios such as `2x` 
 The main settings that affect responsive image output are:
 
 - Breakpoints
+- Escape width
 - Format
 - Secondary Format
 - DPR ratios
@@ -78,5 +99,5 @@ processing from seeing your configured breakpoints.
 
 ## See also
 
-- [Media Queries & DPR](picture-media-and-dpr.md) — how slots become media ranges and `srcset`.
+- [Configuration](configuration.md) — settings, defaults, and precedence.
 - [`image()` Twig Function](reference/twig-image-tag.md) — the rendering API.

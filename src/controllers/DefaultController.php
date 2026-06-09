@@ -36,10 +36,6 @@ class DefaultController extends Controller
             'title' => 'Custom Image Templates',
             'file' => 'custom-templates.md',
         ],
-        'picture-media-and-dpr' => [
-            'title' => 'Media Queries & DPR',
-            'file' => 'picture-media-and-dpr.md',
-        ],
         'reference/twig-image-tag' => [
             'title' => 'image() Twig Reference',
             'file' => 'reference/twig-image-tag.md',

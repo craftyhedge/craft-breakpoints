@@ -62,13 +62,11 @@ Notes:
 - For template path resolution and custom markup, see
   [Custom Image Templates](custom-templates.md).
 - For how `breakpoints`, `escapeWidth`, and `dpr` turn into media queries and
-  `srcset`, see [Media Queries & DPR](picture-media-and-dpr.md).
+  `srcset`, see [Responsive Images](responsive-images.md).
 
 ## Sample `config/breakpoints.php`
 
-Create the file at your project root's `config/` directory. Only include the keys
-you want to override — anything omitted uses the built-in default or control-panel
-value.
+Create the file at your project root's `config/` directory.
 
 Keep `allowTransformEditing` enabled only in local development. Staging and
 production still need Breakpoints available so templates can render saved

@@ -65,8 +65,49 @@ hold the image in the intended space as its generated dimensions change.
 > those off locally while processing. See
 > [Responsive Images → Caching During Processing](responsive-images.md#caching-during-processing).
 
+## 3. Review and edit saved transform sets
+
+The default Transform Sets view shows saved transform sets in a non-editing
+state, so you can review the current dimensions and settings without changing
+anything by accident.
+
+To make changes, enable the edit toggle, then update the saved set values as
+needed. Edits are saved automatically.
+
+   ![Edit toggle](images/edit.png)
+
+Editing is only available when `allowTransformEditing` is enabled in
+`config/breakpoints.php`. Keep that enabled for local development only. See
+[Configuration](configuration.md#sample-configbreakpointsphp).
+
+## 4. Hidden breakpoints
+
+If an image is not visible at a breakpoint during processing, Breakpoints
+automatically disables that breakpoint for the saved transform set.
+
+   ![Disabled toggle](images/disabled.png)
+
+Front-end output still includes a source for the disabled breakpoint, but parks
+it with a blank SVG placeholder. That prevents the browser from downloading an
+image that is not needed for that layout.
+
+## 5. Collapse the breakpoint view
+
+The Transform Sets view shows breakpoints as relatively sized screen and image
+representations. That makes the saved sizes easier to understand visually, but
+it takes up a fair amount of space and usually requires horizontal scrolling to
+view every set breakpoint.
+
+Use the **Hide previews** toggle to collapse the view. Breakpoint columns switch
+to fixed widths and asset previews are hidden, which makes it easier to scan an
+entire transform set at once.
+
+   ![Collapsed view toggle](images/collapsed-view.png)
+   ![Collapsed view](images/collapsed.png)
+
+
 ## Next steps
 
 - [Configuration](configuration.md) — settings and the config file.
 - [Custom Image Templates](custom-templates.md) — custom markup, LQIP, and lazy-loading libraries.
-- [Media Queries & DPR](picture-media-and-dpr.md) — how the output is assembled.
+- [Responsive Images](responsive-images.md) — how the output is assembled.

@@ -92,8 +92,7 @@ See [Getting Started](docs/getting-started.md) for the full walkthrough.
 
 - [Getting Started](docs/getting-started.md) — render a usable image, finalize the set.
 - [Configuration](docs/configuration.md) — settings, the config file, and precedence.
-- [Responsive Images](docs/responsive-images.md) — the output model and standards.
-- [Media Queries & DPR](docs/picture-media-and-dpr.md) — how sources, media ranges, and DPR are built.
+- [Responsive Images](docs/responsive-images.md) — the output model, media ranges, DPR, and escape width.
 - [Custom Image Templates](docs/custom-templates.md) — render through your own Twig.
 - [`image()` Twig Function](docs/reference/twig-image-tag.md) — full API reference.
 - [Release history](CHANGELOG.md)

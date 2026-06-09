@@ -283,5 +283,5 @@ When no saved transform set exists, Breakpoints resolves `init*` dimension optio
 ## See also
 
 - [Getting Started](../getting-started.md)
-- [Media Queries & DPR](../picture-media-and-dpr.md) — how options become markup.
+- [Responsive Images](../responsive-images.md) — how options become markup.
 - [Custom Image Templates](../custom-templates.md)

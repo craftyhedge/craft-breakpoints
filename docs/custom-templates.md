@@ -208,5 +208,4 @@ That fallback keeps the page from failing hard, but it will not include the full
 ## See also
 
 - [`image()` Twig Function](reference/twig-image-tag.md) — including `pictureTemplatePath` / `svgTemplatePath`.
-- [Media Queries & DPR](picture-media-and-dpr.md) — what `getBreakpointData()` returns and how sources are built.
-- [Responsive Images](responsive-images.md) — the output model.
+- [Responsive Images](responsive-images.md) — the output model and source behavior.
