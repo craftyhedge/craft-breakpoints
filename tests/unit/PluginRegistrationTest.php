@@ -30,16 +30,36 @@ final class PluginRegistrationTest extends Unit
     public function testPluginCpSectionNavIsConfigured(): void
     {
         $plugin = Plugin::getInstance();
-        $cpNavItem = $plugin->getCpNavItem();
 
         $this->assertTrue($plugin->hasCpSection);
-        $this->assertIsArray($cpNavItem);
-        $this->assertArrayHasKey('subnav', $cpNavItem);
-        $this->assertArrayHasKey('settings', $cpNavItem['subnav']);
-        $this->assertArrayHasKey('processing', $cpNavItem['subnav']);
-        $this->assertArrayNotHasKey('transforms', $cpNavItem['subnav']);
-        $this->assertSame('breakpoints/settings', $cpNavItem['subnav']['settings']['url']);
-        $this->assertSame('breakpoints/processing', $cpNavItem['subnav']['processing']['url']);
+        $this->withMergedConfigValue('allowTransformEditing', true, function() use ($plugin): void {
+            $cpNavItem = $plugin->getCpNavItem();
+
+            $this->assertIsArray($cpNavItem);
+            $this->assertArrayHasKey('subnav', $cpNavItem);
+            $this->assertArrayHasKey('settings', $cpNavItem['subnav']);
+            $this->assertArrayHasKey('docs', $cpNavItem['subnav']);
+            $this->assertArrayHasKey('processing', $cpNavItem['subnav']);
+            $this->assertArrayNotHasKey('transforms', $cpNavItem['subnav']);
+            $this->assertSame('breakpoints/settings', $cpNavItem['subnav']['settings']['url']);
+            $this->assertSame('breakpoints/docs', $cpNavItem['subnav']['docs']['url']);
+            $this->assertSame('breakpoints/processing', $cpNavItem['subnav']['processing']['url']);
+        });
+    }
+
+    public function testSettingsAndDocsNavItemsAreHiddenWhenTransformEditingIsDisabled(): void
+    {
+        $plugin = Plugin::getInstance();
+
+        $this->withMergedConfigValue('allowTransformEditing', false, function() use ($plugin): void {
+            $cpNavItem = $plugin->getCpNavItem();
+
+            $this->assertIsArray($cpNavItem);
+            $this->assertArrayHasKey('subnav', $cpNavItem);
+            $this->assertArrayHasKey('processing', $cpNavItem['subnav']);
+            $this->assertArrayNotHasKey('settings', $cpNavItem['subnav']);
+            $this->assertArrayNotHasKey('docs', $cpNavItem['subnav']);
+        });
     }
 
     public function testTransformsConfigFileIsCreatedAndLoaded(): void
@@ -60,6 +80,23 @@ final class PluginRegistrationTest extends Unit
             $this->assertArrayHasKey('config', $set);
             $this->assertIsArray($set['variants']);
             $this->assertIsArray($set['config']);
+        }
+    }
+
+    private function withMergedConfigValue(string $key, mixed $value, callable $callback): void
+    {
+        $configService = Plugin::getInstance()->getConfigService();
+        $property = new \ReflectionProperty($configService, '_mergedConfig');
+        $previous = $property->getValue($configService);
+
+        $nextConfig = is_array($previous) ? $previous : $configService->getConfig();
+        $nextConfig[$key] = $value;
+        $property->setValue($configService, $nextConfig);
+
+        try {
+            $callback();
+        } finally {
+            $property->setValue($configService, $previous);
         }
     }
 

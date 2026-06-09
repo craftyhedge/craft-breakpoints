@@ -244,15 +244,18 @@ class Plugin extends BasePlugin
                 'label' => Craft::t('breakpoints', 'Transform Sets'),
                 'url' => 'breakpoints/processing',
             ],
-            'settings' => [
+        ];
+
+        if ($this->getConfigService()->allowTransformEditing()) {
+            $item['subnav']['settings'] = [
                 'label' => Craft::t('breakpoints', 'Settings'),
                 'url' => 'breakpoints/settings',
-            ],
-            'docs' => [
+            ];
+            $item['subnav']['docs'] = [
                 'label' => Craft::t('breakpoints', 'Docs'),
                 'url' => 'breakpoints/docs',
-            ],
-        ];
+            ];
+        }
 
         return $item;
     }
