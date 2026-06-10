@@ -169,6 +169,7 @@ class TransformsController extends Controller
             $operationResult = match ($operation->operation) {
                 'renderedValues.apply'                       => $this->dispatchRenderedValuesApply($operation, $editor),
                 'set.delete'                                 => $editor->deleteSetOperation($operation->setName, $operation->baseVersion),
+                'observation.delete'                         => $editor->deleteObservedUsageOperation($operation->setName),
                 'dimensions.apply'                           => $this->dispatchDimensionsApply($operation, $editor),
                 'dimensions.toggleAutoWidth'                 => $this->dispatchToggleAutoWidth($operation, $editor),
                 'dimensions.toggleAutoHeight'                => $this->dispatchToggleAutoHeight($operation, $editor),
@@ -526,7 +527,7 @@ class TransformsController extends Controller
         if ($persisted && $operation->setName !== '') {
             $signalKey = $this->buildCardSignalKey($operation->setName);
             if ($signalKey !== '') {
-                if ($operation->field === 'deleteSet') {
+                if ($operation->field === 'deleteSet' || $operation->field === 'observation') {
                     $cardId = $this->buildCardDomId($operation->setName);
                     if ($cardId !== '') {
                         $events[] = new PatchElements('', [
@@ -1127,10 +1128,7 @@ class TransformsController extends Controller
         return array_values(array_filter(
             array_map(
                 static fn(array $row): string => trim($row['name']),
-                array_filter(
-                    $editor->buildSidebarTransformRows(),
-                    static fn(array $row): bool => $row['isObservedUnsaved'] !== true,
-                ),
+                $editor->buildSidebarTransformRows(),
             ),
             static fn(string $name): bool => $name !== '',
         ));
@@ -1218,6 +1216,7 @@ class TransformsController extends Controller
             return match ($field) {
                 'renderedValues' => 'Rendered values applied.',
                 'deleteSet' => 'Transform set deleted.',
+                'observation' => 'Observation removed.',
                 'dimensions' => 'Dimensions updated.',
                 'ratio' => 'Ratio applied.',
                 'breakpointEnabled' => 'Breakpoint state updated.',

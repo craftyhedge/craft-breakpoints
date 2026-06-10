@@ -53,16 +53,8 @@
     <nav id="bpts-transform-sets-sidebar" aria-label="{{ 'Transform Sets'|t('breakpoints') }}">
         <ul id="bpts-transform-sets-list">
             {% for row in sidebarRows %}
-                {% set isObservedUnsaved = row.isObservedUnsaved ?? false %}
-                <li data-set="{{ row.name|e('html_attr') }}"
-                    {% if isObservedUnsaved %}class="bpts-transform-sidebar-item-warning" data-observed-unsaved="1"{% endif %}>
-                    <a href="#" class="bpts-transform-sidebar-link{% if isObservedUnsaved %} bpts-transform-sidebar-link-warning{% endif %}" data-set="{{ row.name|e('html_attr') }}">
-                        {% if isObservedUnsaved %}
-                            <span class="bpts-transform-sidebar-warning-icon" aria-hidden="true" title="{{ 'Observed but not saved'|t('breakpoints') }}">
-                                <span class="icon" data-icon="view"></span>
-                            </span>
-                            <span class="visually-hidden">{{ 'Not saved:'|t('breakpoints') }} </span>
-                        {% endif %}
+                <li data-set="{{ row.name|e('html_attr') }}">
+                    <a href="#" class="bpts-transform-sidebar-link" data-set="{{ row.name|e('html_attr') }}">
                         {{ row.name }}
                     </a>
                 </li>
@@ -118,7 +110,7 @@
     {% set initialBaseVersion = currentBaseVersion ?? '' %}
     {% set initialSavedSetNames = [] %}
     {% for row in (sidebarTransformRows ?? []) %}
-        {% if not (row.isObservedUnsaved ?? false) and (row.name ?? '') is not empty %}
+        {% if (row.name ?? '') is not empty %}
             {% set initialSavedSetNames = initialSavedSetNames|merge([row.name]) %}
         {% endif %}
     {% endfor %}

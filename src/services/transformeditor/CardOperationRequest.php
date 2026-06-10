@@ -10,7 +10,7 @@ use yii\web\Request;
  * Accepts a raw Yii request, validates the operation string against the known
  * operation-to-field map, and sanitises all body params into typed readonly
  * properties. Operations cover dimension edits, ratio application, breakpoint
- * toggling, rendered-value syncing, set deletion, and scope selection.
+ * toggling, rendered-value syncing, set deletion, observation deletion, and scope selection.
  * An unrecognised operation results in an empty operation string and
  * hasValidOperation === false rather than an exception.
  */
@@ -25,6 +25,7 @@ final class CardOperationRequest
     private const FIELD_ALLOW_ANY_HEIGHT = 'allowAnyHeight';
     private const FIELD_RENDERED_VALUES = 'renderedValues';
     private const FIELD_DELETE_SET = 'deleteSet';
+    private const FIELD_OBSERVATION = 'observation';
     private const FIELD_NOTES = 'notes';
     private const FIELD_SCOPE = 'scope';
 
@@ -40,6 +41,7 @@ final class CardOperationRequest
     private const OPERATION_SETTINGS_SET_ALLOW_ANY_HEIGHT = 'settings.setAllowAnyHeight';
     private const OPERATION_RENDERED_VALUES_APPLY = 'renderedValues.apply';
     private const OPERATION_SET_DELETE = 'set.delete';
+    private const OPERATION_OBSERVATION_DELETE = 'observation.delete';
     private const OPERATION_SET_NOTES_UPDATE = 'set.notes.update';
     private const OPERATION_SCOPE_SELECT_BREAKPOINT = 'scope.selectBreakpoint';
     private const OPERATION_SCOPE_SELECT_ALL = 'scope.selectAll';
@@ -60,6 +62,7 @@ final class CardOperationRequest
         self::OPERATION_SETTINGS_SET_ALLOW_ANY_HEIGHT => self::FIELD_ALLOW_ANY_HEIGHT,
         self::OPERATION_RENDERED_VALUES_APPLY => self::FIELD_RENDERED_VALUES,
         self::OPERATION_SET_DELETE => self::FIELD_DELETE_SET,
+        self::OPERATION_OBSERVATION_DELETE => self::FIELD_OBSERVATION,
         self::OPERATION_SET_NOTES_UPDATE => self::FIELD_NOTES,
         self::OPERATION_SCOPE_SELECT_BREAKPOINT => self::FIELD_SCOPE,
         self::OPERATION_SCOPE_SELECT_ALL => self::FIELD_SCOPE,

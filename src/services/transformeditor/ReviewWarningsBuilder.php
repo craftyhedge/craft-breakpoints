@@ -16,6 +16,9 @@ use craftyhedge\craftbreakpoints\services\TelemetryService;
  */
 final class ReviewWarningsBuilder
 {
+    public const MISSING_SET_CAN_EDIT_MESSAGE = 'No transforms are saved for this set. Process the entry to capture rendered dimensions, or edit the transforms.';
+    public const MISSING_SET_READ_ONLY_MESSAGE = 'No transforms are saved for this set. Process in a development environment.';
+
     public function __construct(
         private readonly SnapshotReader $snapshotReader,
         private readonly ConfigService $configService,
@@ -85,8 +88,8 @@ final class ReviewWarningsBuilder
     ): array {
         $canEdit = $this->telemetry->canEditTransforms();
         $message = $canEdit
-            ? 'No transforms are saved for this set. Process the entry to capture rendered dimensions, or edit the transforms.'
-            : 'No transforms are saved for this set. Process in a development environment.';
+            ? self::MISSING_SET_CAN_EDIT_MESSAGE
+            : self::MISSING_SET_READ_ONLY_MESSAGE;
 
         return [
             'code' => 'missing-set-definitions',

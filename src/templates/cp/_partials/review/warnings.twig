@@ -6,6 +6,7 @@
       - showEmptyState    (bool)   Render the "No warnings detected." success chip when empty.
       - reviewMode        (string) 'processed' | 'saved'.
       - canEditTransforms (bool)   Telemetry guard.
+      - setName           (string) Current transform card handle, when rendered inside a card.
 #}
 {%- if warnings is empty -%}
     {%- if showEmptyState -%}
@@ -37,6 +38,7 @@
     entryId: warning.entryId ?? 0,
     entryAvailable: warning.entryAvailable ?? false,
     entryMissing: warning.entryMissing ?? false,
+    setName: setName ?? '',
 } only %}</div>
     {%- endfor -%}
 {%- endif -%}

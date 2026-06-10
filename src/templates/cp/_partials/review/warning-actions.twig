@@ -8,18 +8,22 @@
       - entryId           (int)    For saved-mode button.
       - entryAvailable    (bool)
       - entryMissing      (bool)
+      - setName           (string)
 #}
 {%- if code == 'missing-set-definitions' and canEditTransforms -%}
     {%- if reviewMode == 'processed' -%}
     {%- else -%}
+<div class="bpts-warning-actions">
         {%- if entryId <= 0 or not entryAvailable -%}
             {%- set tooltip = entryId <= 0
                 ? 'No processed entry is available to process.'
                 : (entryMissing ? 'Processed entry could not be found.' : 'Processed entry is not available in the current site.')
             -%}
-<div class="bpts-warning-actions"><button type="button" class="btn small bpts-warning-process-entry" data-bpts-action="processWarningEntry" disabled aria-label="{{ tooltip }}" title="{{ tooltip }}">Process entry</button></div>
+<button type="button" class="btn small bpts-warning-process-entry" data-bpts-action="processWarningEntry" data-observed-handle="{{ setName|e('html_attr') }}" disabled aria-label="{{ tooltip }}" title="{{ tooltip }}">Process entry</button>
         {%- else -%}
-<div class="bpts-warning-actions"><button type="button" class="btn small bpts-warning-process-entry" data-bpts-action="processWarningEntry" data-entry-id="{{ entryId }}" aria-label="Process entry" title="Process entry">Process entry</button></div>
+<button type="button" class="btn small bpts-warning-process-entry" data-bpts-action="processWarningEntry" data-entry-id="{{ entryId }}" data-observed-handle="{{ setName|e('html_attr') }}" aria-label="Process entry" title="Process entry">Process entry</button>
         {%- endif -%}
+<button type="button" class="btn small bpts-warning-remove-observation" data-bpts-action="removeObservation" aria-label="Remove observation" title="Remove observation" data-on:click__throttle.300ms="if(!window.confirm('Remove this observation?')){ return; } @post($_applyCardOperationUrl, {contentType: 'json', headers: {'X-CSRF-Token': $_csrfToken}, payload: {setName: '{{ setName|e('js') }}', operation: 'observation.delete', reviewMode: 'saved', hideRenderedApply: true, baseVersion: String($editor.baseVersion || '')}})">Remove observation</button>
+</div>
     {%- endif -%}
 {%- endif -%}

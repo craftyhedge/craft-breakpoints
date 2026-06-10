@@ -13,7 +13,7 @@
              - selectedAssetKey
     - cardSignalsStructural
       - includeEscapeWidth, cardWarningsHtml, signalPathBase
-      - passHeightIndicatorHiddenClass, breakpointColumns
+      - passHeightIndicatorHiddenClass, breakpointColumns, cardBreakpointsHiddenClass
       - renderedApplyHiddenClass, deleteSetHiddenClass, editScopeAllCheckedAttr
       - assetPaginationHtml, editPanelId
       - dimensions/ratio/settings tab class/selected/tabindex attrs
@@ -118,8 +118,8 @@
                     data-on:click__throttle.300ms="if(!window.confirm('Delete this transform set?')){ return; } const card=el.closest('.bpts-transform-card'); const setName=String($editor.cards.{{ signalKey }}.setName || card?.dataset?.set || ''); @post($_applyCardOperationUrl, {contentType: 'json', headers: {'X-CSRF-Token': $_csrfToken}, payload: {setName, operation: 'set.delete', baseVersion: String($editor.baseVersion || '')}})"><span class="icon" data-icon="trash" aria-hidden="true"></span></button>
             </div>
         </header>
-        <div class="bpts-breakpoint-grid">{{ breakpointColumns }}</div>
-        <div class="bpts-breakpoint-grid-actions">
+        <div class="bpts-breakpoint-grid {{ cardBreakpointsHiddenClass }}">{{ breakpointColumns }}</div>
+        <div class="bpts-breakpoint-grid-actions {{ cardBreakpointsHiddenClass }}">
             <button type="button" class="bpts-rendered-apply-all {{ renderedApplyHiddenClass }}"
                 data-bpts-action="renderedValues"
                 aria-label="Apply rendered values to all breakpoints"
@@ -134,8 +134,8 @@
                 <span>Select All</span>
             </label>
         </div>
-        {{ assetPaginationHtml }}
-        <section class="bpts-transform-quick-row" aria-label="Edit scope controls">
+        <div class="{{ cardBreakpointsHiddenClass }}">{{ assetPaginationHtml }}</div>
+        <section class="bpts-transform-quick-row {{ cardBreakpointsHiddenClass }}" aria-label="Edit scope controls">
             <div class="bpts-transform-edit-tab-names-row">
                 <div class="bpts-transform-pane-tabs">
                     <div class="bpts-transform-tab-list bpts-transform-tab-list-scoped" role="tablist" aria-label="Scoped edit options">
@@ -152,7 +152,7 @@
                 </div>
             </div>
         </section>
-        <section class="bpts-transform-edit-panel" id="{{ editPanelId }}">
+        <section class="bpts-transform-edit-panel {{ cardBreakpointsHiddenClass }}" id="{{ editPanelId }}">
             {{ lastProcessPanelHtml }}
             <div class="bpts-transform-edit-layout">
                 <div class="bpts-transform-edit-main">

@@ -572,6 +572,9 @@
 
 .bpts-warning-actions {
     margin-top: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
 .bpts-warning-item .btn.bpts-warning-process-entry {

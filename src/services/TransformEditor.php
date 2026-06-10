@@ -121,8 +121,8 @@ class TransformEditor extends Component
     // ---- Sidebar ----
 
     /**
-     * Builds sidebar rows combining observed-unsaved transform handles (first)
-     * with configured transform sets. Used by the transforms page sidebar.
+     * Builds sidebar rows for configured transform sets. Observed-unsaved
+     * handles are reviewed in the main cards only and are intentionally omitted.
      *
      * @return array<int, array{name: string, isObservedUnsaved: bool, entryId: ?int, sourceUrl: ?string}>
      */
@@ -137,18 +137,6 @@ class TransformEditor extends Component
         ));
 
         $rows = [];
-
-        if ($this->_plugin !== null) {
-            $observed = $this->_plugin->getTelemetry()->getObservedUnsavedHandles($configuredNames);
-            foreach ($observed as $entry) {
-                $rows[] = [
-                    'name' => (string)$entry['handle'],
-                    'isObservedUnsaved' => true,
-                    'entryId' => $entry['entryId'] ?? null,
-                    'sourceUrl' => $entry['sourceUrl'] ?? null,
-                ];
-            }
-        }
 
         foreach ($configuredNames as $name) {
             $rows[] = [
@@ -495,6 +483,34 @@ class TransformEditor extends Component
         }
 
         return $this->_operationsService->deleteSetOperation($transformName, $expectedVersion);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function deleteObservedUsageOperation(string $transformName): array
+    {
+        $validation = $this->defaultValidation();
+        $handle = trim($transformName);
+        if ($handle === '') {
+            $validation['hasErrors'] = true;
+            $validation['global'][] = 'setName is required.';
+            return ['persisted' => false, 'validation' => $validation];
+        }
+
+        if ($this->_plugin === null) {
+            $validation['hasErrors'] = true;
+            $validation['global'][] = 'Plugin is unavailable.';
+            return ['persisted' => false, 'validation' => $validation];
+        }
+
+        $this->_plugin->getTelemetry()->deleteObservedUsageByTransformHandle($handle);
+
+        return [
+            'persisted' => true,
+            'validation' => $validation,
+            'currentVersion' => $this->_plugin->getTransformStore()->getCurrentVersion(),
+        ];
     }
 
     // ---- Summary / Validation ----

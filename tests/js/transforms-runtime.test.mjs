@@ -1800,14 +1800,13 @@ describe('transforms runtime helper logic', () => {
             expect(document.querySelector('li[data-set="cardImage"]')).toBeNull();
         });
 
-        it('never removes observed-unsaved rows', () => {
+        it('removes observed-unsaved rows when they are not saved', () => {
             seedSaved();
 
             hooks.removeSidebarItemsNotInSavedNames([]);
 
             const observed = document.querySelector('li[data-set="observedImage"]');
-            expect(observed).not.toBeNull();
-            expect(observed.getAttribute('data-observed-unsaved')).toBe('1');
+            expect(observed).toBeNull();
         });
 
         it('is a no-op when savedSetNames is not an array', () => {

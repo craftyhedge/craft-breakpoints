@@ -452,6 +452,14 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                     return;
                 }
 
+                const observedHandle = String(target.dataset.observedHandle || '').trim();
+                if (observedHandle !== '') {
+                    await runProcessing({
+                        requestedObservedHandle: observedHandle,
+                    });
+                    return;
+                }
+
                 if (elements.btnRun) {
                     elements.btnRun.click();
                 }
@@ -729,9 +737,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                 .map((name) => String(name))
         );
 
-        // Observed-unsaved rows are not part of the saved-names signal, so leave
-        // them alone; only drop saved-state rows whose set no longer exists.
-        const items = Array.from(list.querySelectorAll('li[data-set]:not([data-observed-unsaved="1"])'));
+        const items = Array.from(list.querySelectorAll('li[data-set]'));
         items.forEach((item) => {
             const setName = String(item.getAttribute('data-set') || '').trim();
             if (setName === '' || savedSet.has(setName)) {
@@ -2749,6 +2755,45 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         return rows;
     }
 
+    function resultContainsTransformHandle(result, transformHandle) {
+        const handle = String(transformHandle || '').trim();
+        if (handle === '') {
+            return true;
+        }
+
+        return flattenResultRowsBySlot(result).some((row) => String(row?.transform || '').trim() === handle);
+    }
+
+    function buildObservedHandleMissingMessage(transformHandle) {
+        const handle = String(transformHandle || '').trim();
+        if (handle === '') {
+            return '';
+        }
+
+        return `Transform handle "${handle}" was not found on the processed page. It may no longer be used there; remove the observation if it is stale.`;
+    }
+
+    function markObservedHandleMissingOnResult(result, transformHandle) {
+        if (!result || typeof result !== 'object') {
+            return result;
+        }
+
+        const handle = String(transformHandle || '').trim();
+        if (handle === '' || resultContainsTransformHandle(result, handle)) {
+            return result;
+        }
+
+        const existing = Array.isArray(result.observedMissingHandles)
+            ? result.observedMissingHandles.map((value) => String(value || '').trim()).filter((value) => value !== '')
+            : [];
+        if (!existing.includes(handle)) {
+            existing.push(handle);
+        }
+        result.observedMissingHandles = existing;
+
+        return result;
+    }
+
     function buildReviewAssetKeyFromRow(transformName, row) {
         const assetId = String(row?.assetId || '').trim();
         if (assetId !== '') {
@@ -2840,10 +2885,14 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         return data;
     }
 
-    function buildCompletionStatusFromResult(result, snapshotPersisted, autoApplySummary = null) {
+    function buildCompletionStatusFromResult(result, snapshotPersisted, autoApplySummary = null, options = null) {
+        const requestedObservedHandle = String(options?.requestedObservedHandle || '').trim();
+        const observedHandleMissing = requestedObservedHandle !== '' && !resultContainsTransformHandle(result, requestedObservedHandle);
         const warningCount = Math.max(0, Number(result?.summary?.warningCount) || 0);
-        const completionState = warningCount > 0 ? 'warning' : 'success';
-        let completionStatus = warningCount > 0 ? 'Warnings to address' : 'All passed';
+        const completionState = warningCount > 0 || observedHandleMissing ? 'warning' : 'success';
+        let completionStatus = observedHandleMissing && warningCount < 1
+            ? 'Observation not found'
+            : (warningCount > 0 ? 'Warnings to address' : 'All passed');
         const appliedCount = Math.max(0, Number(autoApplySummary?.appliedCount) || 0);
         const skippedCount = Math.max(0, Number(autoApplySummary?.skippedCount) || 0);
 
@@ -2855,6 +2904,13 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             completionStatus += '.';
         } else if (skippedCount > 0) {
             completionStatus += `. ${skippedCount} new set${skippedCount === 1 ? '' : 's'} could not be auto-saved.`;
+        }
+
+        if (observedHandleMissing) {
+            const missingMessage = buildObservedHandleMissingMessage(requestedObservedHandle);
+            if (missingMessage !== '') {
+                completionStatus += `. ${missingMessage}`;
+            }
         }
 
         return {
@@ -2922,6 +2978,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         const isAutoVerification = runOptions.autoVerification === true;
         const autoVerifyAfterSave = runOptions.autoVerifyAfterSave !== false && !isAutoVerification;
         const autoApplySummary = runOptions.autoApplySummary || null;
+        const requestedObservedHandle = String(runOptions.requestedObservedHandle || '').trim();
 
         if (state.busy && !isAutoVerification) {
             return;
@@ -3118,6 +3175,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             publishRunReport(finalizedReport);
 
             const result = buildStructuredOutput(state.previewUrl || runReport.sourceUrl || '', slots, rowsBySlot, startedAt, finalizedReport);
+            markObservedHandleMissingOnResult(result, requestedObservedHandle);
 
             let snapshotPersisted = true;
             try {
@@ -3160,7 +3218,9 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                 if (skippedCount > 0) {
                     const resultPublisher = getRunOverride('publishResult') || publishResult;
                     await resultPublisher(result);
-                    const status = buildCompletionStatusFromResult(result, snapshotPersisted, autoApplyResult);
+                    const status = buildCompletionStatusFromResult(result, snapshotPersisted, autoApplyResult, {
+                        requestedObservedHandle,
+                    });
                     setStatus(status.message, { state: status.state });
                     return;
                 }
@@ -3168,7 +3228,9 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
             const resultPublisher = getRunOverride('publishResult') || publishResult;
             await resultPublisher(result);
-            const status = buildCompletionStatusFromResult(result, snapshotPersisted, autoApplySummary);
+            const status = buildCompletionStatusFromResult(result, snapshotPersisted, autoApplySummary, {
+                requestedObservedHandle,
+            });
             setStatus(status.message, { state: status.state });
         } catch (error) {
             const cancelled = error instanceof ProcessingCancelledError;
@@ -3335,6 +3397,8 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             getLastReport: () => state.lastReport,
             runProcessing,
             persistRunSnapshot,
+            resultContainsTransformHandle,
+            buildObservedHandleMissingMessage,
             summarizeFailureReasonCountsFromReport,
             collectReviewEditStateFromDom,
             parseServerStatusFromPatchSignalsArgs,

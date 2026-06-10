@@ -143,41 +143,10 @@ final class InitialStoredReviewBuilder
                 continue;
             }
 
-            $includeEscapeWidth = ($observedEntry['includeEscapeWidth'] ?? null) === true;
-            $observedSlots = $this->plugin->getBreakpointSlots()->getSlots($includeEscapeWidth);
-            $placeholderSrc = ReviewLayoutCalculator::buildInitialPlaceholderDataUri(null, null, null);
-            foreach ($observedSlots as $slot) {
-                $slotKey = (string)($slot['key'] ?? '');
-                $slotIndex = (int)($slot['index'] ?? -1);
-                $slotId = $slotIndex + 1;
-                $mediaWidth = (int)($slot['mediaWidth'] ?? 0);
-                if ($slotIndex < 0 || $mediaWidth <= 0) {
-                    continue;
+            foreach ($this->buildObservedUnsavedRowsByBreakpoint($observedEntry) as $slotId => $rows) {
+                foreach ($rows as $row) {
+                    $syntheticRowsByBreakpoint[$slotId][] = $row;
                 }
-
-                $syntheticRowsByBreakpoint[$slotId][] = [
-                    'transform' => $handle,
-                    'slotKey' => $slotKey,
-                    'slotIndex' => $slotIndex,
-                    'mediaWidth' => $mediaWidth,
-                    'measureWidth' => (int)($slot['measureWidth'] ?? $mediaWidth),
-                    'assetId' => '',
-                    'title' => $handle . ' ' . ($slotKey !== '' ? $slotKey : (string)$mediaWidth) . ' placeholder',
-                    'enabled' => true,
-                    'isVisible' => true,
-                    'loaded' => false,
-                    'broken' => false,
-                    'unresolved' => false,
-                    'sourceUsed' => $placeholderSrc,
-                    'src' => $placeholderSrc,
-                    'rendered' => ['width' => 0, 'height' => 0],
-                    'intrinsic' => ['width' => 0, 'height' => 0],
-                    'transformDimensions' => [
-                        'width' => null,
-                        'height' => null,
-                        'autoDimension' => null,
-                    ],
-                ];
             }
         }
 
@@ -193,6 +162,59 @@ final class InitialStoredReviewBuilder
         }
 
         return $mergedRowsByBreakpoint;
+    }
+
+    /**
+     * @param array<string, mixed> $observedEntry
+     * @return array<int, array<int, array<string, mixed>>>
+     */
+    public function buildObservedUnsavedRowsByBreakpoint(array $observedEntry): array
+    {
+        $handle = (string)($observedEntry['handle'] ?? '');
+        if ($handle === '') {
+            return [];
+        }
+
+        $includeEscapeWidth = ($observedEntry['includeEscapeWidth'] ?? null) === true;
+        $observedSlots = $this->plugin->getBreakpointSlots()->getSlots($includeEscapeWidth);
+        $placeholderSrc = ReviewLayoutCalculator::buildInitialPlaceholderDataUri(null, null, null);
+        $rowsByBreakpoint = [];
+
+        foreach ($observedSlots as $slot) {
+            $slotKey = (string)($slot['key'] ?? '');
+            $slotIndex = (int)($slot['index'] ?? -1);
+            $slotId = $slotIndex + 1;
+            $mediaWidth = (int)($slot['mediaWidth'] ?? 0);
+            if ($slotIndex < 0 || $mediaWidth <= 0) {
+                continue;
+            }
+
+            $rowsByBreakpoint[$slotId][] = [
+                'transform' => $handle,
+                'slotKey' => $slotKey,
+                'slotIndex' => $slotIndex,
+                'mediaWidth' => $mediaWidth,
+                'measureWidth' => (int)($slot['measureWidth'] ?? $mediaWidth),
+                'assetId' => '',
+                'title' => $handle . ' ' . ($slotKey !== '' ? $slotKey : (string)$mediaWidth) . ' placeholder',
+                'enabled' => true,
+                'isVisible' => true,
+                'loaded' => false,
+                'broken' => false,
+                'unresolved' => false,
+                'sourceUsed' => $placeholderSrc,
+                'src' => $placeholderSrc,
+                'rendered' => ['width' => 0, 'height' => 0],
+                'intrinsic' => ['width' => 0, 'height' => 0],
+                'transformDimensions' => [
+                    'width' => null,
+                    'height' => null,
+                    'autoDimension' => null,
+                ],
+            ];
+        }
+
+        return $rowsByBreakpoint;
     }
 
     /**
