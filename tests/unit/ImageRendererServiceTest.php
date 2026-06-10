@@ -94,6 +94,46 @@ final class ImageRendererServiceTest extends Unit
         $this->assertStringNotContainsString('<picture', $html);
     }
 
+    public function testRenderWrapsSvgAssetsInPictureWithImageClassFallback(): void
+    {
+        $renderer = Plugin::getInstance()->getImageRenderer();
+        $asset = $this->createMockSvgAsset();
+
+        $markup = $renderer->render($asset, 'default', [
+            'breakpoints' => [
+                'xs' => 480,
+            ],
+            'escapeWidth' => 0,
+            'imgClass' => 'svg-image',
+        ]);
+
+        $html = (string)$markup;
+
+        $this->assertStringContainsString('<picture class="svg-image">', $html);
+        $this->assertStringContainsString('<img', $html);
+        $this->assertStringContainsString('class="svg-image"', $html);
+    }
+
+    public function testRenderKeepsExplicitPictureClassForSvgAssets(): void
+    {
+        $renderer = Plugin::getInstance()->getImageRenderer();
+        $asset = $this->createMockSvgAsset();
+
+        $markup = $renderer->render($asset, 'default', [
+            'breakpoints' => [
+                'xs' => 480,
+            ],
+            'escapeWidth' => 0,
+            'pictureClass' => 'svg-picture',
+            'imgClass' => 'svg-image',
+        ]);
+
+        $html = (string)$markup;
+
+        $this->assertStringContainsString('<picture class="svg-picture">', $html);
+        $this->assertStringContainsString('class="svg-image"', $html);
+    }
+
     private function createMockSvgAsset(): Asset
     {
         $asset = $this->getMockBuilder(Asset::class)

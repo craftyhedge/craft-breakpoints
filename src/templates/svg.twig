@@ -4,7 +4,23 @@
     Template variables provided by the plugin:
     - image: Craft image element
     - config: Image configuration array
+    - pictureAttributes: Attributes for the <picture> element
     - imgAttributes: Attributes for the <img> element
 #}
 
-<img {% for attr, value in imgAttributes %}{% if value is not null and value is not empty %}{{ attr }}="{{ value }}" {% endif %}{% endfor %}>
+{% macro attrs(attributes) %}
+  {%- for attr, value in attributes -%}
+    {%- if value is not null and value is not empty -%}
+      {{- (' ' ~ attr ~ '="' ~ value|e ~ '"')|raw -}}
+    {%- endif -%}
+  {%- endfor -%}
+{% endmacro %}
+
+{% set svgPictureAttributes = pictureAttributes %}
+{% if (svgPictureAttributes.class ?? '') is empty and (imgAttributes.class ?? '') is not empty %}
+  {% set svgPictureAttributes = svgPictureAttributes|merge({ class: imgAttributes.class }) %}
+{% endif %}
+
+<picture{{ _self.attrs(svgPictureAttributes) }}>
+  <img{{ _self.attrs(imgAttributes) }}>
+</picture>
