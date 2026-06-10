@@ -24,6 +24,7 @@ import {
     sanitizeIssueSource as processingSanitizeIssueSource,
     toPositiveIntOrNull as processingToPositiveIntOrNull,
     waitForImagesToSettle as processingWaitForImagesToSettle,
+    PROCESSABLE_PICTURE_SELECTOR,
 } from './transforms-processing.js';
 import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
@@ -1464,7 +1465,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     }
 
     function getTrackedPictures(frameDocument) {
-        return Array.from(frameDocument.querySelectorAll('picture[data-set]'));
+        return Array.from(frameDocument.querySelectorAll(PROCESSABLE_PICTURE_SELECTOR));
     }
 
     function recordNormalizationSample(target, sample) {

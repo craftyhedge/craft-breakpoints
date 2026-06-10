@@ -44,7 +44,7 @@ async function loadRuntimeHooks() {
     };
     const getFrameDocument = () => harness.frameDocument || document;
     const getFrameWindow = () => harness.frameWindow || window;
-    const getTrackedPictures = (frameDocument) => Array.from(frameDocument.querySelectorAll('picture[data-set]'));
+    const getTrackedPictures = (frameDocument) => Array.from(frameDocument.querySelectorAll(processing.PROCESSABLE_PICTURE_SELECTOR));
     const getPictureLoadKey = (picture, index) => picture?.getAttribute('data-picture-id')
         || picture?.getAttribute('data-asset-id')
         || `unknown-${index}`;
@@ -253,6 +253,16 @@ describe('transforms runtime helper logic', () => {
             imageCount: 1,
             hasImageMarkup: true,
             missingMarkers: true,
+        });
+
+        expect(hooks.inspectProcessingMarkerHealth(createFrameDocument(`
+            <picture data-set="hero" data-bp-processing-ignore="svg"><img src="/hero.svg" /></picture>
+        `))).toEqual({
+            trackedPictureCount: 0,
+            pictureCount: 1,
+            imageCount: 1,
+            hasImageMarkup: true,
+            missingMarkers: false,
         });
     });
 
@@ -588,6 +598,42 @@ describe('transforms runtime helper logic', () => {
         expect(rows[3].loaded).toBe(true);
         expect(rows[3].broken).toBe(false);
         expect(rows[3].unresolved).toBe(false);
+    });
+
+    it('ignores SVG processing markers while preserving raster rows', () => {
+        const frameDocument = document.implementation.createHTMLDocument('preview');
+        frameDocument.body.innerHTML = `
+            <picture data-set="hero" data-picture-id="pic-raster" data-asset-id="asset-raster">
+                <source data-bp-source="primary" data-bp-size="480" data-bp-enabled="true" srcset="https://example.test/hero.webp 1x" />
+                <img data-asset-id="asset-raster" src="https://example.test/hero.jpg" />
+            </picture>
+            <picture data-set="icon" data-picture-id="pic-svg" data-asset-id="asset-svg" data-bp-processing-ignore="svg">
+                <img data-asset-id="asset-svg" src="https://example.test/icon.svg" />
+            </picture>
+        `;
+
+        hooks.setPreviewFrameForTests(frameDocument, {});
+
+        const preloadStates = new Map([
+            ['pic-raster', true],
+            ['pic-svg', true],
+        ]);
+        const readinessByKey = new Map([
+            ['pic-raster', {
+                status: 'loaded',
+                sourceUsed: 'https://example.test/hero.jpg',
+            }],
+            ['pic-svg', {
+                status: 'loaded',
+                sourceUsed: 'https://example.test/icon.svg',
+            }],
+        ]);
+
+        const rows = hooks.extractRowsForBreakpoint(480, preloadStates, readinessByKey);
+
+        expect(rows).toHaveLength(1);
+        expect(rows[0].assetId).toBe('asset-raster');
+        expect(rows[0].transform).toBe('hero');
     });
 
     it('builds readiness tracker statuses for static and dynamic image states', async () => {

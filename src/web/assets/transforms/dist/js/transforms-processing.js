@@ -1,3 +1,6 @@
+export const PROCESSABLE_PICTURE_SELECTOR = 'picture[data-set]:not([data-bp-processing-ignore])';
+export const PROCESSABLE_IMAGE_SELECTOR = `${PROCESSABLE_PICTURE_SELECTOR} img`;
+
 export function getMeasurementWidthForBreakpoint(breakpoint, safetyPx = 2) {
     const parsed = parseInt(String(breakpoint), 10);
     if (!Number.isFinite(parsed) || parsed <= 1) {
@@ -104,17 +107,19 @@ export function inspectProcessingMarkerHealth(frameDocument) {
         };
     }
 
-    const trackedPictureCount = document.querySelectorAll('picture[data-set]').length;
+    const trackedPictureCount = document.querySelectorAll(PROCESSABLE_PICTURE_SELECTOR).length;
+    const ignoredPictureCount = document.querySelectorAll('picture[data-bp-processing-ignore]').length;
     const pictureCount = document.querySelectorAll('picture').length;
     const imageCount = document.querySelectorAll('img').length;
     const hasImageMarkup = pictureCount > 0 || imageCount > 0;
+    const hasOnlyIgnoredImageMarkup = ignoredPictureCount > 0 && pictureCount === ignoredPictureCount;
 
     return {
         trackedPictureCount,
         pictureCount,
         imageCount,
         hasImageMarkup,
-        missingMarkers: hasImageMarkup && trackedPictureCount === 0,
+        missingMarkers: hasImageMarkup && trackedPictureCount === 0 && !hasOnlyIgnoredImageMarkup,
     };
 }
 
@@ -370,7 +375,7 @@ export function activateLazySizes(frameWindow, frameDocument, prepareResult, pus
     }
 
     if (typeof lazySizes.loader?.unveil === 'function') {
-        const candidates = Array.from(frameDocument.querySelectorAll('picture[data-set] img.lazyload'));
+                const candidates = Array.from(frameDocument.querySelectorAll(`${PROCESSABLE_IMAGE_SELECTOR}.lazyload`));
         candidates.forEach((img) => {
             try {
                 lazySizes.loader.unveil(img);
@@ -415,7 +420,7 @@ export function activateVanillaLazyLoad(frameWindow, frameDocument, prepareResul
         }
 
         if (typeof instance.load === 'function') {
-            const candidates = Array.from(frameDocument.querySelectorAll('picture[data-set] img[data-src], picture[data-set] img[data-srcset]'));
+            const candidates = Array.from(frameDocument.querySelectorAll(`${PROCESSABLE_IMAGE_SELECTOR}[data-src], ${PROCESSABLE_IMAGE_SELECTOR}[data-srcset]`));
             candidates.forEach((img) => {
                 try {
                     instance.load(img);
@@ -428,7 +433,7 @@ export function activateVanillaLazyLoad(frameWindow, frameDocument, prepareResul
     });
 
     if (typeof frameWindow?.LazyLoad?.load === 'function') {
-        const candidates = Array.from(frameDocument.querySelectorAll('picture[data-set] img[data-src], picture[data-set] img[data-srcset]'));
+        const candidates = Array.from(frameDocument.querySelectorAll(`${PROCESSABLE_IMAGE_SELECTOR}[data-src], ${PROCESSABLE_IMAGE_SELECTOR}[data-srcset]`));
         candidates.forEach((img) => {
             try {
                 frameWindow.LazyLoad.load(img);
@@ -461,7 +466,7 @@ export function activateLozad(frameWindow, frameDocument, prepareResult, pushStr
     }
 
     const instances = Array.from(new Set(instanceCandidates.filter((candidate) => candidate && typeof candidate === 'object')));
-    const lozadElements = Array.from(frameDocument.querySelectorAll('picture[data-set] .lozad'));
+    const lozadElements = Array.from(frameDocument.querySelectorAll(`${PROCESSABLE_PICTURE_SELECTOR} .lozad`));
     let strategyCount = 0;
 
     instances.forEach((instance) => {
@@ -594,7 +599,7 @@ export function buildBreakpointReadinessTracker({
     isTransparentSrcset,
     isRenderable,
 }) {
-    const images = Array.from(frameDocument.querySelectorAll('picture[data-set] img'));
+    const images = Array.from(frameDocument.querySelectorAll(PROCESSABLE_IMAGE_SELECTOR));
     const readinessByKey = new Map();
     const cleanups = [];
 
@@ -842,7 +847,7 @@ export async function preloadBreakpointSources({
     setTimeoutFn = (callback, ms) => window.setTimeout(callback, ms),
     requestAnimationFrameFn = (callback) => requestAnimationFrame(callback),
 }) {
-    const pictures = Array.from(frameDocument.querySelectorAll('picture[data-set]'));
+    const pictures = Array.from(frameDocument.querySelectorAll(PROCESSABLE_PICTURE_SELECTOR));
     const loadStates = new Map();
 
     const waiters = pictures.map((picture, index) => new Promise((resolve) => {
@@ -930,7 +935,7 @@ export function extractRowsForBreakpoint({
     toPositiveIntOrNullFn = toPositiveIntOrNull,
     toPositiveFloatOrNullFn = toPositiveFloatOrNull,
 }) {
-    const images = Array.from(frameDocument.querySelectorAll('picture[data-set] img'));
+    const images = Array.from(frameDocument.querySelectorAll(PROCESSABLE_IMAGE_SELECTOR));
 
     return images.map((img, index) => {
         const picture = img.closest('picture');

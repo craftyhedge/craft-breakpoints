@@ -20,6 +20,9 @@
 {% if (svgPictureAttributes.class ?? '') is empty and (imgAttributes.class ?? '') is not empty %}
   {% set svgPictureAttributes = svgPictureAttributes|merge({ class: imgAttributes.class }) %}
 {% endif %}
+{% if isProcessing ?? false %}
+  {% set svgPictureAttributes = svgPictureAttributes|merge({ 'data-bp-processing-ignore': 'svg' }) %}
+{% endif %}
 
 <picture{{ _self.attrs(svgPictureAttributes) }}>
   <img{{ _self.attrs(imgAttributes) }}>

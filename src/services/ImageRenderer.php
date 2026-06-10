@@ -5,6 +5,7 @@ namespace craftyhedge\craftbreakpoints\services;
 use Craft;
 use craft\elements\Asset;
 use craft\web\View;
+use craftyhedge\craftbreakpoints\helpers\ProcessingRequest;
 use craftyhedge\craftbreakpoints\Plugin;
 use Twig\Markup;
 use yii\helpers\Html;
@@ -69,6 +70,7 @@ class ImageRenderer extends Component
                 'pictureAttributes' => $pictureAttributes,
                 'imgAttributes' => $imgAttributes,
                 'breakpoints' => $breakpoints,
+                'isProcessing' => ProcessingRequest::isActive(),
             ]);
         } catch (\Throwable $e) {
             Plugin::warning('Could not render template path: ' . $templatePath . '.');
