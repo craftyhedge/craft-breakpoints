@@ -55,8 +55,13 @@ class RenderContextBuilder extends Component
             'class' => (string)($config['pictureClass'] ?? ''),
         ];
 
-        // The data-* markers exist only for the client-side processing pipeline
-        // (the __bpiProcessing preview iframe). Keep them out of normal output.
+        if (($this->_plugin?->getConfigService()->allowTransformEditing($config) ?? false) === true) {
+            $attributes['data-set'] = $this->resolveSetName($config);
+        }
+
+        // The remaining data-* markers exist only for the client-side processing
+        // pipeline (the __bpiProcessing preview iframe). Keep them out of normal
+        // output.
         if (!ProcessingRequest::isActive()) {
             return $attributes;
         }

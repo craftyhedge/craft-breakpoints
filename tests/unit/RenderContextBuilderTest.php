@@ -31,6 +31,7 @@ final class RenderContextBuilderTest extends Unit
             'breakpoints' => ['xs' => 480],
             'escapeWidth' => 0,
             'secondaryFormat' => 'none',
+            'allowTransformEditing' => false,
         ], $asset);
 
         $this->assertIsArray($context);
@@ -40,9 +41,36 @@ final class RenderContextBuilderTest extends Unit
         $this->assertArrayHasKey('imgAttributes', $context);
         $this->assertArrayHasKey('breakpoints', $context);
 
-        // Normal (non-processing) render: no internal processing markers leak out.
+        // Normal (non-processing) render with editing disabled: no processing
+        // or public editing markers leak out.
         $this->assertArrayNotHasKey('data-set', $context['pictureAttributes']);
         $this->assertArrayNotHasKey('data-picture-id', $context['pictureAttributes']);
+    }
+
+    public function testGetPictureAttributesExposeSetHandleWhenTransformEditingAllowed(): void
+    {
+        $builder = Plugin::getInstance()->getRenderContextBuilder();
+
+        $attributes = $builder->getPictureAttributes([
+            'setName' => 'hero',
+            'allowTransformEditing' => true,
+        ]);
+
+        $this->assertSame('hero', $attributes['data-set'] ?? null);
+        $this->assertArrayNotHasKey('data-picture-id', $attributes);
+        $this->assertArrayNotHasKey('data-breakpoint-states', $attributes);
+    }
+
+    public function testGetPictureAttributesOmitSetHandleWhenTransformEditingDisabled(): void
+    {
+        $builder = Plugin::getInstance()->getRenderContextBuilder();
+
+        $attributes = $builder->getPictureAttributes([
+            'setName' => 'hero',
+            'allowTransformEditing' => false,
+        ]);
+
+        $this->assertArrayNotHasKey('data-set', $attributes);
     }
 
     public function testGetImageAttributesUsesTransparentPixelWhenFirstImageIsDisabled(): void

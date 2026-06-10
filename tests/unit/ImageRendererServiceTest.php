@@ -42,6 +42,45 @@ final class ImageRendererServiceTest extends Unit
         $this->assertArrayNotHasKey('data-breakpoint-states', $attributes);
     }
 
+    public function testRenderAddsTransformSetHandleToPictureWhenEditingAllowed(): void
+    {
+        $renderer = Plugin::getInstance()->getImageRenderer();
+        $asset = $this->createMockAsset();
+
+        $markup = $renderer->render($asset, 'default', [
+            'breakpoints' => [
+                'xs' => 480,
+            ],
+            'escapeWidth' => 0,
+            'allowTransformEditing' => true,
+        ]);
+
+        $html = (string)$markup;
+
+        $this->assertStringContainsString('<picture data-set="default">', $html);
+        $this->assertStringNotContainsString('data-picture-id=', $html);
+        $this->assertStringNotContainsString('data-breakpoint-states=', $html);
+    }
+
+    public function testRenderOmitsTransformSetHandleWhenEditingDisabled(): void
+    {
+        $renderer = Plugin::getInstance()->getImageRenderer();
+        $asset = $this->createMockAsset();
+
+        $markup = $renderer->render($asset, 'default', [
+            'breakpoints' => [
+                'xs' => 480,
+            ],
+            'escapeWidth' => 0,
+            'allowTransformEditing' => false,
+        ]);
+
+        $html = (string)$markup;
+
+        $this->assertStringContainsString('<picture>', $html);
+        $this->assertStringNotContainsString('data-set=', $html);
+    }
+
     public function testRenderUsesImgFallbackWithComputedAttributesWhenTemplateFails(): void
     {
         $renderer = Plugin::getInstance()->getImageRenderer();
@@ -109,7 +148,7 @@ final class ImageRendererServiceTest extends Unit
 
         $html = (string)$markup;
 
-        $this->assertStringContainsString('<picture class="svg-image">', $html);
+        $this->assertStringContainsString('<picture class="svg-image" data-set="default">', $html);
         $this->assertStringContainsString('<img', $html);
         $this->assertStringContainsString('class="svg-image"', $html);
     }
@@ -130,7 +169,7 @@ final class ImageRendererServiceTest extends Unit
 
         $html = (string)$markup;
 
-        $this->assertStringContainsString('<picture class="svg-picture">', $html);
+        $this->assertStringContainsString('<picture class="svg-picture" data-set="default">', $html);
         $this->assertStringContainsString('class="svg-image"', $html);
     }
 
