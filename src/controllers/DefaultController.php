@@ -56,8 +56,6 @@ class DefaultController extends Controller
         return $this->renderTemplate('breakpoints/cp/settings', [
             'settings' => $settings,
             'selectedSubnavItem' => 'settings',
-            'databaseStats' => $plugin->getDatabase()->getTableStats(),
-            'databaseLatestRunAt' => $plugin->getDatabase()->getLatestRunTimestamp(),
         ]);
     }
 

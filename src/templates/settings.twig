@@ -227,54 +227,21 @@
 </div>
 
 <div id="database" {% if useTabs and selectedTab != 'database' %}class="hidden"{% endif %}>
-    <h2>{{ 'Database Utilities'|t('breakpoints') }}</h2>
-    <p class="instructions">{{ 'Inspect and clean up plugin-owned tables.'|t('breakpoints') }}</p>
+    <h2>{{ 'Database'|t('breakpoints') }}</h2>
 
-    <table id="bpts-db-stats" class="bpts-db-stats">
-        <tbody>
-        {% for row in databaseStats ?? [] %}
-            <tr data-stat-key="{{ row.key }}">
-                <th scope="row">
-                    {{ row.label|t('breakpoints') }}
-                    {% if not row.exists %}
-                        <span class="error">{{ 'missing'|t('breakpoints') }}</span>
-                    {% endif %}
-                </th>
-                <td data-stat-rows>{{ row.rows }}</td>
-            </tr>
-        {% endfor %}
-        </tbody>
-    </table>
-
-    {% if databaseLatestRunAt %}
-        <p class="light">
-            {{ 'Last run snapshot recorded at'|t('breakpoints') }}
-            <strong>{{ databaseLatestRunAt|datetime('short') }}</strong>.
-        </p>
-    {% endif %}
-
-    <style>
-        .bpts-db-stats { width: auto; border-collapse: collapse; margin: 10px 0; }
-        .bpts-db-stats th,
-        .bpts-db-stats td { padding: 4px 16px 4px 0; border: 0; font-size: 13px; line-height: 1.4; font-weight: 400; }
-        .bpts-db-stats th { text-align: left; }
-        .bpts-db-stats td { text-align: right; font-variant-numeric: tabular-nums; }
-    </style>
-
-    <hr>
-
-    <h3>{{ 'Clean up orphaned data'|t('breakpoints') }}</h3>
-    <p class="instructions">{{ 'Deletes rows whose transform handle is no longer in the saved config, and rows that reference deleted entries. Safe to run anytime.'|t('breakpoints') }}</p>
+    <h3>{{ 'Clear observations'|t('breakpoints') }}</h3>
+    <p class="instructions warning">{{ 'Removes observed transform usage rows only. Run snapshots and preview cache are preserved.'|t('breakpoints') }}</p>
     <div class="buttons">
         {{ forms.button({
-            label: 'Clean up'|t('breakpoints'),
-            icon: 'broom',
+            label: 'Clear observations'|t('breakpoints'),
+            icon: 'trash',
             spinner: true,
-            busyMessage: 'Cleaning up…'|t('breakpoints'),
+            busyMessage: 'Clearing…'|t('breakpoints'),
+            class: ['secondary'],
             attributes: {
                 data: {
-                    'bpts-db-action': 'cleanup-orphaned',
-                    'bpts-db-confirm': 'Run orphan cleanup now?'|t('breakpoints'),
+                    'bpts-db-action': 'clear-observations',
+                    'bpts-db-confirm': 'Permanently clear observed transform usage rows? This cannot be undone.'|t('breakpoints'),
                 },
             },
         }) }}
@@ -308,19 +275,9 @@
     }
 
     var actionMap = {
-        'cleanup-orphaned': 'breakpoints/database/cleanup-orphaned',
+        'clear-observations': 'breakpoints/database/clear-observations',
         'clear-all': 'breakpoints/database/clear-all'
     };
-
-    function updateStats(stats) {
-        if (!Array.isArray(stats)) return;
-        stats.forEach(function(row) {
-            var tr = document.querySelector('#bpts-db-stats tr[data-stat-key="' + row.key + '"]');
-            if (!tr) return;
-            var cell = tr.querySelector('[data-stat-rows]');
-            if (cell) cell.textContent = row.rows;
-        });
-    }
 
     document.querySelectorAll('[data-bpts-db-action]').forEach(function(btn) {
         btn.addEventListener('click', function() {
@@ -341,7 +298,6 @@
                     if (data.message) {
                         Craft.cp.displayNotice(data.message);
                     }
-                    updateStats(data.stats);
                 })
                 .catch(function(error) {
                     var msg = (error && error.response && error.response.data && error.response.data.message)
@@ -357,6 +313,4 @@
     });
 })();
 {% endjs %}
-
-
 

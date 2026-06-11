@@ -23,25 +23,19 @@ class DatabaseController extends Controller
         return true;
     }
 
-    public function actionCleanupOrphaned(): Response
-    {
-        $result = Plugin::getInstance()->getDatabase()->cleanupOrphanedRows();
-        $message = sprintf(
-            'Removed %d orphaned row%s (%d unknown handles, %d missing entries).',
-            $result['total'],
-            $result['total'] === 1 ? '' : 's',
-            $result['orphanedHandles'],
-            $result['orphanedEntries'],
-        );
-        return $this->respond($message, $result);
-    }
-
     public function actionClearAll(): Response
     {
         $result = Plugin::getInstance()->getDatabase()->clearAll();
         $total = array_sum($result);
         $message = sprintf('Cleared all plugin data (%d row%s deleted).', $total, $total === 1 ? '' : 's');
         return $this->respond($message, $result + ['total' => $total]);
+    }
+
+    public function actionClearObservations(): Response
+    {
+        $rows = Plugin::getInstance()->getDatabase()->clearObservedUsage();
+        $message = sprintf('Cleared observed transform usage (%d row%s deleted).', $rows, $rows === 1 ? '' : 's');
+        return $this->respond($message, ['usage' => $rows, 'total' => $rows]);
     }
 
     /**
@@ -53,7 +47,6 @@ class DatabaseController extends Controller
         return $this->asJson(array_merge([
             'success' => true,
             'message' => Craft::t('breakpoints', $message),
-            'stats' => Plugin::getInstance()->getDatabase()->getTableStats(),
         ], $extra));
     }
 }

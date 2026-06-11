@@ -100,7 +100,7 @@ class Plugin extends BasePlugin
                 $event->rules['breakpoints/processing'] = 'breakpoints/default/transforms';
                 $event->rules['breakpoints/docs'] = 'breakpoints/default/docs';
                 $event->rules['breakpoints/docs/<slug:.+>'] = 'breakpoints/default/docs';
-                $event->rules['POST breakpoints/database/cleanup-orphaned'] = 'breakpoints/database/cleanup-orphaned';
+                $event->rules['POST breakpoints/database/clear-observations'] = 'breakpoints/database/clear-observations';
                 $event->rules['POST breakpoints/database/clear-all'] = 'breakpoints/database/clear-all';
             }
         );
