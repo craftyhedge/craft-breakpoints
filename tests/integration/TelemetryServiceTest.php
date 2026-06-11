@@ -6,6 +6,7 @@ namespace craftyhedge\craftbreakpoints\tests\integration;
 
 use Codeception\Test\Unit;
 use Craft;
+use craft\elements\Asset;
 use craftyhedge\craftbreakpoints\Plugin;
 use craftyhedge\craftbreakpoints\services\InitOptions;
 
@@ -82,5 +83,40 @@ final class TelemetryServiceTest extends Unit
         $this->assertNull($row['initRatio']);
         $this->assertNull($row['initWidthAuto']);
         $this->assertNull($row['initHeightAuto']);
+    }
+
+    public function testRenderingSvgAssetDoesNotRecordObservedUsage(): void
+    {
+        $plugin = Plugin::getInstance();
+        $asset = $this->createMockSvgAsset();
+
+        $markup = $plugin->getImageRenderer()->render($asset, 'svgOnly', [
+            'breakpoints' => [
+                'xs' => 480,
+            ],
+            'escapeWidth' => 0,
+            'allowTransformEditing' => true,
+        ]);
+
+        $this->assertStringContainsString('<picture data-set="svgOnly">', (string)$markup);
+        $this->assertArrayNotHasKey('svgOnly', $plugin->getTelemetry()->getMostRecentByHandle());
+    }
+
+    private function createMockSvgAsset(): Asset
+    {
+        $asset = $this->getMockBuilder(Asset::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['getUrl', 'getWidth', 'getHeight', 'getMimeType', 'getExtension'])
+            ->getMock();
+
+        $asset->id = 123;
+
+        $asset->method('getWidth')->willReturn(1600);
+        $asset->method('getHeight')->willReturn(900);
+        $asset->method('getExtension')->willReturn('svg');
+        $asset->method('getMimeType')->willReturn('image/svg+xml');
+        $asset->method('getUrl')->willReturn('https://example.test/original.svg');
+
+        return $asset;
     }
 }

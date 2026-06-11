@@ -319,11 +319,13 @@ class ImageTransforms extends Component
         $namedSet = $this->getNamedSet($config);
         $initOptions = InitOptions::fromConfig($config, $namedSet !== null);
 
-        $this->_plugin->getTelemetry()->recordUsage(
-            $setName,
-            $initOptions,
-            $this->isEscapeWidthIncluded($config, $namedSet),
-        );
+        if (!$this->isSvgAsset($image)) {
+            $this->_plugin->getTelemetry()->recordUsage(
+                $setName,
+                $initOptions,
+                $this->isEscapeWidthIncluded($config, $namedSet),
+            );
+        }
 
         $config['setName'] = $setName;
 
@@ -896,6 +898,26 @@ class ImageTransforms extends Component
             'svg' => 'image/svg+xml',
             default => 'image/jpeg',
         };
+    }
+
+    private function isSvgAsset(Asset $image): bool
+    {
+        try {
+            $extension = strtolower(trim($image->getExtension()));
+            if ($extension === 'svg') {
+                return true;
+            }
+        } catch (\Throwable) {
+            // Fall back to MIME type for mocks or assets where extension lookup is unavailable.
+        }
+
+        try {
+            $mimeType = strtolower(trim((string)$image->getMimeType()));
+
+            return $mimeType === 'image/svg+xml';
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     private function buildSizedPlaceholderUrl(int $width, int $height): string
