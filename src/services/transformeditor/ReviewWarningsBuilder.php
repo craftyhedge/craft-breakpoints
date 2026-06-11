@@ -66,16 +66,44 @@ final class ReviewWarningsBuilder
             && $entryId > 0
             && (string)($runEntryData['cpEditUrl'] ?? '') !== '#';
         $entryMissing = $entryId > 0 && !$entryAvailable;
+        $observedByHandle = (!$entryAvailable)
+            ? $this->telemetry->getMostRecentByHandle()
+            : [];
 
         foreach ($missingDefinitions as $transformName) {
+            $warningEntryId = $entryId;
+            $warningEntryAvailable = $entryAvailable;
+            $warningEntryMissing = $entryMissing;
+
+            if (!$warningEntryAvailable) {
+                $observedEntryId = $this->resolveObservedEntryId($observedByHandle[$transformName] ?? null);
+                if ($observedEntryId > 0) {
+                    $warningEntryId = $observedEntryId;
+                    $warningEntryAvailable = true;
+                    $warningEntryMissing = false;
+                }
+            }
+
             $warningsByTransform[$transformName][] = $this->buildMissingSetDefinitionWarning(
-                $entryId,
-                $entryAvailable,
-                $entryMissing,
+                $warningEntryId,
+                $warningEntryAvailable,
+                $warningEntryMissing,
             );
         }
 
         return $warningsByTransform;
+    }
+
+    /**
+     * @param mixed $observedEntry
+     */
+    private function resolveObservedEntryId(mixed $observedEntry): int
+    {
+        if (!is_array($observedEntry) || !is_numeric($observedEntry['entryId'] ?? null)) {
+            return 0;
+        }
+
+        return max(0, (int)$observedEntry['entryId']);
     }
 
     /**

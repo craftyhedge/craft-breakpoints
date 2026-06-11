@@ -1958,6 +1958,60 @@ final class TransformEditorServiceTest extends Unit
         $this->assertSame(0, $breakpointColumns->length);
     }
 
+    public function testRenderInitialStoredReviewUsesObservedEntryForUnsavedSetProcessButton(): void
+    {
+        $previousTelemetry = Plugin::getInstance()->getTelemetry();
+        $previousEditor = Plugin::getInstance()->get('transformEditor');
+        Plugin::getInstance()->set('telemetry', new class() extends TelemetryService {
+            public function canEditTransforms(): bool
+            {
+                return true;
+            }
+
+            public function getMostRecentByHandle(): array
+            {
+                return [
+                    'hero' => [
+                        'handle' => 'hero',
+                        'entryId' => 123,
+                        'sourceUrl' => null,
+                        'lastSeenAt' => '',
+                        'initWidth' => null,
+                        'initHeight' => null,
+                        'initRatio' => null,
+                        'initWidthAuto' => false,
+                        'initHeightAuto' => false,
+                        'includeEscapeWidth' => false,
+                    ],
+                ];
+            }
+
+            public function getObservedUnsavedHandles(array $configuredHandles): array
+            {
+                return array_values($this->getMostRecentByHandle());
+            }
+        });
+        Plugin::getInstance()->set('transformEditor', TransformEditor::class);
+
+        try {
+            $editor = Plugin::getInstance()->getTransformEditor();
+            $result = $this->withRuntimeSets([], fn() => $editor->renderInitialStoredReview());
+        } finally {
+            Plugin::getInstance()->set('transformEditor', $previousEditor);
+            Plugin::getInstance()->set('telemetry', $previousTelemetry);
+        }
+
+        $xpath = $this->createReviewMarkupXPath((string)($result['visualResultsHtml'] ?? ''));
+        $buttons = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpts-warning-process-entry ') and @data-bpts-action='processWarningEntry']");
+        $this->assertNotFalse($buttons);
+        $this->assertSame(1, $buttons->length);
+
+        $button = $buttons->item(0);
+        $this->assertInstanceOf(\DOMElement::class, $button);
+        $this->assertSame('123', $button->getAttribute('data-entry-id'));
+        $this->assertFalse($button->hasAttribute('disabled'));
+    }
+
     public function testRenderInitialStoredReviewSeedsInitAutoForUnsavedSetFromTelemetry(): void
     {
         $editor = Plugin::getInstance()->getTransformEditor();
