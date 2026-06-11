@@ -41,8 +41,9 @@ setting system defaults, see
 
 ## 2. Process and save the transform set
 
-Once your component layout is ready, process the page to measure the
-real rendered image sizes.
+> **Important:** Configure the plugin breakpoints to match your CSS framework's breakpoints before processing. See [Configuration](configuration.md#sample-configbreakpointsphp).
+
+Once your component layout is ready, process the page to measure the real rendered image sizes.
 
 1. Open **Breakpoints → Transform Sets** and choose the entry with the image(s) to process.
 
@@ -65,7 +66,60 @@ hold the image in the intended space as its generated dimensions change.
 > those off locally while processing. See
 > [Responsive Images → Caching During Processing](responsive-images.md#caching-during-processing).
 
-## 3. Review and edit saved transform sets
+## 3. Review processing warnings
+
+After processing, review any transform cards marked as needing attention before
+you treat the saved values as final.
+
+Warnings can appear when a transform set is missing, when enabled breakpoint
+values are empty, or when the rendered image sizes no longer match the saved
+transform dimensions.
+
+Resolve the warning shown on the card, then process the entry again to verify
+the updated values. A clean run should show no warnings detected.
+
+### Missing Transform Sets
+
+Breakpoints can find a transform set handle in your templates before that set
+has been saved. Process the entry to capture rendered dimensions and create the
+set, or add the transform values manually if editing is enabled.
+
+### Empty Enabled Breakpoints
+
+Enabled breakpoint rows need a saved width or height. If a breakpoint is enabled
+but both values are empty, add the missing dimensions or disable that breakpoint
+if the component should not generate an image there.
+
+### Mismatched Assets
+
+Transform sets can be reused across templates, so every use of the same set
+handle should render at the same dimensions.
+
+When processing finds multiple assets using the same set handle, those assets
+are grouped together in the transform set card. If one or more renders at a
+different size, review the templates that use that handle and adjust the markup
+or CSS so each use produces matching dimensions.
+
+### Rendered Size Mismatches
+
+After processing, Breakpoints compares the latest rendered image sizes with the
+saved transform dimensions. If they differ, apply the rendered values or update
+the component CSS so the rendered size matches the saved transform set.
+
+### Hidden or Disabled Breakpoints
+
+Processing can detect breakpoints where an image is hidden by the page layout.
+Review those breakpoints before applying rendered values, then disable any
+breakpoint that should not generate a transform for that component.
+
+### Image Load or Marker Issues
+
+Processing may warn when an image fails to load, cannot be decoded, uses an
+unsupported source, or is still pending when processing is stopped. It can also
+warn when Breakpoints processing markers are missing, usually because local
+full-page or static caching is serving stale markup.
+
+## 4. Review and edit saved transform sets
 
 The default Transform Sets view shows saved transform sets in a non-editing
 state, so you can review the current dimensions and settings without changing
@@ -80,7 +134,7 @@ Editing is only available when `allowTransformEditing` is enabled in
 `config/breakpoints.php`. Keep that enabled for local development only. See
 [Configuration](configuration.md#sample-configbreakpointsphp).
 
-## 4. Collapse the breakpoint view
+## 5. Collapse the breakpoint view
 
 The Transform Sets view shows breakpoints as relatively sized screen and image
 representations. That makes the saved sizes easier to understand visually, but
