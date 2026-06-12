@@ -412,7 +412,7 @@ final class TransformsControllerTest extends Unit
         $this->assertTrue($controller->postRequestChecked);
     }
 
-    public function testApplyCardOperationRatioCopyPatchesSignalsFromSavedConfig(): void
+    public function testApplyCardOperationRatioCopyAppliesCopiedRatioToScope(): void
     {
         $controller = $this->controllerWithBody([
             'baseVersion' => 6,
@@ -427,6 +427,14 @@ final class TransformsControllerTest extends Unit
         // hero's 640px breakpoint is saved as 640x340; the copied ratio is reduced by GCD to 32:17.
         $this->assertStringContainsString('"ratioWidthInput":"32"', (string)$response->content);
         $this->assertStringContainsString('"ratioHeightInput":"17"', (string)$response->content);
+        $this->assertStringContainsString('Copied ratio 32:17 from xs', (string)$response->content);
+
+        // Copy auto-applies: the source breakpoint's variant now carries the locked ratio.
+        $variants = Plugin::getInstance()->getTransformStore()->getSets()['hero']['variants'] ?? [];
+        $this->assertTrue(($variants['xs']['ratioLocked'] ?? false) === true);
+        $this->assertSame(32, (int)($variants['xs']['ratioWidth'] ?? 0));
+        $this->assertSame(17, (int)($variants['xs']['ratioHeight'] ?? 0));
+
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
     }
@@ -484,7 +492,7 @@ final class TransformsControllerTest extends Unit
         $this->assertSame(Response::FORMAT_RAW, $response->format);
         $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
         $this->assertStringContainsString('data-kind="error"', (string)$response->content);
-        $this->assertStringContainsString('No rendered ratio source found', (string)$response->content);
+        $this->assertStringContainsString('No saved ratio source found', (string)$response->content);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
     }

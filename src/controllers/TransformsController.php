@@ -161,10 +161,6 @@ class TransformsController extends Controller
             return $this->handleScopeSelect($operation, $editor);
         }
 
-        if ($operation->operation === 'ratio.copyFromRenderedBreakpoint') {
-            return $this->handleRatioCopyFromRendered($operation, $editor);
-        }
-
         try {
             $operationResult = match ($operation->operation) {
                 'renderedValues.apply'                       => $this->dispatchRenderedValuesApply($operation, $editor),
@@ -175,6 +171,7 @@ class TransformsController extends Controller
                 'dimensions.toggleAutoHeight'                => $this->dispatchToggleAutoHeight($operation, $editor),
                 'ratio.apply'                                => $this->dispatchRatioApply($operation, $editor),
                 'ratio.remove'                               => $this->dispatchRatioRemove($operation, $editor),
+                'ratio.copyFromRenderedBreakpoint'           => $this->dispatchRatioCopyFromRendered($operation, $editor),
                 'breakpoint.toggleEnabled'                   => $this->dispatchBreakpointToggle($operation, $editor),
                 'settings.setPassHeightWhenRenderedLteSaved' => $editor->applySetPassHeightWhenRenderedLteSavedOperation(
                     $operation->setName,
@@ -284,25 +281,31 @@ class TransformsController extends Controller
         ]);
     }
 
-    private function handleRatioCopyFromRendered(CardOperationRequest $operation, TransformEditor $editor): Response
+    /**
+     * Resolves the source breakpoint's saved ratio and applies it to the current
+     * scope in one step — "Copy ratio" auto-applies rather than only pre-filling
+     * the inputs. The copied pair is echoed back into the ratio inputs by
+     * buildOperationResponse so the panel shows what was applied.
+     *
+     * @return array<string, mixed>
+     */
+    private function dispatchRatioCopyFromRendered(CardOperationRequest $operation, TransformEditor $editor): array
     {
-        if ($operation->setName === '') {
-            $this->logCardOperationResponseFailure($operation, 'setName is required.');
+        $validation = Support::defaultValidation();
 
-            return $this->asDatastarEventStream([
-                new PatchElements($this->renderEditorStatusFragment('error', 'setName is required.')),
-            ]);
+        if ($operation->setName === '') {
+            Support::addGlobalError($validation, 'setName is required.');
+
+            return ['persisted' => false, 'validation' => $validation];
         }
 
         $sourceBreakpointKey = $this->readRequestedCardSignalString($operation->setName, 'ratioSourceBreakpointKey')
             ?? $operation->ratioSourceBreakpointKey;
         $sourceBreakpointKey = is_string($sourceBreakpointKey) ? trim($sourceBreakpointKey) : '';
         if ($sourceBreakpointKey === '') {
-            $this->logCardOperationResponseFailure($operation, 'ratioSourceBreakpointKey is required.');
+            Support::addGlobalError($validation, 'ratioSourceBreakpointKey is required.');
 
-            return $this->asDatastarEventStream([
-                new PatchElements($this->renderEditorStatusFragment('error', 'ratioSourceBreakpointKey is required.')),
-            ]);
+            return ['persisted' => false, 'validation' => $validation];
         }
 
         $copiedRatio = $editor->applySetCopyRatioFromRenderedBreakpointOperation(
@@ -310,39 +313,35 @@ class TransformsController extends Controller
             $sourceBreakpointKey,
         );
         if ($copiedRatio === null) {
-            $this->logCardOperationResponseFailure($operation, 'No rendered ratio source found for selected breakpoint.', [
-                'ratioSourceBreakpointKey' => $sourceBreakpointKey,
-            ]);
+            Support::addGlobalError($validation, 'No saved ratio source found for the selected breakpoint.');
 
-            return $this->asDatastarEventStream([
-                new PatchElements($this->renderEditorStatusFragment('error', 'No rendered ratio source found for selected breakpoint.')),
-            ]);
+            return ['persisted' => false, 'validation' => $validation];
         }
 
-        $signalKey = $this->buildCardSignalKey($operation->setName);
-        if ($signalKey === '') {
-            $this->logCardOperationResponseFailure($operation, 'Unable to resolve card state key.');
+        $requestedScope = $this->readRequestedCardScope($operation->setName);
 
-            return $this->asDatastarEventStream([
-                new PatchElements($this->renderEditorStatusFragment('error', 'Unable to resolve card state key.')),
-            ]);
-        }
+        $result = $editor->applySetRatioOperation(
+            $operation->setName,
+            $requestedScope['mode'] ?? $operation->scopeMode,
+            $requestedScope['breakpoint'] ?? $operation->scopeBreakpoint,
+            (int)$copiedRatio['width'],
+            (int)$copiedRatio['height'],
+            $this->readRequestedCardSignalString($operation->setName, 'ratioSourceDimension') ?? $operation->ratioSourceDimension ?? 'width',
+            $operation->includeEscapeWidth,
+            $operation->baseVersion,
+            $requestedScope['key'] ?? $operation->scopeBreakpointKey,
+        );
 
-        return $this->asDatastarEventStream([
-            new PatchSignals([
-                'editor' => [
-                    'cards' => [
-                        $signalKey => [
-                            'ratioWidthInput' => (string)$copiedRatio['width'],
-                            'ratioHeightInput' => (string)$copiedRatio['height'],
-                            'ratioFloatInput' => Support::formatRatioFloatInput($copiedRatio['width'], $copiedRatio['height']),
-                            'ratioLocked' => '0',
-                        ],
-                    ],
-                ],
-            ]),
-            new PatchElements($this->renderEditorStatusFragment('success', 'Copied rendered ratio for selected breakpoint.')),
-        ]);
+        $result['copiedRatio'] = [
+            'width' => (int)$copiedRatio['width'],
+            'height' => (int)$copiedRatio['height'],
+        ];
+        $operationDetails = is_array($result['operationDetails'] ?? null) ? $result['operationDetails'] : [];
+        $operationDetails['copiedRatioLabel'] = $copiedRatio['width'] . ':' . $copiedRatio['height'];
+        $operationDetails['copiedRatioSourceKey'] = $sourceBreakpointKey;
+        $result['operationDetails'] = $operationDetails;
+
+        return $result;
     }
 
     /**
@@ -583,8 +582,14 @@ class TransformsController extends Controller
                     }
                     // Refresh the edit-panel scope values after operations that change
                     // saved values the inputs are bound to (rendered apply rewrites
-                    // dimensions; ratio removal clears the ratio inputs/lock).
-                    if ($operation->operation === 'renderedValues.apply' || $operation->operation === 'ratio.remove') {
+                    // dimensions; ratio removal clears the ratio inputs/lock; ratio
+                    // copy auto-applies the copied pair).
+                    $refreshesScopeValues = in_array($operation->operation, [
+                        'renderedValues.apply',
+                        'ratio.remove',
+                        'ratio.copyFromRenderedBreakpoint',
+                    ], true);
+                    if ($refreshesScopeValues) {
                         $requestedScope = $this->readRequestedCardScope($operation->setName);
                         $scopeMode = $requestedScope['mode'] ?? $operation->scopeMode;
                         $scopeBreakpoint = $requestedScope['breakpoint'] ?? $operation->scopeBreakpoint;
@@ -608,6 +613,20 @@ class TransformsController extends Controller
                             'ratioFloatInput' => $scopeValues['ratioFloatInput'] ?? '',
                             'ratioSourceDimension' => $scopeValues['ratioSourceDimension'] ?? 'width',
                         ]);
+
+                        // After a partial all-scope apply the aggregated ratio values can
+                        // be blank (skipped breakpoints kept their old ratio), so echo the
+                        // copied pair into the inputs regardless of the aggregate.
+                        $copiedRatio = $operationResult['copiedRatio'] ?? null;
+                        if ($operation->operation === 'ratio.copyFromRenderedBreakpoint' && is_array($copiedRatio)) {
+                            $copiedWidth = (int)($copiedRatio['width'] ?? 0);
+                            $copiedHeight = (int)($copiedRatio['height'] ?? 0);
+                            if ($copiedWidth > 0 && $copiedHeight > 0) {
+                                $cardSignalPatch['ratioWidthInput'] = (string)$copiedWidth;
+                                $cardSignalPatch['ratioHeightInput'] = (string)$copiedHeight;
+                                $cardSignalPatch['ratioFloatInput'] = Support::formatRatioFloatInput($copiedWidth, $copiedHeight);
+                            }
+                        }
                     }
                 }
 
@@ -1235,9 +1254,19 @@ class TransformsController extends Controller
                     : 'No saved ratio to remove.';
             }
 
+            $copiedRatioLabel = is_string($details['copiedRatioLabel'] ?? null) ? $details['copiedRatioLabel'] : '';
+            $copiedRatioSourceKey = is_string($details['copiedRatioSourceKey'] ?? null) ? $details['copiedRatioSourceKey'] : '';
+
             if ($persisted && ($appliedBreakpoints !== [] || $skippedBreakpoints !== [])) {
                 $appliedCount = count($appliedBreakpoints);
-                if ($field === 'ratio') {
+                if ($field === 'ratio' && $copiedRatioLabel !== '') {
+                    $copiedFrom = $copiedRatioSourceKey !== '' ? ' from ' . $copiedRatioSourceKey : '';
+                    if ($appliedCount > 0) {
+                        $message = sprintf('Copied ratio %s%s, applied to %d breakpoint%s.', $copiedRatioLabel, $copiedFrom, $appliedCount, $appliedCount === 1 ? '' : 's');
+                    } else {
+                        $message = sprintf('Copied ratio %s%s, not applied to any breakpoints.', $copiedRatioLabel, $copiedFrom);
+                    }
+                } elseif ($field === 'ratio') {
                     if ($appliedCount > 0) {
                         $message = sprintf('Ratio applied to %d breakpoint%s.', $appliedCount, $appliedCount === 1 ? '' : 's');
                     } else {

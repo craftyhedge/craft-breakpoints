@@ -781,12 +781,15 @@ final class ReviewRenderer
                 $slotKey = $this->getReviewSlotKeyById((int)$transformBreakpoint) ?? '';
                 $displayPx = $this->getReviewSlotMediaWidthById($transformBreakpoint, $includeEscapeWidth) ?? $transformBreakpoint;
                 $selectedAttr = $value === $ratioSourceBreakpointDefault ? ' selected' : '';
+                // Label by slot key (base, xs, …) to match the breakpoint column
+                // headings; widths are only a fallback for unknown slots.
+                $label = $slotKey !== '' ? $slotKey : $displayPx . 'px';
                 $ratioSourceBreakpointOptions .= sprintf(
-                    '<option value="%s" data-slot-key="%s"%s>%spx</option>',
+                    '<option value="%s" data-slot-key="%s"%s>%s</option>',
                     $this->escapeReviewHtml($value),
                     $this->escapeReviewHtml($slotKey),
                     $selectedAttr,
-                    $this->escapeReviewHtml((string)$displayPx),
+                    $this->escapeReviewHtml((string)$label),
                 );
             }
 
