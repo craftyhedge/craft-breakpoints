@@ -1,6 +1,6 @@
 {
     "name": "craftyhedge/breakpoints",
-    "description": "Craft CMS 5 plugin for responsive breakpoint image helpers.",
+    "description": "Automatic responsive image processing and transform set generation.",
     "type": "craft-plugin",
     "keywords": [
         "craft",
