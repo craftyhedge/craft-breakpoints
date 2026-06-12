@@ -1388,7 +1388,7 @@ class TransformsController extends Controller
 
         return array_filter([
             'appliedBreakpoints' => $this->stringListForLog($details['appliedBreakpoints'] ?? null),
-            'skippedBreakpoints' => $this->stringListForLog($details['skippedBreakpoints'] ?? null),
+            'skippedBreakpoints' => $this->skippedBreakpointsForLog($details['skippedBreakpoints'] ?? null),
         ], static fn(mixed $value): bool => $value !== []);
     }
 
@@ -1402,9 +1402,41 @@ class TransformsController extends Controller
         }
 
         return array_values(array_filter(array_map(
-            static fn(mixed $item): string => trim((string)$item),
+            static fn(mixed $item): string => is_scalar($item) ? trim((string)$item) : '',
             $value,
         ), static fn(string $item): bool => $item !== ''));
+    }
+
+    /**
+     * @return array<int, array{breakpoint: int, reason: string}>
+     */
+    private function skippedBreakpointsForLog(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $skippedBreakpoints = [];
+
+        foreach ($value as $item) {
+            if (!is_array($item) || !is_numeric($item['breakpoint'] ?? null)) {
+                continue;
+            }
+
+            $breakpoint = max(0, (int)$item['breakpoint']);
+            $reason = is_string($item['reason'] ?? null) ? trim($item['reason']) : '';
+
+            if ($breakpoint <= 0 || $reason === '') {
+                continue;
+            }
+
+            $skippedBreakpoints[] = [
+                'breakpoint' => $breakpoint,
+                'reason' => $reason,
+            ];
+        }
+
+        return $skippedBreakpoints;
     }
 
     /**

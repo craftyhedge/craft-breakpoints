@@ -415,7 +415,7 @@ final class TransformsControllerTest extends Unit
     public function testApplyCardOperationRatioCopyAppliesCopiedRatioToScope(): void
     {
         $controller = $this->controllerWithBody([
-            'baseVersion' => 6,
+            'baseVersion' => Plugin::getInstance()->getTransformStore()->getCurrentVersion(),
             'operation' => 'ratio.copyFromRenderedBreakpoint',
             'setName' => 'hero',
             'ratioSourceBreakpointKey' => 'xs',
