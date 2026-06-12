@@ -103,8 +103,7 @@ or CSS so each use produces matching dimensions.
 ### Rendered Size Mismatches
 
 After processing, Breakpoints compares the latest rendered image sizes with the
-saved transform dimensions. If they differ, apply the rendered values or update
-the component CSS so the rendered size matches the saved transform set.
+saved transform dimensions. If they differ, apply the rendered values or edit as required.
 
 ### Hidden or Disabled Breakpoints
 
@@ -133,6 +132,34 @@ needed. Edits are saved automatically.
 Editing is only available when `allowTransformEditing` is enabled in
 `config/breakpoints.php`. Keep that enabled for local development only. See
 [Configuration](configuration.md#sample-configbreakpointsphp).
+
+### Allow height differences
+
+Open **Set options** on a transform card when the rendered height may
+legitimately differ from the saved height.
+
+Useful for background images that are affected by content. Others on your team might process with different content and get warnings unless suppressed with these.
+
+You could use an auto height but then the images would carry their intrinsic ratio instead of setting a fixed transform.
+
+Two settings are available:
+
+- **Allow Shorter heights** accepts a rendered height that is less than or
+  equal to the saved height. A taller rendered image is still reported as a
+  mismatch.
+- **Allow Any Height** accepts every rendered height and prevents height alone
+  from causing a mismatch.
+
+Only one height setting can be active at a time.
+
+### Add notes to a transform set
+
+Use the **Notes** tab to record information that should stay with a transform
+set, such as its intended component, layout constraints, unusual dimensions,
+or decisions made while reviewing processing results.
+
+Enter the note and select **Save notes**. Saved notes are shown on the transform
+card so they are visible when the set is reviewed later.
 
 ## 5. Collapse the breakpoint view
 
