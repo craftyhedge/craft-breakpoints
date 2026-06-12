@@ -762,12 +762,25 @@ final class ReviewRenderer
             $normalizedScopeState[$transformName] = $scope;
             $normalizedTabState[$transformName] = $tab;
 
-            $ratioSourceBreakpointDefault = $selectedBreakpoint !== null
-                ? (string)$selectedBreakpoint
-                : ($firstBreakpoint !== null ? (string)$firstBreakpoint : '');
-            $ratioSourceBreakpointKeyDefault = $selectedBreakpoint !== null
-                ? ($this->getReviewSlotKeyById((int)$selectedBreakpoint) ?? '')
-                : ($firstBreakpoint !== null ? ($this->getReviewSlotKeyById((int)$firstBreakpoint) ?? '') : '');
+            // Copy ratio auto-applies to the scoped breakpoint, so the scoped
+            // breakpoint itself is disabled as a source; default to the first
+            // other breakpoint (single-breakpoint sets keep the only option).
+            $ratioSourceBreakpointDefaultId = null;
+            foreach ($transformBreakpoints as $candidateBreakpoint) {
+                if ($selectedBreakpoint === null || (int)$candidateBreakpoint !== (int)$selectedBreakpoint) {
+                    $ratioSourceBreakpointDefaultId = (int)$candidateBreakpoint;
+                    break;
+                }
+            }
+            if ($ratioSourceBreakpointDefaultId === null && $selectedBreakpoint !== null) {
+                $ratioSourceBreakpointDefaultId = (int)$selectedBreakpoint;
+            }
+            $ratioSourceBreakpointDefault = $ratioSourceBreakpointDefaultId !== null
+                ? (string)$ratioSourceBreakpointDefaultId
+                : '';
+            $ratioSourceBreakpointKeyDefault = $ratioSourceBreakpointDefaultId !== null
+                ? ($this->getReviewSlotKeyById($ratioSourceBreakpointDefaultId) ?? '')
+                : '';
             $scopeBreakpointKey = $selectedBreakpoint !== null
                 ? ($this->getReviewSlotKeyById((int)$selectedBreakpoint) ?? '')
                 : '';
@@ -781,14 +794,26 @@ final class ReviewRenderer
                 $slotKey = $this->getReviewSlotKeyById((int)$transformBreakpoint) ?? '';
                 $displayPx = $this->getReviewSlotMediaWidthById($transformBreakpoint, $includeEscapeWidth) ?? $transformBreakpoint;
                 $selectedAttr = $value === $ratioSourceBreakpointDefault ? ' selected' : '';
+                // The scoped breakpoint can't be its own copy source; in all-scope
+                // every breakpoint is available. Server-rendered for first paint,
+                // reactive binding for scope changes.
+                $disabledAttr = ($selectedBreakpoint !== null && (int)$transformBreakpoint === (int)$selectedBreakpoint)
+                    ? ' disabled'
+                    : '';
+                $disabledBinding = sprintf(
+                    ' data-attr:disabled="$editor.cards.%1$s.scopeMode === \'breakpoint\' && Number($editor.cards.%1$s.scopeBreakpoint || 0) === %2$d ? true : null"',
+                    $signalKey,
+                    (int)$transformBreakpoint,
+                );
                 // Label by slot key (base, xs, …) to match the breakpoint column
                 // headings; widths are only a fallback for unknown slots.
                 $label = $slotKey !== '' ? $slotKey : $displayPx . 'px';
                 $ratioSourceBreakpointOptions .= sprintf(
-                    '<option value="%s" data-slot-key="%s"%s>%s</option>',
+                    '<option value="%s" data-slot-key="%s"%s%s>%s</option>',
                     $this->escapeReviewHtml($value),
                     $this->escapeReviewHtml($slotKey),
-                    $selectedAttr,
+                    $selectedAttr . $disabledAttr,
+                    $disabledBinding,
                     $this->escapeReviewHtml((string)$label),
                 );
             }

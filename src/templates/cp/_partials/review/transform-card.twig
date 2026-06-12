@@ -260,7 +260,7 @@
                                 <div class="bpts-transform-ratio-copy-row">
                                     <label class="bpts-transform-ratio-input-wrap">
                                             <span class="bpts-transform-input-with-addon bpts-transform-ratio-source-breakpoint-wrap">
-                                                <select class="bpts-transform-ratio-source-breakpoint-select" data-bind="{{ signalPathBase }}.ratioSourceBreakpoint" data-attr:disabled="{{ disabledWhenInactiveOrAutoOn }}">
+                                                <select class="bpts-transform-ratio-source-breakpoint-select" data-bind="{{ signalPathBase }}.ratioSourceBreakpoint" data-attr:disabled="{{ disabledWhenInactiveOrAutoOn }}" data-effect="const sb = String($editor.cards.{{ signalKey }}.scopeMode || '') === 'breakpoint' ? (Number($editor.cards.{{ signalKey }}.scopeBreakpoint || 0) || 0) : 0; if(sb > 0 && (Number($editor.cards.{{ signalKey }}.ratioSourceBreakpoint || 0) || 0) === sb){ const opt = Array.from(el.options).find(o => Number(o.value) !== sb); if(opt){ $editor.cards.{{ signalKey }}.ratioSourceBreakpoint = opt.value; $editor.cards.{{ signalKey }}.ratioSourceBreakpointKey = String(opt.dataset.slotKey || ''); } }">
                                                     {{ ratioSourceBreakpointOptions }}
                                                 </select>
                                             </span>
