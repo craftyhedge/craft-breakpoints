@@ -1147,6 +1147,7 @@ final class ReviewRenderer
                 'notesInputId' => $this->escapeReviewHtml($editPanelId . '-notes'),
                 'notesInput' => $this->escapeReviewHtml($notes),
                 'passHeightIndicatorHiddenClass' => ($passHeightWhenRenderedLteSaved || $allowAnyHeight) ? '' : 'bpts-force-hidden',
+                'passHeightIndicatorText' => $allowAnyHeight ? 'All heights allowed' : 'Shorter heights allowed',
                 'ratioSourceBreakpointOptions' => $ratioSourceBreakpointOptions,
                 'lastProcessPanelHtml' => $lastProcessPanelHtml,
             ]);

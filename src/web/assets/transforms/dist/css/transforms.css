@@ -4,6 +4,7 @@
     --bpts-color-primary-700: #1f4da3;
     --bpts-color-primary-800: #173d84;
     --bpts-color-success: #1f7a3f;
+    --bpts-color-success-bg: #edf7f0;
     --bpts-color-init-accent: #b48a00;
     --bpts-color-surface-soft: #f5f8fb;
     --bpts-color-surface-muted: #f0f2f5;
@@ -920,31 +921,17 @@
 
 .bpts-transform-pass-height-indicator {
     display: inline-flex;
-    align-items: flex-end;
-    justify-content: center;
-    width: 18px;
-    height: 18px;
-    min-width: 18px;
+    align-items: center;
     margin-left: 6px;
-    line-height: 1;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--bpts-color-success-bg);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.35;
+    white-space: nowrap;
     align-self: flex-end;
     color: var(--bpts-color-success);
-}
-
-.bpts-transform-pass-height-indicator-svg {
-    width: 100%;
-    height: 100%;
-    display: block;
-}
-
-.bpts-transform-pass-height-indicator-ruler,
-.bpts-transform-pass-height-indicator-ticks,
-.bpts-transform-pass-height-indicator-check {
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.6;
-    stroke-linecap: round;
-    stroke-linejoin: round;
 }
 
 .bpts-transform-init-applied-indicator {
@@ -1349,7 +1336,16 @@ input.bpts-init-value::placeholder {
 
 .bpts-transform-settings-section {
     display: grid;
+    grid-template-columns: repeat(2, minmax(0, max-content));
+    gap: 12px;
+    justify-content: start;
+}
+
+.bpts-transform-settings-option {
+    display: grid;
+    align-content: start;
     gap: 8px;
+    min-width: 0;
 }
 
 .bpts-transform-settings-toggle {
@@ -1357,10 +1353,11 @@ input.bpts-init-value::placeholder {
     align-items: center;
     gap: 8px;
     font-size: 12px;
+    cursor: pointer;
 }
 
-.bpts-transform-settings-toggle:not(:first-child) {
-    margin-top: 12px;
+.bpts-transform-settings-toggle input {
+    cursor: pointer;
 }
 
 .bpts-transform-settings-help {
@@ -1369,6 +1366,12 @@ input.bpts-init-value::placeholder {
     font-size: 11px;
     line-height: 1.4;
     max-width: 22rem;
+}
+
+@media (max-width: 460px) {
+    .bpts-transform-settings-section {
+        grid-template-columns: 1fr;
+    }
 }
 
 .bpts-transform-notes-section {

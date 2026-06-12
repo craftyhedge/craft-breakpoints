@@ -13,7 +13,7 @@
              - selectedAssetKey
     - cardSignalsStructural
       - includeEscapeWidth, cardWarningsHtml, signalPathBase
-      - passHeightIndicatorHiddenClass, breakpointColumns, cardBreakpointsHiddenClass
+      - passHeightIndicatorHiddenClass, passHeightIndicatorText, breakpointColumns, cardBreakpointsHiddenClass
       - renderedApplyHiddenClass, deleteSetHiddenClass, editScopeAllCheckedAttr
       - assetPaginationHtml, editPanelId
       - dimensions/ratio/settings tab class/selected/tabindex attrs
@@ -68,18 +68,8 @@
                     </span>
                     <h2 class="bpts-transform-name">{{ transformNameEscaped }}</h2>
                     <span class="bpts-transform-pass-height-indicator {{ passHeightIndicatorHiddenClass }}"
-                        role="img"
-                        title="Height tolerance is enabled"
-                        aria-label="Height tolerance is enabled"
                         data-class:bpts-force-hidden="$editor.cards.{{ signalKey }}.passHeightWhenRenderedLteSaved === true || $editor.cards.{{ signalKey }}.allowAnyHeight === true ? false : true"
-                        data-attr:title="$editor.cards.{{ signalKey }}.allowAnyHeight === true ? 'Allow Any Height is enabled' : ($editor.cards.{{ signalKey }}.passHeightWhenRenderedLteSaved === true ? 'Allow Shorter heights is enabled' : '')"
-                        data-attr:aria-label="$editor.cards.{{ signalKey }}.allowAnyHeight === true ? 'Allow Any Height is enabled' : ($editor.cards.{{ signalKey }}.passHeightWhenRenderedLteSaved === true ? 'Allow Shorter heights is enabled' : '')">
-                        <svg class="bpts-transform-pass-height-indicator-svg" viewBox="0 0 20 20" focusable="false" aria-hidden="true">
-                            <rect x="2.5" y="3.5" width="8" height="13" rx="1.2" class="bpts-transform-pass-height-indicator-ruler"></rect>
-                            <path d="M5 6.5h2.5M5 8.8h1.8M5 11.1h2.5M5 13.4h1.8" class="bpts-transform-pass-height-indicator-ticks"></path>
-                            <path d="M11.4 12.3l2.2 2.2 3.9-4.1" class="bpts-transform-pass-height-indicator-check"></path>
-                        </svg>
-                    </span>
+                        data-text="$editor.cards.{{ signalKey }}.allowAnyHeight === true ? 'All heights allowed' : ($editor.cards.{{ signalKey }}.passHeightWhenRenderedLteSaved === true ? 'Shorter heights allowed' : '')">{{ passHeightIndicatorText }}</span>
                     <span class="bpts-transform-update-status" data-role="transform-update-status" data-state="idle" aria-live="polite" aria-label="">
                         <span class="bpts-transform-update-status-icon bpts-transform-update-status-icon-saving" aria-hidden="true"><span class="icon" data-icon="refresh"></span></span>
                         <span class="bpts-transform-update-status-icon bpts-transform-update-status-icon-success" aria-hidden="true"><span class="icon" data-icon="check"></span></span>
@@ -273,17 +263,21 @@
 
                             <section id="{{ editPanelId }}-panel-settings" role="tabpanel" aria-labelledby="{{ editPanelId }}-tab-settings" class="bpts-transform-tab-panel {{ settingsPanelActiveClass }}" data-tab-panel="settings" {{ settingsPanelHiddenAttr }} data-class:active="$editor.cards.{{ signalKey }}.activeTab === 'settings'" data-attr:hidden="$editor.cards.{{ signalKey }}.activeTab === 'settings' ? false : true">
                             <section class="bpts-transform-settings-section" aria-label="Settings controls">
-                                <label class="bpts-transform-settings-toggle" for="{{ passHeightToggleId }}">
-                                    <input id="{{ passHeightToggleId }}" type="checkbox" class="bpts-transform-pass-height-toggle" data-bpts-action="passHeightWhenRenderedLteSaved" data-bind="{{ signalPathBase }}.passHeightWhenRenderedLteSaved" data-attr:disabled="$editor.cards.{{ signalKey }}.allowAnyHeight === true ? true : null" data-on:change__throttle.300ms="@post($_applyCardOperationUrl, {contentType: 'json', headers: {'X-CSRF-Token': $_csrfToken}, payload: {setName: String($editor.cards.{{ signalKey }}.setName || ''), operation: 'settings.setPassHeightWhenRenderedLteSaved', value: $editor.cards.{{ signalKey }}.passHeightWhenRenderedLteSaved === true, {{ cardModePayload }} baseVersion: String($editor.baseVersion || '')}})">
-                                    <span>Allow Shorter heights</span>
-                                </label>
-                                <p class="bpts-transform-settings-help">If you process a transform set on another page and the height is smaller due to less content, background images for example, it would get flagged if you don't use this option.</p>
-                                <p class="bpts-transform-settings-help">If it is larger you might want to know.</p>
-                                <label class="bpts-transform-settings-toggle" for="{{ allowAnyHeightToggleId }}">
-                                    <input id="{{ allowAnyHeightToggleId }}" type="checkbox" class="bpts-transform-allow-any-height-toggle" data-bpts-action="allowAnyHeight" data-bind="{{ signalPathBase }}.allowAnyHeight" data-attr:disabled="$editor.cards.{{ signalKey }}.passHeightWhenRenderedLteSaved === true ? true : null" data-on:change__throttle.300ms="@post($_applyCardOperationUrl, {contentType: 'json', headers: {'X-CSRF-Token': $_csrfToken}, payload: {setName: String($editor.cards.{{ signalKey }}.setName || ''), operation: 'settings.setAllowAnyHeight', value: $editor.cards.{{ signalKey }}.allowAnyHeight === true, {{ cardModePayload }} baseVersion: String($editor.baseVersion || '')}})">
-                                    <span>Allow Any Height</span>
-                                </label>
-                                <p class="bpts-transform-settings-help">When enabled, height is never flagged as a mismatch regardless of the rendered value.</p>
+                                <div class="bpts-transform-settings-option">
+                                    <label class="bpts-transform-settings-toggle" for="{{ passHeightToggleId }}">
+                                        <input id="{{ passHeightToggleId }}" type="checkbox" class="bpts-transform-pass-height-toggle" data-bpts-action="passHeightWhenRenderedLteSaved" data-bind="{{ signalPathBase }}.passHeightWhenRenderedLteSaved" data-on:change__throttle.300ms="if($editor.cards.{{ signalKey }}.passHeightWhenRenderedLteSaved === true){ $editor.cards.{{ signalKey }}.allowAnyHeight = false; } @post($_applyCardOperationUrl, {contentType: 'json', headers: {'X-CSRF-Token': $_csrfToken}, payload: {setName: String($editor.cards.{{ signalKey }}.setName || ''), operation: 'settings.setPassHeightWhenRenderedLteSaved', value: $editor.cards.{{ signalKey }}.passHeightWhenRenderedLteSaved === true, {{ cardModePayload }} baseVersion: String($editor.baseVersion || '')}})">
+                                        <span>Allow Shorter heights</span>
+                                    </label>
+                                    <p class="bpts-transform-settings-help">If you process a transform set on another page and the height is smaller due to less content, background images for example, it would get flagged if you don't use this option.</p>
+                                    <p class="bpts-transform-settings-help">If it is larger you might want to know.</p>
+                                </div>
+                                <div class="bpts-transform-settings-option">
+                                    <label class="bpts-transform-settings-toggle" for="{{ allowAnyHeightToggleId }}">
+                                        <input id="{{ allowAnyHeightToggleId }}" type="checkbox" class="bpts-transform-allow-any-height-toggle" data-bpts-action="allowAnyHeight" data-bind="{{ signalPathBase }}.allowAnyHeight" data-on:change__throttle.300ms="if($editor.cards.{{ signalKey }}.allowAnyHeight === true){ $editor.cards.{{ signalKey }}.passHeightWhenRenderedLteSaved = false; } @post($_applyCardOperationUrl, {contentType: 'json', headers: {'X-CSRF-Token': $_csrfToken}, payload: {setName: String($editor.cards.{{ signalKey }}.setName || ''), operation: 'settings.setAllowAnyHeight', value: $editor.cards.{{ signalKey }}.allowAnyHeight === true, {{ cardModePayload }} baseVersion: String($editor.baseVersion || '')}})">
+                                        <span>Allow Any Height</span>
+                                    </label>
+                                    <p class="bpts-transform-settings-help">When enabled, height is never flagged as a mismatch regardless of the rendered value.</p>
+                                </div>
                             </section>
                             </section>
 

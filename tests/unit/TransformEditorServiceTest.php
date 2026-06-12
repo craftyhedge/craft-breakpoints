@@ -1667,6 +1667,37 @@ final class TransformEditorServiceTest extends Unit
         $enabledHtml = (string)($enabledResult['visualResultsHtml'] ?? '');
         $this->assertStringContainsString('bpts-transform-pass-height-indicator', $enabledHtml);
         $this->assertStringNotContainsString('bpts-transform-pass-height-indicator bpts-force-hidden', $enabledHtml);
+        $this->assertStringContainsString('Shorter heights allowed', $enabledHtml);
+        $this->assertStringNotContainsString('bpts-transform-pass-height-indicator-ruler', $enabledHtml);
+        $this->assertStringContainsString('allowAnyHeight = false', $enabledHtml);
+        $this->assertStringContainsString('passHeightWhenRenderedLteSaved = false', $enabledHtml);
+
+        $allowAnyHeightResult = $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'sm' => ['width' => 640, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => ['allowAnyHeight' => true],
+            ],
+        ], fn() => $editor->renderResultReview([
+            'breakpoints' => [640],
+            'rowsByBreakpoint' => [
+                640 => [[
+                    'assetId' => '100',
+                    'transform' => 'hero',
+                    'enabled' => true,
+                    'isVisible' => true,
+                    'loaded' => true,
+                    'rendered' => ['width' => 640, 'height' => 340],
+                    'transformDimensions' => ['width' => 640, 'height' => 340, 'autoDimension' => null],
+                ]],
+            ],
+        ]));
+
+        $allowAnyHeightHtml = (string)($allowAnyHeightResult['visualResultsHtml'] ?? '');
+        $this->assertStringContainsString('All heights allowed', $allowAnyHeightHtml);
 
         $disabledResult = $this->withRuntimeSets([
             'hero' => [
