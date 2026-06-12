@@ -59,7 +59,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         showCardSettingsSignalBridge: document.getElementById('bpts-show-card-settings-signal-bridge'),
         compactBreakpointCardsSignalBridge: document.getElementById('bpts-compact-breakpoint-cards-signal-bridge'),
         uiResultsHeadingSignalBridge: document.getElementById('bpts-ui-results-heading-signal-bridge'),
-        resultsHeading: document.getElementById('bpts-results-heading'),
+        reviewStateLabel: document.getElementById('bpts-review-state-label'),
         uiShowWarningOrderSignalBridge: document.getElementById('bpts-ui-show-warning-order-signal-bridge'),
         uiResultsOrderingNoteLabelSignalBridge: document.getElementById('bpts-ui-results-ordering-note-label-signal-bridge'),
         sidebarSavedSetNamesSignalBridge: document.getElementById('bpts-sidebar-saved-set-names-signal-bridge'),
@@ -126,6 +126,9 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     const RESULTS_COPY = {
         saved: {
             heading: 'Saved Sets',
+        },
+        processed: {
+            heading: 'Page Processed Sets',
         },
     };
 
@@ -480,11 +483,12 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     }
 
     function updateResultsHeadingCopy() {
-        // The results panel only ever lists saved sets, so the heading stays "Saved".
-        const copy = RESULTS_COPY.saved;
+        const copy = state.lastResult === null
+            ? RESULTS_COPY.saved
+            : RESULTS_COPY.processed;
 
-        if (elements.resultsHeading) {
-            elements.resultsHeading.textContent = String(copy.heading || '');
+        if (elements.reviewStateLabel) {
+            elements.reviewStateLabel.textContent = String(copy.heading || '');
         }
 
         const bridge = elements.uiResultsHeadingSignalBridge;
@@ -3423,6 +3427,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             removeSidebarItemsNotInSavedNames,
             setLastResultForTests: (result) => {
                 state.lastResult = result;
+                updateResultsHeadingCopy();
             },
             setRunProcessingOverridesForTests: (overrides) => {
                 state.testRunProcessingOverrides = overrides && typeof overrides === 'object'

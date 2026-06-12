@@ -1,6 +1,8 @@
 function buildRuntimeDom() {
     document.body.innerHTML = `
     <div class="bpts-transforms-page"></div>
+    <span id="bpts-review-state-label"></span>
+    <input id="bpts-ui-results-heading-signal-bridge" value="Saved Sets" />
     <div id="bpts-editor-status" data-kind="ready" data-message=""></div>
     <input id="bpts-source-entry" value="" />
     <div id="bpts-status"></div>
@@ -1264,6 +1266,24 @@ describe('transforms runtime helper logic', () => {
 
         expect(eventPayload).toBe(report);
         expect(hooks.getLastReport()).toBe(report);
+    });
+
+    it('labels saved and page-processed review states', () => {
+        const label = document.getElementById('bpts-review-state-label');
+        const bridge = document.getElementById('bpts-ui-results-heading-signal-bridge');
+
+        expect(label.textContent).toBe('Saved Sets');
+        expect(bridge.value).toBe('Saved Sets');
+
+        hooks.setLastResultForTests({ rowsByBreakpoint: {} });
+
+        expect(label.textContent).toBe('Page Processed Sets');
+        expect(bridge.value).toBe('Page Processed Sets');
+
+        hooks.setLastResultForTests(null);
+
+        expect(label.textContent).toBe('Saved Sets');
+        expect(bridge.value).toBe('Saved Sets');
     });
 
     it('collects review edit state from rendered transform cards', () => {

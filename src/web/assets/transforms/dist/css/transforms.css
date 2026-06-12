@@ -355,7 +355,6 @@
 #sidebar-container {
     #sidebar {
         padding-inline: 16px !important;
-        padding-top: 10px;
     }
 }
 
@@ -375,6 +374,12 @@
     display: inline-flex;
     align-items: center;
     margin: 0;
+}
+
+.bpts-review-state-label {
+    color: var(--fg-subtle, var(--text-color));
+    font-size: 12px;
+    line-height: 1.35;
 }
 
 .bpts-results-settings-toggle {
