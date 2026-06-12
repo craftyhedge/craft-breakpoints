@@ -306,6 +306,31 @@ class TransformEditor extends Component
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function applySetRatioRemoveOperation(
+        string $transformName,
+        string $scopeMode,
+        ?int $scopeBreakpoint,
+        ?bool $includeEscapeWidth = null,
+        ?string $expectedVersion = null,
+        ?string $scopeBreakpointKey = null,
+    ): array {
+        if ($this->_operationsService === null) {
+            return ['persisted' => false, 'validation' => $this->defaultValidation()];
+        }
+
+        return $this->_operationsService->applySetRatioRemoveOperation(
+            $transformName,
+            $scopeMode,
+            $scopeBreakpoint,
+            $scopeBreakpointKey,
+            $includeEscapeWidth,
+            $expectedVersion,
+        );
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     public function applySetCopyRatioFromRenderedBreakpointOperation(

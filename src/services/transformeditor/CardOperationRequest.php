@@ -35,6 +35,7 @@ final class CardOperationRequest
     private const OPERATION_DIMENSIONS_TOGGLE_AUTO_WIDTH = 'dimensions.toggleAutoWidth';
     private const OPERATION_DIMENSIONS_TOGGLE_AUTO_HEIGHT = 'dimensions.toggleAutoHeight';
     private const OPERATION_RATIO_APPLY = 'ratio.apply';
+    private const OPERATION_RATIO_REMOVE = 'ratio.remove';
     private const OPERATION_RATIO_COPY_FROM_RENDERED_BREAKPOINT = 'ratio.copyFromRenderedBreakpoint';
     private const OPERATION_BREAKPOINT_TOGGLE_ENABLED = 'breakpoint.toggleEnabled';
     private const OPERATION_SETTINGS_SET_PASS_HEIGHT_WHEN_RENDERED_LTE_SAVED = 'settings.setPassHeightWhenRenderedLteSaved';
@@ -56,6 +57,7 @@ final class CardOperationRequest
         self::OPERATION_DIMENSIONS_TOGGLE_AUTO_WIDTH => self::FIELD_DIMENSIONS,
         self::OPERATION_DIMENSIONS_TOGGLE_AUTO_HEIGHT => self::FIELD_DIMENSIONS,
         self::OPERATION_RATIO_APPLY => self::FIELD_RATIO,
+        self::OPERATION_RATIO_REMOVE => self::FIELD_RATIO,
         self::OPERATION_RATIO_COPY_FROM_RENDERED_BREAKPOINT => self::FIELD_RATIO,
         self::OPERATION_BREAKPOINT_TOGGLE_ENABLED => self::FIELD_BREAKPOINT_ENABLED,
         self::OPERATION_SETTINGS_SET_PASS_HEIGHT_WHEN_RENDERED_LTE_SAVED => self::FIELD_PASS_HEIGHT_WHEN_RENDERED_LTE_SAVED,

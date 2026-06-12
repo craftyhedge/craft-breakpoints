@@ -1539,6 +1539,7 @@ button.bpts-transform-input-addon:hover:not(:disabled) {
     display: flex;
     align-items: center;
     align-self: end;
+    gap: 8px;
     padding-bottom: 0;
     margin-bottom: 5px;
 }
@@ -1549,8 +1550,10 @@ button.bpts-transform-input-addon:hover:not(:disabled) {
 
 .bpts-transform-dimensions-actions .bpts-transform-dimensions-apply:disabled,
 .bpts-transform-dimensions-actions .bpts-transform-ratio-apply:disabled,
+.bpts-transform-dimensions-actions .bpts-transform-ratio-remove:disabled,
 .bpts-transform-dimensions-actions .bpts-transform-dimensions-apply[disabled],
-.bpts-transform-dimensions-actions .bpts-transform-ratio-apply[disabled] {
+.bpts-transform-dimensions-actions .bpts-transform-ratio-apply[disabled],
+.bpts-transform-dimensions-actions .bpts-transform-ratio-remove[disabled] {
     opacity: 0.55;
     cursor: not-allowed;
 }

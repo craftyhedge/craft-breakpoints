@@ -291,6 +291,135 @@ final class ServerAuthorityOperationsTest extends Unit
         });
     }
 
+    public function testApplySetRatioRemoveOperationClearsSingleBreakpoint(): void
+    {
+        $plugin = Plugin::getInstance();
+
+        $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'xs' => ['width' => 640, 'height' => 360, 'enabled' => true, 'autoDimension' => null, 'ratioLocked' => true, 'ratioWidth' => 16, 'ratioHeight' => 9, 'ratioSourceDimension' => 'width'],
+                    'sm' => ['width' => 800, 'height' => 450, 'enabled' => true, 'autoDimension' => null, 'ratioLocked' => true, 'ratioWidth' => 16, 'ratioHeight' => 9, 'ratioSourceDimension' => 'width'],
+                ],
+                'config' => [],
+            ],
+        ], function () use ($plugin): void {
+            $service = new OperationsService(
+                $plugin->getTransformStore(),
+                $plugin->getConfigService(),
+                $plugin->getTelemetry(),
+                $plugin->getBreakpointPolicy(),
+                null,
+            );
+
+            $result = $service->applySetRatioRemoveOperation('hero', 'breakpoint', null, 'xs');
+
+            $this->assertTrue($result['persisted'] ?? false);
+            $this->assertTrue(($result['operationDetails']['ratioRemoved'] ?? false) === true);
+            $this->assertCount(1, $result['operationDetails']['appliedBreakpoints'] ?? []);
+
+            $variants = $plugin->getTransformStore()->getSets()['hero']['variants'] ?? [];
+            $this->assertFalse(($variants['xs']['ratioLocked'] ?? false) === true);
+            $this->assertNull($variants['xs']['ratioWidth'] ?? null);
+            $this->assertNull($variants['xs']['ratioHeight'] ?? null);
+            // Dimensions stay untouched; only the ratio is removed.
+            $this->assertSame(640, (int)($variants['xs']['width'] ?? 0));
+            $this->assertSame(360, (int)($variants['xs']['height'] ?? 0));
+            // Other breakpoints keep their ratio.
+            $this->assertTrue(($variants['sm']['ratioLocked'] ?? false) === true);
+            $this->assertSame(16, (int)($variants['sm']['ratioWidth'] ?? 0));
+        });
+    }
+
+    public function testApplySetRatioRemoveOperationClearsAllBreakpointsIncludingDisabled(): void
+    {
+        $plugin = Plugin::getInstance();
+
+        $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'xs' => ['width' => 640, 'height' => 360, 'enabled' => true, 'autoDimension' => null, 'ratioLocked' => true, 'ratioWidth' => 16, 'ratioHeight' => 9, 'ratioSourceDimension' => 'width'],
+                    'sm' => ['width' => 800, 'height' => 450, 'enabled' => false, 'autoDimension' => null, 'ratioLocked' => true, 'ratioWidth' => 16, 'ratioHeight' => 9, 'ratioSourceDimension' => 'width'],
+                    'md' => ['width' => 1024, 'height' => 576, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => [],
+            ],
+        ], function () use ($plugin): void {
+            $service = new OperationsService(
+                $plugin->getTransformStore(),
+                $plugin->getConfigService(),
+                $plugin->getTelemetry(),
+                $plugin->getBreakpointPolicy(),
+                null,
+            );
+
+            $result = $service->applySetRatioRemoveOperation('hero', 'all', null, null);
+
+            $this->assertTrue($result['persisted'] ?? false);
+            // Only the two breakpoints that actually had a ratio count as applied;
+            // the disabled one is cleared too so no stuck ratio survives re-enabling.
+            $this->assertCount(2, $result['operationDetails']['appliedBreakpoints'] ?? []);
+
+            $variants = $plugin->getTransformStore()->getSets()['hero']['variants'] ?? [];
+            $this->assertFalse(($variants['xs']['ratioLocked'] ?? false) === true);
+            $this->assertFalse(($variants['sm']['ratioLocked'] ?? false) === true);
+            $this->assertNull($variants['sm']['ratioWidth'] ?? null);
+            $this->assertSame(1024, (int)($variants['md']['width'] ?? 0));
+        });
+    }
+
+    public function testApplySetRatioRemoveOperationIsNoOpWithoutSavedRatio(): void
+    {
+        $plugin = Plugin::getInstance();
+
+        $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'xs' => ['width' => 640, 'height' => 360, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => [],
+            ],
+        ], function () use ($plugin): void {
+            $service = new OperationsService(
+                $plugin->getTransformStore(),
+                $plugin->getConfigService(),
+                $plugin->getTelemetry(),
+                $plugin->getBreakpointPolicy(),
+                null,
+            );
+
+            $result = $service->applySetRatioRemoveOperation('hero', 'all', null, null);
+
+            $this->assertTrue($result['persisted'] ?? false);
+            $this->assertTrue(($result['operationDetails']['ratioRemoved'] ?? false) === true);
+            $this->assertSame([], $result['operationDetails']['appliedBreakpoints'] ?? null);
+        });
+    }
+
+    public function testApplySetRatioRemoveOperationRequiresSetName(): void
+    {
+        $plugin = Plugin::getInstance();
+
+        $service = new OperationsService(
+            $plugin->getTransformStore(),
+            $plugin->getConfigService(),
+            $plugin->getTelemetry(),
+            $plugin->getBreakpointPolicy(),
+            null,
+        );
+
+        $result = $service->applySetRatioRemoveOperation('', 'all', null, null);
+
+        $this->assertFalse($result['persisted'] ?? true);
+        $this->assertContains('setName is required.', $result['validation']['global'] ?? []);
+    }
+
     public function testApplyRenderedValuesOperationMatchesByAssetKey(): void
     {
         $plugin = Plugin::getInstance();

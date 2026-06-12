@@ -946,6 +946,127 @@ final class OperationsService
     }
 
     /**
+     * Removes the saved ratio for the scoped breakpoint(s). Width/height values are
+     * left untouched; only the ratio lock and its components are cleared. Disabled
+     * breakpoints and active auto dimensions don't block removal — clearing stored
+     * ratio data is always safe, and skipping them would leave a stuck ratio behind.
+     *
+     * @return array<string, mixed>
+     */
+    public function applySetRatioRemoveOperation(
+        string $transformName,
+        string $scopeMode,
+        ?int $scopeBreakpoint,
+        ?string $scopeBreakpointKey,
+        ?bool $includeEscapeWidth = null,
+        ?string $expectedVersion = null,
+    ): array {
+        $validation = Support::defaultValidation();
+
+        if ($transformName === '') {
+            Support::addGlobalError($validation, 'setName is required.');
+
+            return [
+                'persisted' => false,
+                'validation' => $validation,
+            ];
+        }
+
+        ['sets' => $sets, 'set' => $setDefinition, 'includeEscapeWidth' => $resolvedIncludeEscapeWidth] =
+            $this->loadOrInitSet($transformName, $includeEscapeWidth);
+
+        $variants = $setDefinition['variants'] ?? [];
+        $appliedBreakpoints = [];
+
+        if ($scopeMode === 'breakpoint') {
+            $targetResolution = $this->breakpointCatalog->resolveOperationTargetOrReject(
+                $scopeBreakpointKey,
+                $scopeBreakpoint,
+                $resolvedIncludeEscapeWidth,
+            );
+
+            if (array_key_exists('error', $targetResolution)) {
+                Support::addGlobalError($validation, $targetResolution['error']);
+
+                return [
+                    'persisted' => false,
+                    'validation' => $validation,
+                ];
+            }
+
+            if (self::clearVariantRatio($variants, self::breakpointKeyFromResolution($targetResolution))) {
+                $appliedBreakpoints[] = self::breakpointWidthFromResolution($targetResolution);
+            }
+        } else {
+            $definitions = $this->breakpointCatalog->getDefinitionsForIncludeEscapeWidth($resolvedIncludeEscapeWidth);
+            foreach ($definitions as $definition) {
+                if (self::clearVariantRatio($variants, $definition['key'])) {
+                    $appliedBreakpoints[] = $definition['width'];
+                }
+            }
+        }
+
+        if (count($appliedBreakpoints) < 1) {
+            return [
+                'persisted' => true,
+                'conflict' => false,
+                'currentVersion' => $this->transformStore->getCurrentVersion(),
+                'validation' => $validation,
+                'operationDetails' => [
+                    'ratioRemoved' => true,
+                    'appliedBreakpoints' => [],
+                    'skippedBreakpoints' => [],
+                ],
+            ];
+        }
+
+        $setDefinition['variants'] = $variants;
+        $setDefinition['name'] = (string)($setDefinition['name'] ?? $transformName);
+
+        $sets[$transformName] = $setDefinition;
+
+        $persistResult = $this->persistOperationSets($sets, $validation, $expectedVersion);
+        $persistResult['operationDetails'] = [
+            'ratioRemoved' => true,
+            'appliedBreakpoints' => $appliedBreakpoints,
+            'skippedBreakpoints' => [],
+        ];
+
+        return $persistResult;
+    }
+
+    /**
+     * Clears any saved ratio on the keyed variant. Returns true when the variant
+     * actually had ratio data to clear.
+     *
+     * @param array<string, mixed> $variants
+     */
+    private static function clearVariantRatio(array &$variants, string $breakpointKey): bool
+    {
+        $entry = $variants[$breakpointKey] ?? null;
+        if (!is_array($entry)) {
+            return false;
+        }
+
+        $hadRatio = ($entry['ratioLocked'] ?? false) === true
+            || Support::normalizeNullablePositiveInt($entry['ratioWidth'] ?? null) !== null
+            || Support::normalizeNullablePositiveInt($entry['ratioHeight'] ?? null) !== null;
+
+        if (!$hadRatio) {
+            return false;
+        }
+
+        $entry['ratioWidth'] = null;
+        $entry['ratioHeight'] = null;
+        $entry['ratioSourceDimension'] = 'width';
+        $entry['ratioLocked'] = false;
+
+        $variants[$breakpointKey] = $entry;
+
+        return true;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function applySetBreakpointEnabledOperation(

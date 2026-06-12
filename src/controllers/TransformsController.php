@@ -174,6 +174,7 @@ class TransformsController extends Controller
                 'dimensions.toggleAutoWidth'                 => $this->dispatchToggleAutoWidth($operation, $editor),
                 'dimensions.toggleAutoHeight'                => $this->dispatchToggleAutoHeight($operation, $editor),
                 'ratio.apply'                                => $this->dispatchRatioApply($operation, $editor),
+                'ratio.remove'                               => $this->dispatchRatioRemove($operation, $editor),
                 'breakpoint.toggleEnabled'                   => $this->dispatchBreakpointToggle($operation, $editor),
                 'settings.setPassHeightWhenRenderedLteSaved' => $editor->applySetPassHeightWhenRenderedLteSavedOperation(
                     $operation->setName,
@@ -468,6 +469,23 @@ class TransformsController extends Controller
     /**
      * @return array<string, mixed>
      */
+    private function dispatchRatioRemove(CardOperationRequest $operation, TransformEditor $editor): array
+    {
+        $requestedScope = $this->readRequestedCardScope($operation->setName);
+
+        return $editor->applySetRatioRemoveOperation(
+            $operation->setName,
+            $requestedScope['mode'] ?? $operation->scopeMode,
+            $requestedScope['breakpoint'] ?? $operation->scopeBreakpoint,
+            $operation->includeEscapeWidth,
+            $operation->baseVersion,
+            $requestedScope['key'] ?? $operation->scopeBreakpointKey,
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     private function dispatchBreakpointToggle(CardOperationRequest $operation, TransformEditor $editor): array
     {
         $requestBody = $this->request->getBodyParams();
@@ -563,7 +581,10 @@ class TransformsController extends Controller
                             ],
                         );
                     }
-                    if ($operation->operation === 'renderedValues.apply') {
+                    // Refresh the edit-panel scope values after operations that change
+                    // saved values the inputs are bound to (rendered apply rewrites
+                    // dimensions; ratio removal clears the ratio inputs/lock).
+                    if ($operation->operation === 'renderedValues.apply' || $operation->operation === 'ratio.remove') {
                         $requestedScope = $this->readRequestedCardScope($operation->setName);
                         $scopeMode = $requestedScope['mode'] ?? $operation->scopeMode;
                         $scopeBreakpoint = $requestedScope['breakpoint'] ?? $operation->scopeBreakpoint;
@@ -1187,6 +1208,16 @@ class TransformsController extends Controller
             $skippedBreakpoints = isset($details['skippedBreakpoints']) && is_array($details['skippedBreakpoints'])
                 ? $details['skippedBreakpoints']
                 : [];
+
+            $ratioRemoved = ($details['ratioRemoved'] ?? false) === true;
+
+            if ($persisted && $ratioRemoved) {
+                $appliedCount = count($appliedBreakpoints);
+
+                return $appliedCount > 0
+                    ? sprintf('Ratio removed from %d breakpoint%s.', $appliedCount, $appliedCount === 1 ? '' : 's')
+                    : 'No saved ratio to remove.';
+            }
 
             if ($persisted && ($appliedBreakpoints !== [] || $skippedBreakpoints !== [])) {
                 $appliedCount = count($appliedBreakpoints);

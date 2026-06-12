@@ -198,6 +198,26 @@ final class CardOperationRequestTest extends Unit
         $this->assertSame('xs', $operation->ratioSourceBreakpointKey);
     }
 
+    public function testFromRequestNormalizesRatioRemoveOperation(): void
+    {
+        $this->request()->setBodyParams([
+            'setName' => 'hero',
+            'operation' => 'ratio.remove',
+            'scopeMode' => 'breakpoint',
+            'scopeBreakpoint' => '2',
+            'scopeBreakpointKey' => 'xs',
+        ]);
+
+        $operation = CardOperationRequest::fromRequest($this->request(), 'fallback-version');
+
+        $this->assertTrue($operation->hasValidOperation);
+        $this->assertSame('ratio.remove', $operation->operation);
+        $this->assertSame('ratio', $operation->field);
+        $this->assertSame('breakpoint', $operation->scopeMode);
+        $this->assertSame(2, $operation->scopeBreakpoint);
+        $this->assertSame('xs', $operation->scopeBreakpointKey);
+    }
+
     public function testFromRequestNormalizesRatioApplyFloatPayload(): void
     {
         $this->request()->setBodyParams([
