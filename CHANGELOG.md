@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.3 - 2026-06-12
+
+- Fixed final-breakpoint processing so each transform set uses its configured normal or escape-width measurement, with a fallback warning when the preferred measurement is unavailable.
+- Improved processing source selection by activating the requested picture sources and accepting lazy-loaded fallback formats from the selected breakpoint slot.
+- Reduced the breakpoint measurement margin from 2px to 1px for more accurate viewport-boundary measurements.
+- Improved allowed-height controls with clearer **Shorter heights allowed** and **All heights allowed** indicators and a more responsive options layout.
+- Added documentation for allowed-height settings and transform-set notes.
+- Expanded JavaScript and PHP test coverage for final measurements, source activation, lazy-loaded fallback formats, and allowed-height indicators.
+
 ## 0.1.2 - 2026-06-12
 
 - Added explicit lazy-loading adapters for processing previews, with support for attribute-based loading, lazysizes, vanilla-lazyload, lozad, and custom handlers.
