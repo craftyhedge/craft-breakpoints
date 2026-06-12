@@ -644,16 +644,14 @@ class TransformsController extends Controller
                     ]);
                 }
 
-                // Applying rendered values saves the set (possibly creating a previously
-                // missing one) but does not re-verify it against a render. Flip the card's
-                // reactive warning state so the "Transform Set Missing" banner is replaced
-                // with the "Process Again" notice without a full card re-render.
-                if ($operation->operation === 'renderedValues.apply' && $reviewMode === 'processed') {
+                if ($reviewMode === 'processed') {
                     $events[] = new PatchSignals([
                         'editor' => [
                             'cards' => [
                                 $signalKey => [
-                                    'setReviewState' => 'awaitingReprocess',
+                                    'setReviewState' => $editor->isTransformEditedSinceLatestProcess($operation->setName)
+                                        ? 'awaitingReprocess'
+                                        : 'ok',
                                 ],
                             ],
                         ],

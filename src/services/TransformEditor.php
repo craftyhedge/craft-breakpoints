@@ -740,6 +740,23 @@ class TransformEditor extends Component
     }
 
     /**
+     * Whether a transform's saved dimensions differ from the latest process snapshot.
+     */
+    public function isTransformEditedSinceLatestProcess(string $transformName): bool
+    {
+        if ($this->_healthAnalyzer === null || $this->_snapshotReader === null) {
+            return false;
+        }
+
+        $editedTransforms = $this->_healthAnalyzer->buildEditedTransformsMap(
+            $this->_snapshotReader->getLatestRunSnapshot(),
+            true,
+        );
+
+        return ($editedTransforms[$transformName] ?? false) === true;
+    }
+
+    /**
      * Builds a map of saved dimensions by transform and breakpoint.
      *
      * Used by snapshot persistence to capture saved dimensions at process time,

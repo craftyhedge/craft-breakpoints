@@ -361,6 +361,7 @@ final class TransformsControllerTest extends Unit
         $this->assertSame(Response::FORMAT_RAW, $response->format);
         $this->assertStringContainsString('datastar-patch-signals', (string)$response->content);
         $this->assertStringContainsString('Dimensions updated.', (string)$response->content);
+        $this->assertStringContainsString('"setReviewState":"ok"', (string)$response->content);
 
         $sets = Plugin::getInstance()->getTransformStore()->getSets();
         $this->assertSame(777, $sets[$setName]['variants']['xs']['width'] ?? null);
@@ -368,6 +369,77 @@ final class TransformsControllerTest extends Unit
         $this->assertArrayHasKey('base', $sets[$setName]['variants'] ?? []);
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
+    }
+
+    public function testDimensionChangesPatchProcessAgainStateFromSnapshotComparison(): void
+    {
+        $plugin = Plugin::getInstance();
+        $previousTelemetry = $plugin->getTelemetry();
+        $previousEditor = $plugin->get('transformEditor');
+        $store = $plugin->getTransformStore();
+        $previousSets = $store->getSets();
+
+        $plugin->set('telemetry', new class() extends TelemetryService {
+            public function canEditTransforms(): bool
+            {
+                return true;
+            }
+
+            public function getLatestRunSnapshot(): ?array
+            {
+                return [
+                    'savedDimensionsByTransform' => [
+                        'snapshot-dimension-test' => [
+                            'xs' => ['w' => 640, 'h' => 360],
+                        ],
+                    ],
+                ];
+            }
+        });
+        $plugin->set('transformEditor', \craftyhedge\craftbreakpoints\services\TransformEditor::class);
+        $store->replaceSetsForRuntime([
+            'snapshot-dimension-test' => [
+                'name' => 'snapshot-dimension-test',
+                'variants' => [
+                    'xs' => ['width' => 640, 'height' => 360, 'enabled' => true, 'autoDimension' => null],
+                ],
+            ],
+        ]);
+
+        try {
+            $changedResponse = $this->controllerWithBody([
+                'baseVersion' => $store->getCurrentVersion(),
+                'operation' => 'dimensions.apply',
+                'setName' => 'snapshot-dimension-test',
+                'scopeMode' => 'breakpoint',
+                'scopeBreakpoint' => 2,
+                'scopeBreakpointKey' => 'xs',
+                'width' => 777,
+                'height' => 333,
+            ])->actionApplyCardOperation();
+
+            $this->assertStringContainsString(
+                '"setReviewState":"awaitingReprocess"',
+                (string)$changedResponse->content,
+            );
+
+            $restoredResponse = $this->controllerWithBody([
+                'baseVersion' => $store->getCurrentVersion(),
+                'operation' => 'dimensions.apply',
+                'setName' => 'snapshot-dimension-test',
+                'scopeMode' => 'breakpoint',
+                'scopeBreakpoint' => 2,
+                'scopeBreakpointKey' => 'xs',
+                'width' => 640,
+                'height' => 360,
+            ])->actionApplyCardOperation();
+
+            $this->assertStringContainsString('"setReviewState":"ok"', (string)$restoredResponse->content);
+        } finally {
+            $store->replaceSetsForRuntime($previousSets);
+            $plugin->set('transformEditor', $previousEditor);
+            $plugin->set('telemetry', $previousTelemetry);
+        }
     }
 
     public function testApplyCardOperationPersistsNotesAndPatchesCardSignal(): void
