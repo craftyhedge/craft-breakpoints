@@ -15,5 +15,24 @@ final class SettingsModelTest extends Unit
 
         $this->assertTrue($settings->validate());
         $this->assertTrue($settings->previewCenter);
+        $this->assertSame('attributes', $settings->processingLazyLoadingAdapter);
+    }
+
+    public function testRejectsUnknownProcessingLazyLoadingAdapter(): void
+    {
+        $settings = new Settings();
+        $settings->processingLazyLoadingAdapter = 'automatic';
+
+        $this->assertFalse($settings->validate());
+        $this->assertNotEmpty($settings->getErrors('processingLazyLoadingAdapter'));
+    }
+
+    public function testCustomProcessingAdapterRequiresHandler(): void
+    {
+        $settings = new Settings();
+        $settings->processingLazyLoadingAdapter = 'custom';
+
+        $this->assertFalse($settings->validate());
+        $this->assertNotEmpty($settings->getErrors('processingLazyLoadingCustomHandler'));
     }
 }

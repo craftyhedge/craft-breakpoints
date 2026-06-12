@@ -159,4 +159,23 @@ final class BreakpointConfigServiceTest extends Unit
             'transformsDeveloperActionsEnabled' => true,
         ]));
     }
+
+    public function testProcessingLazyLoadingConfigIsNormalized(): void
+    {
+        $service = Plugin::getInstance()->getConfigService();
+
+        $config = $service->getProcessingLazyLoadingConfig([
+            'processingLazyLoadingAdapter' => 'custom',
+            'processingLazyLoadingSrcAttribute' => ' data-original ',
+            'processingLazyLoadingSrcsetAttribute' => 'invalid attribute',
+            'processingLazyLoadingSizesAttribute' => 'data-responsive-sizes',
+            'processingLazyLoadingCustomHandler' => ' window.project.prepareImages ',
+        ]);
+
+        $this->assertSame('custom', $config['adapter']);
+        $this->assertSame('data-original', $config['attributes']['src']);
+        $this->assertSame('data-srcset', $config['attributes']['srcset']);
+        $this->assertSame('data-responsive-sizes', $config['attributes']['sizes']);
+        $this->assertSame('window.project.prepareImages', $config['customHandler']);
+    }
 }

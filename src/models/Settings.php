@@ -33,6 +33,11 @@ class Settings extends Model
     public string $pictureTemplatePath = '';
     public string $svgTemplatePath = '';
     public bool $nativeLazyLoadingEnabled = true;
+    public string $processingLazyLoadingAdapter = 'attributes';
+    public string $processingLazyLoadingSrcAttribute = 'data-src';
+    public string $processingLazyLoadingSrcsetAttribute = 'data-srcset';
+    public string $processingLazyLoadingSizesAttribute = 'data-sizes';
+    public string $processingLazyLoadingCustomHandler = '';
     public bool $previewCenter = true;
     /**
      * @var array<int, int|float>
@@ -45,7 +50,22 @@ class Settings extends Model
     protected function defineRules(): array
     {
         return array_merge(parent::defineRules(), [
-            [['mode', 'position', 'format', 'secondaryFormat', 'interlace', 'pictureTemplatePath', 'svgTemplatePath'], 'string'],
+            [[
+                'mode',
+                'position',
+                'format',
+                'secondaryFormat',
+                'interlace',
+                'pictureTemplatePath',
+                'svgTemplatePath',
+                'processingLazyLoadingAdapter',
+                'processingLazyLoadingSrcAttribute',
+                'processingLazyLoadingSrcsetAttribute',
+                'processingLazyLoadingSizesAttribute',
+                'processingLazyLoadingCustomHandler',
+            ], 'string'],
+            ['processingLazyLoadingAdapter', 'in', 'range' => ['none', 'attributes', 'lazysizes', 'vanilla-lazyload', 'lozad', 'custom']],
+            ['processingLazyLoadingCustomHandler', 'required', 'when' => static fn(self $model): bool => $model->processingLazyLoadingAdapter === 'custom'],
             [['escapeWidth', 'defaultWidth', 'defaultHeight', 'quality', 'allowUpscale'], 'integer', 'min' => 0],
             [['nativeLazyLoadingEnabled', 'previewCenter'], 'boolean'],
             [['breakpoints', 'dpr'], 'safe'],

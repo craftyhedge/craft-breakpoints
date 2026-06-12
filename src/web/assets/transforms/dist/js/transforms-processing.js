@@ -250,6 +250,7 @@ export function normalizeLazyAttribute(target, {
     dataAttr,
     targetAttr,
     forceWhenDataUri = false,
+    replaceExisting = false,
 }) {
     const sourceValue = String(target.getAttribute(dataAttr) || '').trim();
     if (sourceValue === '') {
@@ -257,7 +258,7 @@ export function normalizeLazyAttribute(target, {
     }
 
     const currentValue = String(target.getAttribute(targetAttr) || '').trim();
-    if (currentValue !== '') {
+    if (currentValue !== '' && !replaceExisting) {
         if (forceWhenDataUri && currentValue.startsWith('data:image')) {
             target.setAttribute(targetAttr, sourceValue);
             return true;
@@ -301,6 +302,50 @@ export function deriveSourceUsed(source, img) {
         || img?.getAttribute('src')
         || ''
     ).trim();
+}
+
+function normalizeSourceUrl(value, baseUrl = '') {
+    const source = String(value || '').trim();
+    if (source === '' || source.startsWith('data:')) {
+        return '';
+    }
+
+    try {
+        return new URL(source, baseUrl || undefined).href;
+    } catch (_error) {
+        return source;
+    }
+}
+
+function extractSrcsetUrls(srcset, baseUrl = '') {
+    return String(srcset || '')
+        .split(',')
+        .map((candidate) => candidate.trim().split(/\s+/)[0] || '')
+        .map((candidate) => normalizeSourceUrl(candidate, baseUrl))
+        .filter((candidate) => candidate !== '');
+}
+
+function collectLazyTargetUrls(source, img, baseUrl = '', attributes = null) {
+    const attributeMap = attributes && typeof attributes === 'object' ? attributes : {};
+    const srcAttribute = String(attributeMap.src || 'data-src');
+    const srcsetAttribute = String(attributeMap.srcset || 'data-srcset');
+    const targets = [
+        ...extractSrcsetUrls(source?.getAttribute(srcsetAttribute), baseUrl),
+        normalizeSourceUrl(source?.getAttribute(srcAttribute), baseUrl),
+        ...extractSrcsetUrls(img?.getAttribute(srcsetAttribute), baseUrl),
+        normalizeSourceUrl(img?.getAttribute(srcAttribute), baseUrl),
+    ].filter((candidate) => candidate !== '');
+
+    return Array.from(new Set(targets));
+}
+
+function sourceMatchesLazyTarget(sourceUsed, lazyTargetUrls, baseUrl = '') {
+    if (!Array.isArray(lazyTargetUrls) || lazyTargetUrls.length < 1) {
+        return true;
+    }
+
+    const normalizedSource = normalizeSourceUrl(sourceUsed, baseUrl);
+    return normalizedSource !== '' && lazyTargetUrls.includes(normalizedSource);
 }
 
 export function createReadinessSummary(readinessByKey) {
@@ -354,6 +399,63 @@ export function pushActivationStrategy(prepareResult, strategy, count = 0) {
     }
 
     prepareResult.activationStrategies.push(strategy);
+}
+
+function isLazyLoadingAdapterAvailable(frameWindow, adapter) {
+    if (adapter === 'lazysizes') {
+        const lazySizes = frameWindow?.lazySizes;
+        return Boolean(lazySizes && typeof lazySizes === 'object' && (
+            typeof lazySizes.loader?.checkElems === 'function'
+            || typeof lazySizes.autoSizer?.checkElems === 'function'
+            || typeof lazySizes.loader?.unveil === 'function'
+        ));
+    }
+
+    if (adapter === 'vanilla-lazyload') {
+        return Boolean(
+            frameWindow?.lazyLoadInstance
+            || frameWindow?.__lazyLoadInstance
+            || frameWindow?.lazyLoadInstances?.length
+            || frameWindow?.__lazyLoadInstances?.length
+            || typeof frameWindow?.LazyLoad?.load === 'function'
+        );
+    }
+
+    if (adapter === 'lozad') {
+        return Boolean(
+            frameWindow?.lozadObserver
+            || frameWindow?.lozadInstance
+            || frameWindow?.__lozadObserver
+            || frameWindow?.__lozadInstance
+            || frameWindow?.lozadObservers?.length
+            || frameWindow?.__lozadObservers?.length
+            || typeof frameWindow?.lozad === 'function'
+        );
+    }
+
+    return true;
+}
+
+async function waitForLazyLoadingAdapter(
+    frameWindow,
+    adapter,
+    timeoutMs,
+    pollIntervalMs,
+    setTimeoutFn,
+) {
+    if (isLazyLoadingAdapterAvailable(frameWindow, adapter)) {
+        return true;
+    }
+
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < timeoutMs) {
+        await new Promise((resolve) => setTimeoutFn(resolve, pollIntervalMs));
+        if (isLazyLoadingAdapterAvailable(frameWindow, adapter)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 export function activateLazySizes(frameWindow, frameDocument, prepareResult, pushStrategy = pushActivationStrategy) {
@@ -494,6 +596,12 @@ export function activateLozad(frameWindow, frameDocument, prepareResult, pushStr
                 observer.observe();
                 strategyCount += 1;
             }
+            if (observer && typeof observer.triggerLoad === 'function') {
+                lozadElements.forEach((element) => {
+                    observer.triggerLoad(element);
+                    strategyCount += 1;
+                });
+            }
         } catch (_error) {
             // Keep activation resilient. Failures are captured in readiness issues.
         }
@@ -504,19 +612,75 @@ export function activateLozad(frameWindow, frameDocument, prepareResult, pushStr
     }
 }
 
-export function prepareBreakpoints({
+function resolveGlobalHandler(frameWindow, handlerName) {
+    const segments = String(handlerName || '')
+        .trim()
+        .replace(/^window\./, '')
+        .split('.')
+        .filter((segment) => segment !== '');
+
+    let current = frameWindow;
+    for (const segment of segments) {
+        current = current?.[segment];
+    }
+
+    return typeof current === 'function' ? current : null;
+}
+
+function swapLazyLoadingAttributes(pictures, attributes, prepareResult, recordNormalizationSample) {
+    const attributeMap = attributes && typeof attributes === 'object' ? attributes : {};
+    const rules = [
+        { dataAttr: attributeMap.src || 'data-src', targetAttr: 'src', imgOnly: true },
+        { dataAttr: attributeMap.srcset || 'data-srcset', targetAttr: 'srcset', imgOnly: false },
+        { dataAttr: attributeMap.sizes || 'data-sizes', targetAttr: 'sizes', imgOnly: false },
+    ];
+
+    pictures.forEach((picture) => {
+        const targets = [picture.querySelector('img'), ...picture.querySelectorAll('source')]
+            .filter((target) => target !== null);
+
+        targets.forEach((target) => {
+            rules.forEach((rule) => {
+                if (rule.imgOnly && target.tagName?.toLowerCase() !== 'img') {
+                    return;
+                }
+
+                if (normalizeLazyAttribute(target, {
+                    dataAttr: rule.dataAttr,
+                    targetAttr: rule.targetAttr,
+                    forceWhenDataUri: true,
+                    replaceExisting: true,
+                })) {
+                    prepareResult.normalizationCount += 1;
+                    recordNormalizationSample({
+                        element: target.tagName?.toLowerCase() || 'unknown',
+                        attr: rule.targetAttr,
+                    });
+                }
+            });
+        });
+    });
+}
+
+export async function prepareBreakpoints({
     breakpoint,
     slot = null,
     frameDocument,
     frameWindow,
     getTrackedPictures,
     getPrimarySourceForBreakpoint,
+    lazyLoading = null,
     sampleLimit = 12,
+    requestAnimationFrameFn = (callback) => requestAnimationFrame(callback),
+    setTimeoutFn = (callback, delay) => setTimeout(callback, delay),
+    adapterWaitTimeoutMs = 2000,
+    adapterPollIntervalMs = 50,
 }) {
     const prepareResult = {
         activationStrategies: [],
         normalizationCount: 0,
         normalizationSamples: [],
+        lazyTargetsByImage: new Map(),
     };
 
     const recordNormalizationSample = (sample) => {
@@ -527,11 +691,83 @@ export function prepareBreakpoints({
         prepareResult.normalizationSamples.push(sample);
     };
 
-    activateLazySizes(frameWindow, frameDocument, prepareResult);
-    activateVanillaLazyLoad(frameWindow, frameDocument, prepareResult);
-    activateLozad(frameWindow, frameDocument, prepareResult);
-
     const pictures = getTrackedPictures(frameDocument);
+    const lazyLoadingConfig = lazyLoading && typeof lazyLoading === 'object' ? lazyLoading : {};
+    const adapter = String(lazyLoadingConfig.adapter || 'attributes').trim();
+    const libraryAdapters = ['lazysizes', 'vanilla-lazyload', 'lozad'];
+    const sourceTrackedAdapters = [...libraryAdapters, 'custom'];
+
+    if (sourceTrackedAdapters.includes(adapter)) {
+        pictures.forEach((picture) => {
+            const img = picture.querySelector('img');
+            const source = getPrimarySourceForBreakpoint(picture, breakpoint);
+            if (!img || !source) {
+                return;
+            }
+
+            const lazyTargetUrls = collectLazyTargetUrls(
+                source,
+                img,
+                frameDocument?.baseURI || '',
+                adapter === 'custom' ? lazyLoadingConfig.attributes : null,
+            );
+            if (lazyTargetUrls.length > 0) {
+                prepareResult.lazyTargetsByImage.set(img, lazyTargetUrls);
+            }
+        });
+    }
+
+    if (libraryAdapters.includes(adapter)) {
+        const adapterAvailable = await waitForLazyLoadingAdapter(
+            frameWindow,
+            adapter,
+            adapterWaitTimeoutMs,
+            adapterPollIntervalMs,
+            setTimeoutFn,
+        );
+        if (!adapterAvailable) {
+            throw new Error(
+                `Configured processing lazy-loading adapter was not found in the processing preview iframe after ${adapterWaitTimeoutMs}ms: ${adapter}`,
+            );
+        }
+    }
+
+    if (adapter === 'lazysizes') {
+        activateLazySizes(frameWindow, frameDocument, prepareResult);
+    } else if (adapter === 'vanilla-lazyload') {
+        activateVanillaLazyLoad(frameWindow, frameDocument, prepareResult);
+    } else if (adapter === 'lozad') {
+        activateLozad(frameWindow, frameDocument, prepareResult);
+    } else if (adapter === 'custom') {
+        const handlerName = String(lazyLoadingConfig.customHandler || '').trim();
+        const handler = resolveGlobalHandler(frameWindow, handlerName);
+        if (!handler) {
+            throw new Error(`Configured processing lazy-loading handler was not found: ${handlerName || '(empty)'}`);
+        }
+
+        await Promise.resolve(handler.call(frameWindow, {
+            document: frameDocument,
+            window: frameWindow,
+            breakpoint,
+            slot,
+            pictures,
+        }));
+        pushActivationStrategy(prepareResult, 'custom', 1);
+    }
+
+    if (libraryAdapters.includes(adapter) && prepareResult.activationStrategies.length === 0) {
+        throw new Error(`Configured processing lazy-loading adapter could not be activated: ${adapter}`);
+    }
+
+    if (adapter === 'attributes') {
+        swapLazyLoadingAttributes(
+            pictures,
+            lazyLoadingConfig.attributes,
+            prepareResult,
+            recordNormalizationSample,
+        );
+    }
+
     pictures.forEach((picture) => {
         const img = picture.querySelector('img');
         const source = getPrimarySourceForBreakpoint(picture, breakpoint);
@@ -545,45 +781,15 @@ export function prepareBreakpoints({
                 img.setAttribute('fetchpriority', 'high');
             }
 
-            const imgRules = [
-                { dataAttr: 'data-src', targetAttr: 'src', forceWhenDataUri: true },
-                { dataAttr: 'data-srcset', targetAttr: 'srcset', forceWhenDataUri: true },
-                { dataAttr: 'data-sizes', targetAttr: 'sizes', forceWhenDataUri: false },
-            ];
-
-            imgRules.forEach((rule) => {
-                if (normalizeLazyAttribute(img, rule)) {
-                    prepareResult.normalizationCount += 1;
-                    recordNormalizationSample({
-                        element: 'img',
-                        attr: rule.targetAttr,
-                    });
-                }
-            });
         }
-
-        const sourceNodes = Array.from(picture.querySelectorAll('source'));
-        sourceNodes.forEach((sourceNode) => {
-            const sourceRules = [
-                { dataAttr: 'data-srcset', targetAttr: 'srcset', forceWhenDataUri: true },
-                { dataAttr: 'data-sizes', targetAttr: 'sizes', forceWhenDataUri: false },
-            ];
-
-            sourceRules.forEach((rule) => {
-                if (normalizeLazyAttribute(sourceNode, rule)) {
-                    prepareResult.normalizationCount += 1;
-                    recordNormalizationSample({
-                        element: 'source',
-                        attr: rule.targetAttr,
-                    });
-                }
-            });
-        });
     });
 
     if (prepareResult.activationStrategies.length === 0) {
-        prepareResult.activationStrategies.push('none');
+        prepareResult.activationStrategies.push(adapter === 'none' ? 'none' : adapter);
     }
+
+    await new Promise((resolve) => requestAnimationFrameFn(resolve));
+    await new Promise((resolve) => requestAnimationFrameFn(resolve));
 
     return prepareResult;
 }
@@ -598,6 +804,7 @@ export function buildBreakpointReadinessTracker({
     deriveSource,
     isTransparentSrcset,
     isRenderable,
+    lazyTargetsByImage = null,
 }) {
     const images = Array.from(frameDocument.querySelectorAll(PROCESSABLE_IMAGE_SELECTOR));
     const readinessByKey = new Map();
@@ -608,6 +815,16 @@ export function buildBreakpointReadinessTracker({
             return;
         }
 
+        const sourceUsed = deriveSource(entry.source, entry.img);
+        if (!sourceMatchesLazyTarget(
+            sourceUsed,
+            entry.lazyTargetUrls,
+            frameDocument?.baseURI || '',
+        )) {
+            return;
+        }
+
+        entry.sourceUsed = sourceUsed;
         entry.status = status;
         entry.reason = reason;
     };
@@ -622,6 +839,9 @@ export function buildBreakpointReadinessTracker({
         const key = getPictureLoadKey(picture, index);
         const enabled = source.getAttribute('data-bp-enabled') !== 'false';
         const sourceUsed = deriveSource(source, img);
+        const lazyTargetUrls = lazyTargetsByImage instanceof Map
+            ? (lazyTargetsByImage.get(img) || [])
+            : [];
         const entry = {
             key,
             status: 'pending',
@@ -631,6 +851,7 @@ export function buildBreakpointReadinessTracker({
             img,
             picture,
             source,
+            lazyTargetUrls,
         };
 
         if (!enabled) {
@@ -640,29 +861,26 @@ export function buildBreakpointReadinessTracker({
             return;
         }
 
-        if (isTransparentSrcset(source.getAttribute('srcset') || '')) {
+        if (lazyTargetUrls.length < 1 && isTransparentSrcset(source.getAttribute('srcset') || '')) {
             entry.status = 'loaded';
             entry.reason = 'transparent-placeholder';
             readinessByKey.set(key, entry);
             return;
         }
 
-        const preloadLoaded = preloadStates ? preloadStates.get(key) : undefined;
-        if (preloadLoaded === true) {
-            entry.status = 'loaded';
-            entry.reason = 'preload';
-            readinessByKey.set(key, entry);
-            return;
-        }
-
-        if (sourceUsed === '') {
+        if (sourceUsed === '' && lazyTargetUrls.length < 1) {
             entry.status = 'broken';
             entry.reason = 'unsupported-source';
             readinessByKey.set(key, entry);
             return;
         }
 
-        if (img.complete) {
+        if (img.complete && sourceMatchesLazyTarget(
+            sourceUsed,
+            lazyTargetUrls,
+            frameDocument?.baseURI || '',
+        )) {
+            entry.sourceUsed = deriveSource(source, img);
             if (isRenderable(img)) {
                 entry.status = 'loaded';
                 entry.reason = 'complete';
@@ -722,6 +940,7 @@ export function buildBreakpointReadinessTracker({
 export async function waitForImagesToSettle({
     readinessByKey,
     softDeadlineMs = 4000,
+    hardDeadlineMs = 30000,
     pollMs = 250,
     shouldStop = () => false,
     onSoftDeadline = null,
@@ -746,6 +965,7 @@ export async function waitForImagesToSettle({
 
     const startedAt = nowMs();
     let softDeadlineReached = false;
+    let hardDeadlineReached = false;
     let lastTickAt = 0;
 
     while (true) {
@@ -760,7 +980,22 @@ export async function waitForImagesToSettle({
                 return;
             }
 
-            if (entry.img.complete) {
+            const currentSource = String(
+                entry.img.currentSrc
+                || entry.source?.getAttribute('srcset')
+                || entry.source?.getAttribute('src')
+                || entry.img.getAttribute?.('src')
+                || entry.sourceUsed
+                || ''
+            ).trim();
+            const sourceIsReady = sourceMatchesLazyTarget(
+                currentSource,
+                entry.lazyTargetUrls,
+                entry.img.ownerDocument?.baseURI || '',
+            );
+
+            if (entry.img.complete && sourceIsReady) {
+                entry.sourceUsed = currentSource;
                 if (isRenderable(entry.img)) {
                     entry.status = 'loaded';
                     entry.reason = 'complete';
@@ -797,6 +1032,17 @@ export async function waitForImagesToSettle({
         }
 
         const waitedMs = nowMs() - startedAt;
+        if (Number.isFinite(hardDeadlineMs) && hardDeadlineMs > 0 && waitedMs >= hardDeadlineMs) {
+            hardDeadlineReached = true;
+            pendingAfterCompleteCheck.forEach((entry) => {
+                if (entry.status === 'pending') {
+                    entry.status = 'unresolved';
+                    entry.reason = 'timeout';
+                }
+            });
+            break;
+        }
+
         if (!softDeadlineReached && waitedMs >= softDeadlineMs) {
             softDeadlineReached = true;
             if (typeof onSoftDeadline === 'function') {
@@ -826,7 +1072,7 @@ export async function waitForImagesToSettle({
     const completedSummary = createSummary(readinessByKey);
     return {
         aborted: false,
-        timedOut: softDeadlineReached,
+        timedOut: softDeadlineReached || hardDeadlineReached,
         waitedMs: nowMs() - startedAt,
         pendingCount: completedSummary.pendingCount,
         loadedCount: completedSummary.loadedCount,
@@ -950,9 +1196,20 @@ export function extractRowsForBreakpoint({
         const preloadLoaded = preloadStates ? preloadStates.get(preloadKey) : undefined;
         const loadedFromElement = img.complete && (img.naturalWidth > 0 || img.naturalHeight > 0);
         const readiness = readinessByKey instanceof Map ? readinessByKey.get(preloadKey) : null;
-        const sourceUsed = (readiness && typeof readiness.sourceUsed === 'string')
-            ? readiness.sourceUsed
-            : deriveSource(source, img);
+        const derivedSource = deriveSource(source, img);
+        const unresolvedLazyPlaceholder = Boolean(
+            readiness
+            && Array.isArray(readiness.lazyTargetUrls)
+            && readiness.lazyTargetUrls.length > 0
+            && !sourceMatchesLazyTarget(
+                derivedSource,
+                readiness.lazyTargetUrls,
+                frameDocument?.baseURI || '',
+            )
+        );
+        const sourceUsed = unresolvedLazyPlaceholder
+            ? ''
+            : (derivedSource || ((readiness && typeof readiness.sourceUsed === 'string') ? readiness.sourceUsed : ''));
 
         let loaded = false;
         let broken = false;
@@ -994,7 +1251,7 @@ export function extractRowsForBreakpoint({
             includeEscapeWidth: picture?.getAttribute('data-include-escape-width') === 'true',
             enabled,
             isVisible: img.offsetWidth > 0 || img.offsetHeight > 0,
-            src: img.currentSrc || img.getAttribute('src') || '',
+            src: unresolvedLazyPlaceholder ? '' : (img.currentSrc || img.getAttribute('src') || ''),
             sourceUsed,
             loaded,
             broken,
@@ -1130,10 +1387,13 @@ export function appendBreakpointReadinessIssues({
         }
 
         if (entry.status === 'unresolved') {
+            const timedOut = entry.reason === 'timeout';
             appendIssue(report, {
                 severity: 'warning',
-                code: 'unresolved-on-cancel',
-                message: 'Image was still pending when processing was cancelled by the user.',
+                code: timedOut ? 'lazy-load-timeout' : 'unresolved-on-cancel',
+                message: timedOut
+                    ? 'The lazy-loaded image did not replace its placeholder before the processing timeout.'
+                    : 'Image was still pending when processing was cancelled by the user.',
                 breakpointWidth: breakpoint,
                 assetId: entry.img?.getAttribute('data-asset-id') || entry.picture?.getAttribute('data-asset-id') || null,
                 source: entry.sourceUsed,

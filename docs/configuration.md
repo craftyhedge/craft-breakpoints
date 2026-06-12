@@ -52,6 +52,11 @@ panel exposes the common output, transform, template, and editor defaults.
 | `pictureTemplatePath` | string | *(plugin default)* | Custom template for raster assets. Project paths are relative to Craft's `templates/` directory; blank uses the built-in template. |
 | `svgTemplatePath` | string | *(plugin default)* | Custom template for SVG assets. Project paths are relative to Craft's `templates/` directory; blank uses the built-in template. |
 | `nativeLazyLoadingEnabled` | bool | `true` | When on, the `<img>` gets a `loading` attribute (`lazy` by default). |
+| `processingLazyLoadingAdapter` | string | `attributes` | Explicit processing adapter: `none`, `attributes`, `lazysizes`, `vanilla-lazyload`, `lozad`, or `custom`. No automatic detection is performed. |
+| `processingLazyLoadingSrcAttribute` | string | `data-src` | Attribute copied to `src` by the `attributes` processing adapter. |
+| `processingLazyLoadingSrcsetAttribute` | string | `data-srcset` | Attribute copied to `srcset` by the `attributes` processing adapter. |
+| `processingLazyLoadingSizesAttribute` | string | `data-sizes` | Attribute copied to `sizes` by the `attributes` processing adapter. |
+| `processingLazyLoadingCustomHandler` | string | *(blank)* | Global async function used by the `custom` adapter, for example `window.project.prepareBreakpointImages`. |
 | `previewCenter` | bool | `true` | Editor-only: centers the preview width in the Transform Sets UI. |
 | `dpr` | array | `[1]` | Device pixel ratios for `srcset`. `1x` is always included; add `2`/`3` for high-density variants. |
 
@@ -90,6 +95,12 @@ return [
     'quality' => 82,
     'dpr' => [1, 2],
 
+    // Processing lazy loading is explicit; no library auto-detection occurs.
+    'processingLazyLoadingAdapter' => 'attributes',
+    'processingLazyLoadingSrcAttribute' => 'data-src',
+    'processingLazyLoadingSrcsetAttribute' => 'data-srcset',
+    'processingLazyLoadingSizesAttribute' => 'data-sizes',
+
     // Optional project templates (relative to Craft's templates/ directory):
     'pictureTemplatePath' => '_images/breakpoints-picture.twig',
     'svgTemplatePath' => '_images/breakpoints-svg.twig',
@@ -97,6 +108,18 @@ return [
     // Local development only: enables processing and transform-set saving.
     'allowTransformEditing' => App::env('ALLOW_TRANSFORM_EDITING') ?? false,
 ];
+```
+
+The `custom` adapter calls the configured global function once per slot inside
+the processing iframe. The function receives `{ document, window, breakpoint,
+slot, pictures }` and may return a promise. Processing waits for that promise,
+then independently waits for each real DOM image to load or decode. Lazy target
+URLs are read from the configured processing source attributes before the
+handler runs so placeholders cannot satisfy readiness.
+
+```php
+'processingLazyLoadingAdapter' => 'custom',
+'processingLazyLoadingCustomHandler' => 'window.project.prepareBreakpointImages',
 ```
 
 ## See also

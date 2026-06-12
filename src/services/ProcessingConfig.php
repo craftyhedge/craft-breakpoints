@@ -30,6 +30,15 @@ class ProcessingConfig extends Component
                 'sets' => [],
                 'processing' => [
                     'authorDiagnosticsEnabled' => false,
+                    'lazyLoading' => [
+                        'adapter' => 'attributes',
+                        'attributes' => [
+                            'src' => 'data-src',
+                            'srcset' => 'data-srcset',
+                            'sizes' => 'data-sizes',
+                        ],
+                        'customHandler' => '',
+                    ],
                 ],
             ];
         }
@@ -49,6 +58,7 @@ class ProcessingConfig extends Component
             'sets' => $this->_plugin->getTransformSets()->getSets(),
             'processing' => [
                 'authorDiagnosticsEnabled' => $this->_plugin->getConfigService()->isProcessingDiagnosticsEnabled(),
+                'lazyLoading' => $this->_plugin->getConfigService()->getProcessingLazyLoadingConfig(),
             ],
         ];
     }

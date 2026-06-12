@@ -12,6 +12,14 @@ use yii\base\Component;
 
 class ConfigService extends Component
 {
+    private const PROCESSING_LAZY_LOADING_ADAPTERS = [
+        'none',
+        'attributes',
+        'lazysizes',
+        'vanilla-lazyload',
+        'lozad',
+        'custom',
+    ];
     private const DEFAULT_TEMPLATE_PATH = 'breakpoints/picture.twig';
     private const DEFAULT_SVG_TEMPLATE_PATH = 'breakpoints/svg.twig';
     private const PROCESSING_DIAGNOSTICS_ENV = 'CRAFT_BREAKPOINTS_PROCESSING_DIAGNOSTICS';
@@ -213,6 +221,37 @@ class ConfigService extends Component
 
     /**
      * @param array<string, mixed> $overrides
+     * @return array{adapter: string, attributes: array{src: string, srcset: string, sizes: string}, customHandler: string}
+     */
+    public function getProcessingLazyLoadingConfig(array $overrides = []): array
+    {
+        $adapter = trim((string)$this->get('processingLazyLoadingAdapter', 'attributes', $overrides));
+        if (!in_array($adapter, self::PROCESSING_LAZY_LOADING_ADAPTERS, true)) {
+            $adapter = 'attributes';
+        }
+
+        return [
+            'adapter' => $adapter,
+            'attributes' => [
+                'src' => $this->normalizeLazyLoadingAttributeName(
+                    $this->get('processingLazyLoadingSrcAttribute', 'data-src', $overrides),
+                    'data-src',
+                ),
+                'srcset' => $this->normalizeLazyLoadingAttributeName(
+                    $this->get('processingLazyLoadingSrcsetAttribute', 'data-srcset', $overrides),
+                    'data-srcset',
+                ),
+                'sizes' => $this->normalizeLazyLoadingAttributeName(
+                    $this->get('processingLazyLoadingSizesAttribute', 'data-sizes', $overrides),
+                    'data-sizes',
+                ),
+            ],
+            'customHandler' => trim((string)$this->get('processingLazyLoadingCustomHandler', '', $overrides)),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $overrides
      */
     public function areTransformsDeveloperActionsEnabled(array $overrides = []): bool
     {
@@ -305,6 +344,11 @@ class ConfigService extends Component
             'pictureTemplatePath',
             'svgTemplatePath',
             'nativeLazyLoadingEnabled',
+            'processingLazyLoadingAdapter',
+            'processingLazyLoadingSrcAttribute',
+            'processingLazyLoadingSrcsetAttribute',
+            'processingLazyLoadingSizesAttribute',
+            'processingLazyLoadingCustomHandler',
             'previewCenter',
             'dpr',
         ];
@@ -413,9 +457,24 @@ class ConfigService extends Component
             'position',
             'format',
             'secondaryFormat',
-            'interlace' => trim((string)$value),
+            'interlace',
+            'processingLazyLoadingAdapter',
+            'processingLazyLoadingSrcAttribute',
+            'processingLazyLoadingSrcsetAttribute',
+            'processingLazyLoadingSizesAttribute',
+            'processingLazyLoadingCustomHandler' => trim((string)$value),
             default => $value,
         };
+    }
+
+    private function normalizeLazyLoadingAttributeName(mixed $value, string $fallback): string
+    {
+        $attribute = strtolower(trim((string)$value));
+        if ($attribute === '' || preg_match('/^[a-z_:][a-z0-9_.:-]*$/', $attribute) !== 1) {
+            return $fallback;
+        }
+
+        return $attribute;
     }
 
     private function normalizeTemplatePath(mixed $value, string $fallback): string

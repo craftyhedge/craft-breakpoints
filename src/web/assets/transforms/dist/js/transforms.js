@@ -36,6 +36,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     const PREVIEW_WIDTH_SETTLE_TOLERANCE_PX = 2;
     const PREVIEW_FRAME_TAG = 'ifr' + 'ame';
     const IMAGE_WAIT_SOFT_DEADLINE_MS = 4000;
+    const IMAGE_WAIT_HARD_DEADLINE_MS = 30000;
     const IMAGE_WAIT_POLL_MS = 250;
     const CARD_UPDATE_STATUS_CLEAR_DELAY_MS = 1000;
     const CARD_UPDATE_STATUS_ERROR_CLEAR_DELAY_MS = 3600;
@@ -1515,15 +1516,17 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         dataAttr,
         targetAttr,
         forceWhenDataUri = false,
+        replaceExisting = false,
     }) {
         return processingNormalizeLazyAttribute(target, {
             dataAttr,
             targetAttr,
             forceWhenDataUri,
+            replaceExisting,
         });
     }
 
-    function prepareSlot(slot) {
+    async function prepareSlot(slot) {
         return processingPrepareBreakpoints({
             breakpoint: slot.mediaWidth,
             slot,
@@ -1531,7 +1534,10 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             frameWindow: state.previewFrame?.contentWindow || window,
             getTrackedPictures,
             getPrimarySourceForBreakpoint: (_picture, _breakpoint) => getPrimarySourceForSlot(_picture, slot),
+            lazyLoading: bpiProcessingConfig?.processing?.lazyLoading,
             sampleLimit: PREPARE_NORMALIZATION_SAMPLE_LIMIT,
+            requestAnimationFrameFn: (callback) => requestAnimationFrame(callback),
+            setTimeoutFn: (callback, delay) => window.setTimeout(callback, delay),
         });
     }
 
@@ -1551,7 +1557,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         return processingCreateReadinessSummary(readinessByKey);
     }
 
-    function buildSlotReadinessTracker(slot, preloadStates = null) {
+    function buildSlotReadinessTracker(slot, preloadStates = null, lazyTargetsByImage = null) {
         return processingBuildBreakpointReadinessTracker({
             breakpoint: slot.mediaWidth,
             slot,
@@ -1562,12 +1568,14 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             deriveSource: deriveSourceUsed,
             isTransparentSrcset: isTransparentPixelSrcset,
             isRenderable: isImageRenderable,
+            lazyTargetsByImage,
         });
     }
 
     async function waitForImagesToSettle({
         readinessByKey,
         softDeadlineMs = IMAGE_WAIT_SOFT_DEADLINE_MS,
+        hardDeadlineMs = IMAGE_WAIT_HARD_DEADLINE_MS,
         pollMs = IMAGE_WAIT_POLL_MS,
         shouldStop = () => false,
         onSoftDeadline = null,
@@ -1576,6 +1584,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         return processingWaitForImagesToSettle({
             readinessByKey,
             softDeadlineMs,
+            hardDeadlineMs,
             pollMs,
             shouldStop,
             onSoftDeadline,
@@ -3062,7 +3071,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                 failureStage = 'prepare-breakpoint-images';
                 const prepareStartedAt = Date.now();
                 const breakpointPreparer = getRunOverride('prepareBreakpoints') || prepareSlot;
-                const prepareResult = breakpointPreparer(slot);
+                const prepareResult = await breakpointPreparer(slot);
                 breakpointReport.activationStrategies = prepareResult.activationStrategies.slice();
                 breakpointReport.normalizationCount = prepareResult.normalizationCount;
 
@@ -3102,7 +3111,11 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
                 failureStage = 'wait-for-image-readiness';
                 const readinessTrackerBuilder = getRunOverride('buildBreakpointReadinessTracker') || buildSlotReadinessTracker;
-                const readinessTracker = readinessTrackerBuilder(slot, preloadStates);
+                const readinessTracker = readinessTrackerBuilder(
+                    slot,
+                    preloadStates,
+                    prepareResult.lazyTargetsByImage,
+                );
                 const waitStartedAt = Date.now();
                 let waitResult = null;
 

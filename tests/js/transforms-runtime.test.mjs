@@ -32,6 +32,15 @@ async function loadRuntimeHooks() {
         ],
         processing: {
             authorDiagnosticsEnabled: false,
+            lazyLoading: {
+                adapter: 'attributes',
+                attributes: {
+                    src: 'data-src',
+                    srcset: 'data-srcset',
+                    sizes: 'data-sizes',
+                },
+                customHandler: '',
+            },
         },
     };
 
@@ -66,14 +75,16 @@ async function loadRuntimeHooks() {
             setTimeoutFn: (callback, ms) => window.setTimeout(callback, ms),
             requestAnimationFrameFn: (callback) => requestAnimationFrame(callback),
         }),
-        prepareBreakpoints: (breakpoint) => processing.prepareBreakpoints({
+        prepareBreakpoints: (breakpoint, lazyLoading = null) => processing.prepareBreakpoints({
             breakpoint,
             frameDocument: getFrameDocument(),
             frameWindow: getFrameWindow(),
             getTrackedPictures,
             getPrimarySourceForBreakpoint,
+            lazyLoading,
+            requestAnimationFrameFn: (callback) => callback(),
         }),
-        buildBreakpointReadinessTracker: (breakpoint, preloadStates = null) => processing.buildBreakpointReadinessTracker({
+        buildBreakpointReadinessTracker: (breakpoint, preloadStates = null, lazyTargetsByImage = null) => processing.buildBreakpointReadinessTracker({
             breakpoint,
             frameDocument: getFrameDocument(),
             preloadStates,
@@ -82,6 +93,7 @@ async function loadRuntimeHooks() {
             deriveSource: processing.deriveSourceUsed,
             isTransparentSrcset: processing.isTransparentPixelSrcset,
             isRenderable: processing.isImageRenderable,
+            lazyTargetsByImage,
         }),
         extractRowsForBreakpoint: (breakpoint, preloadStates = null, readinessByKey = null) => processing.extractRowsForBreakpoint({
             breakpoint,
@@ -508,22 +520,29 @@ describe('transforms runtime helper logic', () => {
         expect(result.summary.warningCount).toBe(2);
     });
 
-    it('prepares breakpoint images with normalization and eager loading attributes', () => {
+    it('prepares breakpoint images with normalization and eager loading attributes', async () => {
         const frameDocument = document.implementation.createHTMLDocument('preview');
         frameDocument.body.innerHTML = `
             <picture data-set="hero" data-asset-id="asset-hero">
-                <source data-bp-source="primary" data-bp-size="480" data-bp-enabled="true" data-srcset="https://example.test/hero-480.webp 1x" data-sizes="100vw" />
-                <img data-src="https://example.test/hero.jpg" data-srcset="https://example.test/hero@2x.jpg 2x" data-sizes="100vw" src="data:image/gif;base64,AAAA" class="lazyload" />
+                <source data-bp-source="primary" data-bp-size="480" data-bp-enabled="true" data-srcset="https://example.test/hero-480.webp 1x" data-sizes="100vw" srcset="https://example.test/placeholder-source.jpg" />
+                <img data-src="https://example.test/hero.jpg" data-srcset="https://example.test/hero@2x.jpg 2x" data-sizes="100vw" src="https://example.test/placeholder.jpg" class="lazyload" />
             </picture>
         `;
 
         hooks.setPreviewFrameForTests(frameDocument, {});
-        const result = hooks.prepareBreakpoints(480);
+        const result = await hooks.prepareBreakpoints(480, {
+            adapter: 'attributes',
+            attributes: {
+                src: 'data-src',
+                srcset: 'data-srcset',
+                sizes: 'data-sizes',
+            },
+        });
 
         const img = frameDocument.querySelector('img');
         const source = frameDocument.querySelector('source');
 
-        expect(result.activationStrategies).toEqual(['none']);
+        expect(result.activationStrategies).toEqual(['attributes']);
         expect(result.normalizationCount).toBe(5);
         expect(img.getAttribute('loading')).toBe('eager');
         expect(img.getAttribute('fetchpriority')).toBe('high');
@@ -700,8 +719,18 @@ describe('transforms runtime helper logic', () => {
         Object.defineProperty(loadImg, 'naturalWidth', { configurable: true, writable: true, value: 0 });
         Object.defineProperty(loadImg, 'naturalHeight', { configurable: true, writable: true, value: 0 });
 
+        const preloadImg = getImg('preload');
+        Object.defineProperty(preloadImg, 'complete', { configurable: true, value: false });
+        Object.defineProperty(preloadImg, 'naturalWidth', { configurable: true, writable: true, value: 0 });
+        Object.defineProperty(preloadImg, 'naturalHeight', { configurable: true, writable: true, value: 0 });
+
         const tracker = hooks.buildBreakpointReadinessTracker(480, new Map([['preload', true]]));
         await Promise.resolve();
+
+        expect(tracker.readinessByKey.get('preload').status).toBe('pending');
+        preloadImg.naturalWidth = 640;
+        preloadImg.naturalHeight = 360;
+        preloadImg.dispatchEvent(new window.Event('load'));
 
         loadImg.naturalWidth = 900;
         loadImg.naturalHeight = 500;
@@ -715,7 +744,7 @@ describe('transforms runtime helper logic', () => {
         expect(readiness.get('transparent').status).toBe('loaded');
         expect(readiness.get('transparent').reason).toBe('transparent-placeholder');
         expect(readiness.get('preload').status).toBe('loaded');
-        expect(readiness.get('preload').reason).toBe('preload');
+        expect(readiness.get('preload').reason).toBe('load-event');
         expect(readiness.get('unsupported').status).toBe('broken');
         expect(readiness.get('unsupported').reason).toBe('unsupported-source');
         expect(readiness.get('complete-loaded').status).toBe('loaded');
@@ -728,6 +757,42 @@ describe('transforms runtime helper logic', () => {
         expect(readiness.get('load').reason).toBe('load-event');
         expect(readiness.get('error').status).toBe('broken');
         expect(readiness.get('error').reason).toBe('network');
+
+        tracker.cleanup();
+    });
+
+    it('waits for a lazy target instead of accepting a complete placeholder', () => {
+        const frameDocument = document.implementation.createHTMLDocument('preview');
+        frameDocument.body.innerHTML = `
+            <picture data-set="hero" data-picture-id="hero">
+                <source data-bp-source="primary" data-bp-size="480" data-srcset="https://example.test/hero.webp 1x" srcset="https://example.test/placeholder.gif" />
+                <img src="https://example.test/placeholder.gif" />
+            </picture>
+        `;
+
+        const img = frameDocument.querySelector('img');
+        let currentSrc = 'https://example.test/placeholder.gif';
+        Object.defineProperty(img, 'currentSrc', { configurable: true, get: () => currentSrc });
+        Object.defineProperty(img, 'complete', { configurable: true, value: true });
+        Object.defineProperty(img, 'naturalWidth', { configurable: true, value: 640 });
+        Object.defineProperty(img, 'naturalHeight', { configurable: true, value: 360 });
+
+        hooks.setPreviewFrameForTests(frameDocument, {});
+        const tracker = hooks.buildBreakpointReadinessTracker(
+            480,
+            null,
+            new Map([[img, ['https://example.test/hero.webp']]]),
+        );
+        const entry = tracker.readinessByKey.get('hero');
+
+        expect(entry.status).toBe('pending');
+        img.dispatchEvent(new window.Event('load'));
+        expect(entry.status).toBe('pending');
+
+        currentSrc = 'https://example.test/hero.webp';
+        img.dispatchEvent(new window.Event('load'));
+        expect(entry.status).toBe('loaded');
+        expect(entry.sourceUsed).toBe('https://example.test/hero.webp');
 
         tracker.cleanup();
     });
@@ -896,6 +961,7 @@ describe('transforms runtime helper logic', () => {
 
         let lozadSelector = null;
         let lozadObserveCount = 0;
+        let lozadTriggerCount = 0;
 
         const frameWindow = {
             lazyLoadInstance: instance,
@@ -909,6 +975,9 @@ describe('transforms runtime helper logic', () => {
                 return {
                     observe: () => {
                         lozadObserveCount += 1;
+                    },
+                    triggerLoad: () => {
+                        lozadTriggerCount += 1;
                     },
                 };
             },
@@ -925,7 +994,42 @@ describe('transforms runtime helper logic', () => {
         expect(prepareResult.activationStrategies).toContain('vanilla-lazyload:6');
         expect(lozadSelector).toBe('.lozad');
         expect(lozadObserveCount).toBe(1);
-        expect(prepareResult.activationStrategies).toContain('lozad:1');
+        expect(lozadTriggerCount).toBe(1);
+        expect(prepareResult.activationStrategies).toContain('lozad:2');
+    });
+
+    it('captures configured lazy targets for a custom adapter', async () => {
+        const frameDocument = document.implementation.createHTMLDocument('preview');
+        frameDocument.body.innerHTML = `
+            <picture data-set="hero" data-picture-id="hero">
+                <source data-bp-source="primary" data-bp-size="480" data-original-set="https://example.test/hero.webp 1x" />
+                <img data-original="https://example.test/hero.jpg" src="https://example.test/placeholder.gif" />
+            </picture>
+        `;
+
+        const frameWindow = {
+            project: {
+                prepareImages: () => Promise.resolve(),
+            },
+        };
+        hooks.setPreviewFrameForTests(frameDocument, frameWindow);
+
+        const result = await hooks.prepareBreakpoints(480, {
+            adapter: 'custom',
+            attributes: {
+                src: 'data-original',
+                srcset: 'data-original-set',
+                sizes: 'data-sizes',
+            },
+            customHandler: 'window.project.prepareImages',
+        });
+        const img = frameDocument.querySelector('img');
+
+        expect(result.activationStrategies).toContain('custom:1');
+        expect(result.lazyTargetsByImage.get(img)).toEqual([
+            'https://example.test/hero.webp',
+            'https://example.test/hero.jpg',
+        ]);
     });
 
     it('marks pending entries unresolved when cancelled during image wait', async () => {
