@@ -29,7 +29,7 @@ import {
 import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
 (() => {
-    const BREAKPOINT_SAFETY_PX = 2;
+    const BREAKPOINT_SAFETY_PX = 1;
     const PROCESSING_QUERY_PARAM = '__bpiProcessing';
     const ENTRY_ID_QUERY_PARAM = 'entry_id';
     const PREVIEW_WIDTH_SETTLE_TIMEOUT_MS = 800;

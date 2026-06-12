@@ -1,7 +1,7 @@
 export const PROCESSABLE_PICTURE_SELECTOR = 'picture[data-set]:not([data-bp-processing-ignore])';
 export const PROCESSABLE_IMAGE_SELECTOR = `${PROCESSABLE_PICTURE_SELECTOR} img`;
 
-export function getMeasurementWidthForBreakpoint(breakpoint, safetyPx = 2) {
+export function getMeasurementWidthForBreakpoint(breakpoint, safetyPx = 1) {
     const parsed = parseInt(String(breakpoint), 10);
     if (!Number.isFinite(parsed) || parsed <= 1) {
         return 1;

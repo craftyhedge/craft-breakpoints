@@ -359,7 +359,7 @@ describe('transforms runtime helper logic', () => {
     });
 
     it('computes measurement widths and diagnostics flag state', () => {
-        expect(hooks.getMeasurementWidthForBreakpoint(480)).toBe(478);
+        expect(hooks.getMeasurementWidthForBreakpoint(480)).toBe(479);
         expect(hooks.getMeasurementWidthForBreakpoint(1)).toBe(1);
         expect(hooks.getMeasurementWidthForBreakpoint('bad')).toBe(1);
 
