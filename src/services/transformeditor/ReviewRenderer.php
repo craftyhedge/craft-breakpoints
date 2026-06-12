@@ -367,6 +367,9 @@ final class ReviewRenderer
         $allowAnyHeight = $this->isAllowAnyHeightEnabled($transformConfig);
         $storedSavedWidthsByTransform = $this->buildStoredSavedWidthsByTransformAndBreakpoint();
         $storedSavedHeightsByTransform = $this->buildStoredSavedHeightsByTransformAndBreakpoint();
+        $processSavedDimensionsByTransform = $this->buildProcessSavedDimensionsByTransformAndBreakpoint(
+            $this->getLatestRunSnapshotForReview(),
+        );
 
         $referenceWidthsById = [];
         foreach ($transformBreakpoints as $bp) {
@@ -388,6 +391,7 @@ final class ReviewRenderer
                 $hideRenderedApply,
                 $reviewMode,
                 $referenceWidthsById[(string)$breakpoint] ?? null,
+                $processSavedDimensionsByTransform[$normalized][$breakpoint] ?? null,
             );
             $rowsByBreakpoint[$breakpointKey] = array_merge($coreRows[$breakpointKey] ?? [], $ui);
         }
@@ -401,6 +405,7 @@ final class ReviewRenderer
      *
      * @param array<int, array<string, mixed>> $rows
      * @param array<string, mixed> $currentRow
+     * @param array{w: int|null, h: int|null}|null $processSavedDimensions
      * @return array<string, string>
      */
     private function buildBreakpointUiState(
@@ -415,6 +420,7 @@ final class ReviewRenderer
         bool $hideRenderedApply,
         string $reviewMode,
         ?int $referenceWidth = null,
+        ?array $processSavedDimensions = null,
     ): array {
         $state = $this->breakpointStateBuilder->build(
             $transformName,
@@ -428,6 +434,7 @@ final class ReviewRenderer
             $hideRenderedApply,
             $reviewMode,
             $referenceWidth,
+            $processSavedDimensions,
         );
 
         $renderedApplyNoop = ($state['renderedApplyNoop'] ?? false) === true;
@@ -460,6 +467,8 @@ final class ReviewRenderer
             'heightClass' => (string)($state['heightClass'] ?? ''),
             'currentWidthDerivedClass' => (string)($state['currentWidthDerivedClass'] ?? '') !== '' ? '1' : '0',
             'currentHeightDerivedClass' => (string)($state['currentHeightDerivedClass'] ?? '') !== '' ? '1' : '0',
+            'currentWidthEditedClass' => (string)($state['currentWidthEditedClass'] ?? '') !== '' ? '1' : '0',
+            'currentHeightEditedClass' => (string)($state['currentHeightEditedClass'] ?? '') !== '' ? '1' : '0',
             // Hidden-but-enabled breakpoints suppress their preview just like disabled ones.
             'previewMediaHidden' => (!$currentEnabled || $hiddenCount > 0) ? '1' : '0',
         ];
@@ -604,6 +613,7 @@ final class ReviewRenderer
         $latestRunSnapshot = $this->getLatestRunSnapshotForReview();
         $latestRunSummariesByTransform = $this->buildLatestRunSummaryByTransform($latestRunSnapshot);
         $editedTransforms = $this->buildEditedTransformsMap($latestRunSnapshot, $isProcessedReview);
+        $processSavedDimensionsByTransform = $this->buildProcessSavedDimensionsByTransformAndBreakpoint($latestRunSnapshot);
         $canEditTransforms = $this->plugin !== null && $this->plugin->getTelemetry()->canEditTransforms();
 
         $breakpointMismatchTransformNames = [];
@@ -858,6 +868,7 @@ final class ReviewRenderer
                         $hideRenderedApplyForCard,
                         $reviewMode,
                         $referenceWidthsById[(string)$breakpoint] ?? null,
+                        $processSavedDimensionsByTransform[$transformName][$breakpoint] ?? null,
                     )
                 );
             }
@@ -899,6 +910,7 @@ final class ReviewRenderer
                         $storedSavedHeightsByTransform[$transformName][$breakpoint] ?? null,
                         $allowAnyHeight,
                         $referenceWidthsById[(string)$breakpoint] ?? null,
+                        $processSavedDimensionsByTransform[$transformName][$breakpoint] ?? null,
                     );
                     $previousMediaWidth = $mediaWidth;
                 }
@@ -1123,6 +1135,7 @@ final class ReviewRenderer
      * @param array<string, mixed> $currentRow
      * @param array<int|string, float> $breakpointColumnWidths
      * @param array<int|string, int> $previewLockHeightsByBreakpoint
+     * @param array{w: int|null, h: int|null}|null $processSavedDimensions
      */
     private function renderReviewBreakpointColumn(
         string $transformName,
@@ -1144,6 +1157,7 @@ final class ReviewRenderer
         ?int $savedHeight = null,
         bool $allowAnyHeight = false,
         ?int $referenceWidth = null,
+        ?array $processSavedDimensions = null,
     ): string {
         $state = $this->breakpointStateBuilder->build(
             $transformName,
@@ -1157,6 +1171,7 @@ final class ReviewRenderer
             $hideRenderedApply,
             $reviewMode,
             $referenceWidth,
+            $processSavedDimensions,
         );
 
         $summary = $state['summary'];
@@ -1666,6 +1681,45 @@ final class ReviewRenderer
     private function buildEditedTransformsMap(?array $latestRunSnapshot, bool $isProcessedReview): array
     {
         return $this->healthAnalyzer->buildEditedTransformsMap($latestRunSnapshot, $isProcessedReview);
+    }
+
+    /**
+     * Saved dimensions captured at process time, re-keyed from snapshot slot keys to
+     * breakpoint ids. This is the baseline for detecting per-dimension edits since the
+     * last processing run (stale rendered values / edited current values).
+     *
+     * @param array<string, mixed>|null $latestRunSnapshot
+     * @return array<string, array<int, array{w: int|null, h: int|null}>>
+     */
+    private function buildProcessSavedDimensionsByTransformAndBreakpoint(?array $latestRunSnapshot): array
+    {
+        $byTransform = is_array($latestRunSnapshot) ? ($latestRunSnapshot['savedDimensionsByTransform'] ?? null) : null;
+        if (!is_array($byTransform)) {
+            return [];
+        }
+
+        $result = [];
+        foreach ($byTransform as $transformName => $entries) {
+            if (!is_string($transformName) || $transformName === '' || !is_array($entries)) {
+                continue;
+            }
+            foreach ($entries as $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+                $slotKey = trim((string)($entry['slotKey'] ?? ''));
+                $breakpoint = $slotKey !== '' ? ($this->getReviewSlotIdByKey($slotKey) ?? 0) : 0;
+                if ($breakpoint <= 0) {
+                    continue;
+                }
+                $result[$transformName][$breakpoint] = [
+                    'w' => isset($entry['w']) && is_numeric($entry['w']) ? (int)$entry['w'] : null,
+                    'h' => isset($entry['h']) && is_numeric($entry['h']) ? (int)$entry['h'] : null,
+                ];
+            }
+        }
+
+        return $result;
     }
 
     /**

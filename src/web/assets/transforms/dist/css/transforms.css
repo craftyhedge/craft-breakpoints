@@ -2083,6 +2083,12 @@ button.bpts-transform-input-addon:hover:not(:disabled) {
     color: var(--fg-error, var(--red-600));
 }
 
+/* Measured value whose saved dimension was edited after the processing run —
+   neither confirmed (green) nor failing (red) until re-processed. */
+.bpi_rendered-dimension.bpi_dimension-stale {
+    color: var(--fg-subtle);
+}
+
 .bpi_current-dimension {
     color: var(--fg-subtle);
 }
@@ -2090,6 +2096,12 @@ button.bpts-transform-input-addon:hover:not(:disabled) {
 .bpi_current-dimension.bpi_current-dimension-derived {
     color: var(--gray-500, #8a95a3);
     opacity: 0.78;
+}
+
+/* Saved dimension edited since the last processing run; no longer matches the
+   measured value above it. */
+.bpi_current-dimension.bpi_current-dimension-edited {
+    color: var(--fg-error, var(--red-600));
 }
 
 .bpi_current-ratio {

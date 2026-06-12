@@ -19,6 +19,8 @@ final class ReviewBreakpointStateBuilder
      * @param array<int, array<string, mixed>> $rows
      * @param array<string, mixed> $currentRow
      * @param int|null $referenceWidth media px for relativeWidth + square fallback (falls back to $breakpoint if null)
+     * @param array{w: int|null, h: int|null}|null $processSavedDimensions saved dimensions captured at process
+     *        time for this breakpoint; null when no run snapshot baseline exists
      * @return array<string, mixed>
      */
     public function build(
@@ -33,6 +35,7 @@ final class ReviewBreakpointStateBuilder
         bool $hideRenderedApply,
         string $reviewMode,
         ?int $referenceWidth = null,
+        ?array $processSavedDimensions = null,
     ): array {
         $ref = ($referenceWidth !== null && $referenceWidth > 0) ? $referenceWidth : $breakpoint;
 
@@ -84,8 +87,30 @@ final class ReviewBreakpointStateBuilder
             ? max(0.0, min(100.0, ($displayWidth / $ref) * 100))
             : 0.0;
 
-        $widthClass = $this->getRenderedDimensionClass($renderedWidth, $currentWidth, $autoDimension, 'width');
-        $heightClass = $this->getRenderedDimensionClass($renderedHeight, $currentHeight, $autoDimension, 'height');
+        // A rendered match/mismatch is only meaningful while the saved dimensions still
+        // equal what they were at process time. Once the user edits a dimension, the
+        // measurement is stale for it: the rendered value goes neutral and the edited
+        // current value is flagged instead (until a re-process refreshes the baseline).
+        $hasProcessBaseline = $processSavedDimensions !== null && $reviewMode === self::REVIEW_MODE_PROCESSED;
+        $widthEdited = $hasProcessBaseline
+            && ($autoDimension === 'width' ? null : $currentWidth) !== ($processSavedDimensions['w'] ?? null);
+        $heightEdited = $hasProcessBaseline
+            && ($autoDimension === 'height' ? null : $currentHeight) !== ($processSavedDimensions['h'] ?? null);
+
+        $widthStatus = $this->healthAnalyzer->evaluateDimensionMatch(
+            max(0, $renderedWidth),
+            $currentWidth,
+            $autoDimension === 'width',
+        );
+        $heightStatus = $this->healthAnalyzer->evaluateDimensionMatch(
+            max(0, $renderedHeight),
+            $currentHeight,
+            $autoDimension === 'height',
+        );
+        $widthStale = $widthStatus === 'mismatch' && $widthEdited;
+        $heightStale = $heightStatus === 'mismatch' && $heightEdited;
+        $widthClass = $widthStale ? 'bpi_dimension-stale' : $this->getRenderedDimensionClass($widthStatus);
+        $heightClass = $heightStale ? 'bpi_dimension-stale' : $this->getRenderedDimensionClass($heightStatus);
         $renderedApplyNoop = $this->isRenderedApplyNoop(
             $renderedRowsPayload,
             $currentWidth,
@@ -105,7 +130,14 @@ final class ReviewBreakpointStateBuilder
                 $passHeightWhenRenderedLteSaved,
                 $allowAnyHeight,
             );
-            $hasBreakpointMismatch = ($columnEvaluation['isBreakpointMismatch'] ?? false) === true;
+            // An edited dimension can't produce a genuine mismatch — its measurement is
+            // stale. The card-level awaitingReprocess banner covers that state instead.
+            $columnWidthStatus = (string)($columnEvaluation['widthStatus'] ?? '');
+            $columnHeightStatus = (string)($columnEvaluation['heightStatus'] ?? '');
+            $hasBreakpointMismatch = ($columnWidthStatus === 'missing'
+                    || ($columnWidthStatus === 'mismatch' && !$widthEdited))
+                || ($columnHeightStatus === 'missing'
+                    || ($columnHeightStatus === 'mismatch' && !$heightEdited));
         }
 
         return [
@@ -131,21 +163,13 @@ final class ReviewBreakpointStateBuilder
             'hasBreakpointMismatch' => $hasBreakpointMismatch,
             'currentWidthDerivedClass' => $currentWidthDerived ? 'bpi_current-dimension-derived' : '',
             'currentHeightDerivedClass' => $currentHeightDerived ? 'bpi_current-dimension-derived' : '',
+            'currentWidthEditedClass' => $widthStale ? 'bpi_current-dimension-edited' : '',
+            'currentHeightEditedClass' => $heightStale ? 'bpi_current-dimension-edited' : '',
         ];
     }
 
-    private function getRenderedDimensionClass(
-        int $renderedValue,
-        ?int $transformValue,
-        ?string $autoDimension,
-        string $dimension,
-    ): string {
-        $status = $this->healthAnalyzer->evaluateDimensionMatch(
-            max(0, $renderedValue),
-            $transformValue,
-            $autoDimension === $dimension,
-        );
-
+    private function getRenderedDimensionClass(string $status): string
+    {
         return match ($status) {
             'auto' => 'bpi_dimension-auto',
             'no-transform', 'missing' => 'bpi_dimension-no-transform',
