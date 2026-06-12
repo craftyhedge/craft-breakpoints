@@ -252,7 +252,7 @@ class TransformsController extends Controller
             : $editor->buildScopeValuesForAll($operation->setName, $operation->includeEscapeWidth);
 
         $activeTab = $this->normalizeCardActiveTab(
-            $this->readRequestedCardSignalString($operation->setName, 'activeTab'),
+            $this->readRequestedCardActiveTab($operation->setName),
             $scopeMode,
             $scopeValues,
         );
@@ -573,7 +573,7 @@ class TransformsController extends Controller
                         $autoSignals = $this->buildAllScopeAutoSignalsFromRows($deltas['rowsByBreakpoint']);
                         $cardSignalPatch = array_merge($cardSignalPatch, $autoSignals);
                         $cardSignalPatch['activeTab'] = $this->normalizeCardActiveTab(
-                            $this->readRequestedCardSignalString($operation->setName, 'activeTab'),
+                            $this->readRequestedCardActiveTab($operation->setName),
                             'all',
                             [
                                 'widthAuto' => $autoSignals['widthAuto'] ?? '0',
@@ -594,7 +594,7 @@ class TransformsController extends Controller
 
                         $cardSignalPatch = array_merge($cardSignalPatch, [
                             'activeTab' => $this->normalizeCardActiveTab(
-                                $this->readRequestedCardSignalString($operation->setName, 'activeTab'),
+                                $this->readRequestedCardActiveTab($operation->setName),
                                 $scopeMode,
                                 $scopeValues,
                             ),
@@ -1011,6 +1011,22 @@ class TransformsController extends Controller
 
         $selectedAssetKey = trim($rawSelectedAssetKey);
         return $selectedAssetKey !== '' ? $selectedAssetKey : null;
+    }
+
+    /**
+     * The active edit-panel tab for the card. Datastar @post sends only the explicit
+     * payload (signals are not included when a payload is given), so the signal read
+     * is a no-op for card operations — the flat `activeTab` payload param is the one
+     * that actually arrives. The signal read stays as a fallback for payload-less posts.
+     */
+    private function readRequestedCardActiveTab(string $setName): ?string
+    {
+        $payloadTab = Support::parseNullableNonEmptyString($this->request->getBodyParam('activeTab'));
+        if ($payloadTab !== null) {
+            return $payloadTab;
+        }
+
+        return $this->readRequestedCardSignalString($setName, 'activeTab');
     }
 
     private function readRequestedCardSignalString(string $setName, string $key): ?string
