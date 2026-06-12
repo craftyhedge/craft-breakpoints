@@ -6,8 +6,10 @@ namespace craftyhedge\craftbreakpoints\tests\integration;
 
 use Codeception\Test\Unit;
 use Craft;
+use craft\db\Query;
 use craft\elements\Asset;
 use craftyhedge\craftbreakpoints\Plugin;
+use craftyhedge\craftbreakpoints\services\DatabaseService;
 use craftyhedge\craftbreakpoints\services\InitOptions;
 
 final class TelemetryServiceTest extends Unit
@@ -100,6 +102,72 @@ final class TelemetryServiceTest extends Unit
 
         $this->assertStringContainsString('<picture data-set="svgOnly">', (string)$markup);
         $this->assertArrayNotHasKey('svgOnly', $plugin->getTelemetry()->getMostRecentByHandle());
+    }
+
+    public function testPersistRunSnapshotUsesBreakpointSourceForDisplayUrls(): void
+    {
+        $db = Craft::$app->getDb();
+        $db->createCommand()->delete(DatabaseService::TABLE_PREVIEW_CACHE)->execute();
+
+        $rowsBySlot = [
+            'base' => [[
+                'slotKey' => 'base',
+                'slotIndex' => 0,
+                'mediaWidth' => 480,
+                'measureWidth' => 480,
+                'assetId' => '100',
+                'transform' => 'hero',
+                'sourceUsed' => 'https://example.test/hero-base.jpg',
+                'src' => 'https://example.test/hero-fallback.jpg',
+                'enabled' => true,
+                'loaded' => true,
+                'rendered' => ['width' => 480, 'height' => 270],
+            ]],
+            'xs' => [[
+                'slotKey' => 'xs',
+                'slotIndex' => 1,
+                'mediaWidth' => 640,
+                'measureWidth' => 640,
+                'assetId' => '100',
+                'transform' => 'hero',
+                'sourceUsed' => 'https://example.test/hero-xs.jpg',
+                'src' => 'https://example.test/hero-fallback.jpg',
+                'enabled' => true,
+                'loaded' => true,
+                'rendered' => ['width' => 640, 'height' => 360],
+            ]],
+        ];
+
+        $persisted = Plugin::getInstance()->getTelemetry()->persistRunSnapshot([
+            'runId' => 'slot-source-url-test',
+            'runStatus' => 'completed',
+            'timestamp' => '2026-06-12T12:00:00+00:00',
+            'durationMs' => 100,
+            'sourceUrl' => 'https://example.test/source',
+            'rowsBySlot' => $rowsBySlot,
+        ]);
+
+        $this->assertTrue($persisted);
+
+        $snapshotUrls = (new Query())
+            ->select(['slotKey', 'displayAssetUrl'])
+            ->from(DatabaseService::TABLE_RUN_SNAPSHOT_ROWS)
+            ->where(['snapshotId' => 1, 'transformHandle' => 'hero'])
+            ->orderBy(['slotIndex' => SORT_ASC])
+            ->all($db);
+        $previewUrls = (new Query())
+            ->select(['slotKey', 'displayAssetUrl'])
+            ->from(DatabaseService::TABLE_PREVIEW_CACHE)
+            ->where(['transformHandle' => 'hero'])
+            ->orderBy(['slotIndex' => SORT_ASC])
+            ->all($db);
+
+        $expected = [
+            'base' => 'https://example.test/hero-base.jpg',
+            'xs' => 'https://example.test/hero-xs.jpg',
+        ];
+        $this->assertSame($expected, array_column($snapshotUrls, 'displayAssetUrl', 'slotKey'));
+        $this->assertSame($expected, array_column($previewUrls, 'displayAssetUrl', 'slotKey'));
     }
 
     private function createMockSvgAsset(): Asset

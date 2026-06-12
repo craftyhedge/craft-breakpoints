@@ -753,12 +753,7 @@ class TelemetryService extends Component
                     $assetId = mb_substr($assetId, 0, self::ASSET_ID_MAX_LENGTH);
                 }
 
-                $displayAssetUrl = trim((string)($row['src'] ?? ''));
-                if ($displayAssetUrl === '') {
-                    $displayAssetUrl = null;
-                } elseif (mb_strlen($displayAssetUrl) > self::DISPLAY_ASSET_URL_MAX_LENGTH) {
-                    $displayAssetUrl = mb_substr($displayAssetUrl, 0, self::DISPLAY_ASSET_URL_MAX_LENGTH);
-                }
+                $displayAssetUrl = $this->normalizeDisplayAssetUrl($row);
 
                 $enabled = ($row['enabled'] ?? true) === true;
                 $isVisible = $this->normalizeNullableBool($row['isVisible'] ?? null);
@@ -918,15 +913,12 @@ class TelemetryService extends Component
                 $unresolved = ($row['unresolved'] ?? false) === true;
                 $rowStatus = $this->resolveSnapshotRowStatus($enabled, $loaded, $broken, $unresolved);
 
-                $displayAssetUrl = trim((string)($row['src'] ?? ''));
-                if ($displayAssetUrl !== '' && mb_strlen($displayAssetUrl) > self::DISPLAY_ASSET_URL_MAX_LENGTH) {
-                    $displayAssetUrl = mb_substr($displayAssetUrl, 0, self::DISPLAY_ASSET_URL_MAX_LENGTH);
-                }
+                $displayAssetUrl = $this->normalizeDisplayAssetUrl($row);
 
                 $renderedWidth = max(0, (int)($row['rendered']['width'] ?? 0));
                 $renderedHeight = max(0, (int)($row['rendered']['height'] ?? 0));
 
-                if (!$loaded || $displayAssetUrl === '') {
+                if (!$loaded || $displayAssetUrl === null) {
                     continue;
                 }
 
@@ -952,6 +944,27 @@ class TelemetryService extends Component
         if ($activeSlotsByTransform !== []) {
             $this->pruneObsoletePreviewCacheRows($activeSlotsByTransform);
         }
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function normalizeDisplayAssetUrl(array $row): ?string
+    {
+        $displayAssetUrl = trim((string)($row['sourceUsed'] ?? ''));
+        if ($displayAssetUrl === '') {
+            $displayAssetUrl = trim((string)($row['src'] ?? ''));
+        }
+
+        if ($displayAssetUrl === '') {
+            return null;
+        }
+
+        if (mb_strlen($displayAssetUrl) > self::DISPLAY_ASSET_URL_MAX_LENGTH) {
+            return mb_substr($displayAssetUrl, 0, self::DISPLAY_ASSET_URL_MAX_LENGTH);
+        }
+
+        return $displayAssetUrl;
     }
 
     /**
