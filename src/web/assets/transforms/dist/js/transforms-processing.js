@@ -401,6 +401,30 @@ function collectLazyTargetUrls(source, img, baseUrl = '', attributes = null) {
     return Array.from(new Set(targets));
 }
 
+function collectSlotLazyTargetUrls(picture, primarySource, img, baseUrl = '', attributes = null) {
+    const slotKey = String(primarySource?.getAttribute('data-bp-key') || '').trim();
+    const slotIndex = String(primarySource?.getAttribute('data-bp-index') || '').trim();
+    const slotSources = Array.from(picture?.querySelectorAll?.('source') || []).filter((source) => {
+        if (source === primarySource) {
+            return true;
+        }
+
+        const sourceKey = String(source.getAttribute('data-bp-key') || '').trim();
+        const sourceIndex = String(source.getAttribute('data-bp-index') || '').trim();
+        return (slotKey !== '' && sourceKey === slotKey)
+            || (slotIndex !== '' && sourceIndex === slotIndex);
+    });
+    const sources = slotSources.length > 0 ? slotSources : [primarySource].filter(Boolean);
+    const targets = sources.flatMap((source, index) => collectLazyTargetUrls(
+        source,
+        index === 0 ? img : null,
+        baseUrl,
+        attributes,
+    ));
+
+    return Array.from(new Set(targets));
+}
+
 function sourceMatchesLazyTarget(sourceUsed, lazyTargetUrls, baseUrl = '') {
     if (!Array.isArray(lazyTargetUrls) || lazyTargetUrls.length < 1) {
         return true;
@@ -802,7 +826,8 @@ export async function prepareBreakpoints({
                 return;
             }
 
-            const lazyTargetUrls = collectLazyTargetUrls(
+            const lazyTargetUrls = collectSlotLazyTargetUrls(
+                picture,
                 source,
                 img,
                 frameDocument?.baseURI || '',

@@ -1091,6 +1091,57 @@ describe('transforms runtime helper logic', () => {
         ]);
     });
 
+    it('accepts lazy targets from each format source in the selected slot', async () => {
+        const frameDocument = document.implementation.createHTMLDocument('preview');
+        frameDocument.body.innerHTML = `
+            <picture data-set="hero" data-picture-id="hero">
+                <source data-bp-source="primary" data-bp-size="480" data-bp-key="base" data-bp-index="0" data-original-set="https://example.test/hero.jpg 1x" />
+                <source data-bp-source="secondary" data-bp-size="480" data-bp-key="base" data-bp-index="0" data-original-set="https://example.test/hero.webp 1x" />
+                <source data-bp-source="primary" data-bp-size="768" data-bp-key="sm" data-bp-index="1" data-original-set="https://example.test/hero-sm.jpg 1x" />
+                <img src="https://example.test/placeholder.gif" />
+            </picture>
+        `;
+
+        const frameWindow = {
+            project: {
+                prepareImages: () => Promise.resolve(),
+            },
+        };
+        hooks.setPreviewFrameForTests(frameDocument, frameWindow);
+
+        const result = await hooks.prepareBreakpoints(480, {
+            adapter: 'custom',
+            attributes: {
+                src: 'data-original',
+                srcset: 'data-original-set',
+                sizes: 'data-sizes',
+            },
+            customHandler: 'window.project.prepareImages',
+        });
+        const img = frameDocument.querySelector('img');
+
+        expect(result.lazyTargetsByImage.get(img)).toEqual([
+            'https://example.test/hero.jpg',
+            'https://example.test/hero.webp',
+        ]);
+
+        Object.defineProperty(img, 'currentSrc', {
+            configurable: true,
+            value: 'https://example.test/hero.webp',
+        });
+        Object.defineProperty(img, 'complete', { configurable: true, value: true });
+        Object.defineProperty(img, 'naturalWidth', { configurable: true, value: 640 });
+        Object.defineProperty(img, 'naturalHeight', { configurable: true, value: 360 });
+
+        const tracker = hooks.buildBreakpointReadinessTracker(
+            480,
+            null,
+            result.lazyTargetsByImage,
+        );
+        expect(tracker.readinessByKey.get('hero').status).toBe('loaded');
+        tracker.cleanup();
+    });
+
     it('marks pending entries unresolved when cancelled during image wait', async () => {
         const readinessByKey = new Map([
             ['img-1', {
