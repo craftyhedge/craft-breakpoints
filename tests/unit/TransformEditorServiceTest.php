@@ -1946,7 +1946,9 @@ final class TransformEditorServiceTest extends Unit
         }
 
         $xpath = $this->createReviewMarkupXPath((string)($result['visualResultsHtml'] ?? ''));
-        $card = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-card ') and @data-set='hero']")->item(0);
+        $cards = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-card ') and @data-set='hero']");
+        $this->assertNotFalse($cards);
+        $card = $cards->item(0);
         $this->assertNotNull($card);
 
         $hiddenGrid = $xpath->query(".//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-breakpoint-grid ') and contains(concat(' ', normalize-space(@class), ' '), ' bpts-force-hidden ')]", $card);

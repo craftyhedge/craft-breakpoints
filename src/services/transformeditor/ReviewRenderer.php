@@ -171,6 +171,7 @@ final class ReviewRenderer
      * @param array<string, mixed> $editTabBySet
      * @param array<string, mixed> $selectedAssetKeyBySet
      * @param array<string, mixed> $preferredOrderBySet
+     * @param string[] $observedMissingHandles
      * @return array<string, mixed>
      */
     private function renderReview(
