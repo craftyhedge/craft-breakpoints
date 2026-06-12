@@ -10,6 +10,68 @@ export function getMeasurementWidthForBreakpoint(breakpoint, safetyPx = 1) {
     return Math.max(1, parsed - Math.max(0, Number(safetyPx) || 0));
 }
 
+function getProcessingRowIdentity(row) {
+    const pictureId = String(row?.pictureId || '').trim();
+    if (pictureId !== '') {
+        return `picture:${pictureId}`;
+    }
+
+    const transform = String(row?.transform || '').trim();
+    const assetId = String(row?.assetId || '').trim();
+    if (transform === '' && assetId === '') {
+        return '';
+    }
+
+    return `asset:${transform}|${assetId}`;
+}
+
+export function selectFinalRows(normalRows, escapeRows) {
+    const escapeByIdentity = new Map();
+
+    for (const row of Array.isArray(escapeRows) ? escapeRows : []) {
+        const identity = getProcessingRowIdentity(row);
+        if (identity === '') {
+            continue;
+        }
+
+        const matches = escapeByIdentity.get(identity) || [];
+        matches.push(row);
+        escapeByIdentity.set(identity, matches);
+    }
+
+    const unmatchedRows = [];
+    const rows = (Array.isArray(normalRows) ? normalRows : []).map((row) => {
+        const identity = getProcessingRowIdentity(row);
+        const matches = identity !== '' ? escapeByIdentity.get(identity) : null;
+        const escapeRow = Array.isArray(matches) ? matches.shift() : null;
+
+        if (row?.includeEscapeWidth !== true) {
+            return row;
+        }
+
+        if (!escapeRow) {
+            unmatchedRows.push(row);
+            return row;
+        }
+
+        return escapeRow;
+    });
+
+    escapeByIdentity.forEach((matches) => {
+        matches.forEach((row) => {
+            if (row?.includeEscapeWidth === true) {
+                rows.push(row);
+                return;
+            }
+
+            unmatchedRows.push(row);
+            rows.push(row);
+        });
+    });
+
+    return { rows, unmatchedRows };
+}
+
 export function isTransparentPixelSrcset(srcset) {
     const normalized = String(srcset || '').trim();
     return normalized.startsWith('data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==');
@@ -662,6 +724,36 @@ function swapLazyLoadingAttributes(pictures, attributes, prepareResult, recordNo
     });
 }
 
+export function activateSlotSources(pictures, slot) {
+    const slotKey = String(slot?.key || '').trim();
+    const slotIndex = Number.isFinite(Number(slot?.index)) ? String(slot.index) : '';
+    if (slotKey === '' && slotIndex === '') {
+        return 0;
+    }
+
+    let activatedCount = 0;
+    (Array.isArray(pictures) ? pictures : []).forEach((picture) => {
+        const sources = Array.from(picture?.querySelectorAll?.('source[data-bp-key], source[data-bp-index]') || []);
+        let pictureActivated = false;
+
+        sources.forEach((source) => {
+            const sourceKey = String(source.getAttribute('data-bp-key') || '').trim();
+            const sourceIndex = String(source.getAttribute('data-bp-index') || '').trim();
+            const matchesSlot = (slotKey !== '' && sourceKey === slotKey)
+                || (slotIndex !== '' && sourceIndex === slotIndex);
+
+            source.setAttribute('media', matchesSlot ? 'all' : 'not all');
+            pictureActivated ||= matchesSlot;
+        });
+
+        if (pictureActivated) {
+            activatedCount += 1;
+        }
+    });
+
+    return activatedCount;
+}
+
 export async function prepareBreakpoints({
     breakpoint,
     slot = null,
@@ -696,6 +788,11 @@ export async function prepareBreakpoints({
     const adapter = String(lazyLoadingConfig.adapter || 'attributes').trim();
     const libraryAdapters = ['lazysizes', 'vanilla-lazyload', 'lozad'];
     const sourceTrackedAdapters = [...libraryAdapters, 'custom'];
+
+    const activatedPictureCount = activateSlotSources(pictures, slot);
+    if (activatedPictureCount > 0) {
+        pushActivationStrategy(prepareResult, 'slot-source', activatedPictureCount);
+    }
 
     if (sourceTrackedAdapters.includes(adapter)) {
         pictures.forEach((picture) => {
@@ -1245,6 +1342,7 @@ export function extractRowsForBreakpoint({
             slotIndex: Number.isFinite(Number(slot?.index)) ? Number(slot.index) : toPositiveIntOrNullFn(source?.getAttribute('data-bp-index')),
             mediaWidth: Number.isFinite(Number(slot?.mediaWidth)) ? Number(slot.mediaWidth) : breakpoint,
             measureWidth: Number.isFinite(Number(slot?.measureWidth)) ? Number(slot.measureWidth) : toPositiveIntOrNullFn(source?.getAttribute('data-bp-measure-width')),
+            pictureId: picture?.getAttribute('data-picture-id') || null,
             assetId,
             transform: picture?.getAttribute('data-set') || 'unknown',
             title: picture?.getAttribute('data-asset-title') || '',

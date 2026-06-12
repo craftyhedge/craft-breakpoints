@@ -22,6 +22,7 @@ import {
     prepareBreakpoints as processingPrepareBreakpoints,
     preloadBreakpointSources as processingPreloadBreakpointSources,
     sanitizeIssueSource as processingSanitizeIssueSource,
+    selectFinalRows as processingSelectFinalRows,
     toPositiveIntOrNull as processingToPositiveIntOrNull,
     waitForImagesToSettle as processingWaitForImagesToSettle,
     PROCESSABLE_PICTURE_SELECTOR,
@@ -2998,7 +2999,11 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         }
 
         const slots = getConfiguredSlots();
-        const totalProgressSteps = slots.length + 1;
+        const processingPassCount = slots.reduce(
+            (count, slot) => count + (slot.isFinal && slot.measureWidth !== slot.mediaWidth ? 2 : 1),
+            0,
+        );
+        const totalProgressSteps = processingPassCount + 1;
         let completedProgressSteps = 0;
 
         if (!slots.length) {
@@ -3061,108 +3066,181 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                 breakpointReport.measureWidth = slot.measureWidth;
                 runReport.breakpoints.push(breakpointReport);
 
-                state.waitSoftLimitReached = false;
-                setStopButtonVisibility(false);
-                const measurementWidth = (slot.isFinal && slot.measureWidth !== slot.mediaWidth)
-                    ? getMeasurementWidthForBreakpoint(slot.measureWidth)
-                    : getMeasurementWidthForBreakpoint(slot.mediaWidth);
-                setStatus(`Processing ${slot.key} (${slot.mediaWidth}px)...`);
+                const processPass = async (passSlot, measurementWidth, passKind) => {
+                    state.waitSoftLimitReached = false;
+                    setStopButtonVisibility(false);
+                    setStatus(passKind === 'escape'
+                        ? `Processing ${slot.key} escape (${measurementWidth}px)...`
+                        : `Processing ${slot.key} (${measurementWidth}px)...`);
 
-                failureStage = 'set-breakpoint-width';
-                const previewWidthSetter = getRunOverride('setPreviewWidth') || setPreviewWidth;
-                await previewWidthSetter(measurementWidth);
+                    failureStage = 'set-breakpoint-width';
+                    const previewWidthSetter = getRunOverride('setPreviewWidth') || setPreviewWidth;
+                    await previewWidthSetter(measurementWidth);
 
-                failureStage = 'prepare-breakpoint-images';
-                const prepareStartedAt = Date.now();
-                const breakpointPreparer = getRunOverride('prepareBreakpoints') || prepareSlot;
-                const prepareResult = await breakpointPreparer(slot);
-                breakpointReport.activationStrategies = prepareResult.activationStrategies.slice();
-                breakpointReport.normalizationCount = prepareResult.normalizationCount;
-
-                if (runReport.authorDiagnostics) {
-                    runReport.authorDiagnostics.stageTimings.push({
-                        stage: 'prepare-breakpoint-images',
-                        breakpoint,
-                        durationMs: Math.max(0, Date.now() - prepareStartedAt),
-                    });
-
-                    runReport.authorDiagnostics.activationTrace.push({
-                        breakpoint,
-                        strategies: prepareResult.activationStrategies.slice(),
-                        normalizationCount: prepareResult.normalizationCount,
-                    });
-
-                    prepareResult.normalizationSamples.forEach((sample) => {
-                        recordNormalizationSample(runReport.authorDiagnostics.normalizationSamples, {
-                            breakpoint,
-                            element: sample.element,
-                            attr: sample.attr,
-                        });
-                    });
-                }
-
-                failureStage = 'preload-breakpoint-sources';
-                const preloadStartedAt = Date.now();
-                const breakpointPreloader = getRunOverride('preloadBreakpointSources') || preloadSlotSources;
-                const preloadStates = await breakpointPreloader(slot);
-                if (runReport.authorDiagnostics) {
-                    runReport.authorDiagnostics.stageTimings.push({
-                        stage: 'preload-breakpoint-sources',
-                        breakpoint,
-                        durationMs: Math.max(0, Date.now() - preloadStartedAt),
-                    });
-                }
-
-                failureStage = 'wait-for-image-readiness';
-                const readinessTrackerBuilder = getRunOverride('buildBreakpointReadinessTracker') || buildSlotReadinessTracker;
-                const readinessTracker = readinessTrackerBuilder(
-                    slot,
-                    preloadStates,
-                    prepareResult.lazyTargetsByImage,
-                );
-                const waitStartedAt = Date.now();
-                let waitResult = null;
-
-                try {
-                    const imagesSettleWaiter = getRunOverride('waitForImagesToSettle') || waitForImagesToSettle;
-                    waitResult = await imagesSettleWaiter({
-                        readinessByKey: readinessTracker.readinessByKey,
-                        shouldStop: () => state.stopRequested,
-                        onSoftDeadline: ({ pendingCount }) => {
-                            state.waitSoftLimitReached = true;
-                            setStopButtonVisibility(true);
-                            setStatus(buildWaitingStatusMessage(breakpoint, pendingCount));
-                        },
-                        onWaitingTick: ({ pendingCount, waitedMs }) => {
-                            setStatus(buildWaitingStatusMessage(breakpoint, pendingCount, waitedMs));
-                        },
-                    });
-                } finally {
-                    readinessTracker.cleanup();
+                    failureStage = 'prepare-breakpoint-images';
+                    const prepareStartedAt = Date.now();
+                    const breakpointPreparer = getRunOverride('prepareBreakpoints') || prepareSlot;
+                    const prepareResult = await breakpointPreparer(passSlot);
+                    breakpointReport.activationStrategies = Array.from(new Set([
+                        ...breakpointReport.activationStrategies,
+                        ...prepareResult.activationStrategies,
+                    ]));
+                    breakpointReport.normalizationCount += prepareResult.normalizationCount;
 
                     if (runReport.authorDiagnostics) {
                         runReport.authorDiagnostics.stageTimings.push({
-                            stage: 'wait-for-image-readiness',
+                            stage: 'prepare-breakpoint-images',
                             breakpoint,
-                            durationMs: Math.max(0, Date.now() - waitStartedAt),
+                            passKind,
+                            measurementWidth,
+                            durationMs: Math.max(0, Date.now() - prepareStartedAt),
+                        });
+
+                        runReport.authorDiagnostics.activationTrace.push({
+                            breakpoint,
+                            passKind,
+                            measurementWidth,
+                            strategies: prepareResult.activationStrategies.slice(),
+                            normalizationCount: prepareResult.normalizationCount,
+                        });
+
+                        prepareResult.normalizationSamples.forEach((sample) => {
+                            recordNormalizationSample(runReport.authorDiagnostics.normalizationSamples, {
+                                breakpoint,
+                                element: sample.element,
+                                attr: sample.attr,
+                            });
                         });
                     }
+
+                    failureStage = 'preload-breakpoint-sources';
+                    const preloadStartedAt = Date.now();
+                    const breakpointPreloader = getRunOverride('preloadBreakpointSources') || preloadSlotSources;
+                    const preloadStates = await breakpointPreloader(passSlot);
+                    if (runReport.authorDiagnostics) {
+                        runReport.authorDiagnostics.stageTimings.push({
+                            stage: 'preload-breakpoint-sources',
+                            breakpoint,
+                            passKind,
+                            measurementWidth,
+                            durationMs: Math.max(0, Date.now() - preloadStartedAt),
+                        });
+                    }
+
+                    failureStage = 'wait-for-image-readiness';
+                    const readinessTrackerBuilder = getRunOverride('buildBreakpointReadinessTracker') || buildSlotReadinessTracker;
+                    const readinessTracker = readinessTrackerBuilder(
+                        passSlot,
+                        preloadStates,
+                        prepareResult.lazyTargetsByImage,
+                    );
+                    const waitStartedAt = Date.now();
+                    let waitResult = null;
+
+                    try {
+                        const imagesSettleWaiter = getRunOverride('waitForImagesToSettle') || waitForImagesToSettle;
+                        waitResult = await imagesSettleWaiter({
+                            readinessByKey: readinessTracker.readinessByKey,
+                            shouldStop: () => state.stopRequested,
+                            onSoftDeadline: ({ pendingCount }) => {
+                                state.waitSoftLimitReached = true;
+                                setStopButtonVisibility(true);
+                                setStatus(buildWaitingStatusMessage(measurementWidth, pendingCount));
+                            },
+                            onWaitingTick: ({ pendingCount, waitedMs }) => {
+                                setStatus(buildWaitingStatusMessage(measurementWidth, pendingCount, waitedMs));
+                            },
+                        });
+                    } finally {
+                        readinessTracker.cleanup();
+
+                        if (runReport.authorDiagnostics) {
+                            runReport.authorDiagnostics.stageTimings.push({
+                                stage: 'wait-for-image-readiness',
+                                breakpoint,
+                                passKind,
+                                measurementWidth,
+                                durationMs: Math.max(0, Date.now() - waitStartedAt),
+                            });
+                        }
+                    }
+
+                    state.waitSoftLimitReached = false;
+                    setStopButtonVisibility(false);
+
+                    const rowExtractor = getRunOverride('extractRowsForBreakpoint') || extractRowsForSlot;
+                    const rows = rowExtractor(
+                        passSlot,
+                        preloadStates,
+                        readinessTracker.readinessByKey,
+                    );
+
+                    completedProgressSteps += 1;
+                    updateProcessingProgress(completedProgressSteps);
+
+                    if (waitResult?.aborted) {
+                        throw new ProcessingCancelledError('Processing stopped by user during image wait.');
+                    }
+
+                    return {
+                        rows,
+                        readinessByKey: readinessTracker.readinessByKey,
+                        waitDurationMs: Math.max(0, Number(waitResult?.waitedMs) || 0),
+                    };
+                };
+
+                const usesEscapeWidth = slot.isFinal && slot.measureWidth !== slot.mediaWidth;
+                let selectedRows;
+                let selectedReadiness;
+                let waitDurationMs = 0;
+
+                if (usesEscapeWidth) {
+                    const normalSlot = { ...slot, measureWidth: slot.mediaWidth };
+                    const normalPass = await processPass(normalSlot, slot.mediaWidth, 'final-normal');
+                    const escapePass = await processPass(slot, slot.measureWidth, 'escape');
+                    const selection = processingSelectFinalRows(normalPass.rows, escapePass.rows);
+                    selectedRows = selection.rows;
+                    waitDurationMs = normalPass.waitDurationMs + escapePass.waitDurationMs;
+                    selectedReadiness = new Map();
+
+                    selectedRows.forEach((row) => {
+                        const key = String(row?.pictureId || '').trim();
+                        if (key === '') {
+                            return;
+                        }
+
+                        const passReadiness = row?.measureWidth === slot.measureWidth
+                            ? escapePass.readinessByKey
+                            : normalPass.readinessByKey;
+                        const entry = passReadiness.get(key);
+                        if (entry) {
+                            selectedReadiness.set(key, entry);
+                        }
+                    });
+
+                    selection.unmatchedRows.forEach((row) => {
+                        appendRunIssue(runReport, {
+                            severity: 'warning',
+                            code: 'final-measurement-fallback',
+                            message: 'The preferred final measurement pass did not contain this row; the available final measurement was retained.',
+                            breakpointWidth: slot.mediaWidth,
+                            assetId: row?.assetId,
+                            source: row?.sourceUsed || row?.src,
+                        }, breakpointReport);
+                    });
+                } else {
+                    const pass = await processPass(slot, getMeasurementWidthForBreakpoint(slot.mediaWidth), 'canonical');
+                    selectedRows = pass.rows;
+                    selectedReadiness = pass.readinessByKey;
+                    waitDurationMs = pass.waitDurationMs;
                 }
 
-                state.waitSoftLimitReached = false;
-                setStopButtonVisibility(false);
+                rowsBySlot[slot.key] = selectedRows;
 
-                const rowExtractor = getRunOverride('extractRowsForBreakpoint') || extractRowsForSlot;
-                rowsBySlot[slot.key] = rowExtractor(
-                    slot,
-                    preloadStates,
-                    readinessTracker.readinessByKey,
-                );
+                breakpointReport.status = 'processed';
+                breakpointReport.waitDurationMs = waitDurationMs;
 
-                breakpointReport.status = waitResult?.aborted ? 'cancelled' : 'processed';
-                breakpointReport.waitDurationMs = Math.max(0, Number(waitResult?.waitedMs) || 0);
-
-                const readinessSummary = createReadinessSummary(readinessTracker.readinessByKey);
+                const readinessSummary = createReadinessSummary(selectedReadiness);
                 breakpointReport.loadedCount = readinessSummary.loadedCount;
                 breakpointReport.brokenCount = readinessSummary.brokenCount;
                 breakpointReport.unresolvedCount = readinessSummary.unresolvedCount;
@@ -3171,15 +3249,8 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                     runReport,
                     breakpointReport,
                     breakpoint,
-                    readinessTracker.readinessByKey,
+                    selectedReadiness,
                 );
-
-                completedProgressSteps += 1;
-                updateProcessingProgress(completedProgressSteps);
-
-                if (waitResult?.aborted) {
-                    throw new ProcessingCancelledError('Processing stopped by user during image wait.');
-                }
             }
 
             state.runCount += 1;
@@ -3400,6 +3471,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             isImageLikelyBroken,
             deriveSourceUsed,
             buildStructuredOutput,
+            selectFinalRows: processingSelectFinalRows,
             getMeasurementWidthForBreakpoint,
             isAuthorDiagnosticsEnabled,
             activateLazySizes,

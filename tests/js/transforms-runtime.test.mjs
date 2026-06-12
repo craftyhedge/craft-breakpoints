@@ -66,6 +66,7 @@ async function loadRuntimeHooks() {
         || null;
 
     window.__BPIRuntimeTestHookHarness = {
+        activateSlotSources: processing.activateSlotSources,
         preloadBreakpointSources: (breakpoint, timeoutMs = 5000) => processing.preloadBreakpointSources({
             breakpoint,
             frameDocument: getFrameDocument(),
@@ -370,6 +371,41 @@ describe('transforms runtime helper logic', () => {
         expect(hooks.isAuthorDiagnosticsEnabled()).toBe(false);
     });
 
+    it('retains the available final measurement when the preferred pass has no match', () => {
+        const normalRow = {
+            pictureId: 'final-only',
+            assetId: 'asset-1',
+            transform: 'hero',
+            includeEscapeWidth: true,
+            measureWidth: 1536,
+            rendered: { width: 1500, height: 750 },
+        };
+
+        const selection = hooks.selectFinalRows([normalRow], []);
+
+        expect(selection.rows).toEqual([normalRow]);
+        expect(selection.unmatchedRows).toEqual([normalRow]);
+
+        const escapeOnlyEnabled = {
+            ...normalRow,
+            pictureId: 'escape-only-enabled',
+            includeEscapeWidth: true,
+            measureWidth: 1920,
+        };
+        const enabledSelection = hooks.selectFinalRows([], [escapeOnlyEnabled]);
+        expect(enabledSelection.rows).toEqual([escapeOnlyEnabled]);
+        expect(enabledSelection.unmatchedRows).toEqual([]);
+
+        const escapeOnlyDisabled = {
+            ...escapeOnlyEnabled,
+            pictureId: 'escape-only-disabled',
+            includeEscapeWidth: false,
+        };
+        const disabledSelection = hooks.selectFinalRows([], [escapeOnlyDisabled]);
+        expect(disabledSelection.rows).toEqual([escapeOnlyDisabled]);
+        expect(disabledSelection.unmatchedRows).toEqual([escapeOnlyDisabled]);
+    });
+
     it('derives sourceUsed in priority order and detects likely broken images', () => {
         const source = {
             getAttribute: (name) => {
@@ -555,6 +591,26 @@ describe('transforms runtime helper logic', () => {
         expect(source.getAttribute('sizes')).toBe('100vw');
     });
 
+    it('forces the requested canonical source active without changing the viewport boundary', () => {
+        const frameDocument = document.implementation.createHTMLDocument('preview');
+        frameDocument.body.innerHTML = `
+            <picture data-set="hero">
+                <source data-bp-key="xl" data-bp-index="0" media="(max-width: 97.1875rem)" srcset="/xl.jpg 1x">
+                <source data-bp-key="2xl" data-bp-index="1" media="(min-width: 97.1875rem)" srcset="/2xl.jpg 1x">
+                <img src="/fallback.jpg">
+            </picture>
+        `;
+
+        const picture = frameDocument.querySelector('picture');
+        expect(window.__BPIRuntimeTestHookHarness.activateSlotSources([picture], { key: '2xl', index: 1 })).toBe(1);
+        expect(picture.querySelector('source[data-bp-key="xl"]').getAttribute('media')).toBe('not all');
+        expect(picture.querySelector('source[data-bp-key="2xl"]').getAttribute('media')).toBe('all');
+
+        expect(window.__BPIRuntimeTestHookHarness.activateSlotSources([picture], { key: 'xl', index: 0 })).toBe(1);
+        expect(picture.querySelector('source[data-bp-key="xl"]').getAttribute('media')).toBe('all');
+        expect(picture.querySelector('source[data-bp-key="2xl"]').getAttribute('media')).toBe('not all');
+    });
+
     it('extracts breakpoint rows honoring readiness states and fallback classification', () => {
         const frameDocument = document.implementation.createHTMLDocument('preview');
         frameDocument.body.innerHTML = `
@@ -604,6 +660,7 @@ describe('transforms runtime helper logic', () => {
         const rows = hooks.extractRowsForBreakpoint(480, preloadStates, readinessByKey);
 
         expect(rows).toHaveLength(4);
+        expect(rows[0].pictureId).toBe('pic-1');
         expect(rows[0].loaded).toBe(true);
         expect(rows[0].broken).toBe(false);
         expect(rows[0].unresolved).toBe(false);
@@ -1646,6 +1703,132 @@ describe('transforms runtime helper logic', () => {
         expect(status.textContent).toContain('All passed');
         expect(status.classList.contains('bpts-header-status-success')).toBe(true);
         expect(status.querySelector('[data-icon="check"]')).toBeTruthy();
+    });
+
+    it('selects per-set rows from normal and escape final-source passes', async () => {
+        const sourceEntry = document.getElementById('bpts-source-entry');
+        sourceEntry.innerHTML = '<input type="hidden" name="bpts-source-entry-id" value="42" />';
+        window.bpiProcessingConfig.breakpointSlots = [
+            { key: 'xl', index: 0, mediaWidth: 1536, measureWidth: 1536, isBase: true, isFinal: false },
+            { key: '2xl', index: 1, mediaWidth: 1536, measureWidth: 1920, isBase: false, isFinal: true },
+        ];
+
+        const measuredWidths = [];
+        let persistedRows = null;
+
+        hooks.setRunProcessingOverridesForTests({
+            resolveSelectedEntryUrl: async () => 'https://example.test/page',
+            ensurePreviewFrame: async () => null,
+            setPreviewWidth: async (width) => measuredWidths.push(width),
+            prepareBreakpoints: () => ({
+                activationStrategies: ['none'],
+                normalizationCount: 0,
+                normalizationSamples: [],
+            }),
+            preloadBreakpointSources: async () => new Map(),
+            buildBreakpointReadinessTracker: (slot) => {
+                const isFinal = slot.key === '2xl';
+                const isEscapePass = isFinal && slot.measureWidth === 1920;
+                const offPicture = document.createElement('picture');
+                offPicture.setAttribute('data-picture-id', 'escape-off-picture');
+                offPicture.setAttribute('data-include-escape-width', 'false');
+                const onPicture = document.createElement('picture');
+                onPicture.setAttribute('data-picture-id', 'escape-on-picture');
+                onPicture.setAttribute('data-include-escape-width', 'true');
+
+                return {
+                    readinessByKey: new Map([
+                        ['escape-off-picture', {
+                            status: isFinal && isEscapePass ? 'broken' : 'loaded',
+                            reason: isFinal && isEscapePass ? 'network' : 'preload',
+                            picture: offPicture,
+                            img: document.createElement('img'),
+                        }],
+                        ['escape-on-picture', {
+                            status: !isFinal || isEscapePass ? 'loaded' : 'broken',
+                            reason: !isFinal || isEscapePass ? 'preload' : 'network',
+                            picture: onPicture,
+                            img: document.createElement('img'),
+                        }],
+                    ]),
+                    cleanup: () => { },
+                };
+            },
+            waitForImagesToSettle: async () => ({ aborted: false, waitedMs: 0 }),
+            extractRowsForBreakpoint: (slot) => {
+                const isFinal = slot.key === '2xl';
+                const isEscapePass = isFinal && slot.measureWidth === 1920;
+                return [
+                    {
+                        pictureId: 'escape-off-picture',
+                        assetId: 'asset-off',
+                        transform: 'escape-off',
+                        includeEscapeWidth: false,
+                        slotKey: slot.key,
+                        slotIndex: slot.index,
+                        mediaWidth: slot.mediaWidth,
+                        measureWidth: slot.measureWidth,
+                        sourceUsed: isFinal ? '/off-final.jpg' : '/off-xl.jpg',
+                        transformDimensions: { width: isFinal ? 1900 : 1500, height: null, autoDimension: null },
+                        rendered: isEscapePass ? { width: 1800, height: 900 } : { width: 1500, height: 760 },
+                        isVisible: !isEscapePass,
+                        loaded: true,
+                        broken: false,
+                        unresolved: false,
+                    },
+                    {
+                        pictureId: 'escape-on-picture',
+                        assetId: 'asset-on',
+                        transform: 'escape-on',
+                        includeEscapeWidth: true,
+                        slotKey: slot.key,
+                        slotIndex: slot.index,
+                        mediaWidth: slot.mediaWidth,
+                        measureWidth: slot.measureWidth,
+                        sourceUsed: isFinal ? '/on-final.jpg' : '/on-xl.jpg',
+                        transformDimensions: { width: isFinal ? 1920 : 1535, height: null, autoDimension: null },
+                        rendered: isEscapePass ? { width: 1820, height: 910 } : { width: 1520, height: 760 },
+                        isVisible: isEscapePass,
+                        loaded: true,
+                        broken: false,
+                        unresolved: false,
+                    },
+                ];
+            },
+            persistRunSnapshot: async (_report, rowsBySlot) => {
+                persistedRows = rowsBySlot;
+                return true;
+            },
+            publishResult: async () => { },
+            autoApplyNewSets: async () => ({ ok: true, persisted: true, appliedCount: 0, skippedCount: 0, skipped: [] }),
+        });
+
+        await hooks.runProcessing();
+
+        expect(measuredWidths).toEqual([1535, 1536, 1920]);
+        expect(persistedRows['2xl']).toHaveLength(2);
+        expect(persistedRows['2xl'][0]).toEqual(expect.objectContaining({
+            slotKey: '2xl',
+            measureWidth: 1536,
+            sourceUsed: '/off-final.jpg',
+            transformDimensions: { width: 1900, height: null, autoDimension: null },
+            rendered: { width: 1500, height: 760 },
+            isVisible: true,
+        }));
+        expect(persistedRows['2xl'][1]).toEqual(expect.objectContaining({
+            slotKey: '2xl',
+            measureWidth: 1920,
+            sourceUsed: '/on-final.jpg',
+            rendered: { width: 1820, height: 910 },
+            isVisible: true,
+        }));
+        expect(hooks.getLastReport().totals.breakpointCount).toBe(2);
+        expect(hooks.getLastReport().issues).toEqual([]);
+        expect(hooks.getLastReport().breakpoints[1]).toEqual(expect.objectContaining({
+            loadedCount: 2,
+            brokenCount: 0,
+            unresolvedCount: 0,
+        }));
     });
 
     it('reports cancelled processing when wait is aborted and avoids publishing results', async () => {
