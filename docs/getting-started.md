@@ -4,14 +4,26 @@ Start in the template, not the control panel. Breakpoints gives you usable
 responsive image markup immediately, so you can keep building the component with
 a sensible placeholder ratio instead of stopping to configure transforms.
 
-Once the layout has settled, process the page in the control panel.
+During development, when your layout has settled, process the page in the control panel.
 Breakpoints measures the rendered image sizes, applies new transform sets
 automatically, and lets you review or edit the final dimensions.
 
 > Processing is intended for local development only, with the transform sets being
 > committed to git.
 
-## 1. Render a usable image
+## 1. How It Works
+
+This plugin is designed to work with a mobile-first CSS framework such as Tailwind CSS.
+
+Like Tailwind, things start with a base. Tailwind's base classes cover all screen sizes until a breakpoint is defined.
+
+Breakpoints base image covers all screen sizes until a breakpoint is defined.
+
+   ![Breakpoints](images/breakpoints.png)
+
+
+
+## 2. Render a usable image
 
 Call `image()` with the asset and a transform set name:
 
@@ -39,7 +51,7 @@ See the [`image()` reference](reference/twig-image-tag.md) for every option. For
 setting system defaults, see
 [Configuration](configuration.md).
 
-## 2. Process and save the transform set
+## 3. Process and save the transform set
 
 > **Important:** Configure the plugin breakpoints to match your CSS framework's breakpoints before processing. See [Configuration](configuration.md#sample-configbreakpointsphp).
 
@@ -66,7 +78,7 @@ hold the image in the intended space as its generated dimensions change.
 > those off locally while processing. See
 > [Responsive Images → Caching During Processing](responsive-images.md#caching-during-processing).
 
-## 3. Review processing warnings
+## 4. Review processing warnings
 
 After processing, review any transform cards marked as needing attention before
 you treat the saved values as final.
@@ -118,7 +130,7 @@ unsupported source, or is still pending when processing is stopped. It can also
 warn when Breakpoints processing markers are missing, usually because local
 full-page or static caching is serving stale markup.
 
-## 4. Review and edit saved transform sets
+## 5. Review and edit saved transform sets
 
 The default Transform Sets view shows saved transform sets in a non-editing
 state, so you can review the current dimensions and settings without changing
@@ -161,7 +173,10 @@ or decisions made while reviewing processing results.
 Enter the note and select **Save notes**. Saved notes are shown on the transform
 card so they are visible when the set is reviewed later.
 
-## 5. Collapse the breakpoint view
+   ![notes](images/notes.png)
+
+
+## 6. Collapse the breakpoint view
 
 The Transform Sets view shows breakpoints as relatively sized screen and image
 representations. That makes the saved sizes easier to understand visually, but
