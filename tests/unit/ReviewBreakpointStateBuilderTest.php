@@ -92,6 +92,26 @@ final class ReviewBreakpointStateBuilderTest extends Unit
         $this->assertFalse($state['hasBreakpointMismatch']);
     }
 
+    public function testPreviewSrcPrefersResolvedSourceUsedOverPlaceholderSrc(): void
+    {
+        $state = $this->build(
+            [[
+                'enabled' => true,
+                'isVisible' => true,
+                'loaded' => true,
+                'src' => 'https://example.test/placeholder.gif',
+                'sourceUsed' => 'https://example.test/real-transform.webp',
+                'rendered' => ['width' => 800, 'height' => 600],
+            ]],
+            ['width' => 800, 'height' => 600, 'enabled' => true],
+            800,
+            600,
+            ['w' => 800, 'h' => 600],
+        );
+
+        $this->assertSame('https://example.test/real-transform.webp', $state['previewSrc']);
+    }
+
     public function testUneditedMismatchStaysRedOnRenderedValue(): void
     {
         $state = $this->build(

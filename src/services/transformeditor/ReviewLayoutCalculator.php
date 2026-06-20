@@ -144,13 +144,30 @@ final class ReviewLayoutCalculator
                 $previewTransformDimensions = is_array($previewRow['transformDimensions'] ?? null)
                     ? $previewRow['transformDimensions']
                     : [];
+                $transformWidth = Support::normalizeNullablePositiveInt($previewTransformDimensions['width'] ?? null);
+                $transformHeight = Support::normalizeNullablePositiveInt($previewTransformDimensions['height'] ?? null);
+                $transformAutoDimension = Support::normalizeAutoDimension($previewTransformDimensions['autoDimension'] ?? null);
+                $sourceUsed = trim((string)($previewRow['sourceUsed'] ?? ''));
+
+                if (
+                    ($previewRow['loaded'] ?? false) === true
+                    && $sourceUsed !== ''
+                    && $transformWidth === null
+                    && $transformHeight === null
+                    && $transformAutoDimension === null
+                    && $ref > 0
+                ) {
+                    $displayWidth = $ref;
+                    $displayHeight = $ref;
+                }
+
                 [$fallbackWidth, $fallbackHeight] = self::resolveInitialPreviewBoxDimensions(
-                    Support::normalizeNullablePositiveInt($previewTransformDimensions['width'] ?? null),
-                    Support::normalizeNullablePositiveInt($previewTransformDimensions['height'] ?? null),
-                    Support::normalizeAutoDimension($previewTransformDimensions['autoDimension'] ?? null),
+                    $transformWidth,
+                    $transformHeight,
+                    $transformAutoDimension,
                 );
 
-                if ($fallbackWidth > 0 && $fallbackHeight > 0) {
+                if (($displayWidth < 1 || $displayHeight < 1) && $fallbackWidth > 0 && $fallbackHeight > 0) {
                     $displayWidth = $fallbackWidth;
                     $displayHeight = $fallbackHeight;
                 }
@@ -158,7 +175,10 @@ final class ReviewLayoutCalculator
         }
 
         if (($displayWidth < 1 || $displayHeight < 1) && is_array($previewRow) && $ref > 0) {
-            $previewSrc = (string)($previewRow['src'] ?? '');
+            $previewSrc = trim((string)($previewRow['sourceUsed'] ?? ''));
+            if ($previewSrc === '') {
+                $previewSrc = trim((string)($previewRow['src'] ?? ''));
+            }
             if ($previewSrc !== '') {
                 $displayWidth = $ref;
                 $displayHeight = $ref;

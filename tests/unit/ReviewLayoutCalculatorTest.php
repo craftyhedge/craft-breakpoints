@@ -91,6 +91,24 @@ final class ReviewLayoutCalculatorTest extends Unit
         $this->assertSame(800, $resolved['height']);
     }
 
+    public function testResolvePreviewDisplayDimensionsUsesSourceUsedForSquareFallback(): void
+    {
+        $rows = [[
+            'enabled' => true,
+            'isVisible' => true,
+            'loaded' => true,
+            'src' => '',
+            'sourceUsed' => 'https://example.test/real-transform.webp',
+            'rendered' => ['width' => 0, 'height' => 0],
+            'transformDimensions' => ['width' => 0, 'height' => 0, 'autoDimension' => null],
+        ]];
+
+        $resolved = ReviewLayoutCalculator::resolvePreviewDisplayDimensions($rows, 480);
+
+        $this->assertSame(480, $resolved['width']);
+        $this->assertSame(480, $resolved['height']);
+    }
+
     public function testPreviewLockHeightsIgnoreExcludedBreakpoints(): void
     {
         // Breakpoint 1 is short; breakpoint 2 is very tall.

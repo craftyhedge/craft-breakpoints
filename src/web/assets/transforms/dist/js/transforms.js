@@ -5,6 +5,7 @@ import {
     appendRunIssue as processingAppendRunIssue,
     appendBreakpointReadinessIssues as processingAppendBreakpointReadinessIssues,
     buildBreakpointReadinessTracker as processingBuildBreakpointReadinessTracker,
+    buildReadinessDiagnosticsSnapshot as processingBuildReadinessDiagnosticsSnapshot,
     buildStructuredOutput as processingBuildStructuredOutput,
     buildWaitingStatusMessage as processingBuildWaitingStatusMessage,
     createBreakpointReportEntry as processingCreateBreakpointReportEntry,
@@ -1402,9 +1403,16 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     }
 
     function getPictureLoadKey(picture, index) {
-        return picture?.getAttribute('data-picture-id')
-            || picture?.getAttribute('data-asset-id')
-            || `unknown-${index}`;
+        const pictureId = String(picture?.getAttribute('data-picture-id') || '').trim();
+        if (pictureId !== '') {
+            const duplicates = Array.from(picture?.ownerDocument?.querySelectorAll?.(PROCESSABLE_PICTURE_SELECTOR) || [])
+                .filter((candidate) => String(candidate.getAttribute('data-picture-id') || '').trim() === pictureId);
+
+            return duplicates.length > 1 ? `${pictureId}#${index}` : pictureId;
+        }
+
+        const assetId = String(picture?.getAttribute('data-asset-id') || '').trim();
+        return assetId !== '' ? `asset:${assetId}#${index}` : `unknown-${index}`;
     }
 
     function getPrimarySourceForSlot(picture, slot) {
@@ -1505,8 +1513,8 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         prepareResult.activationStrategies.push(strategy);
     }
 
-    function activateLazySizes(frameWindow, frameDocument, prepareResult) {
-        processingActivateLazySizes(frameWindow, frameDocument, prepareResult, pushActivationStrategy);
+    async function activateLazySizes(frameWindow, frameDocument, prepareResult) {
+        await processingActivateLazySizes(frameWindow, frameDocument, prepareResult, pushActivationStrategy);
     }
 
     function activateVanillaLazyLoad(frameWindow, frameDocument, prepareResult) {
@@ -1575,6 +1583,33 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             isRenderable: isImageRenderable,
             lazyTargetsByImage,
         });
+    }
+
+    function appendReadinessDiagnosticsSnapshot(report, readinessByKey, slot, passKind, measurementWidth) {
+        if (!report?.authorDiagnostics || !(readinessByKey instanceof Map)) {
+            return;
+        }
+
+        if (!Array.isArray(report.authorDiagnostics.readinessSnapshots)) {
+            report.authorDiagnostics.readinessSnapshots = [];
+        }
+
+        if (report.authorDiagnostics.readinessSnapshots.length >= 320) {
+            return;
+        }
+
+        const snapshot = processingBuildReadinessDiagnosticsSnapshot({
+            readinessByKey,
+            breakpoint: slot?.mediaWidth || null,
+            slot,
+            passKind,
+            measurementWidth,
+            baseUrl: getFrameDocument()?.baseURI || '',
+            maxEntries: 80,
+        });
+
+        const remaining = Math.max(0, 320 - report.authorDiagnostics.readinessSnapshots.length);
+        report.authorDiagnostics.readinessSnapshots.push(...snapshot.slice(0, remaining));
     }
 
     async function waitForImagesToSettle({
@@ -3102,6 +3137,9 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                             measurementWidth,
                             strategies: prepareResult.activationStrategies.slice(),
                             normalizationCount: prepareResult.normalizationCount,
+                            samples: Array.isArray(prepareResult.activationSamples)
+                                ? prepareResult.activationSamples.slice(0, 24)
+                                : [],
                         });
 
                         prepareResult.normalizationSamples.forEach((sample) => {
@@ -3167,6 +3205,13 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
                     state.waitSoftLimitReached = false;
                     setStopButtonVisibility(false);
+                    appendReadinessDiagnosticsSnapshot(
+                        runReport,
+                        readinessTracker.readinessByKey,
+                        passSlot,
+                        passKind,
+                        measurementWidth,
+                    );
 
                     const rowExtractor = getRunOverride('extractRowsForBreakpoint') || extractRowsForSlot;
                     const rows = rowExtractor(

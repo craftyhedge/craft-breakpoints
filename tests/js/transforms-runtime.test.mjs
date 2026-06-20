@@ -56,9 +56,18 @@ async function loadRuntimeHooks() {
     const getFrameDocument = () => harness.frameDocument || document;
     const getFrameWindow = () => harness.frameWindow || window;
     const getTrackedPictures = (frameDocument) => Array.from(frameDocument.querySelectorAll(processing.PROCESSABLE_PICTURE_SELECTOR));
-    const getPictureLoadKey = (picture, index) => picture?.getAttribute('data-picture-id')
-        || picture?.getAttribute('data-asset-id')
-        || `unknown-${index}`;
+    const getPictureLoadKey = (picture, index) => {
+        const pictureId = String(picture?.getAttribute('data-picture-id') || '').trim();
+        if (pictureId !== '') {
+            const duplicates = Array.from(picture?.ownerDocument?.querySelectorAll?.(processing.PROCESSABLE_PICTURE_SELECTOR) || [])
+                .filter((candidate) => String(candidate.getAttribute('data-picture-id') || '').trim() === pictureId);
+
+            return duplicates.length > 1 ? `${pictureId}#${index}` : pictureId;
+        }
+
+        const assetId = String(picture?.getAttribute('data-asset-id') || '').trim();
+        return assetId !== '' ? `asset:${assetId}#${index}` : `unknown-${index}`;
+    };
     const getPrimarySourceForBreakpoint = (picture, breakpoint) => picture?.querySelector(`source[data-bp-source="primary"][data-bp-size="${breakpoint}"]`)
         || picture?.querySelector(`source[data-bp-size="${breakpoint}"]`)
         || picture?.querySelector(`source[data-bp-source="primary"][data-bp-key="${breakpoint}"]`)
@@ -678,6 +687,34 @@ describe('transforms runtime helper logic', () => {
         expect(rows[3].unresolved).toBe(false);
     });
 
+    it('marks lazy rows unresolved when the active source never promotes to the target', () => {
+        const frameDocument = document.implementation.createHTMLDocument('preview');
+        frameDocument.body.innerHTML = `
+            <picture data-set="hero" data-picture-id="hero" data-asset-id="asset-hero">
+                <source data-bp-source="primary" data-bp-size="480" data-bp-enabled="true" data-srcset="https://example.test/hero.webp 1x" srcset="https://example.test/placeholder.gif" />
+                <img data-asset-id="asset-hero" src="https://example.test/placeholder.gif" />
+            </picture>
+        `;
+
+        hooks.setPreviewFrameForTests(frameDocument, {});
+
+        const readinessByKey = new Map([
+            ['hero', {
+                status: 'loaded',
+                reason: 'lazy-target-not-promoted',
+                sourceUsed: 'https://example.test/hero.webp',
+                lazyTargetUrls: ['https://example.test/hero.webp'],
+            }],
+        ]);
+
+        const rows = hooks.extractRowsForBreakpoint(480, new Map([['hero', true]]), readinessByKey);
+
+        expect(rows).toHaveLength(1);
+        expect(rows[0].loaded).toBe(false);
+        expect(rows[0].unresolved).toBe(true);
+        expect(rows[0].sourceUsed).toBe('');
+    });
+
     it('ignores SVG processing markers while preserving raster rows', () => {
         const frameDocument = document.implementation.createHTMLDocument('preview');
         frameDocument.body.innerHTML = `
@@ -856,6 +893,95 @@ describe('transforms runtime helper logic', () => {
         tracker.cleanup();
     });
 
+    it('keeps substantial renderable images pending when lazy source matching is stale', () => {
+        const frameDocument = document.implementation.createHTMLDocument('preview');
+        frameDocument.body.innerHTML = `
+            <picture data-set="hero" data-picture-id="hero">
+                <source data-bp-source="primary" data-bp-size="480" data-srcset="https://example.test/hero.webp 1x" srcset="https://example.test/placeholder.gif" />
+                <img src="https://example.test/placeholder.gif" />
+            </picture>
+        `;
+
+        const img = frameDocument.querySelector('img');
+        Object.defineProperty(img, 'currentSrc', {
+            configurable: true,
+            value: 'https://example.test/placeholder.gif',
+        });
+        Object.defineProperty(img, 'complete', { configurable: true, value: true });
+        Object.defineProperty(img, 'naturalWidth', { configurable: true, value: 431 });
+        Object.defineProperty(img, 'naturalHeight', { configurable: true, value: 242 });
+        Object.defineProperty(img, 'clientWidth', { configurable: true, value: 431 });
+        Object.defineProperty(img, 'clientHeight', { configurable: true, value: 242 });
+
+        hooks.setPreviewFrameForTests(frameDocument, {});
+        const tracker = hooks.buildBreakpointReadinessTracker(
+            480,
+            new Map([['hero', true]]),
+            new Map([[img, ['https://example.test/hero.webp']]]),
+        );
+        const entry = tracker.readinessByKey.get('hero');
+
+        expect(entry.status).toBe('pending');
+        expect(entry.reason).toBe(null);
+        expect(entry.sourceUsed).toBe('https://example.test/placeholder.gif');
+
+        tracker.cleanup();
+    });
+
+    it('keeps substantial renderable images pending when the lazy target did not preload', () => {
+        const frameDocument = document.implementation.createHTMLDocument('preview');
+        frameDocument.body.innerHTML = `
+            <picture data-set="hero" data-picture-id="hero">
+                <source data-bp-source="primary" data-bp-size="480" data-srcset="https://example.test/fresh-transform.webp 1x" srcset="https://example.test/placeholder.gif" />
+                <img src="https://example.test/placeholder.gif" />
+            </picture>
+        `;
+
+        const img = frameDocument.querySelector('img');
+        Object.defineProperty(img, 'currentSrc', {
+            configurable: true,
+            value: 'https://example.test/placeholder.gif',
+        });
+        Object.defineProperty(img, 'complete', { configurable: true, value: true });
+        Object.defineProperty(img, 'naturalWidth', { configurable: true, value: 431 });
+        Object.defineProperty(img, 'naturalHeight', { configurable: true, value: 242 });
+        Object.defineProperty(img, 'clientWidth', { configurable: true, value: 431 });
+        Object.defineProperty(img, 'clientHeight', { configurable: true, value: 242 });
+
+        hooks.setPreviewFrameForTests(frameDocument, {});
+        const tracker = hooks.buildBreakpointReadinessTracker(
+            480,
+            new Map([['hero', false]]),
+            new Map([[img, ['https://example.test/fresh-transform.webp']]]),
+        );
+        const entry = tracker.readinessByKey.get('hero');
+
+        expect(entry.status).toBe('pending');
+
+        tracker.cleanup();
+    });
+
+    it('keeps duplicate picture ids as separate readiness entries', () => {
+        const frameDocument = document.implementation.createHTMLDocument('preview');
+        frameDocument.body.innerHTML = `
+            <picture data-set="card" data-picture-id="repeat" data-asset-id="asset-1">
+                <source data-bp-source="primary" data-bp-size="480" srcset="https://example.test/one.webp 1x" />
+                <img src="https://example.test/one.jpg" />
+            </picture>
+            <picture data-set="card" data-picture-id="repeat" data-asset-id="asset-2">
+                <source data-bp-source="primary" data-bp-size="480" srcset="https://example.test/two.webp 1x" />
+                <img src="https://example.test/two.jpg" />
+            </picture>
+        `;
+
+        hooks.setPreviewFrameForTests(frameDocument, {});
+        const tracker = hooks.buildBreakpointReadinessTracker(480, null);
+
+        expect(Array.from(tracker.readinessByKey.keys())).toEqual(['repeat#0', 'repeat#1']);
+
+        tracker.cleanup();
+    });
+
     it('skips pictures without a matching source for the target breakpoint', () => {
         const frameDocument = document.implementation.createHTMLDocument('preview');
         frameDocument.body.innerHTML = `
@@ -953,22 +1079,29 @@ describe('transforms runtime helper logic', () => {
         expect(hooks.buildWaitingStatusMessage(1024, 3, 2100)).toContain('3 images still pending at 1024px (3s).');
     });
 
-    it('activates lazysizes strategies and records strategy counts', () => {
+    it('activates lazysizes strategies and records strategy counts', async () => {
         const frameDocument = document.implementation.createHTMLDocument('preview');
         frameDocument.body.innerHTML = `
             <picture data-set="hero"><img class="lazyload" /></picture>
             <picture data-set="card"><img class="lazyload" /></picture>
         `;
 
-        let checkElemsCount = 0;
+        const checkElemsCalls = [];
         let autoSizerCount = 0;
         let unveilCount = 0;
 
         const frameWindow = {
             lazySizes: {
+                cfg: {
+                    loadMode: 2,
+                    expand: 400,
+                    expFactor: 1.5,
+                    hFac: 0.8,
+                    loadHidden: false,
+                },
                 loader: {
-                    checkElems: () => {
-                        checkElemsCount += 1;
+                    checkElems: (isPriority) => {
+                        checkElemsCalls.push(isPriority);
                     },
                     unveil: () => {
                         unveilCount += 1;
@@ -983,12 +1116,130 @@ describe('transforms runtime helper logic', () => {
         };
 
         const prepareResult = { activationStrategies: [] };
-        hooks.activateLazySizes(frameWindow, frameDocument, prepareResult);
+        await hooks.activateLazySizes(frameWindow, frameDocument, prepareResult);
 
-        expect(checkElemsCount).toBe(1);
-        expect(autoSizerCount).toBe(1);
+        expect(checkElemsCalls).toEqual([true, true]);
+        expect(autoSizerCount).toBe(2);
         expect(unveilCount).toBe(2);
-        expect(prepareResult.activationStrategies).toContain('lazysizes:4');
+        expect(prepareResult.activationStrategies).toContain('lazysizes:6');
+        expect(frameWindow.lazySizes.cfg).toMatchObject({
+            loadMode: 3,
+            expand: 999999,
+            expFactor: 1,
+            hFac: 1,
+            loadHidden: true,
+        });
+    });
+
+    it('activates lazysizes for tracked picture sources with lazy source attrs', async () => {
+        const frameDocument = document.implementation.createHTMLDocument('preview');
+        frameDocument.body.innerHTML = `
+            <picture data-set="hero">
+                <source data-srcset="/hero.webp 1x" srcset="/placeholder.gif 1x" />
+                <img class="ls-is-cached lazyloaded lazyload" src="/placeholder.gif" />
+            </picture>
+        `;
+
+        const unveiled = [];
+        const frameWindow = {
+            lazySizes: {
+                loader: {
+                    checkElems: vi.fn(),
+                    unveil: (img) => {
+                        unveiled.push(img);
+                    },
+                },
+            },
+        };
+
+        const img = frameDocument.querySelector('img');
+        img._lazyRace = true;
+        img._lazyCache = true;
+
+        const prepareResult = { activationStrategies: [] };
+        await hooks.activateLazySizes(frameWindow, frameDocument, prepareResult);
+
+        expect(unveiled).toEqual([img]);
+        expect(img._lazyRace).toBeUndefined();
+        expect(img._lazyCache).toBeUndefined();
+        expect(img.classList.contains('lazyload')).toBe(true);
+        expect(img.classList.contains('lazyloaded')).toBe(false);
+        expect(img.classList.contains('lazyloading')).toBe(false);
+        expect(img.classList.contains('ls-is-cached')).toBe(false);
+        expect(prepareResult.activationStrategies).toContain('lazysizes:3');
+        expect(prepareResult.activationSamples[0]).toMatchObject({
+            adapter: 'lazysizes',
+            action: 'api',
+        });
+        expect(prepareResult.activationSamples.find((sample) => sample.action === 'unveil')).toMatchObject({
+            adapter: 'lazysizes',
+            action: 'unveil',
+            hasDataSrc: false,
+            hasDataSrcset: false,
+            sourceDataSrcsetCount: 1,
+            hadLazyRace: true,
+            hadLazyCache: true,
+        });
+    });
+
+    it('runs lazysizes activation inside the frame realm when available', async () => {
+        const originalLazySizes = window.lazySizes;
+        document.body.insertAdjacentHTML('beforeend', `
+            <picture data-set="hero">
+                <source data-srcset="/hero.webp 1x" srcset="/placeholder.gif 1x" />
+                <img class="ls-is-cached lazyloaded lazyload" src="/placeholder.gif" />
+            </picture>
+        `);
+        const picture = document.body.lastElementChild;
+
+        const unveiled = [];
+        window.lazySizes = {
+            cfg: {
+                loadMode: 2,
+                expand: 400,
+                expFactor: 1.5,
+                hFac: 0.8,
+                loadHidden: false,
+            },
+            loader: {
+                checkElems: vi.fn(),
+                unveil: (img) => {
+                    unveiled.push(img);
+                },
+            },
+            autoSizer: {
+                checkElems: vi.fn(),
+            },
+        };
+
+        const img = document.querySelector('img');
+        img._lazyRace = true;
+        img._lazyCache = true;
+
+        const prepareResult = { activationStrategies: [] };
+        try {
+            await hooks.activateLazySizes(window, document, prepareResult);
+        } finally {
+            window.lazySizes = originalLazySizes;
+        }
+
+        expect(unveiled).toEqual([img]);
+        expect(img._lazyRace).toBeUndefined();
+        expect(img._lazyCache).toBeUndefined();
+        expect(prepareResult.activationStrategies).toContain('lazysizes-iframe:5');
+        expect(prepareResult.activationSamples[0]).toMatchObject({
+            adapter: 'lazysizes',
+            action: 'iframe-api',
+        });
+        expect(prepareResult.activationSamples.find((sample) => sample.action === 'iframe-unveil')).toMatchObject({
+            adapter: 'lazysizes',
+            hasDataSrc: false,
+            sourceDataSrcsetCount: 1,
+            hadLazyRace: true,
+            hadLazyCache: true,
+        });
+        expect(window.lazySizes).toBe(originalLazySizes);
+        picture.remove();
     });
 
     it('activates vanilla-lazyload and lozad fallback observers', () => {
@@ -1206,6 +1457,44 @@ describe('transforms runtime helper logic', () => {
         expect(readinessByKey.get('loaded').reason).toBe('complete');
         expect(readinessByKey.get('broken').status).toBe('broken');
         expect(readinessByKey.get('broken').reason).toBe('network');
+    });
+
+    it('marks pending renderable images unresolved when lazy target matching remains stale', async () => {
+        const img = document.createElement('img');
+        const source = document.createElement('source');
+        source.setAttribute('srcset', 'https://example.test/placeholder.gif 1x');
+        Object.defineProperty(img, 'currentSrc', {
+            configurable: true,
+            value: 'https://example.test/placeholder.gif',
+        });
+        Object.defineProperty(img, 'complete', { configurable: true, value: true });
+        Object.defineProperty(img, 'naturalWidth', { configurable: true, value: 431 });
+        Object.defineProperty(img, 'naturalHeight', { configurable: true, value: 242 });
+        Object.defineProperty(img, 'clientWidth', { configurable: true, value: 431 });
+        Object.defineProperty(img, 'clientHeight', { configurable: true, value: 242 });
+
+        const readinessByKey = new Map([
+            ['image', {
+                status: 'pending',
+                reason: null,
+                sourceUsed: 'https://example.test/hero.webp',
+                preloadLoaded: true,
+                source,
+                img,
+                lazyTargetUrls: ['https://example.test/hero.webp'],
+            }],
+        ]);
+
+        const result = await hooks.waitForImagesToSettle({
+            readinessByKey,
+            pollMs: 1,
+        });
+
+        expect(result.aborted).toBe(false);
+        expect(result.unresolvedCount).toBe(1);
+        expect(readinessByKey.get('image').status).toBe('unresolved');
+        expect(readinessByKey.get('image').reason).toBe('lazy-target-not-promoted');
+        expect(readinessByKey.get('image').sourceUsed).toBe('https://example.test/placeholder.gif');
     });
 
     it('emits soft-deadline and waiting-tick callbacks during long waits', async () => {

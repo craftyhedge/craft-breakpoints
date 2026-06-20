@@ -45,7 +45,7 @@ final class ReviewBreakpointStateBuilder
         $renderedHeight = (int)($summary['renderedHeight'] ?? 0);
 
         $previewRow = ReviewLayoutCalculator::pickPreviewRow($rows);
-        $previewSrc = is_array($previewRow) ? (string)($previewRow['src'] ?? '') : '';
+        $previewSrc = is_array($previewRow) ? $this->resolvePreviewSrc($previewRow) : '';
 
         $currentWidth = Support::normalizeNullablePositiveInt($currentRow['width'] ?? null);
         $currentHeight = Support::normalizeNullablePositiveInt($currentRow['height'] ?? null);
@@ -177,6 +177,19 @@ final class ReviewBreakpointStateBuilder
             'mismatch' => 'bpi_dimension-mismatch',
             default => '',
         };
+    }
+
+    /**
+     * @param array<string, mixed> $previewRow
+     */
+    private function resolvePreviewSrc(array $previewRow): string
+    {
+        $sourceUsed = trim((string)($previewRow['sourceUsed'] ?? ''));
+        if ($sourceUsed !== '') {
+            return $sourceUsed;
+        }
+
+        return trim((string)($previewRow['src'] ?? ''));
     }
 
     /**

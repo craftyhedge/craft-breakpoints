@@ -132,6 +132,7 @@ export function createRunReport({
             stageTimings: [],
             activationTrace: [],
             normalizationSamples: [],
+            readinessSnapshots: [],
             failure: null,
         };
     }
@@ -434,6 +435,345 @@ function sourceMatchesLazyTarget(sourceUsed, lazyTargetUrls, baseUrl = '') {
     return normalizedSource !== '' && lazyTargetUrls.includes(normalizedSource);
 }
 
+function hasLazyTargets(entry) {
+    return Array.isArray(entry?.lazyTargetUrls) && entry.lazyTargetUrls.length > 0;
+}
+
+function isLazyTargetNotPromotedCandidate(entry, sourceUsed, baseUrl = '', isRenderable = isImageRenderable) {
+    return Boolean(
+        entry
+        && hasLazyTargets(entry)
+        && entry.preloadLoaded === true
+        && entry.img?.complete === true
+        && isSubstantialRenderableImage(entry.img, isRenderable)
+        && !sourceMatchesLazyTarget(sourceUsed, entry.lazyTargetUrls, baseUrl)
+    );
+}
+
+function getElementSourceState(entry, baseUrl = '') {
+    const source = entry?.source || null;
+    const img = entry?.img || null;
+    const currentSrc = String(img?.currentSrc || '').trim();
+    const sourceSrcset = String(source?.getAttribute?.('srcset') || '').trim();
+    const sourceDataSrcset = String(source?.getAttribute?.('data-srcset') || '').trim();
+    const sourceSrc = String(source?.getAttribute?.('src') || '').trim();
+    const sourceDataSrc = String(source?.getAttribute?.('data-src') || '').trim();
+    const imgSrc = String(img?.getAttribute?.('src') || '').trim();
+    const imgDataSrc = String(img?.getAttribute?.('data-src') || '').trim();
+    const imgSrcset = String(img?.getAttribute?.('srcset') || '').trim();
+    const imgDataSrcset = String(img?.getAttribute?.('data-srcset') || '').trim();
+    const derivedSource = String(
+        currentSrc
+        || sourceSrcset
+        || sourceSrc
+        || imgSrc
+        || ''
+    ).trim();
+
+    return {
+        currentSrc,
+        sourceSrcset,
+        sourceDataSrcset,
+        sourceSrc,
+        sourceDataSrc,
+        imgSrc,
+        imgDataSrc,
+        imgSrcset,
+        imgDataSrcset,
+        derivedSource,
+        derivedMatchesLazyTarget: sourceMatchesLazyTarget(derivedSource, entry?.lazyTargetUrls || [], baseUrl),
+    };
+}
+
+function truncateDiagnosticValue(value, maxLength = 220) {
+    const normalized = String(value || '').trim();
+    if (normalized.length <= maxLength) {
+        return normalized;
+    }
+
+    return `${normalized.slice(0, maxLength - 3)}...`;
+}
+
+async function activateLazySizesInsideFrame(frameWindow) {
+    if (!frameWindow || typeof frameWindow.Function !== 'function') {
+        return null;
+    }
+
+    const selectors = [
+        `${PROCESSABLE_IMAGE_SELECTOR}.lazyload`,
+        `${PROCESSABLE_IMAGE_SELECTOR}[data-src]`,
+        `${PROCESSABLE_IMAGE_SELECTOR}[data-srcset]`,
+        `${PROCESSABLE_PICTURE_SELECTOR} source[data-srcset] ~ img`,
+        `${PROCESSABLE_PICTURE_SELECTOR} source[data-sizes] ~ img`,
+    ];
+
+    try {
+        // Run lazysizes from the iframe realm so its document, window, timers, and events match the preview it owns.
+        const runInFrame = frameWindow.Function('selectors', `
+            return (async function () {
+                var lazySizes = window.lazySizes;
+                if (!lazySizes || typeof lazySizes !== 'object') {
+                    return { activated: false, reason: 'missing-lazysizes' };
+                }
+
+                var samples = [];
+                var eventCounts = {
+                    lazybeforeunveil: 0,
+                    lazyunveilread: 0,
+                    lazyloaded: 0,
+                    lazybeforeunveilPrevented: 0
+                };
+                var strategyCount = 0;
+                var maxSamples = 24;
+                var truncate = function (value, maxLength) {
+                    var normalized = String(value || '').trim();
+                    var limit = maxLength || 220;
+                    return normalized.length <= limit ? normalized : normalized.slice(0, limit - 3) + '...';
+                };
+                var pushSample = function (sample) {
+                    if (samples.length < maxSamples) {
+                        samples.push(sample);
+                    }
+                };
+                var recordLazyEvent = function (event) {
+                    var type = String(event && event.type || '');
+                    if (!Object.prototype.hasOwnProperty.call(eventCounts, type)) {
+                        return;
+                    }
+
+                    eventCounts[type] += 1;
+                    if (type === 'lazybeforeunveil' && event.defaultPrevented === true) {
+                        eventCounts.lazybeforeunveilPrevented += 1;
+                    }
+                };
+                var nextFrame = function () {
+                    return new Promise(function (resolve) {
+                        if (typeof window.requestAnimationFrame === 'function') {
+                            window.requestAnimationFrame(function () { resolve(); });
+                            return;
+                        }
+
+                        window.setTimeout(resolve, 0);
+                    });
+                };
+
+                document.addEventListener('lazybeforeunveil', recordLazyEvent, true);
+                document.addEventListener('lazyunveilread', recordLazyEvent, true);
+                document.addEventListener('lazyloaded', recordLazyEvent, true);
+
+                var originalConfig = lazySizes.cfg && typeof lazySizes.cfg === 'object'
+                    ? {
+                        loadMode: lazySizes.cfg.loadMode,
+                        expand: lazySizes.cfg.expand,
+                        expFactor: lazySizes.cfg.expFactor,
+                        hFac: lazySizes.cfg.hFac,
+                        loadHidden: lazySizes.cfg.loadHidden
+                    }
+                    : null;
+
+                if (lazySizes.cfg && typeof lazySizes.cfg === 'object') {
+                    lazySizes.cfg.loadMode = 3;
+                    lazySizes.cfg.expand = 999999;
+                    lazySizes.cfg.expFactor = 1;
+                    lazySizes.cfg.hFac = 1;
+                    lazySizes.cfg.loadHidden = true;
+                }
+
+                pushSample({
+                    adapter: 'lazysizes',
+                    action: 'iframe-api',
+                    element: 'lazySizes',
+                    loaderKeys: Object.keys(lazySizes.loader || {}).slice(0, 16)
+                });
+
+                if (lazySizes.loader && typeof lazySizes.loader.checkElems === 'function') {
+                    lazySizes.loader.checkElems(true);
+                    strategyCount += 1;
+                }
+
+                if (lazySizes.autoSizer && typeof lazySizes.autoSizer.checkElems === 'function') {
+                    lazySizes.autoSizer.checkElems();
+                    strategyCount += 1;
+                }
+
+                if (lazySizes.loader && typeof lazySizes.loader.unveil === 'function') {
+                    Array.from(document.querySelectorAll(selectors.join(', '))).forEach(function (img) {
+                        try {
+                            var hadLazyRace = img._lazyRace === true;
+                            var hadLazyCache = img._lazyCache === true;
+                            var picture = img.closest('picture');
+                            var sourceDataSrcsetBefore = picture ? picture.querySelectorAll('source[data-srcset]').length : 0;
+                            var firstSource = picture ? picture.querySelector('source') : null;
+                            var firstSourceSrcsetBefore = String(firstSource && firstSource.getAttribute('srcset') || '');
+                            var classNameBefore = String(img.getAttribute('class') || '');
+                            delete img._lazyRace;
+                            delete img._lazyCache;
+                            img.classList.remove('lazyloaded');
+                            img.classList.remove('lazyloading');
+                            img.classList.remove('ls-is-cached');
+                            img.classList.add('lazyload');
+
+                            lazySizes.loader.unveil(img);
+                            strategyCount += 1;
+
+                            var firstSourceSrcsetAfter = String(firstSource && firstSource.getAttribute('srcset') || '');
+                            pushSample({
+                                adapter: 'lazysizes',
+                                action: 'iframe-unveil',
+                                element: 'img',
+                                classNameBefore: classNameBefore,
+                                className: String(img.getAttribute('class') || ''),
+                                hasDataSrc: img.hasAttribute('data-src'),
+                                hasDataSrcset: img.hasAttribute('data-srcset'),
+                                sourceDataSrcsetCount: sourceDataSrcsetBefore,
+                                sourcePromotedSync: firstSourceSrcsetBefore !== firstSourceSrcsetAfter,
+                                hadLazyRace: hadLazyRace,
+                                hadLazyCache: hadLazyCache
+                            });
+                        } catch (error) {
+                            pushSample({
+                                adapter: 'lazysizes',
+                                action: 'iframe-unveil-error',
+                                element: 'img',
+                                message: String(error && error.message || '')
+                            });
+                        }
+                    });
+                }
+
+                if (lazySizes.loader && typeof lazySizes.loader.checkElems === 'function') {
+                    lazySizes.loader.checkElems(true);
+                    strategyCount += 1;
+                }
+
+                if (lazySizes.autoSizer && typeof lazySizes.autoSizer.checkElems === 'function') {
+                    lazySizes.autoSizer.checkElems();
+                    strategyCount += 1;
+                }
+
+                await nextFrame();
+                await nextFrame();
+
+                document.removeEventListener('lazybeforeunveil', recordLazyEvent, true);
+                document.removeEventListener('lazyunveilread', recordLazyEvent, true);
+                document.removeEventListener('lazyloaded', recordLazyEvent, true);
+
+                pushSample({
+                    adapter: 'lazysizes',
+                    action: 'iframe-events',
+                    element: 'document',
+                    events: eventCounts,
+                    config: {
+                        lazyClass: String(lazySizes.cfg && lazySizes.cfg.lazyClass || ''),
+                        loadingClass: String(lazySizes.cfg && lazySizes.cfg.loadingClass || ''),
+                        loadedClass: String(lazySizes.cfg && lazySizes.cfg.loadedClass || ''),
+                        srcAttr: String(lazySizes.cfg && lazySizes.cfg.srcAttr || ''),
+                        srcsetAttr: String(lazySizes.cfg && lazySizes.cfg.srcsetAttr || ''),
+                        sizesAttr: String(lazySizes.cfg && lazySizes.cfg.sizesAttr || ''),
+                        loadMode: Number(lazySizes.cfg && lazySizes.cfg.loadMode),
+                        expand: Number(lazySizes.cfg && lazySizes.cfg.expand),
+                        expFactor: Number(lazySizes.cfg && lazySizes.cfg.expFactor),
+                        hFac: Number(lazySizes.cfg && lazySizes.cfg.hFac),
+                        loadHidden: Boolean(lazySizes.cfg && lazySizes.cfg.loadHidden),
+                        original: originalConfig
+                    }
+                });
+
+                return {
+                    activated: strategyCount > 0,
+                    strategyCount: strategyCount,
+                    samples: samples
+                };
+            })();
+        `);
+
+        return await runInFrame(selectors);
+    } catch (error) {
+        return {
+            activated: false,
+            reason: 'iframe-activation-error',
+            message: String(error?.message || ''),
+        };
+    }
+}
+
+export function buildReadinessDiagnosticsSnapshot({
+    readinessByKey,
+    breakpoint = null,
+    slot = null,
+    passKind = '',
+    measurementWidth = null,
+    baseUrl = '',
+    maxEntries = 80,
+} = {}) {
+    if (!(readinessByKey instanceof Map)) {
+        return [];
+    }
+
+    return Array.from(readinessByKey.values()).slice(0, maxEntries).map((entry) => {
+        const sourceState = getElementSourceState(entry, baseUrl);
+        const img = entry?.img || null;
+        const source = entry?.source || null;
+
+        return {
+            breakpoint,
+            slotKey: slot?.key || source?.getAttribute?.('data-bp-key') || null,
+            passKind,
+            measurementWidth,
+            key: String(entry?.key || ''),
+            pictureId: String(entry?.picture?.getAttribute?.('data-picture-id') || ''),
+            assetId: String(img?.getAttribute?.('data-asset-id') || entry?.picture?.getAttribute?.('data-asset-id') || ''),
+            transform: String(entry?.picture?.getAttribute?.('data-set') || ''),
+            enabled: entry?.enabled === true,
+            status: String(entry?.status || ''),
+            reason: entry?.reason === null || entry?.reason === undefined ? null : String(entry.reason),
+            preloadLoaded: entry?.preloadLoaded === true,
+            complete: img?.complete === true,
+            natural: {
+                width: Number(img?.naturalWidth) || 0,
+                height: Number(img?.naturalHeight) || 0,
+            },
+            rendered: {
+                width: Number(img?.clientWidth || img?.offsetWidth) || 0,
+                height: Number(img?.clientHeight || img?.offsetHeight) || 0,
+            },
+            sourceDimensions: {
+                width: toPositiveIntOrNull(source?.getAttribute?.('data-set-width')),
+                height: toPositiveIntOrNull(source?.getAttribute?.('data-set-height')),
+                autoDimension: String(source?.getAttribute?.('data-auto-dimension') || '') || null,
+            },
+            sourceUsed: truncateDiagnosticValue(entry?.sourceUsed || ''),
+            derivedSource: truncateDiagnosticValue(sourceState.derivedSource),
+            derivedMatchesLazyTarget: sourceState.derivedMatchesLazyTarget,
+            currentSrc: truncateDiagnosticValue(sourceState.currentSrc),
+            sourceSrcset: truncateDiagnosticValue(sourceState.sourceSrcset),
+            sourceDataSrcset: truncateDiagnosticValue(sourceState.sourceDataSrcset),
+            imgSrc: truncateDiagnosticValue(sourceState.imgSrc),
+            imgDataSrc: truncateDiagnosticValue(sourceState.imgDataSrc),
+            lazyTargetUrls: Array.isArray(entry?.lazyTargetUrls)
+                ? entry.lazyTargetUrls.slice(0, 4).map((url) => truncateDiagnosticValue(url))
+                : [],
+        };
+    });
+}
+
+function isSubstantialRenderableImage(img, isRenderable = isImageRenderable) {
+    if (!isRenderable(img)) {
+        return false;
+    }
+
+    const naturalWidth = Number(img?.naturalWidth) || 0;
+    const naturalHeight = Number(img?.naturalHeight) || 0;
+    if (naturalWidth <= 1 && naturalHeight <= 1) {
+        return false;
+    }
+
+    const renderedWidth = Number(img?.clientWidth || img?.offsetWidth) || 0;
+    const renderedHeight = Number(img?.clientHeight || img?.offsetHeight) || 0;
+
+    return renderedWidth > 1 || renderedHeight > 1;
+}
+
 export function createReadinessSummary(readinessByKey) {
     let loadedCount = 0;
     let brokenCount = 0;
@@ -544,16 +884,88 @@ async function waitForLazyLoadingAdapter(
     return false;
 }
 
-export function activateLazySizes(frameWindow, frameDocument, prepareResult, pushStrategy = pushActivationStrategy) {
+export async function activateLazySizes(frameWindow, frameDocument, prepareResult, pushStrategy = pushActivationStrategy) {
     const lazySizes = frameWindow?.lazySizes;
     if (!lazySizes || typeof lazySizes !== 'object') {
         return;
     }
 
     let strategyCount = 0;
+    const eventCounts = {
+        lazybeforeunveil: 0,
+        lazyunveilread: 0,
+        lazyloaded: 0,
+        lazybeforeunveilPrevented: 0,
+    };
+    const recordActivationSample = (sample) => {
+        if (!prepareResult || typeof prepareResult !== 'object') {
+            return;
+        }
+
+        if (!Array.isArray(prepareResult.activationSamples)) {
+            prepareResult.activationSamples = [];
+        }
+
+        if (prepareResult.activationSamples.length >= 24) {
+            return;
+        }
+
+        prepareResult.activationSamples.push(sample);
+    };
+
+    const iframeActivation = await activateLazySizesInsideFrame(frameWindow);
+    if (iframeActivation?.activated === true) {
+        (Array.isArray(iframeActivation.samples) ? iframeActivation.samples : []).forEach(recordActivationSample);
+        pushStrategy(prepareResult, 'lazysizes-iframe', Number(iframeActivation.strategyCount) || 0);
+        return;
+    }
+
+    if (iframeActivation?.reason) {
+        recordActivationSample({
+            adapter: 'lazysizes',
+            action: 'iframe-activation-unavailable',
+            element: 'iframe',
+            reason: String(iframeActivation.reason || ''),
+            message: String(iframeActivation.message || ''),
+        });
+    }
+
+    const recordLazyEvent = (event) => {
+        const type = String(event?.type || '');
+        if (!Object.prototype.hasOwnProperty.call(eventCounts, type)) {
+            return;
+        }
+
+        eventCounts[type] += 1;
+        if (type === 'lazybeforeunveil' && event?.defaultPrevented === true) {
+            eventCounts.lazybeforeunveilPrevented += 1;
+        }
+    };
+
+    frameDocument.addEventListener('lazybeforeunveil', recordLazyEvent, true);
+    frameDocument.addEventListener('lazyunveilread', recordLazyEvent, true);
+    frameDocument.addEventListener('lazyloaded', recordLazyEvent, true);
+
+    const originalConfig = lazySizes.cfg && typeof lazySizes.cfg === 'object'
+        ? {
+            loadMode: lazySizes.cfg.loadMode,
+            expand: lazySizes.cfg.expand,
+            expFactor: lazySizes.cfg.expFactor,
+            hFac: lazySizes.cfg.hFac,
+            loadHidden: lazySizes.cfg.loadHidden,
+        }
+        : null;
+
+    if (lazySizes.cfg && typeof lazySizes.cfg === 'object') {
+        lazySizes.cfg.loadMode = 3;
+        lazySizes.cfg.expand = 999999;
+        lazySizes.cfg.expFactor = 1;
+        lazySizes.cfg.hFac = 1;
+        lazySizes.cfg.loadHidden = true;
+    }
 
     if (typeof lazySizes.loader?.checkElems === 'function') {
-        lazySizes.loader.checkElems();
+        lazySizes.loader.checkElems(true);
         strategyCount += 1;
     }
 
@@ -563,16 +975,96 @@ export function activateLazySizes(frameWindow, frameDocument, prepareResult, pus
     }
 
     if (typeof lazySizes.loader?.unveil === 'function') {
-                const candidates = Array.from(frameDocument.querySelectorAll(`${PROCESSABLE_IMAGE_SELECTOR}.lazyload`));
+        recordActivationSample({
+            adapter: 'lazysizes',
+            action: 'api',
+            element: 'lazySizes',
+            loaderKeys: Object.keys(lazySizes.loader || {}).slice(0, 16),
+        });
+        const candidates = Array.from(frameDocument.querySelectorAll([
+            `${PROCESSABLE_IMAGE_SELECTOR}.lazyload`,
+            `${PROCESSABLE_IMAGE_SELECTOR}[data-src]`,
+            `${PROCESSABLE_IMAGE_SELECTOR}[data-srcset]`,
+            `${PROCESSABLE_PICTURE_SELECTOR} source[data-srcset] ~ img`,
+            `${PROCESSABLE_PICTURE_SELECTOR} source[data-sizes] ~ img`,
+        ].join(', ')));
         candidates.forEach((img) => {
             try {
+                const hadLazyRace = img._lazyRace === true;
+                const hadLazyCache = img._lazyCache === true;
+                const picture = img.closest('picture');
+                const sourceDataSrcsetBefore = picture?.querySelectorAll('source[data-srcset]').length || 0;
+                const firstSource = picture?.querySelector('source');
+                const firstSourceSrcsetBefore = String(firstSource?.getAttribute?.('srcset') || '');
+                const classNameBefore = String(img.getAttribute('class') || '');
+                delete img._lazyRace;
+                delete img._lazyCache;
+                img.classList.remove('lazyloaded');
+                img.classList.remove('lazyloading');
+                img.classList.remove('ls-is-cached');
+                img.classList.add('lazyload');
+
                 lazySizes.loader.unveil(img);
                 strategyCount += 1;
+                const firstSourceSrcsetAfter = String(firstSource?.getAttribute?.('srcset') || '');
+                recordActivationSample({
+                    adapter: 'lazysizes',
+                    action: 'unveil',
+                    element: 'img',
+                    classNameBefore,
+                    className: String(img.getAttribute('class') || ''),
+                    hasDataSrc: img.hasAttribute('data-src'),
+                    hasDataSrcset: img.hasAttribute('data-srcset'),
+                    sourceDataSrcsetCount: sourceDataSrcsetBefore,
+                    sourcePromotedSync: firstSourceSrcsetBefore !== firstSourceSrcsetAfter,
+                    hadLazyRace,
+                    hadLazyCache,
+                });
             } catch (_error) {
                 // Keep activation resilient. Failures are captured in readiness issues.
+                recordActivationSample({
+                    adapter: 'lazysizes',
+                    action: 'unveil-error',
+                    element: 'img',
+                    message: String(_error?.message || ''),
+                });
             }
         });
     }
+
+    if (typeof lazySizes.loader?.checkElems === 'function') {
+        lazySizes.loader.checkElems(true);
+        strategyCount += 1;
+    }
+
+    if (typeof lazySizes.autoSizer?.checkElems === 'function') {
+        lazySizes.autoSizer.checkElems();
+        strategyCount += 1;
+    }
+
+    frameDocument.removeEventListener('lazybeforeunveil', recordLazyEvent, true);
+    frameDocument.removeEventListener('lazyunveilread', recordLazyEvent, true);
+    frameDocument.removeEventListener('lazyloaded', recordLazyEvent, true);
+    recordActivationSample({
+        adapter: 'lazysizes',
+        action: 'events',
+        element: 'document',
+        events: eventCounts,
+        config: {
+            lazyClass: String(lazySizes.cfg?.lazyClass || ''),
+            loadingClass: String(lazySizes.cfg?.loadingClass || ''),
+            loadedClass: String(lazySizes.cfg?.loadedClass || ''),
+            srcAttr: String(lazySizes.cfg?.srcAttr || ''),
+            srcsetAttr: String(lazySizes.cfg?.srcsetAttr || ''),
+            sizesAttr: String(lazySizes.cfg?.sizesAttr || ''),
+            loadMode: Number(lazySizes.cfg?.loadMode),
+            expand: Number(lazySizes.cfg?.expand),
+            expFactor: Number(lazySizes.cfg?.expFactor),
+            hFac: Number(lazySizes.cfg?.hFac),
+            loadHidden: lazySizes.cfg?.loadHidden === true,
+            original: originalConfig,
+        },
+    });
 
     if (strategyCount > 0) {
         pushStrategy(prepareResult, 'lazysizes', strategyCount);
@@ -794,6 +1286,7 @@ export async function prepareBreakpoints({
 }) {
     const prepareResult = {
         activationStrategies: [],
+        activationSamples: [],
         normalizationCount: 0,
         normalizationSamples: [],
         lazyTargetsByImage: new Map(),
@@ -855,7 +1348,7 @@ export async function prepareBreakpoints({
     }
 
     if (adapter === 'lazysizes') {
-        activateLazySizes(frameWindow, frameDocument, prepareResult);
+        await activateLazySizes(frameWindow, frameDocument, prepareResult);
     } else if (adapter === 'vanilla-lazyload') {
         activateVanillaLazyLoad(frameWindow, frameDocument, prepareResult);
     } else if (adapter === 'lozad') {
@@ -943,6 +1436,14 @@ export function buildBreakpointReadinessTracker({
             entry.lazyTargetUrls,
             frameDocument?.baseURI || '',
         )) {
+            if (isLazyTargetNotPromotedCandidate(
+                entry,
+                sourceUsed,
+                frameDocument?.baseURI || '',
+                isRenderable,
+            )) {
+                entry.reason = 'lazy-target-not-promoted';
+            }
             return;
         }
 
@@ -970,10 +1471,12 @@ export function buildBreakpointReadinessTracker({
             reason: null,
             enabled,
             sourceUsed,
+            preloadLoaded: preloadStates instanceof Map ? preloadStates.get(key) === true : false,
             img,
             picture,
             source,
             lazyTargetUrls,
+            lazyTargetNotPromotedSince: null,
         };
 
         if (!enabled) {
@@ -997,11 +1500,13 @@ export function buildBreakpointReadinessTracker({
             return;
         }
 
-        if (img.complete && sourceMatchesLazyTarget(
+        const completeSourceMatches = sourceMatchesLazyTarget(
             sourceUsed,
             lazyTargetUrls,
             frameDocument?.baseURI || '',
-        )) {
+        );
+
+        if (img.complete && completeSourceMatches) {
             entry.sourceUsed = deriveSource(source, img);
             if (isRenderable(img)) {
                 entry.status = 'loaded';
@@ -1125,7 +1630,29 @@ export async function waitForImagesToSettle({
                     entry.status = 'broken';
                     entry.reason = 'network';
                 }
+                entry.lazyTargetNotPromotedSince = null;
+                return;
             }
+
+            if (isLazyTargetNotPromotedCandidate(
+                entry,
+                currentSource,
+                entry.img.ownerDocument?.baseURI || '',
+                isRenderable,
+            )) {
+                if (!Number.isFinite(entry.lazyTargetNotPromotedSince)) {
+                    entry.lazyTargetNotPromotedSince = nowMs();
+                }
+                entry.reason = 'lazy-target-not-promoted';
+
+                if ((nowMs() - entry.lazyTargetNotPromotedSince) >= 1000) {
+                    entry.status = 'unresolved';
+                    entry.sourceUsed = currentSource;
+                }
+                return;
+            }
+
+            entry.lazyTargetNotPromotedSince = null;
         });
 
         const pendingAfterCompleteCheck = Array.from(readinessByKey.values()).filter((entry) => entry.status === 'pending');
@@ -1235,7 +1762,7 @@ export async function preloadBreakpointSources({
             return;
         }
 
-        const srcset = String(source.getAttribute('srcset') || '').trim();
+        const srcset = String(source.getAttribute('data-srcset') || source.getAttribute('srcset') || '').trim();
         if (!srcset || isTransparentSrcset(srcset)) {
             loadStates.set(key, true);
             resolve();
@@ -1319,15 +1846,17 @@ export function extractRowsForBreakpoint({
         const loadedFromElement = img.complete && (img.naturalWidth > 0 || img.naturalHeight > 0);
         const readiness = readinessByKey instanceof Map ? readinessByKey.get(preloadKey) : null;
         const derivedSource = deriveSource(source, img);
-        const unresolvedLazyPlaceholder = Boolean(
-            readiness
+        const hasTrackedLazyTargets = readiness
             && Array.isArray(readiness.lazyTargetUrls)
-            && readiness.lazyTargetUrls.length > 0
-            && !sourceMatchesLazyTarget(
-                derivedSource,
-                readiness.lazyTargetUrls,
-                frameDocument?.baseURI || '',
-            )
+            && readiness.lazyTargetUrls.length > 0;
+        const derivedMatchesLazyTarget = !hasTrackedLazyTargets || sourceMatchesLazyTarget(
+            derivedSource,
+            readiness.lazyTargetUrls,
+            frameDocument?.baseURI || '',
+        );
+        const unresolvedLazyPlaceholder = Boolean(
+            hasTrackedLazyTargets
+            && !derivedMatchesLazyTarget
         );
         const sourceUsed = unresolvedLazyPlaceholder
             ? ''
@@ -1339,13 +1868,15 @@ export function extractRowsForBreakpoint({
 
         if (!enabled) {
             loaded = true;
-        } else if (readiness && readiness.status === 'loaded') {
+        } else if (readiness && readiness.status === 'loaded' && !unresolvedLazyPlaceholder) {
             loaded = true;
         } else if (readiness && readiness.status === 'broken') {
             broken = true;
         } else if (readiness && readiness.status === 'unresolved') {
             unresolved = true;
-        } else if (Boolean(preloadLoaded || loadedFromElement)) {
+        } else if (unresolvedLazyPlaceholder) {
+            unresolved = true;
+        } else if (Boolean((preloadLoaded && !hasTrackedLazyTargets) || (loadedFromElement && derivedMatchesLazyTarget))) {
             loaded = true;
         } else if (isLikelyBroken(img)) {
             broken = true;
@@ -1511,12 +2042,15 @@ export function appendBreakpointReadinessIssues({
 
         if (entry.status === 'unresolved') {
             const timedOut = entry.reason === 'timeout';
+            const notPromoted = entry.reason === 'lazy-target-not-promoted';
             appendIssue(report, {
                 severity: 'warning',
-                code: timedOut ? 'lazy-load-timeout' : 'unresolved-on-cancel',
-                message: timedOut
+                code: notPromoted ? 'lazy-target-not-promoted' : (timedOut ? 'lazy-load-timeout' : 'unresolved-on-cancel'),
+                message: notPromoted
+                    ? 'The lazy-loaded image target was available, but the preview DOM did not promote it from the lazy attribute to the active source.'
+                    : (timedOut
                     ? 'The lazy-loaded image did not replace its placeholder before the processing timeout.'
-                    : 'Image was still pending when processing was cancelled by the user.',
+                    : 'Image was still pending when processing was cancelled by the user.'),
                 breakpointWidth: breakpoint,
                 assetId: entry.img?.getAttribute('data-asset-id') || entry.picture?.getAttribute('data-asset-id') || null,
                 source: entry.sourceUsed,
