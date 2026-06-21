@@ -591,6 +591,7 @@ class TransformEditor extends Component
         bool $hideAssetPagination = false,
         string $reviewMode = self::REVIEW_MODE_PROCESSED,
         ?string $onlyTransformName = null,
+        array $newSetNames = [],
     ): array {
         if ($this->_reviewRenderer === null) {
             return [
@@ -614,6 +615,7 @@ class TransformEditor extends Component
             $hideAssetPagination,
             $reviewMode,
             $onlyTransformName,
+            $newSetNames,
         );
     }
 

@@ -676,6 +676,7 @@ class TransformsController extends Controller
         $editTabBySet = $this->readBodyArrayParam('editTabBySet');
         $selectedAssetKeyBySet = $this->readBodyArrayParam('selectedAssetKeyBySet');
         $preferredOrderBySet = $this->readBodyArrayParam('preferredOrderBySet');
+        $newSetNames = $this->readBodyArrayParam('newSetNames');
 
         $rendered = $editor->renderResultReview(
             $result,
@@ -683,6 +684,11 @@ class TransformsController extends Controller
             $editTabBySet,
             $selectedAssetKeyBySet,
             $preferredOrderBySet,
+            false,
+            false,
+            TransformEditor::REVIEW_MODE_PROCESSED,
+            null,
+            $newSetNames,
         );
 
         return $this->asJson($rendered);

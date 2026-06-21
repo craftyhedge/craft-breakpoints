@@ -52,6 +52,7 @@ final class ReviewRenderer
         bool $hideAssetPagination = false,
         string $reviewMode = self::REVIEW_MODE_PROCESSED,
         ?string $onlyTransformName = null,
+        array $newSetNames = [],
     ): array {
         $normalizedReviewMode = $this->normalizeReviewMode($reviewMode);
         $this->initialStoredReviewBuilder->resetTelemetryInitCache();
@@ -78,6 +79,7 @@ final class ReviewRenderer
             $normalizedReviewMode,
             $onlyTransformName,
             $observedMissingHandles,
+            $this->normalizeObservedMissingHandles($newSetNames),
         );
     }
 
@@ -186,6 +188,7 @@ final class ReviewRenderer
         string $reviewMode,
         ?string $onlyTransformName,
         array $observedMissingHandles = [],
+        array $newSetNames = [],
     ): array {
         if ($breakpoints === []) {
             $breakpoints = $this->getReviewConfiguredBreakpoints();
@@ -214,6 +217,7 @@ final class ReviewRenderer
                 $reviewMode,
                 $onlyTransformName,
                 $observedMissingHandles,
+                $newSetNames,
             ),
             'warningCount' => $this->countReviewWarningsByTransform($warningsByTransform),
             'editScopeBySet' => $normalizedScopeState,
@@ -603,6 +607,7 @@ final class ReviewRenderer
         string $reviewMode,
         ?string $onlyTransformName,
         array $observedMissingHandles = [],
+        array $newSetNames = [],
     ): string {
         $isProcessedReview = $reviewMode === self::REVIEW_MODE_PROCESSED;
         $transformNames = $this->collectReviewTransformNames($rowsByBreakpoint);
@@ -639,6 +644,7 @@ final class ReviewRenderer
             $preferredOrderBySet,
             $breakpointMismatchTransformNames,
             $assetMismatchTransformNames,
+            array_fill_keys($newSetNames, true),
         );
         if ($transformNames === []) {
             return $this->renderReviewPartial('_partials/review/empty-state', []);
@@ -648,6 +654,7 @@ final class ReviewRenderer
         $snapshotTransformMetadata = isset($latestRunSnapshot['transformMetadata']) && is_array($latestRunSnapshot['transformMetadata'])
             ? $latestRunSnapshot['transformMetadata']
             : [];
+        $newSetNameSet = array_fill_keys($newSetNames, true);
         $cards = [];
 
         foreach ($transformNames as $transformName) {
@@ -1063,7 +1070,15 @@ final class ReviewRenderer
                     . '</div>'
                 : '';
 
+            $newSetMarkup = !empty($newSetNameSet[$transformName])
+                ? '<div class="bpts-warning-item bpts-warning-item-neutral">'
+                    . '<div class="bpts-warning-copy"><h3 class="bpts-warning-heading">New Transform Set</h3></div>'
+                    . '<div class="bpts-warning-detail"><p>This transform set was created from the latest processing result.</p></div>'
+                    . '</div>'
+                : '';
+
             $cardWarningsWithMismatch = $reactiveWarningsMarkup
+                . $newSetMarkup
                 . $staticWarningsMarkup
                 . $breakpointMismatchWarningMarkup
                 . $assetMismatchWarningMarkup;
@@ -1519,6 +1534,7 @@ final class ReviewRenderer
         array $preferredOrderBySet = [],
         array $breakpointMismatchTransformNames = [],
         array $assetMismatchTransformNames = [],
+        array $newSetTransformNames = [],
     ): array
     {
         $preferredPositions = [];
@@ -1539,7 +1555,11 @@ final class ReviewRenderer
             $breakpointMismatchTransformNames,
             $assetMismatchTransformNames,
             $warningsByTransform,
+            $newSetTransformNames,
         ): int {
+            if (!empty($newSetTransformNames[$name])) {
+                return -1;
+            }
             if (!empty($breakpointMismatchTransformNames[$name])) {
                 return 0;
             }

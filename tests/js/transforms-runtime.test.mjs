@@ -224,6 +224,52 @@ describe('transforms runtime helper logic', () => {
         expect(document.getElementById('bpts-copy-output').hidden).toBe(true);
     });
 
+    it('sends newly applied set names when rendering verified processing results', async () => {
+        const sendActionRequest = vi.fn().mockResolvedValue({
+            data: {
+                warningsHtml: '',
+                visualResultsHtml: '<article data-set="newHero"></article>',
+                warningCount: 0,
+                savedSetNames: ['newHero'],
+                editScopeBySet: {},
+                editTabBySet: {},
+            },
+        });
+
+        window.Craft = {
+            sendActionRequest,
+        };
+
+        await hooks.renderResultReview({
+            breakpoints: [480],
+            rowsBySlot: {
+                base: [{
+                    assetId: '2458',
+                    transform: 'newHero',
+                    loaded: true,
+                    broken: false,
+                    unresolved: false,
+                }],
+            },
+        }, {
+            autoApplySummary: {
+                appliedCount: 1,
+                requestedSetNames: ['newHero', 'existingHero'],
+                skipped: [{ name: 'existingHero', reason: 'already_saved' }],
+            },
+        });
+
+        expect(sendActionRequest).toHaveBeenCalledWith(
+            'POST',
+            'breakpoints/transforms/render-result-review',
+            expect.objectContaining({
+                data: expect.objectContaining({
+                    newSetNames: ['newHero'],
+                }),
+            }),
+        );
+    });
+
     it('sanitizes issue source URLs by removing query and hash', () => {
         expect(hooks.sanitizeIssueSource('https://example.test/path/image.jpg?token=abc#frag'))
             .toBe('https://example.test/path/image.jpg');
@@ -2032,8 +2078,8 @@ describe('transforms runtime helper logic', () => {
                 ok: true,
                 persisted: true,
                 appliedCount: 0,
-                skippedCount: 0,
-                skipped: [],
+                skippedCount: 1,
+                skipped: [{ name: 'hero', reason: 'already_saved' }],
             }),
         });
 
@@ -2047,7 +2093,8 @@ describe('transforms runtime helper logic', () => {
         expect(hooks.getLastReport().status).toBe('completed');
         expect(hooks.getLastReport().resultPublished).toBe(true);
         const status = document.getElementById('bpts-status');
-        expect(status.textContent).toContain('All passed');
+        expect(status.textContent).toContain('All passed. No new sets');
+        expect(status.textContent).not.toContain('could not be auto-saved');
         expect(status.classList.contains('bpts-header-status-success')).toBe(true);
         expect(status.querySelector('[data-icon="check"]')).toBeTruthy();
     });

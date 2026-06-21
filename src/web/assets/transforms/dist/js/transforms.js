@@ -2576,12 +2576,16 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         }
 
         const context = buildReviewRenderRequestContext(options);
+        const newSetNames = Array.isArray(options?.newSetNames)
+            ? options.newSetNames
+            : buildAutoAppliedSetNames(options?.autoApplySummary || null);
         const payload = await requestReviewRenderPayload(RENDER_RESULT_REVIEW_ACTION, {
             result,
             editScopeBySet: context.editScopeBySet,
             editTabBySet: context.editTabBySet,
             selectedAssetKeyBySet: context.selectedAssetKeyBySet,
             preferredOrderBySet: context.preferredOrderBySet,
+            newSetNames,
         });
         applyRenderedReviewPayload(payload);
         if (context.preserveCardOrder) {
@@ -2655,13 +2659,13 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         return response?.data || null;
     }
 
-    async function publishResult(result) {
+    async function publishResult(result, options = null) {
         state.lastResult = result;
         setShowCardSettingsSignal(true);
         updateCopyButtonVisibility();
         updateResultsOrderingNote();
         try {
-            await renderResultReview(result);
+            await renderResultReview(result, options);
         } catch (error) {
             // Keep measured output available even if backend review render fails.
             console.error(error);
@@ -2905,7 +2909,13 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
         const autoApplyOverride = getRunOverride('autoApplyNewSets');
         if (autoApplyOverride) {
-            return await autoApplyOverride(requestedSets);
+            const overrideData = await autoApplyOverride(requestedSets);
+            return {
+                ...(overrideData && typeof overrideData === 'object' ? overrideData : {}),
+                requestedSetNames: requestedSets
+                    .map((set) => String(set?.name || '').trim())
+                    .filter((name) => name !== ''),
+            };
         }
 
         if (typeof Craft === 'undefined' || typeof Craft.sendActionRequest !== 'function') {
@@ -2925,6 +2935,9 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             },
         });
         const data = response?.data && typeof response.data === 'object' ? response.data : {};
+        const requestedSetNames = requestedSets
+            .map((set) => String(set?.name || '').trim())
+            .filter((name) => name !== '');
 
         if (typeof data.currentVersion === 'string' && data.currentVersion.trim() !== '') {
             setEditorBaseVersionSignalValue(data.currentVersion);
@@ -2934,7 +2947,48 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             syncSidebarObservedUnsavedFromSavedNames(data.savedSetNames);
         }
 
-        return data;
+        return {
+            ...data,
+            requestedSetNames,
+        };
+    }
+
+    function getBlockingAutoApplySkippedCount(autoApplySummary = null) {
+        if (!autoApplySummary || typeof autoApplySummary !== 'object') {
+            return 0;
+        }
+
+        if (Array.isArray(autoApplySummary.skipped)) {
+            return autoApplySummary.skipped.filter((skip) => String(skip?.reason || '') !== 'already_saved').length;
+        }
+
+        return Math.max(0, Number(autoApplySummary.skippedCount) || 0);
+    }
+
+    function buildAutoAppliedSetNames(autoApplySummary = null) {
+        if (!autoApplySummary || typeof autoApplySummary !== 'object') {
+            return [];
+        }
+
+        if (Array.isArray(autoApplySummary.appliedNames)) {
+            return autoApplySummary.appliedNames
+                .map((name) => String(name || '').trim())
+                .filter((name) => name !== '');
+        }
+
+        if (Math.max(0, Number(autoApplySummary.appliedCount) || 0) < 1) {
+            return [];
+        }
+
+        const skippedNames = new Set(Array.isArray(autoApplySummary.skipped)
+            ? autoApplySummary.skipped
+                .map((skip) => String(skip?.name || '').trim())
+                .filter((name) => name !== '')
+            : []);
+
+        return (Array.isArray(autoApplySummary.requestedSetNames) ? autoApplySummary.requestedSetNames : [])
+            .map((name) => String(name || '').trim())
+            .filter((name) => name !== '' && !skippedNames.has(name));
     }
 
     function buildCompletionStatusFromResult(result, snapshotPersisted, autoApplySummary = null, options = null) {
@@ -2946,7 +3000,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             ? 'Observation not found'
             : (warningCount > 0 ? 'Warnings to address' : 'All passed');
         const appliedCount = Math.max(0, Number(autoApplySummary?.appliedCount) || 0);
-        const skippedCount = Math.max(0, Number(autoApplySummary?.skippedCount) || 0);
+        const skippedCount = getBlockingAutoApplySkippedCount(autoApplySummary);
 
         if (appliedCount > 0) {
             completionStatus += `. ${appliedCount} new set${appliedCount === 1 ? '' : 's'} saved and verified`;
@@ -2956,6 +3010,8 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             completionStatus += '.';
         } else if (skippedCount > 0) {
             completionStatus += `. ${skippedCount} new set${skippedCount === 1 ? '' : 's'} could not be auto-saved.`;
+        } else if (autoApplySummary && completionState === 'success') {
+            completionStatus += '. No new sets';
         }
 
         if (observedHandleMissing) {
@@ -3065,6 +3121,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         let failureStage = 'initialization';
         const rowsBySlot = {};
         const runReport = createRunReport(state.previewUrl || '', slots, diagnosticsEnabled);
+        let completionAutoApplySummary = autoApplySummary;
 
         try {
             failureStage = 'resolve-entry-url';
@@ -3328,6 +3385,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             if (autoVerifyAfterSave && snapshotPersisted) {
                 setStatus('Saving new transform sets...');
                 const autoApplyResult = await autoApplyNewSetsForResult(result);
+                completionAutoApplySummary = autoApplyResult;
                 const autoAppliedCount = Math.max(0, Number(autoApplyResult?.appliedCount) || 0);
                 const autoApplyOk = autoApplyResult?.ok === true || autoApplyResult?.persisted === true;
 
@@ -3350,7 +3408,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                     return;
                 }
 
-                const skippedCount = Math.max(0, Number(autoApplyResult?.skippedCount) || 0);
+                const skippedCount = getBlockingAutoApplySkippedCount(autoApplyResult);
                 if (skippedCount > 0) {
                     const resultPublisher = getRunOverride('publishResult') || publishResult;
                     await resultPublisher(result);
@@ -3363,8 +3421,10 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             }
 
             const resultPublisher = getRunOverride('publishResult') || publishResult;
-            await resultPublisher(result);
-            const status = buildCompletionStatusFromResult(result, snapshotPersisted, autoApplySummary, {
+            await resultPublisher(result, {
+                autoApplySummary: completionAutoApplySummary,
+            });
+            const status = buildCompletionStatusFromResult(result, snapshotPersisted, completionAutoApplySummary, {
                 requestedObservedHandle,
             });
             setStatus(status.message, { state: status.state });
