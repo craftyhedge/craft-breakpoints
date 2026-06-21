@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.4 - 2026-06-21
+
+- Improved lazy-loading activation during processing, especially for lazysizes, by widening lazy-load thresholds, clearing stale lazysizes state, and recording activation diagnostics.
+- Fixed lazy-loaded placeholder handling so rows remain pending or unresolved until the intended lazy target source is actually promoted, preventing placeholder URLs from being treated as successful transform measurements.
+- Improved processing readiness tracking for duplicate picture IDs and asset-only picture markers so repeated transform uses are measured as separate images.
+- Improved processing completion messaging so existing transform sets skipped during auto-save are treated as already saved, clean runs report when no new sets were created, and rendered mismatches keep the final status in a warning state.
+- Improved review cards for breakpoint and asset mismatches with live card warning signals, resolved-mismatch review states, mismatch counts, clearer mismatch copy, and prioritised ordering for newly created transform sets.
+- Fixed auto-saving for observed processed transform sets when the saved-set signal is stale, and highlighted newly created transform sets in the rendered review.
+- Improved review thumbnails and fallback sizing to prefer the resolved `sourceUsed` URL over lazy-loading placeholder sources.
+- Fixed compact breakpoint cards so escape-width badges wrap cleanly.
+- Expanded getting-started and responsive-image documentation with workflow screenshots, clearer review-warning guidance, height-warning notes, and transform-service compatibility notes.
+- Expanded JavaScript and PHP test coverage for lazy-loading activation, stale lazy targets, duplicate picture IDs, processing completion states, new-set review rendering, source selection, and fallback dimensions.
+
 ## 0.1.3 - 2026-06-12
 
 - Fixed final-breakpoint processing so each transform set uses its configured normal or escape-width measurement, with a fallback warning when the preferred measurement is unavailable.
