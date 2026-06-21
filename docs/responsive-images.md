@@ -20,6 +20,19 @@ For each configured breakpoint, Breakpoints can render:
 
 This keeps the markup compatible with normal browser behavior while still giving you control over image size, format, and sharpness.
 
+## Transform Services
+
+Breakpoints uses native Craft transforms. It will work with external transform services but this requires a plugin or custom code that will convert Craft's native transform methods to the external service.
+
+External transforms services are recommended in general but do improve processing speed when compared to native transforms. Only when new transforms are generated.
+
+Known working options:
+- [Imgixer](https://plugins.craftcms.com/imgixer) - as long as you set the transformSource to the external service you configure
+- [Imgix Asset Transformer](https://plugins.craftcms.com/newism-imgix) - a Newism plugin that replaces native image transforms with Imgix
+- [Cloudinary](https://plugins.craftcms.com/cloudinary) - uses Cloudinary for Craft's native asset transforms and named image transforms
+- [Transform Mapper](https://plugins.craftcms.com/transform-mapper) - a free Crafty Hedge plugin that maps Crafts transform methods to external services
+- [Servd](https://plugins.craftcms.com/servd-asset-storage) - Servd Assets and Helpers plugin
+
 ## Breakpoints
 
 Your configured breakpoints are ordered and turned into media ranges. Smaller breakpoints use `max-width` rules, and the largest breakpoint uses `min-width`.

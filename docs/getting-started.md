@@ -90,45 +90,36 @@ transform dimensions.
 Resolve the warning shown on the card, then process the entry again to verify
 the updated values. A clean run should show no warnings detected.
 
-### Missing Transform Sets
-
-Breakpoints can find a transform set handle in your templates before that set
-has been saved. Process the entry to capture rendered dimensions and create the
-set, or add the transform values manually if editing is enabled.
-
 ### Empty Enabled Breakpoints
 
 Enabled breakpoint rows need a saved width or height. If a breakpoint is enabled
 but both values are empty, add the missing dimensions or disable that breakpoint
 if the component should not generate an image there.
 
+Images that are truely not visible when processed have a width and height of zero and are automatically disabled when sets are saved. If you enable one of these you will see this warning. 
+
 ### Mismatched Assets
+
+Transform set not producing consistant measured sizes.
 
 Transform sets can be reused across templates, so every use of the same set
 handle should render at the same dimensions.
 
 When processing finds multiple assets using the same set handle, those assets
-are grouped together in the transform set card. If one or more renders at a
-different size, review the templates that use that handle and adjust the markup
-or CSS so each use produces matching dimensions.
+are grouped together in the transform set card. 
 
-### Rendered Size Mismatches
+You can use the pagination to view the different assets and find the mismatch.
+
+This might require some layout/CSS changes to fix the front-end inconsistancy or separating use cases by creating new transform set handles.
+
+### Breakpoint Mismatch
 
 After processing, Breakpoints compares the latest rendered image sizes with the
-saved transform dimensions. If they differ, apply the rendered values or edit as required.
+saved transform dimensions. 
 
-### Hidden or Disabled Breakpoints
+Mismatches usually mean the front-end was changed and the transform set needs updated.
 
-Processing can detect breakpoints where an image is hidden by the page layout.
-Review those breakpoints before applying rendered values, then disable any
-breakpoint that should not generate a transform for that component.
 
-### Image Load or Marker Issues
-
-Processing may warn when an image fails to load, cannot be decoded, uses an
-unsupported source, or is still pending when processing is stopped. It can also
-warn when Breakpoints processing markers are missing, usually because local
-full-page or static caching is serving stale markup.
 
 ## 5. Review and edit saved transform sets
 
@@ -147,12 +138,17 @@ Editing is only available when `allowTransformEditing` is enabled in
 
 ### Allow height differences
 
-Open **Set options** on a transform card when the rendered height may
-legitimately differ from the saved height.
+**Set options** provides height warning rules for when an expected height-only mismatch
+should not block review.
 
-Useful for background images that are affected by content. Others on your team might process with different content and get warnings unless suppressed with these.
+This is useful for image areas whose rendered height is affected by content,
+such as background-style images. Other team members may process the same
+transform set with different content and get height warnings unless the set
+allows that variation.
 
-You could use an auto height but then the images would carry their intrinsic ratio instead of setting a fixed transform.
+Auto height is different: it lets each image keep its intrinsic ratio. These
+options keep the saved transform height, but relax review warnings when the
+rendered height is expected to vary.
 
 Two settings are available:
 

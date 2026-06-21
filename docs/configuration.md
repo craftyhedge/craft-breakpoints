@@ -68,6 +68,8 @@ Notes:
   [Custom Image Templates](custom-templates.md).
 - For how `breakpoints`, `escapeWidth`, and `dpr` turn into media queries and
   `srcset`, see [Responsive Images](responsive-images.md).
+- For native Craft transforms and external transform service compatibility, see
+  [Responsive Images](responsive-images.md#transform-services).
 
 ## Sample `config/breakpoints.php`
 
