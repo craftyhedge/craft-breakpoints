@@ -2539,6 +2539,10 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             elements.warnings.innerHTML = payload.warningsHtml;
         }
 
+        if (Array.isArray(payload.savedSetNames)) {
+            setSidebarSavedSetNamesSignalValue(payload.savedSetNames);
+        }
+
         if (elements.visualResults && typeof payload.visualResultsHtml === 'string') {
             elements.visualResults.innerHTML = payload.visualResultsHtml;
 
@@ -2852,13 +2856,12 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     }
 
     function buildAutoApplyNewSetDescriptors(result) {
-        const savedSetNames = new Set(getSidebarSavedSetNamesSignalValue());
         const rows = flattenResultRowsBySlot(result);
         const byTransform = new Map();
 
         rows.forEach((row) => {
             const transformName = String(row?.transform || '').trim();
-            if (!transformName || savedSetNames.has(transformName)) {
+            if (!transformName) {
                 return;
             }
 
@@ -3532,6 +3535,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             runProcessing,
             persistRunSnapshot,
             resultContainsTransformHandle,
+            buildAutoApplyNewSetDescriptors,
             buildObservedHandleMissingMessage,
             summarizeFailureReasonCountsFromReport,
             collectReviewEditStateFromDom,

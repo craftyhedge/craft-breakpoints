@@ -3,6 +3,7 @@ function buildRuntimeDom() {
     <div class="bpts-transforms-page"></div>
     <span id="bpts-review-state-label"></span>
     <input id="bpts-ui-results-heading-signal-bridge" value="Saved Sets" />
+    <input id="bpts-sidebar-saved-set-names-signal-bridge" value="[]" />
     <div id="bpts-editor-status" data-kind="ready" data-message=""></div>
     <input id="bpts-source-entry" value="" />
     <div id="bpts-status"></div>
@@ -167,6 +168,10 @@ describe('transforms runtime helper logic', () => {
     afterEach(() => {
         hooks.clearPreviewFrameForTests();
         hooks.clearRunProcessingOverridesForTests();
+        const savedSetNamesBridge = document.getElementById('bpts-sidebar-saved-set-names-signal-bridge');
+        if (savedSetNamesBridge instanceof HTMLInputElement) {
+            savedSetNamesBridge.value = '[]';
+        }
     });
 
     it('applies initial stored review payload without requiring processing', async () => {
@@ -193,6 +198,7 @@ describe('transforms runtime helper logic', () => {
                 warningsHtml: '<div class="warning-marker">Initial warning</div>',
                 visualResultsHtml: '<div class="initial-review-marker">Initial cards</div>',
                 warningCount: 3,
+                savedSetNames: ['heroImage', 'cardImage'],
                 editScopeBySet: {},
                 editTabBySet: {},
             },
@@ -214,6 +220,7 @@ describe('transforms runtime helper logic', () => {
         expect(result.warningCount).toBe(3);
         expect(document.getElementById('bpts-visual-results').innerHTML).toContain('Initial cards');
         expect(document.getElementById('bpts-warnings').innerHTML).toContain('Initial warning');
+        expect(document.getElementById('bpts-sidebar-saved-set-names-signal-bridge').value).toBe('["heroImage","cardImage"]');
         expect(document.getElementById('bpts-copy-output').hidden).toBe(true);
     });
 
@@ -2169,6 +2176,28 @@ describe('transforms runtime helper logic', () => {
             brokenCount: 0,
             unresolvedCount: 0,
         }));
+    });
+
+    it('auto-applies observed processed sets even when the saved-name signal is stale', async () => {
+        document.getElementById('bpts-sidebar-saved-set-names-signal-bridge').value = '["image-test"]';
+
+        const requestedSets = hooks.buildAutoApplyNewSetDescriptors({
+            rowsBySlot: {
+                base: [{
+                    assetId: '2458',
+                    transform: 'image-test',
+                    sourceUsed: 'https://example.test/image-test.jpg',
+                    loaded: true,
+                    broken: false,
+                    unresolved: false,
+                }],
+            },
+        });
+
+        expect(requestedSets).toEqual([{
+            name: 'image-test',
+            selectedAssetKey: 'asset:image-test:2458',
+        }]);
     });
 
     it('reports cancelled processing when wait is aborted and avoids publishing results', async () => {
