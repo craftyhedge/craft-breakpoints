@@ -482,6 +482,10 @@
     display: none;
 }
 
+.bpts-transforms-page[data-compact-breakpoint-cards="1"] .bpi_escaped-notice-width {
+    display: none;
+}
+
 .bpts-results-meta {
     display: flex;
     justify-content: flex-start;

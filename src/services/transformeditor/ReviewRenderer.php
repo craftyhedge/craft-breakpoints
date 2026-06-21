@@ -1251,7 +1251,7 @@ final class ReviewRenderer
             ? '<span class="bpts-row-badge">Unloaded ' . $unloadedCount . '</span>'
             : '';
         $escapeBadge = $escapeMeasureWidth !== null
-            ? '<span class="bpi_escaped-notice">ESC ' . $escapeMeasureWidth . '</span>'
+            ? '<span class="bpi_escaped-notice">ESC <span class="bpi_escaped-notice-width">' . $escapeMeasureWidth . '</span></span>'
             : '';
         $hasBreakpointMismatch = ($state['hasBreakpointMismatch'] ?? false) === true;
 
