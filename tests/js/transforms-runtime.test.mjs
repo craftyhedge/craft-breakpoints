@@ -2099,6 +2099,73 @@ describe('transforms runtime helper logic', () => {
         expect(status.querySelector('[data-icon="check"]')).toBeTruthy();
     });
 
+    it('shows warning completion when rendered review reports breakpoint mismatches', async () => {
+        const sourceEntry = document.getElementById('bpts-source-entry');
+        sourceEntry.innerHTML = '<input type="hidden" name="bpts-source-entry-id" value="42" />';
+
+        window.Craft = {
+            sendActionRequest: vi.fn().mockResolvedValue({
+                data: {
+                    warningsHtml: '',
+                    visualResultsHtml: '',
+                    warningCount: 0,
+                    breakpointMismatchCount: 1,
+                    assetMismatchCount: 0,
+                    mismatchCount: 1,
+                },
+            }),
+        };
+
+        hooks.setRunProcessingOverridesForTests({
+            resolveSelectedEntryUrl: async () => 'https://example.test/page',
+            ensurePreviewFrame: async () => null,
+            setPreviewWidth: async () => null,
+            prepareBreakpoints: () => ({
+                activationStrategies: ['none'],
+                normalizationCount: 0,
+                normalizationSamples: [],
+            }),
+            preloadBreakpointSources: async () => new Map([['pic-1', true]]),
+            buildBreakpointReadinessTracker: () => ({
+                readinessByKey: new Map([
+                    ['pic-1', {
+                        status: 'loaded',
+                        reason: 'preload',
+                        sourceUsed: 'https://example.test/asset.jpg',
+                        img: document.createElement('img'),
+                        picture: document.createElement('picture'),
+                    }],
+                ]),
+                cleanup: () => { },
+            }),
+            waitForImagesToSettle: async () => ({ aborted: false, waitedMs: 1 }),
+            extractRowsForBreakpoint: (breakpoint) => [{
+                assetId: `asset-${breakpoint}`,
+                transform: 'hero',
+                loaded: true,
+                broken: false,
+                unresolved: false,
+            }],
+            persistRunSnapshot: async () => true,
+            autoApplyNewSets: async () => ({
+                ok: true,
+                persisted: true,
+                appliedCount: 0,
+                skippedCount: 1,
+                skipped: [{ name: 'hero', reason: 'already_saved' }],
+            }),
+        });
+
+        await hooks.runProcessing();
+
+        const status = document.getElementById('bpts-status');
+        expect(status.textContent).toContain('Warnings to address');
+        expect(status.textContent).not.toContain('All passed');
+        expect(status.textContent).not.toContain('No new sets');
+        expect(status.classList.contains('bpts-header-status-warning')).toBe(true);
+        expect(status.querySelector('[data-icon="alert"]')).toBeTruthy();
+    });
+
     it('selects per-set rows from normal and escape final-source passes', async () => {
         const sourceEntry = document.getElementById('bpts-source-entry');
         sourceEntry.innerHTML = '<input type="hidden" name="bpts-source-entry-id" value="42" />';

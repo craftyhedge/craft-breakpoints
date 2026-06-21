@@ -195,6 +195,9 @@ final class ReviewRenderer
         }
 
         $warningsByTransform = $this->buildReviewWarningsByTransform($rowsByBreakpoint);
+        $mismatchCounts = $reviewMode === self::REVIEW_MODE_PROCESSED
+            ? $this->countLatestRunMismatchesByTransform($this->getLatestRunSnapshotForReview())
+            : ['breakpointMismatchCount' => 0, 'assetMismatchCount' => 0, 'mismatchCount' => 0];
         $normalizedScopeState = [];
         $normalizedTabState = [];
         $normalizedSelectedAssetKeyBySet = [];
@@ -220,6 +223,9 @@ final class ReviewRenderer
                 $newSetNames,
             ),
             'warningCount' => $this->countReviewWarningsByTransform($warningsByTransform),
+            'breakpointMismatchCount' => $mismatchCounts['breakpointMismatchCount'],
+            'assetMismatchCount' => $mismatchCounts['assetMismatchCount'],
+            'mismatchCount' => $mismatchCounts['mismatchCount'],
             'editScopeBySet' => $normalizedScopeState,
             'editTabBySet' => $normalizedTabState,
             'selectedAssetKeyBySet' => $normalizedSelectedAssetKeyBySet,
@@ -401,7 +407,29 @@ final class ReviewRenderer
             $rowsByBreakpoint[$breakpointKey] = array_merge($coreRows[$breakpointKey] ?? [], $ui);
         }
 
-        return ['signalKey' => $signalKey, 'rowsByBreakpoint' => $rowsByBreakpoint];
+        $latestRunSnapshot = $this->getLatestRunSnapshotForReview();
+        $latestRunSummary = $reviewMode === self::REVIEW_MODE_PROCESSED
+            ? ($this->buildLatestRunSummaryByTransform($latestRunSnapshot)[$normalized] ?? null)
+            : null;
+        $warningsByTransform = $this->buildReviewWarningsByTransform($resultRowsByBreakpoint);
+        $hasCurrentBreakpointMismatch = is_array($latestRunSummary)
+            && (($latestRunSummary['hasBreakpointMismatch'] ?? false) === true);
+        $hasCurrentAssetMismatch = is_array($latestRunSummary)
+            && (($latestRunSummary['hasAssetMismatch'] ?? false) === true);
+        $editedSinceProcess = $reviewMode === self::REVIEW_MODE_PROCESSED
+            && (($this->buildEditedTransformsMap($latestRunSnapshot, true)[$normalized] ?? false) === true);
+
+        return [
+            'signalKey' => $signalKey,
+            'rowsByBreakpoint' => $rowsByBreakpoint,
+            'hasCurrentBreakpointMismatch' => $hasCurrentBreakpointMismatch,
+            'hasResolvedBreakpointMismatchAwaitingVerification' => $reviewMode === self::REVIEW_MODE_PROCESSED
+                && $editedSinceProcess
+                && !$hasCurrentBreakpointMismatch,
+            'hasCardWarningDanger' => $hasCurrentBreakpointMismatch
+                || $hasCurrentAssetMismatch
+                || !empty($warningsByTransform[$normalized]),
+        ];
     }
 
     /**
@@ -890,30 +918,27 @@ final class ReviewRenderer
             $hideRenderedApplyForCard = $hideRenderedApply || $setReviewState === 'missing';
             foreach ($transformBreakpoints as $breakpoint) {
                 $breakpointKey = (string)$breakpoint;
+                $breakpointUiState = $this->buildBreakpointUiState(
+                    $transformName,
+                    $breakpoint,
+                    $selectedAssetRowsByBreakpoint[$breakpoint] ?? [],
+                    $currentRows[$breakpoint] ?? Support::buildDefaultTransformEntry(),
+                    $passHeightWhenRenderedLteSaved,
+                    $storedSavedWidthsByTransform[$transformName][$breakpoint] ?? null,
+                    $storedSavedHeightsByTransform[$transformName][$breakpoint] ?? null,
+                    $allowAnyHeight,
+                    $hideRenderedApplyForCard,
+                    $reviewMode,
+                    $referenceWidthsById[(string)$breakpoint] ?? null,
+                    $processSavedDimensionsByTransform[$transformName][$breakpoint] ?? null,
+                );
+
                 $rowsByBreakpointSignal[$breakpointKey] = array_merge(
                     $rowsByBreakpointSignal[$breakpointKey] ?? [],
-                    $this->buildBreakpointUiState(
-                        $transformName,
-                        $breakpoint,
-                        $selectedAssetRowsByBreakpoint[$breakpoint] ?? [],
-                        $currentRows[$breakpoint] ?? Support::buildDefaultTransformEntry(),
-                        $passHeightWhenRenderedLteSaved,
-                        $storedSavedWidthsByTransform[$transformName][$breakpoint] ?? null,
-                        $storedSavedHeightsByTransform[$transformName][$breakpoint] ?? null,
-                        $allowAnyHeight,
-                        $hideRenderedApplyForCard,
-                        $reviewMode,
-                        $referenceWidthsById[(string)$breakpoint] ?? null,
-                        $processSavedDimensionsByTransform[$transformName][$breakpoint] ?? null,
-                    )
+                    $breakpointUiState,
                 );
             }
-
             $cardSignalsStructural['editor']['cards'][$signalKey]['rowsByBreakpoint'] = $rowsByBreakpointSignal;
-            $cardSignalsStructuralJson = json_encode($cardSignalsStructural, JSON_UNESCAPED_SLASHES);
-            if (!is_string($cardSignalsStructuralJson)) {
-                $cardSignalsStructuralJson = '{"editor":{"cards":{}}}';
-            }
 
             $breakpointColumns = '';
             $breakpointKeysByWidth = $this->getBreakpointKeysByWidth($includeEscapeWidth);
@@ -986,6 +1011,9 @@ final class ReviewRenderer
             $hasBreakpointMismatchWarning = $isProcessedReview
                 && is_array($latestRunSummaryForTransform)
                 && (($latestRunSummaryForTransform['hasBreakpointMismatch'] ?? false) === true);
+            $hasResolvedBreakpointMismatchAwaitingVerification = $isProcessedReview
+                && $editedSinceProcess
+                && !$hasBreakpointMismatchWarning;
 
             $hasMissingSetWarning = false;
             $hasEmptyBreakpointsWarning = false;
@@ -1053,12 +1081,14 @@ final class ReviewRenderer
                 : '';
 
             $breakpointMismatchWarningMarkup = ($hasBreakpointMismatchWarning && !$suppressMismatchBanners)
-                ? '<div class="bpts-warning-item bpts-warning-item-neutral">'
+                ? '<div class="bpts-warning-item bpts-warning-item-neutral" data-class:bpts-force-hidden="$editor.cards.'
+                    . $this->escapeReviewHtml($signalKey)
+                    . '.hasCurrentBreakpointMismatch !== true">'
                     . '<div class="bpts-warning-copy"><h3 class="bpts-warning-heading">' . ($editedSinceProcess ? 'Saved Values Changed' : 'Breakpoint Mismatch') . '</h3></div>'
                     . '<div class="bpts-warning-detail">'
                         . ($editedSinceProcess
                             ? '<p>Saved values have been edited since the last process. Process to review these changes.</p>'
-                            : '<p>Rendered values do not match the saved transform for one or more breakpoints.</p><p>If you made a change, it is best to process again and review the frontend is behaving correctly.</p>')
+                            : '<p>Rendered values do not match the saved transform for one or more breakpoints.</p>')
                     . '</div>'
                     . '</div>'
                 : '';
@@ -1089,13 +1119,21 @@ final class ReviewRenderer
             $staticWarningPresent = $staticWarningsMarkup !== ''
                 || $breakpointMismatchWarningMarkup !== ''
                 || $assetMismatchWarningMarkup !== '';
-            $cardWarningDangerExpr = $staticWarningPresent
-                ? 'true'
-                : ($reactiveWarningsEnabled
-                    ? "String(\$editor.cards.{$signalKey}.setReviewState || '') === 'missing'"
-                    : 'false');
+            $cardWarningDangerExpr = "(\$editor.cards.{$signalKey}.hasCardWarningDanger === true)"
+                . ($reactiveWarningsEnabled
+                    ? " || String(\$editor.cards.{$signalKey}.setReviewState || '') === 'missing'"
+                    : '');
             $cardWarningSeedDanger = $staticWarningPresent
                 || ($reactiveWarningsEnabled && $setReviewState === 'missing');
+            $cardQuestionSeed = !$cardWarningSeedDanger && $hasResolvedBreakpointMismatchAwaitingVerification;
+            $cardQuestionExpr = "(\$editor.cards.{$signalKey}.hasResolvedBreakpointMismatchAwaitingVerification === true)";
+            $cardSignalsStructural['editor']['cards'][$signalKey]['hasCurrentBreakpointMismatch'] = $hasBreakpointMismatchWarning;
+            $cardSignalsStructural['editor']['cards'][$signalKey]['hasResolvedBreakpointMismatchAwaitingVerification'] = $hasResolvedBreakpointMismatchAwaitingVerification;
+            $cardSignalsStructural['editor']['cards'][$signalKey]['hasCardWarningDanger'] = $staticWarningPresent;
+            $cardSignalsStructuralJson = json_encode($cardSignalsStructural, JSON_UNESCAPED_SLASHES);
+            if (!is_string($cardSignalsStructuralJson)) {
+                $cardSignalsStructuralJson = '{"editor":{"cards":{}}}';
+            }
 
             $lastProcessPanelHtml = $this->buildLastProcessPanelMarkup(
                 $latestRunSnapshot,
@@ -1112,9 +1150,11 @@ final class ReviewRenderer
                 'cardWarningStateClass' => $cardWarningSeedDanger
                     ? 'bpts-transform-card-warning'
                     : '',
-                'cardStatusSuccessHiddenClass' => $cardWarningSeedDanger ? 'bpts-force-hidden' : '',
+                'cardStatusSuccessHiddenClass' => ($cardWarningSeedDanger || $cardQuestionSeed) ? 'bpts-force-hidden' : '',
                 'cardStatusWarningHiddenClass' => $cardWarningSeedDanger ? '' : 'bpts-force-hidden',
+                'cardStatusQuestionHiddenClass' => $cardQuestionSeed ? '' : 'bpts-force-hidden',
                 'cardWarningDangerExpr' => $cardWarningDangerExpr,
+                'cardQuestionStateExpr' => $cardQuestionExpr,
                 'cardWarningsHtml' => $cardWarningsWithMismatch !== ''
                     ? '<div class="bpts-transform-card-warnings">' . $cardWarningsWithMismatch . '</div>'
                     : '',
@@ -1788,6 +1828,35 @@ final class ReviewRenderer
     private function buildLatestRunSummaryByTransform(?array $snapshot): array
     {
         return $this->healthAnalyzer->buildLatestRunSummaryByTransform($snapshot);
+    }
+
+    /**
+     * @param array<string, mixed>|null $snapshot
+     * @return array{breakpointMismatchCount: int, assetMismatchCount: int, mismatchCount: int}
+     */
+    private function countLatestRunMismatchesByTransform(?array $snapshot): array
+    {
+        $breakpointMismatchCount = 0;
+        $assetMismatchCount = 0;
+
+        foreach ($this->buildLatestRunSummaryByTransform($snapshot) as $summary) {
+            if (!is_array($summary)) {
+                continue;
+            }
+
+            if (($summary['hasBreakpointMismatch'] ?? false) === true) {
+                $breakpointMismatchCount++;
+            }
+            if (($summary['hasAssetMismatch'] ?? false) === true) {
+                $assetMismatchCount++;
+            }
+        }
+
+        return [
+            'breakpointMismatchCount' => $breakpointMismatchCount,
+            'assetMismatchCount' => $assetMismatchCount,
+            'mismatchCount' => $breakpointMismatchCount + $assetMismatchCount,
+        ];
     }
 
     /**

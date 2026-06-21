@@ -566,6 +566,15 @@ class TransformsController extends Controller
                     : ($hideRenderedApply ? 'saved' : 'processed');
                 $deltas = $editor->buildSignalDeltasForTransform($operation->setName, $selectedAssetKey, $hideRenderedApply, $reviewMode);
                 $cardSignalPatch = [];
+                foreach ([
+                    'hasCurrentBreakpointMismatch',
+                    'hasResolvedBreakpointMismatchAwaitingVerification',
+                    'hasCardWarningDanger',
+                ] as $deltaKey) {
+                    if (array_key_exists($deltaKey, $deltas)) {
+                        $cardSignalPatch[$deltaKey] = ($deltas[$deltaKey] ?? false) === true;
+                    }
+                }
                 if (!empty($deltas['rowsByBreakpoint'])) {
                     $cardSignalPatch['rowsByBreakpoint'] = $deltas['rowsByBreakpoint'];
                     if ($this->operationMayChangeAllScopeAutoSignals($operation)) {

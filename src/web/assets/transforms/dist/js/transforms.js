@@ -2564,8 +2564,20 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         }
 
         const warningCount = Number(payload.warningCount);
+        const breakpointMismatchCount = Number(payload.breakpointMismatchCount);
+        const assetMismatchCount = Number(payload.assetMismatchCount);
+        const mismatchCount = Number(payload.mismatchCount);
         if (state.lastResult && state.lastResult.summary && Number.isFinite(warningCount) && warningCount >= 0) {
             state.lastResult.summary.warningCount = warningCount;
+            if (Number.isFinite(breakpointMismatchCount) && breakpointMismatchCount >= 0) {
+                state.lastResult.summary.breakpointMismatchCount = breakpointMismatchCount;
+            }
+            if (Number.isFinite(assetMismatchCount) && assetMismatchCount >= 0) {
+                state.lastResult.summary.assetMismatchCount = assetMismatchCount;
+            }
+            if (Number.isFinite(mismatchCount) && mismatchCount >= 0) {
+                state.lastResult.summary.mismatchCount = mismatchCount;
+            }
             updateResultsOrderingNote();
         }
     }
@@ -2995,10 +3007,17 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         const requestedObservedHandle = String(options?.requestedObservedHandle || '').trim();
         const observedHandleMissing = requestedObservedHandle !== '' && !resultContainsTransformHandle(result, requestedObservedHandle);
         const warningCount = Math.max(0, Number(result?.summary?.warningCount) || 0);
-        const completionState = warningCount > 0 || observedHandleMissing ? 'warning' : 'success';
+        const mismatchCount = Math.max(
+            0,
+            Number(result?.summary?.mismatchCount)
+                || (Number(result?.summary?.breakpointMismatchCount) || 0)
+                + (Number(result?.summary?.assetMismatchCount) || 0),
+        );
+        const needsReview = warningCount > 0 || mismatchCount > 0 || observedHandleMissing;
+        const completionState = needsReview ? 'warning' : 'success';
         let completionStatus = observedHandleMissing && warningCount < 1
             ? 'Observation not found'
-            : (warningCount > 0 ? 'Warnings to address' : 'All passed');
+            : (warningCount > 0 || mismatchCount > 0 ? 'Warnings to address' : 'All passed');
         const appliedCount = Math.max(0, Number(autoApplySummary?.appliedCount) || 0);
         const skippedCount = getBlockingAutoApplySkippedCount(autoApplySummary);
 

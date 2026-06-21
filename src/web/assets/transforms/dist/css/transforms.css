@@ -1027,6 +1027,12 @@ input.bpts-init-value::placeholder {
     line-height: 1;
 }
 
+.bpts-transform-title-status-question-mark {
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1;
+}
+
 .bpts-transform-last-process-status-icon-success {
     color: var(--bpts-color-success);
 }

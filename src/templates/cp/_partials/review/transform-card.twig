@@ -7,7 +7,7 @@
 
     Expected variables (all strings unless noted; see renderResultReview() for producers):
       - cardWarningStateClass, cardWarningDangerExpr, transformNameEscaped, signalKey
-      - cardStatusSuccessHiddenClass, cardStatusWarningHiddenClass
+      - cardStatusSuccessHiddenClass, cardStatusWarningHiddenClass, cardStatusQuestionHiddenClass
             - cardId
       - renderedRowsForTransformJson: removed; server resolves rendered evidence
              - selectedAssetKey
@@ -56,7 +56,7 @@
                         role="img"
                         title="Transform set valid"
                         aria-label="Transform set valid"
-                        data-class:bpts-force-hidden="{{ cardWarningDangerExpr }}">
+                        data-class:bpts-force-hidden="({{ cardWarningDangerExpr }}) || ({{ cardQuestionStateExpr }})">
                         <span class="icon" data-icon="check" aria-hidden="true"></span>
                     </span>
                     <span class="bpts-transform-title-status-icon bpts-transform-last-process-status-icon bpts-transform-last-process-status-icon-failed {{ cardStatusWarningHiddenClass }}"
@@ -65,6 +65,13 @@
                         aria-label="Transform set needs review"
                         data-class:bpts-force-hidden="!({{ cardWarningDangerExpr }})">
                         <span class="icon" data-icon="alert" aria-hidden="true"></span>
+                    </span>
+                    <span class="bpts-transform-title-status-icon bpts-transform-last-process-status-icon bpts-transform-last-process-status-icon-unknown {{ cardStatusQuestionHiddenClass }}"
+                        role="img"
+                        title="Transform set changed since last process"
+                        aria-label="Transform set changed since last process"
+                        data-class:bpts-force-hidden="({{ cardWarningDangerExpr }}) || !({{ cardQuestionStateExpr }})">
+                        <span class="bpts-transform-title-status-question-mark" aria-hidden="true">?</span>
                     </span>
                     <h2 class="bpts-transform-name">{{ transformNameEscaped }}</h2>
                     <span class="bpts-transform-pass-height-indicator {{ passHeightIndicatorHiddenClass }}"
