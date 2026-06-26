@@ -73,7 +73,24 @@ class ImageRenderer extends Component
                 'isProcessing' => ProcessingRequest::isActive(),
             ]);
         } catch (\Throwable $e) {
-            Plugin::warning('Could not render template path: ' . $templatePath . '.');
+            Plugin::error(sprintf(
+                'Failed to render picture template "%s": %s in %s:%d',
+                $templatePath,
+                $e->getMessage(),
+                $e->getFile(),
+                $e->getLine()
+            ));
+
+            // A failure in the plugin's own bundled template should degrade
+            // gracefully — never take down the developer's page over our bug.
+            // A failure in a developer's custom template is their bug to fix,
+            // so let it propagate and surface the full Twig/Craft stack trace.
+            // The `finally` below restores the template mode before the
+            // exception escapes this method.
+            if (!$this->_plugin->getConfigService()->isDefaultTemplatePath($templatePath)) {
+                throw $e;
+            }
+
             $markup = $this->renderFallbackImage($imgAttributes);
         } finally {
             $view->setTemplateMode($oldMode);

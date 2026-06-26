@@ -57,8 +57,9 @@ final class ImagesServiceTest extends Unit
         $service = $plugin->getImages();
         $asset = $this->createMockAsset();
 
+        // Use the default template so both paths render successfully; this test
+        // is about delegation parity, not template-failure behavior.
         $config = [
-            'pictureTemplatePath' => 'breakpoints/does-not-exist.twig',
             'breakpoints' => ['xs' => 480],
             'escapeWidth' => 0,
             'imgClass' => 'images-service-test',

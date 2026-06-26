@@ -43,8 +43,9 @@ final class TwigExtensionTest extends Unit
         assert(is_callable($callable));
 
         $asset = $this->createMockAsset();
+        // Use the default template so both paths render successfully; this test
+        // is about argument pass-through, not template-failure behavior.
         $config = [
-            'pictureTemplatePath' => 'breakpoints/does-not-exist.twig',
             'breakpoints' => ['xs' => 480],
             'escapeWidth' => 0,
             'imgClass' => 'twig-extension-pass-through',

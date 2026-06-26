@@ -81,12 +81,17 @@ final class ImageRendererServiceTest extends Unit
         $this->assertStringNotContainsString('data-set=', $html);
     }
 
-    public function testRenderUsesImgFallbackWithComputedAttributesWhenTemplateFails(): void
+    public function testRenderRethrowsWhenCustomTemplateFails(): void
     {
+        // A failure in a developer-supplied custom template is their bug to fix,
+        // so the exception must propagate (surfacing the full Twig/Craft trace)
+        // rather than silently degrading to a fallback <img>.
         $renderer = Plugin::getInstance()->getImageRenderer();
         $asset = $this->createMockAsset();
 
-        $markup = $renderer->render($asset, 'default', [
+        $this->expectException(\Throwable::class);
+
+        $renderer->render($asset, 'default', [
             'pictureTemplatePath' => 'breakpoints/does-not-exist.twig',
             'breakpoints' => [
                 'xs' => 480,
@@ -97,27 +102,21 @@ final class ImageRendererServiceTest extends Unit
             'decoding' => 'sync',
             'alt' => 'Fallback alt',
         ]);
-
-        $html = (string)$markup;
-
-        $this->assertStringContainsString('<img', $html);
-        $this->assertStringContainsString('class="hero-image"', $html);
-        $this->assertStringContainsString('loading="eager"', $html);
-        $this->assertStringContainsString('decoding="sync"', $html);
-        $this->assertStringContainsString('alt="Fallback alt"', $html);
-        $this->assertStringContainsString('width="480"', $html);
-        $this->assertStringContainsString('height="270"', $html);
-        // Normal (non-processing) render: no internal processing markers on <img>.
-        $this->assertStringNotContainsString('data-asset-id=', $html);
-        $this->assertStringNotContainsString('data-uid=', $html);
     }
 
-    public function testRenderUsesSvgTemplatePathForSvgAssets(): void
+    public function testRenderRethrowsWhenCustomSvgTemplateFails(): void
     {
+        // SVG assets resolve to `svgTemplatePath`; a failing custom override
+        // there must propagate just like the picture-template case, rather than
+        // silently falling back. This also proves the SVG branch is taken — the
+        // failure originates from the configured svgTemplatePath, not the
+        // picture path.
         $renderer = Plugin::getInstance()->getImageRenderer();
         $asset = $this->createMockSvgAsset();
 
-        $markup = $renderer->render($asset, 'default', [
+        $this->expectException(\Throwable::class);
+
+        $renderer->render($asset, 'default', [
             'svgTemplatePath' => 'breakpoints/does-not-exist.twig',
             'breakpoints' => [
                 'xs' => 480,
@@ -125,12 +124,6 @@ final class ImageRendererServiceTest extends Unit
             'escapeWidth' => 0,
             'imgClass' => 'svg-fallback',
         ]);
-
-        $html = (string)$markup;
-
-        $this->assertStringContainsString('<img', $html);
-        $this->assertStringContainsString('class="svg-fallback"', $html);
-        $this->assertStringNotContainsString('<picture', $html);
     }
 
     public function testRenderWrapsSvgAssetsInPictureWithImageClassFallback(): void

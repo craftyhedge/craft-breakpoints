@@ -190,6 +190,16 @@ class ConfigService extends Component
     }
 
     /**
+     * Whether the given resolved template path is one of the plugin's own
+     * bundled defaults (rather than a developer-supplied custom template).
+     */
+    public function isDefaultTemplatePath(string $templatePath): bool
+    {
+        return $templatePath === self::DEFAULT_TEMPLATE_PATH
+            || $templatePath === self::DEFAULT_SVG_TEMPLATE_PATH;
+    }
+
+    /**
      * @param array<string, mixed> $overrides
      */
     public function getSvgTemplatePath(array $overrides = []): string
