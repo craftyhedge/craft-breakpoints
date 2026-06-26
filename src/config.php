@@ -22,6 +22,8 @@ return [
     'pictureTemplatePath' => 'breakpoints/picture.twig',
     'svgTemplatePath' => 'breakpoints/svg.twig',
     'nativeLazyLoadingEnabled' => true,
+    'priority' => false,
+    'preload' => false,
     'processingLazyLoadingAdapter' => 'attributes',
     'processingLazyLoadingSrcAttribute' => 'data-src',
     'processingLazyLoadingSrcsetAttribute' => 'data-srcset',

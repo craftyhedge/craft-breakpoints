@@ -4,12 +4,18 @@ declare(strict_types=1);
 
 namespace craftyhedge\craftbreakpoints\tests\unit;
 
+use Craft;
 use Codeception\Test\Unit;
 use craft\elements\Asset;
 use craftyhedge\craftbreakpoints\Plugin;
 
 final class ImageRendererServiceTest extends Unit
 {
+    protected function _before(): void
+    {
+        Craft::$app->getView()->linkTags = [];
+    }
+
     public function testRenderReturnsCommentWhenImageMissing(): void
     {
         $renderer = Plugin::getInstance()->getImageRenderer();
@@ -102,6 +108,68 @@ final class ImageRendererServiceTest extends Unit
 
         $this->assertStringContainsString('srcset="https://example.test/mobile/480x270.jpg"', $html);
         $this->assertStringContainsString('<img src="https://example.test/default/480x270.jpg"', $html);
+    }
+
+    public function testRenderRegistersResponsivePreloadLinksWhenEnabled(): void
+    {
+        $renderer = Plugin::getInstance()->getImageRenderer();
+        $asset = $this->createMockAsset();
+
+        $renderer->render($asset, 'default', [
+            'breakpoints' => [
+                'xs' => 480,
+                'md' => 768,
+            ],
+            'escapeWidth' => 0,
+            'secondaryFormat' => 'none',
+            'priority' => true,
+            'dpr' => [1, 2],
+        ]);
+
+        $linkTags = array_values(Craft::$app->getView()->linkTags);
+
+        $this->assertCount(7, $linkTags);
+        $this->assertStringContainsString('rel="preload"', $linkTags[0]);
+        $this->assertStringContainsString('as="image"', $linkTags[0]);
+        $this->assertStringContainsString('href="https://example.test/480x270.jpg"', $linkTags[0]);
+        $this->assertStringContainsString('media="(max-width: 29.9375rem)"', $linkTags[0]);
+        $this->assertStringContainsString('fetchpriority="high"', $linkTags[0]);
+        $this->assertStringContainsString('imagesrcset="https://example.test/480x270.jpg 1x, https://example.test/960x540.jpg 2x"', $linkTags[0]);
+        $this->assertStringContainsString('imagesizes="100vw"', $linkTags[0]);
+        $this->assertStringContainsString('media="(min-width: 30rem) and (max-width: 39.9375rem)"', $linkTags[1]);
+    }
+
+    public function testRenderPreloadLinksRespectArtDirectedSourceAssets(): void
+    {
+        $renderer = Plugin::getInstance()->getImageRenderer();
+        $defaultAsset = $this->createMockAssetWithUrlPrefix(100, 'default');
+        $mobileAsset = $this->createMockAssetWithUrlPrefix(200, 'mobile');
+
+        $renderer->render($defaultAsset, 'default', [
+            'breakpoints' => [
+                'xs' => 480,
+                'md' => 768,
+            ],
+            'escapeWidth' => 0,
+            'secondaryFormat' => 'none',
+            'preload' => true,
+            'dpr' => [1, 2],
+            'sources' => [
+                'mobile' => [
+                    'asset' => $mobileAsset,
+                    'slots' => ['base'],
+                ],
+            ],
+        ]);
+
+        $linkTags = array_values(Craft::$app->getView()->linkTags);
+
+        $this->assertCount(7, $linkTags);
+        $this->assertStringContainsString('imagesrcset="https://example.test/mobile/480x270.jpg 1x, https://example.test/mobile/960x540.jpg 2x"', $linkTags[0]);
+        $this->assertStringContainsString('media="(max-width: 29.9375rem)"', $linkTags[0]);
+        $this->assertStringContainsString('imagesrcset="https://example.test/default/640x360.jpg 1x, https://example.test/default/1280x720.jpg 2x"', $linkTags[1]);
+        $this->assertStringContainsString('media="(min-width: 30rem) and (max-width: 39.9375rem)"', $linkTags[1]);
+        $this->assertStringNotContainsString('https://example.test/default/480x270.jpg', $linkTags[0]);
     }
 
     public function testRenderRethrowsWhenCustomTemplateFails(): void

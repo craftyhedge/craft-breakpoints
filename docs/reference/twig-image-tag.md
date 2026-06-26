@@ -84,6 +84,46 @@ Adds a browser fetch-priority hint to the fallback `<img>`. Use `high` sparingly
 }) }}
 ```
 
+### `priority`
+**Type**: `boolean`
+**Default**: `false`
+
+Convenience option for important above-the-fold images. It enables preload links, eager loading, and high fetch priority.
+
+```twig
+{{ image(asset, 'hero', {
+  priority: true
+}) }}
+```
+
+This is equivalent to:
+
+```twig
+{{ image(asset, 'hero', {
+  preload: true,
+  loading: 'eager',
+  fetchpriority: 'high'
+}) }}
+```
+
+You can still override any individual hint on the same `image()` call.
+
+### `preload`
+**Type**: `boolean`
+**Default**: `false`
+
+Registers responsive image preload links for the rendered picture. Use this for important above-the-fold images, usually together with eager loading and high fetch priority.
+
+```twig
+{{ image(asset, 'hero', {
+  preload: true,
+  loading: 'eager',
+  fetchpriority: 'high'
+}) }}
+```
+
+For raster pictures, Breakpoints registers one responsive preload link per canonical slot using `imagesrcset`, rather than one link per DPR candidate. When `sources` is used, each slot preloads the same effective asset that its rendered `<source>` uses.
+
 ### `decoding`
 **Type**: `string`  
 **Default**: `'async'`  
@@ -128,8 +168,7 @@ Use `sources` when a single responsive picture needs different Craft assets for 
 
 ```twig
 {{ image(entry.desktopMasthead.one(), 'masthead', {
-  loading: 'eager',
-  fetchpriority: 'high',
+  priority: true,
   sources: {
     mobile: {
       asset: entry.mobileMasthead.one(),

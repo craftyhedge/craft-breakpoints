@@ -33,6 +33,8 @@ class Settings extends Model
     public string $pictureTemplatePath = '';
     public string $svgTemplatePath = '';
     public bool $nativeLazyLoadingEnabled = true;
+    public bool $priority = false;
+    public bool $preload = false;
     public string $processingLazyLoadingAdapter = 'attributes';
     public string $processingLazyLoadingSrcAttribute = 'data-src';
     public string $processingLazyLoadingSrcsetAttribute = 'data-srcset';
@@ -67,7 +69,7 @@ class Settings extends Model
             ['processingLazyLoadingAdapter', 'in', 'range' => ['none', 'attributes', 'lazysizes', 'vanilla-lazyload', 'lozad', 'custom']],
             ['processingLazyLoadingCustomHandler', 'required', 'when' => static fn(self $model): bool => $model->processingLazyLoadingAdapter === 'custom'],
             [['escapeWidth', 'defaultWidth', 'defaultHeight', 'quality', 'allowUpscale'], 'integer', 'min' => 0],
-            [['nativeLazyLoadingEnabled', 'previewCenter'], 'boolean'],
+            [['nativeLazyLoadingEnabled', 'priority', 'preload', 'previewCenter'], 'boolean'],
             [['breakpoints', 'dpr'], 'safe'],
             ['quality', 'integer', 'min' => 1, 'max' => 100],
         ]);

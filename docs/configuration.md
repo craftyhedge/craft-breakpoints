@@ -52,6 +52,8 @@ panel exposes the common output, transform, template, and editor defaults.
 | `pictureTemplatePath` | string | *(plugin default)* | Custom template for raster assets. Project paths are relative to Craft's `templates/` directory; blank uses the built-in template. |
 | `svgTemplatePath` | string | *(plugin default)* | Custom template for SVG assets. Project paths are relative to Craft's `templates/` directory; blank uses the built-in template. |
 | `nativeLazyLoadingEnabled` | bool | `true` | When on, the `<img>` gets a `loading` attribute (`lazy` by default). |
+| `priority` | bool | `false` | Convenience option that enables `preload`, `loading: 'eager'`, and `fetchpriority: 'high'` unless individually overridden. |
+| `preload` | bool | `false` | Whether `image()` calls register responsive image preload links by default. Usually set per call for above-the-fold images. |
 | `processingLazyLoadingAdapter` | string | `attributes` | Explicit processing adapter: `none`, `attributes`, `lazysizes`, `vanilla-lazyload`, `lozad`, or `custom`. No automatic detection is performed. |
 | `processingLazyLoadingSrcAttribute` | string | `data-src` | Attribute copied to `src` by the `attributes` processing adapter. |
 | `processingLazyLoadingSrcsetAttribute` | string | `data-srcset` | Attribute copied to `srcset` by the `attributes` processing adapter. |

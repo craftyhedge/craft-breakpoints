@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Added art-directed raster image sources via `image()` options, allowing selected canonical slots to render from alternate Craft assets within one `<picture>`. Custom picture templates that use `craft.images.getBreakpointData()` continue to receive the correct per-slot source asset automatically.
+- Added `priority` and `preload` options for `image()` so above-the-fold images can register responsive preload links, including art-directed source assets.
 
 ## 0.1.4 - 2026-06-21
 

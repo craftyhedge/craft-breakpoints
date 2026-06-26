@@ -4,6 +4,7 @@ namespace craftyhedge\craftbreakpoints\services;
 
 use Craft;
 use craft\elements\Asset;
+use craft\helpers\App;
 use craft\web\View;
 use craftyhedge\craftbreakpoints\helpers\ProcessingRequest;
 use craftyhedge\craftbreakpoints\Plugin;
@@ -58,9 +59,11 @@ class ImageRenderer extends Component
         $breakpoints = is_array($context['breakpoints'] ?? null) ? $context['breakpoints'] : [];
         $mergedConfig = is_array($context['config'] ?? null) ? $context['config'] : [];
         $sourceAssetsBySlot = is_array($context['sourceAssetsBySlot'] ?? null) ? $context['sourceAssetsBySlot'] : [];
-        $templatePath = $this->isSvgAsset($image) ? $svgTemplatePath : $pictureTemplatePath;
+        $isSvg = $this->isSvgAsset($image);
+        $templatePath = $isSvg ? $svgTemplatePath : $pictureTemplatePath;
 
         $view = Craft::$app->getView();
+        $this->registerPreloadLinks($view, $image, $mergedConfig, $breakpoints, $imgAttributes, $isSvg);
         $oldMode = $view->getTemplateMode();
         $view->setTemplateMode(View::TEMPLATE_MODE_SITE);
 
@@ -142,6 +145,158 @@ class ImageRenderer extends Component
         }
 
         return '<img' . Html::renderTagAttributes($normalizedAttributes) . '>';
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     * @param array<string, int> $breakpoints
+     * @param array<string, mixed> $imgAttributes
+     */
+    private function registerPreloadLinks(View $view, Asset $image, array $config, array $breakpoints, array $imgAttributes, bool $isSvg): void
+    {
+        if ($this->_plugin === null || ProcessingRequest::isActive()) {
+            return;
+        }
+
+        if ((App::parseBooleanEnv($config['preload'] ?? false) ?? false) !== true) {
+            return;
+        }
+
+        if ($isSvg) {
+            $href = trim((string)($imgAttributes['src'] ?? ''));
+            if ($href === '' || str_starts_with($href, 'data:')) {
+                return;
+            }
+
+            $view->registerLinkTag([
+                'rel' => 'preload',
+                'as' => 'image',
+                'href' => $href,
+                'type' => 'image/svg+xml',
+                ...$this->preloadFetchPriorityAttributes($config),
+            ], $this->buildPreloadKey($config, 'svg', $href));
+            return;
+        }
+
+        $index = 0;
+        foreach ($breakpoints as $slotKey => $breakpoint) {
+            $breakpointData = $this->_plugin->getImages()->getBreakpointData($index, (int)$breakpoint, $config, $image);
+            $sourceAttributes = is_array($breakpointData['primarySourceAttributes'] ?? null)
+                ? $breakpointData['primarySourceAttributes']
+                : [];
+
+            if (($breakpointData['disabled'] ?? false) === true || $sourceAttributes === []) {
+                $index++;
+                continue;
+            }
+
+            $srcset = trim((string)($sourceAttributes['srcset'] ?? ''));
+            if ($srcset === '' || str_starts_with($srcset, 'data:')) {
+                $index++;
+                continue;
+            }
+
+            $linkAttributes = [
+                'rel' => 'preload',
+                'as' => 'image',
+                'href' => $this->firstSrcsetCandidate($srcset),
+                'imagesrcset' => $srcset,
+                'imagesizes' => trim((string)($config['preloadSizes'] ?? '100vw')),
+                ...$this->preloadFetchPriorityAttributes($config),
+            ];
+
+            $type = trim((string)($sourceAttributes['type'] ?? ''));
+            if ($type !== '') {
+                $linkAttributes['type'] = $type;
+            }
+
+            $media = $this->preloadMediaQuery(array_values($breakpoints), $index);
+            if ($media === '') {
+                $media = trim((string)($sourceAttributes['media'] ?? ''));
+            }
+            if ($media !== '') {
+                $linkAttributes['media'] = $media;
+            }
+
+            $view->registerLinkTag($linkAttributes, $this->buildPreloadKey(
+                $config,
+                (string)$slotKey,
+                $srcset . '|' . $media . '|' . $type,
+            ));
+            $index++;
+        }
+    }
+
+    private function firstSrcsetCandidate(string $srcset): string
+    {
+        $candidate = trim(explode(',', $srcset)[0] ?? '');
+        if ($candidate === '') {
+            return '';
+        }
+
+        return trim(explode(' ', $candidate)[0] ?? '');
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     * @return array<string, string>
+     */
+    private function preloadFetchPriorityAttributes(array $config): array
+    {
+        $fetchPriority = trim((string)($config['fetchpriority'] ?? $config['fetchPriority'] ?? ''));
+        if ($fetchPriority === '') {
+            return [];
+        }
+
+        return ['fetchpriority' => $fetchPriority];
+    }
+
+    /**
+     * Link preload media queries need to be mutually exclusive. Unlike
+     * `<picture>`, matching `<link>` tags are not resolved by source order.
+     *
+     * @param int[] $breakpointWidths
+     */
+    private function preloadMediaQuery(array $breakpointWidths, int $index): string
+    {
+        $count = count($breakpointWidths);
+        if ($count <= 1 || !isset($breakpointWidths[$index])) {
+            return '';
+        }
+
+        $currentWidth = (int)$breakpointWidths[$index];
+        if ($currentWidth <= 0) {
+            return '';
+        }
+
+        if ($index === 0) {
+            return sprintf('(max-width: %srem)', max($currentWidth - 1, 1) / 16);
+        }
+
+        $previousWidth = (int)($breakpointWidths[$index - 1] ?? 0);
+        if ($previousWidth <= 0) {
+            return '';
+        }
+
+        $min = sprintf('(min-width: %srem)', $previousWidth / 16);
+        if ($index === $count - 1) {
+            return $min;
+        }
+
+        return sprintf('%s and (max-width: %srem)', $min, max($currentWidth - 1, 1) / 16);
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     */
+    private function buildPreloadKey(array $config, string $slotKey, string $source): string
+    {
+        return 'craft-breakpoints-preload:' . sha1(implode('|', [
+            (string)($config['setName'] ?? $config['transformName'] ?? ''),
+            (string)($config['imageId'] ?? ''),
+            $slotKey,
+            $source,
+        ]));
     }
 
     private function isSvgAsset(Asset $image): bool

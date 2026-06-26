@@ -160,6 +160,30 @@ final class BreakpointConfigServiceTest extends Unit
         ]));
     }
 
+    public function testPriorityExpandsToImageLoadingAndPreloadHints(): void
+    {
+        $service = Plugin::getInstance()->getConfigService();
+
+        $config = $service->getConfig([
+            'priority' => true,
+        ]);
+
+        $this->assertTrue($config['preload'] ?? false);
+        $this->assertSame('eager', $config['loading'] ?? null);
+        $this->assertSame('high', $config['fetchpriority'] ?? null);
+
+        $overridden = $service->getConfig([
+            'priority' => true,
+            'preload' => false,
+            'loading' => 'lazy',
+            'fetchpriority' => 'auto',
+        ]);
+
+        $this->assertFalse($overridden['preload'] ?? true);
+        $this->assertSame('lazy', $overridden['loading'] ?? null);
+        $this->assertSame('auto', $overridden['fetchpriority'] ?? null);
+    }
+
     public function testProcessingLazyLoadingConfigIsNormalized(): void
     {
         $service = Plugin::getInstance()->getConfigService();

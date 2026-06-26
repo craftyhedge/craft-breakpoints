@@ -47,10 +47,10 @@ class ConfigService extends Component
         }
 
         if (empty($overrides)) {
-            return $this->_mergedConfig;
+            return $this->applyPriorityDefaults($this->_mergedConfig);
         }
 
-        return array_merge($this->_mergedConfig, $overrides);
+        return $this->applyPriorityDefaults(array_merge($this->_mergedConfig, $overrides), $overrides);
     }
 
     /**
@@ -354,6 +354,8 @@ class ConfigService extends Component
             'pictureTemplatePath',
             'svgTemplatePath',
             'nativeLazyLoadingEnabled',
+            'priority',
+            'preload',
             'processingLazyLoadingAdapter',
             'processingLazyLoadingSrcAttribute',
             'processingLazyLoadingSrcsetAttribute',
@@ -457,7 +459,9 @@ class ConfigService extends Component
             'defaultHeight',
             'quality',
             'allowUpscale' => (int)$value,
-            'nativeLazyLoadingEnabled' => (bool)$value,
+            'nativeLazyLoadingEnabled',
+            'priority',
+            'preload' => (bool)$value,
             'previewCenter' => (bool)$value,
             'processingDiagnosticsEnabled' => App::parseBooleanEnv($value) ?? false,
             'pictureTemplatePath' => $this->normalizeTemplatePath($value, self::DEFAULT_TEMPLATE_PATH),
@@ -485,6 +489,35 @@ class ConfigService extends Component
         }
 
         return $attribute;
+    }
+
+    /**
+     * `priority` is a convenience flag for above-the-fold images. Per-call
+     * options can still override each individual output hint.
+     *
+     * @param array<string, mixed> $config
+     * @param array<string, mixed> $overrides
+     * @return array<string, mixed>
+     */
+    private function applyPriorityDefaults(array $config, array $overrides = []): array
+    {
+        if ((App::parseBooleanEnv($config['priority'] ?? false) ?? false) !== true) {
+            return $config;
+        }
+
+        if (!array_key_exists('preload', $overrides)) {
+            $config['preload'] = true;
+        }
+
+        if (!array_key_exists('loading', $overrides)) {
+            $config['loading'] = 'eager';
+        }
+
+        if (!array_key_exists('fetchpriority', $overrides) && !array_key_exists('fetchPriority', $overrides)) {
+            $config['fetchpriority'] = 'high';
+        }
+
+        return $config;
     }
 
     private function normalizeTemplatePath(mixed $value, string $fallback): string
