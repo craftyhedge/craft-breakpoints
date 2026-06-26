@@ -722,7 +722,7 @@ export function buildReadinessDiagnosticsSnapshot({
             measurementWidth,
             key: String(entry?.key || ''),
             pictureId: String(entry?.picture?.getAttribute?.('data-picture-id') || ''),
-            assetId: String(img?.getAttribute?.('data-asset-id') || entry?.picture?.getAttribute?.('data-asset-id') || ''),
+            assetId: getSourceAssetId(source, img, entry?.picture),
             transform: String(entry?.picture?.getAttribute?.('data-set') || ''),
             enabled: entry?.enabled === true,
             status: String(entry?.status || ''),
@@ -1817,6 +1817,24 @@ export function toPositiveFloatOrNull(value) {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
+function getSourceAssetId(source, img = null, picture = null, fallback = '') {
+    return String(
+        source?.getAttribute?.('data-bp-asset-id')
+        || img?.getAttribute?.('data-asset-id')
+        || picture?.getAttribute?.('data-asset-id')
+        || fallback
+        || ''
+    ).trim();
+}
+
+function getSourceAssetTitle(source, picture = null) {
+    return String(
+        source?.getAttribute?.('data-bp-asset-title')
+        || picture?.getAttribute?.('data-asset-title')
+        || ''
+    );
+}
+
 export function extractRowsForBreakpoint({
     breakpoint,
     slot = null,
@@ -1839,7 +1857,7 @@ export function extractRowsForBreakpoint({
             return null;
         }
 
-        const assetId = img.getAttribute('data-asset-id') || picture?.getAttribute('data-asset-id') || `unknown-${index}`;
+        const assetId = getSourceAssetId(source, img, picture, `unknown-${index}`);
         const enabled = source?.getAttribute('data-bp-enabled') !== 'false';
         const preloadKey = getPictureLoadKey(picture, index);
         const preloadLoaded = preloadStates ? preloadStates.get(preloadKey) : undefined;
@@ -1901,7 +1919,7 @@ export function extractRowsForBreakpoint({
             pictureId: picture?.getAttribute('data-picture-id') || null,
             assetId,
             transform: picture?.getAttribute('data-set') || 'unknown',
-            title: picture?.getAttribute('data-asset-title') || '',
+            title: getSourceAssetTitle(source, picture),
             includeEscapeWidth: picture?.getAttribute('data-include-escape-width') === 'true',
             enabled,
             isVisible: img.offsetWidth > 0 || img.offsetHeight > 0,
@@ -2035,7 +2053,7 @@ export function appendBreakpointReadinessIssues({
                 code,
                 message,
                 breakpointWidth: breakpoint,
-                assetId: entry.img?.getAttribute('data-asset-id') || entry.picture?.getAttribute('data-asset-id') || null,
+                assetId: getSourceAssetId(entry.source, entry.img, entry.picture) || null,
                 source: entry.sourceUsed,
             }, breakpointReport);
         }
@@ -2052,7 +2070,7 @@ export function appendBreakpointReadinessIssues({
                     ? 'The lazy-loaded image did not replace its placeholder before the processing timeout.'
                     : 'Image was still pending when processing was cancelled by the user.'),
                 breakpointWidth: breakpoint,
-                assetId: entry.img?.getAttribute('data-asset-id') || entry.picture?.getAttribute('data-asset-id') || null,
+                assetId: getSourceAssetId(entry.source, entry.img, entry.picture) || null,
                 source: entry.sourceUsed,
             }, breakpointReport);
         }

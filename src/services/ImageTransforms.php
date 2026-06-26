@@ -82,6 +82,7 @@ class ImageTransforms extends Component
                 'width' => $disabledWidth,
                 'height' => $disabledHeight,
             ], $this->buildSourceDataAttributes(
+                $image,
                 $breakpoint,
                 false,
                 $variant,
@@ -112,6 +113,7 @@ class ImageTransforms extends Component
                     'width' => $disabledSecondaryWidth,
                     'height' => $disabledSecondaryHeight,
                 ], $this->buildSourceDataAttributes(
+                    $image,
                     $breakpoint,
                     false,
                     $variant,
@@ -170,6 +172,7 @@ class ImageTransforms extends Component
             'width' => isset($primary['width']) && is_numeric($primary['width']) ? (int)$primary['width'] : null,
             'height' => isset($primary['height']) && is_numeric($primary['height']) ? (int)$primary['height'] : null,
         ], $this->buildSourceDataAttributes(
+            $image,
             $breakpoint,
             true,
             $variant,
@@ -192,6 +195,7 @@ class ImageTransforms extends Component
                 'width' => isset($secondary['width']) && is_numeric($secondary['width']) ? (int)$secondary['width'] : null,
                 'height' => isset($secondary['height']) && is_numeric($secondary['height']) ? (int)$secondary['height'] : null,
             ], $this->buildSourceDataAttributes(
+                $image,
                 $breakpoint,
                 true,
                 $variant,
@@ -686,6 +690,7 @@ class ImageTransforms extends Component
      * @return array<string, mixed>
      */
     private function buildSourceDataAttributes(
+        Asset $image,
         int $breakpoint,
         bool $enabled,
         ?array $variant,
@@ -703,6 +708,7 @@ class ImageTransforms extends Component
         }
 
         return $this->composeSourceDataAttributes(
+            $image,
             $breakpoint,
             $enabled,
             $variant,
@@ -720,6 +726,7 @@ class ImageTransforms extends Component
      * @return array<string, mixed>
      */
     private function composeSourceDataAttributes(
+        Asset $image,
         int $breakpoint,
         bool $enabled,
         ?array $variant,
@@ -758,6 +765,8 @@ class ImageTransforms extends Component
             'data-bp-key' => $slotKey,
             'data-bp-index' => $slotIndex,
             'data-bp-enabled' => $enabled ? 'true' : 'false',
+            'data-bp-asset-id' => (string)$image->id,
+            'data-bp-asset-title' => (string)($image->title ?? ''),
             'data-bp-measure-width' => $fallbackWidth,
             'data-set-width' => $transformWidth,
             'data-set-height' => $transformHeight,
@@ -857,6 +866,7 @@ class ImageTransforms extends Component
      */
     private function getTransformCacheKey(Asset $image, string $formatIndex, array $config): string
     {
+        unset($config['sources']);
         $configJson = json_encode($config);
         if ($configJson === false) {
             $configJson = serialize($config);
@@ -874,6 +884,7 @@ class ImageTransforms extends Component
      */
     private function getBreakpointCacheKey(int $loopIndex, int $breakpoint, array $config, Asset $image): string
     {
+        unset($config['sources']);
         $configJson = json_encode($config);
         if ($configJson === false) {
             $configJson = serialize($config);

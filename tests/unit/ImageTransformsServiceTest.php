@@ -467,7 +467,7 @@ final class ImageTransformsServiceTest extends Unit
             'secondaryFormat' => 'webp',
         ], $asset);
 
-        foreach (['data-bp-source', 'data-bp-size', 'data-bp-enabled', 'data-set-width', 'data-set-height', 'data-auto-dimension'] as $marker) {
+        foreach (['data-bp-source', 'data-bp-size', 'data-bp-enabled', 'data-bp-asset-id', 'data-bp-asset-title', 'data-set-width', 'data-set-height', 'data-auto-dimension'] as $marker) {
             $this->assertArrayNotHasKey($marker, $breakpointData['primarySourceAttributes']);
             $this->assertArrayNotHasKey($marker, $breakpointData['secondarySourceAttributes']);
         }
@@ -481,9 +481,12 @@ final class ImageTransformsServiceTest extends Unit
         // is what the processing iframe receives.
         $service = Plugin::getInstance()->getImageTransforms();
         $method = new \ReflectionMethod($service, 'composeSourceDataAttributes');
+        $asset = $this->createMockAsset();
+        $asset->title = 'Hero asset';
 
         $primary = $method->invoke(
             $service,
+            $asset,
             480,
             true,
             ['width' => 480, 'height' => 270],
@@ -499,6 +502,8 @@ final class ImageTransformsServiceTest extends Unit
         $this->assertSame('base', $primary['data-bp-key']);
         $this->assertSame(0, $primary['data-bp-index']);
         $this->assertSame('true', $primary['data-bp-enabled']);
+        $this->assertSame('123', $primary['data-bp-asset-id']);
+        $this->assertSame('Hero asset', $primary['data-bp-asset-title']);
         $this->assertNull($primary['data-bp-measure-width']);
         $this->assertSame(480, $primary['data-set-width']);
         $this->assertSame(270, $primary['data-set-height']);
@@ -506,6 +511,7 @@ final class ImageTransformsServiceTest extends Unit
 
         $secondaryAuto = $method->invoke(
             $service,
+            $asset,
             768,
             false,
             ['width' => 768, 'height' => 432],

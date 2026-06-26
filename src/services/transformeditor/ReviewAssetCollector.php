@@ -17,8 +17,14 @@ final class ReviewAssetCollector
         string $sourceUsed,
         string $src,
         string $title,
+        string $pictureId = '',
     ): string {
         $normalizedTransform = trim($transformName) !== '' ? trim($transformName) : 'unknown';
+        $normalizedPictureId = trim($pictureId);
+        if ($normalizedPictureId !== '') {
+            return 'picture:' . $normalizedTransform . ':' . $normalizedPictureId;
+        }
+
         $normalizedAssetId = trim($assetId);
 
         if ($normalizedAssetId !== '') {
@@ -80,6 +86,7 @@ final class ReviewAssetCollector
                         (string)($row['sourceUsed'] ?? ''),
                         (string)($row['src'] ?? ''),
                         (string)($row['title'] ?? ''),
+                        (string)($row['pictureId'] ?? ''),
                     );
                 }
 

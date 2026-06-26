@@ -57,6 +57,7 @@ class ImageRenderer extends Component
         $imgAttributes = is_array($context['imgAttributes'] ?? null) ? $context['imgAttributes'] : [];
         $breakpoints = is_array($context['breakpoints'] ?? null) ? $context['breakpoints'] : [];
         $mergedConfig = is_array($context['config'] ?? null) ? $context['config'] : [];
+        $sourceAssetsBySlot = is_array($context['sourceAssetsBySlot'] ?? null) ? $context['sourceAssetsBySlot'] : [];
         $templatePath = $this->isSvgAsset($image) ? $svgTemplatePath : $pictureTemplatePath;
 
         $view = Craft::$app->getView();
@@ -70,6 +71,7 @@ class ImageRenderer extends Component
                 'pictureAttributes' => $pictureAttributes,
                 'imgAttributes' => $imgAttributes,
                 'breakpoints' => $breakpoints,
+                'sourceAssetsBySlot' => $sourceAssetsBySlot,
                 'isProcessing' => ProcessingRequest::isActive(),
             ]);
         } catch (\Throwable $e) {

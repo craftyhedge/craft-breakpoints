@@ -40,6 +40,7 @@ final class RenderContextBuilderTest extends Unit
         $this->assertArrayHasKey('pictureAttributes', $context);
         $this->assertArrayHasKey('imgAttributes', $context);
         $this->assertArrayHasKey('breakpoints', $context);
+        $this->assertArrayHasKey('sourceAssetsBySlot', $context);
 
         // Normal (non-processing) render with editing disabled: no processing
         // or public editing markers leak out.
@@ -137,6 +138,52 @@ final class RenderContextBuilderTest extends Unit
         $this->assertSame('Explicit alt', $overrideAltAttributes['alt'] ?? null);
     }
 
+    public function testGetImageAttributesAddsFetchPriorityWhenProvided(): void
+    {
+        $builder = Plugin::getInstance()->getRenderContextBuilder();
+
+        $attributes = $builder->getImageAttributes([
+            'setName' => 'default',
+            'breakpoints' => ['xs' => 480],
+            'escapeWidth' => 0,
+            'secondaryFormat' => 'none',
+            'fetchpriority' => 'high',
+        ], $this->createMockAsset());
+
+        $this->assertSame('high', $attributes['fetchpriority'] ?? null);
+    }
+
+    public function testSourceAssetsBySlotUsesCanonicalSlotsWithLaterAssignmentsWinning(): void
+    {
+        $builder = Plugin::getInstance()->getRenderContextBuilder();
+        $defaultAsset = $this->createMockAsset(100);
+        $mobileAsset = $this->createMockAsset(200);
+        $overrideAsset = $this->createMockAsset(300);
+
+        $assetsBySlot = $builder->getSourceAssetsBySlot([
+            'setName' => 'default',
+            'sources' => [
+                'mobile' => [
+                    'asset' => $mobileAsset,
+                    'slots' => ['base', 'xs', 'unknown'],
+                ],
+                'override' => [
+                    'asset' => $overrideAsset,
+                    'slots' => ['xs'],
+                ],
+                'empty' => [
+                    'asset' => null,
+                    'slots' => ['sm'],
+                ],
+            ],
+        ], $defaultAsset);
+
+        $this->assertSame($mobileAsset, $assetsBySlot['base'] ?? null);
+        $this->assertSame($overrideAsset, $assetsBySlot['xs'] ?? null);
+        $this->assertArrayNotHasKey('unknown', $assetsBySlot);
+        $this->assertArrayNotHasKey('sm', $assetsBySlot);
+    }
+
     public function testGetImageAttributesUsesEmptyAltWhenNoOptionOrAssetAltExists(): void
     {
         $builder = Plugin::getInstance()->getRenderContextBuilder();
@@ -187,14 +234,14 @@ final class RenderContextBuilderTest extends Unit
         $property->setValue($builder, $plugin);
     }
 
-    private function createMockAsset(): Asset
+    private function createMockAsset(int $id = 123): Asset
     {
         $asset = $this->getMockBuilder(Asset::class)
             ->disableOriginalConstructor()
             ->onlyMethods(['getUrl', 'getWidth', 'getHeight'])
             ->getMock();
 
-        $asset->id = 123;
+        $asset->id = $id;
         $asset->title = 'Mock asset';
         $asset->alt = 'Native asset alt';
 

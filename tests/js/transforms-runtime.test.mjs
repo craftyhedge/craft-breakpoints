@@ -681,7 +681,7 @@ describe('transforms runtime helper logic', () => {
                 <img data-asset-id="asset-1" src="https://example.test/alpha.jpg" />
             </picture>
             <picture data-set="beta" data-picture-id="pic-2" data-asset-id="asset-2">
-                <source data-bp-source="primary" data-bp-size="480" data-bp-enabled="true" srcset="https://example.test/beta.webp 1x" />
+                <source data-bp-source="primary" data-bp-size="480" data-bp-enabled="true" data-bp-asset-id="asset-2-source" data-bp-asset-title="Beta source" srcset="https://example.test/beta.webp 1x" />
                 <img data-asset-id="asset-2" src="https://example.test/beta.jpg" />
             </picture>
             <picture data-set="gamma" data-picture-id="pic-3" data-asset-id="asset-3">
@@ -730,6 +730,8 @@ describe('transforms runtime helper logic', () => {
         expect(rows[1].loaded).toBe(false);
         expect(rows[1].broken).toBe(false);
         expect(rows[1].unresolved).toBe(true);
+        expect(rows[1].assetId).toBe('asset-2-source');
+        expect(rows[1].title).toBe('Beta source');
 
         expect(rows[2].loaded).toBe(false);
         expect(rows[2].broken).toBe(true);
@@ -1606,6 +1608,8 @@ describe('transforms runtime helper logic', () => {
 
         const brokenImg = document.createElement('img');
         brokenImg.setAttribute('data-asset-id', 'asset-broken');
+        const brokenSource = document.createElement('source');
+        brokenSource.setAttribute('data-bp-asset-id', 'asset-broken-source');
 
         const unresolvedImg = document.createElement('img');
         unresolvedImg.setAttribute('data-asset-id', 'asset-unresolved');
@@ -1616,6 +1620,7 @@ describe('transforms runtime helper logic', () => {
                 reason: 'decode',
                 sourceUsed: 'https://example.test/broken.jpg?token=secret',
                 img: brokenImg,
+                source: brokenSource,
             }],
             ['unresolved', {
                 status: 'unresolved',
@@ -1631,6 +1636,7 @@ describe('transforms runtime helper logic', () => {
         expect(report.totals.warningCount).toBe(2);
         expect(breakpointReport.issueCount).toBe(2);
         expect(report.issues[0].code).toBe('decode-failure');
+        expect(report.issues[0].assetId).toBe('asset-broken-source');
         expect(report.issues[0].source).toBe('https://example.test/broken.jpg');
         expect(report.issues[1].code).toBe('unresolved-on-cancel');
         expect(report.issues[1].source).toBe('https://example.test/pending.jpg');

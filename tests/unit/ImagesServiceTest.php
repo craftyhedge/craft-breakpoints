@@ -51,6 +51,28 @@ final class ImagesServiceTest extends Unit
         $this->assertSame($expected, $actual);
     }
 
+    public function testGetBreakpointDataResolvesConfiguredSourceAssetForCanonicalSlot(): void
+    {
+        $service = Plugin::getInstance()->getImages();
+        $defaultAsset = $this->createMockAsset(100, 'default');
+        $mobileAsset = $this->createMockAsset(200, 'mobile');
+
+        $breakpointData = $service->getBreakpointData(0, 480, [
+            'transformName' => 'default',
+            'breakpoints' => ['xs' => 480],
+            'escapeWidth' => 0,
+            'secondaryFormat' => 'none',
+            'sources' => [
+                'mobile' => [
+                    'asset' => $mobileAsset,
+                    'slots' => ['base'],
+                ],
+            ],
+        ], $defaultAsset);
+
+        $this->assertStringContainsString('/mobile/', (string)($breakpointData['primarySourceAttributes']['srcset'] ?? ''));
+    }
+
     public function testRenderDelegatesToImageRendererService(): void
     {
         $plugin = Plugin::getInstance();
@@ -78,29 +100,36 @@ final class ImagesServiceTest extends Unit
         $property->setValue($service, $plugin);
     }
 
-    private function createMockAsset(): Asset
+    private function createMockAsset(int $id = 123, string $prefix = ''): Asset
     {
         $asset = $this->getMockBuilder(Asset::class)
             ->disableOriginalConstructor()
             ->onlyMethods(['getUrl', 'getWidth', 'getHeight'])
             ->getMock();
 
-        $asset->id = 123;
+        $asset->id = $id;
+        $prefix = trim($prefix, '/');
 
         $asset->method('getWidth')->willReturn(1600);
         $asset->method('getHeight')->willReturn(900);
-        $asset->method('getUrl')->willReturnCallback(static function(...$args): string {
+        $asset->method('getUrl')->willReturnCallback(static function(...$args) use ($prefix): string {
             $transform = $args[0] ?? [];
 
             if (!is_array($transform)) {
-                return 'https://example.test/original.jpg';
+                return $prefix === ''
+                    ? 'https://example.test/original.jpg'
+                    : "https://example.test/{$prefix}/original.jpg";
             }
 
             $width = (int)($transform['width'] ?? 0);
             $height = (int)($transform['height'] ?? 0);
             $format = (string)($transform['format'] ?? 'jpg');
 
-            return "https://example.test/{$width}x{$height}.{$format}";
+            $path = "{$width}x{$height}.{$format}";
+
+            return $prefix === ''
+                ? "https://example.test/{$path}"
+                : "https://example.test/{$prefix}/{$path}";
         });
 
         return $asset;

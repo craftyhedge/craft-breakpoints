@@ -41,7 +41,26 @@ class Images extends Component
             return [];
         }
 
-        return $plugin->getImageTransforms()->getBreakpointData($loopIndex, $breakpoint, $config, $image);
+        $effectiveImage = $this->resolveEffectiveImageForBreakpoint($plugin, $loopIndex, $config, $image);
+
+        return $plugin->getImageTransforms()->getBreakpointData($loopIndex, $breakpoint, $config, $effectiveImage);
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     */
+    private function resolveEffectiveImageForBreakpoint(Plugin $plugin, int $loopIndex, array $config, Asset $image): Asset
+    {
+        $breakpoints = $plugin->getImageTransforms()->getBreakpointsForTemplate($config);
+        $slotKey = array_keys($breakpoints)[$loopIndex] ?? null;
+        if ($slotKey === null) {
+            return $image;
+        }
+
+        $sourceAssetsBySlot = $plugin->getRenderContextBuilder()->getSourceAssetsBySlot($config, $image);
+        $sourceAsset = $sourceAssetsBySlot[(string)$slotKey] ?? null;
+
+        return $sourceAsset instanceof Asset ? $sourceAsset : $image;
     }
 
     private function plugin(): ?Plugin

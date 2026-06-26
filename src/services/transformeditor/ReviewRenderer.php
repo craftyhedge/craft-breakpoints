@@ -1440,6 +1440,7 @@ final class ReviewRenderer
                 $broken = ($row['broken'] ?? false) === true;
                 $unresolved = ($row['unresolved'] ?? false) === true;
                 $transformName = (string)($row['transform'] ?? 'unknown');
+                $pictureId = trim((string)($row['pictureId'] ?? ''));
                 $assetId = trim((string)($row['assetId'] ?? ''));
                 $sourceUsed = (string)($row['sourceUsed'] ?? '');
                 $src = (string)($row['src'] ?? ($row['sourceUsed'] ?? ''));
@@ -1462,8 +1463,9 @@ final class ReviewRenderer
                     'slotIndex' => $breakpoint - 1,
                     'mediaWidth' => Support::normalizeNullablePositiveInt($row['mediaWidth'] ?? null) ?? $this->getReviewSlotMediaWidthById($breakpoint),
                     'measureWidth' => Support::normalizeNullablePositiveInt($row['measureWidth'] ?? null),
+                    'pictureId' => $pictureId,
                     'assetId' => $assetId,
-                    'assetKey' => $this->buildReviewAssetKey($transformName, $assetId, $sourceUsed, $src, $title),
+                    'assetKey' => $this->buildReviewAssetKey($transformName, $assetId, $sourceUsed, $src, $title, $pictureId),
                     'transform' => $transformName,
                     'title' => $title,
                     'enabled' => ($row['enabled'] ?? true) === true,
@@ -1979,8 +1981,9 @@ final class ReviewRenderer
         string $sourceUsed,
         string $src,
         string $title,
+        string $pictureId = '',
     ): string {
-        return ReviewAssetCollector::buildAssetKey($transformName, $assetId, $sourceUsed, $src, $title);
+        return ReviewAssetCollector::buildAssetKey($transformName, $assetId, $sourceUsed, $src, $title, $pictureId);
     }
 
     /**

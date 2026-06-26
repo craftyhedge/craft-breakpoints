@@ -81,6 +81,29 @@ final class ImageRendererServiceTest extends Unit
         $this->assertStringNotContainsString('data-set=', $html);
     }
 
+    public function testRenderUsesSourceAssetForConfiguredSlotsAndDefaultAssetForFallback(): void
+    {
+        $renderer = Plugin::getInstance()->getImageRenderer();
+        $defaultAsset = $this->createMockAssetWithUrlPrefix(100, 'default');
+        $mobileAsset = $this->createMockAssetWithUrlPrefix(200, 'mobile');
+
+        $markup = $renderer->render($defaultAsset, 'default', [
+            'escapeWidth' => 0,
+            'secondaryFormat' => 'none',
+            'sources' => [
+                'mobile' => [
+                    'asset' => $mobileAsset,
+                    'slots' => ['base'],
+                ],
+            ],
+        ]);
+
+        $html = (string)$markup;
+
+        $this->assertStringContainsString('srcset="https://example.test/mobile/480x270.jpg"', $html);
+        $this->assertStringContainsString('<img src="https://example.test/default/480x270.jpg"', $html);
+    }
+
     public function testRenderRethrowsWhenCustomTemplateFails(): void
     {
         // A failure in a developer-supplied custom template is their bug to fix,
@@ -219,6 +242,34 @@ final class ImageRendererServiceTest extends Unit
             $format = (string)($transform['format'] ?? 'jpg');
 
             return "https://example.test/{$width}x{$height}.{$format}";
+        });
+
+        return $asset;
+    }
+
+    private function createMockAssetWithUrlPrefix(int $id, string $prefix): Asset
+    {
+        $asset = $this->getMockBuilder(Asset::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['getUrl', 'getWidth', 'getHeight'])
+            ->getMock();
+
+        $asset->id = $id;
+
+        $asset->method('getWidth')->willReturn(1600);
+        $asset->method('getHeight')->willReturn(900);
+        $asset->method('getUrl')->willReturnCallback(static function(...$args) use ($prefix): string {
+            $transform = $args[0] ?? [];
+
+            if (!is_array($transform)) {
+                return "https://example.test/{$prefix}/original.jpg";
+            }
+
+            $width = (int)($transform['width'] ?? 0);
+            $height = (int)($transform['height'] ?? 0);
+            $format = (string)($transform['format'] ?? 'jpg');
+
+            return "https://example.test/{$prefix}/{$width}x{$height}.{$format}";
         });
 
         return $asset;

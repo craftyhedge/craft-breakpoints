@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Added art-directed raster image sources via `image()` options, allowing selected canonical slots to render from alternate Craft assets within one `<picture>`. Custom picture templates that use `craft.images.getBreakpointData()` continue to receive the correct per-slot source asset automatically.
+
 ## 0.1.4 - 2026-06-21
 
 - Improved lazy-loading activation during processing, especially for lazysizes, by widening lazy-load thresholds, clearing stale lazysizes state, and recording activation diagnostics.

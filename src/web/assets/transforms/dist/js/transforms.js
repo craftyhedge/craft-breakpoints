@@ -2864,6 +2864,11 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     }
 
     function buildReviewAssetKeyFromRow(transformName, row) {
+        const pictureId = String(row?.pictureId || '').trim();
+        if (pictureId !== '') {
+            return `picture:${transformName}:${pictureId}`;
+        }
+
         const assetId = String(row?.assetId || '').trim();
         if (assetId !== '') {
             return `asset:${transformName}:${assetId}`;

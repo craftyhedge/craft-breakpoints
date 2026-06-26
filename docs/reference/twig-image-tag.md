@@ -63,13 +63,26 @@ Alternative text for the image. If you do not pass `alt`, Breakpoints uses Craft
 ```
 
 ### `loading`
-**Type**: `string`  
+**Type**: `string`
 **Default**: `'lazy'`  
 **Values**: `'lazy'` | `'eager'`
 
 Use `eager` for important above-the-fold images, such as a page hero. Leave the default `lazy` for most content images.
 
 The `loading` attribute is only rendered when native lazy loading is enabled in Breakpoints configuration.
+
+### `fetchpriority`
+**Type**: `string`
+**Values**: `'high'` | `'low'` | `'auto'`
+
+Adds a browser fetch-priority hint to the fallback `<img>`. Use `high` sparingly for important above-the-fold images.
+
+```twig
+{{ image(asset, 'hero', {
+  loading: 'eager',
+  fetchpriority: 'high'
+}) }}
+```
 
 ### `decoding`
 **Type**: `string`  
@@ -107,6 +120,28 @@ Sets the device pixel ratios for this image's `srcset` output.
 ```
 
 Breakpoints always includes `1x`. Invalid, zero, negative, and non-finite values are ignored.
+
+### `sources`
+**Type**: `array`
+
+Use `sources` when a single responsive picture needs different Craft assets for specific art-directed slots. The first `image()` argument remains the default asset and is still used for the fallback `<img>`.
+
+```twig
+{{ image(entry.desktopMasthead.one(), 'masthead', {
+  loading: 'eager',
+  fetchpriority: 'high',
+  sources: {
+    mobile: {
+      asset: entry.mobileMasthead.one(),
+      slots: ['base', 'xs']
+    }
+  }
+}) }}
+```
+
+`slots` uses canonical Breakpoints slot keys: `base` first, then the configured breakpoint keys by position. Slots without an override use the default asset. If multiple source overrides target the same slot, later overrides win for that slot.
+
+SVG renders stay single-asset; `sources` applies to raster picture output only.
 
 ### `includeEscapeWidth`
 **Type**: `boolean`  

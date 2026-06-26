@@ -42,7 +42,75 @@ class RenderContextBuilder extends Component
             'pictureAttributes' => $this->getPictureAttributes($mergedConfig),
             'imgAttributes' => $imgAttributes,
             'breakpoints' => $this->_plugin->getImageTransforms()->getBreakpointsForTemplate($mergedConfig),
+            'sourceAssetsBySlot' => $this->getSourceAssetsBySlot($mergedConfig, $image),
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     * @return array<string, Asset>
+     */
+    public function getSourceAssetsBySlot(array $config, Asset $defaultImage): array
+    {
+        if ($this->_plugin === null) {
+            return [];
+        }
+
+        $sources = $config['sources'] ?? null;
+        if (!is_array($sources) || $sources === []) {
+            return [];
+        }
+
+        $set = null;
+        $setName = trim((string)($config['setName'] ?? $config['transformName'] ?? ''));
+        if ($setName !== '') {
+            $set = $this->_plugin->getTransformSets()->getSet($setName);
+        }
+
+        $includeEscapeWidth = $this->_plugin->getBreakpointPolicy()->resolveIncludeEscapeWidth($config, $set);
+        $slotsByKey = $this->_plugin->getBreakpointSlots()->getSlotsByKey($includeEscapeWidth);
+        $assetsBySlot = [];
+
+        foreach ($sources as $sourceName => $sourceConfig) {
+            if (!is_array($sourceConfig)) {
+                continue;
+            }
+
+            $asset = $sourceConfig['asset'] ?? null;
+            if (!$asset instanceof Asset) {
+                continue;
+            }
+
+            $rawSlots = $sourceConfig['slots'] ?? ($sourceConfig['breakpoints'] ?? []);
+            if (!is_array($rawSlots)) {
+                $rawSlots = [$rawSlots];
+            }
+
+            foreach ($rawSlots as $rawSlot) {
+                $slotKey = trim((string)$rawSlot);
+                if ($slotKey === '') {
+                    continue;
+                }
+
+                if (!isset($slotsByKey[$slotKey])) {
+                    Plugin::warning(sprintf(
+                        'Ignoring unknown art-directed source slot "%s" for source "%s".',
+                        $slotKey,
+                        (string)$sourceName,
+                    ));
+                    continue;
+                }
+
+                if ((string)$asset->id === (string)$defaultImage->id) {
+                    unset($assetsBySlot[$slotKey]);
+                    continue;
+                }
+
+                $assetsBySlot[$slotKey] = $asset;
+            }
+        }
+
+        return $assetsBySlot;
     }
 
     /**
@@ -139,6 +207,11 @@ class RenderContextBuilder extends Component
 
         if ((bool)($config['nativeLazyLoadingEnabled'] ?? true)) {
             $attributes['loading'] = (string)($config['loading'] ?? 'lazy');
+        }
+
+        $fetchPriority = trim((string)($config['fetchpriority'] ?? $config['fetchPriority'] ?? ''));
+        if ($fetchPriority !== '') {
+            $attributes['fetchpriority'] = $fetchPriority;
         }
 
         // Processing-only markers (see getPictureAttributes): emitted only inside
