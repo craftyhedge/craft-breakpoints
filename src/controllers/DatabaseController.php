@@ -5,6 +5,7 @@ namespace craftyhedge\craftbreakpoints\controllers;
 use Craft;
 use craft\web\Controller;
 use craftyhedge\craftbreakpoints\Plugin;
+use yii\web\ForbiddenHttpException;
 use yii\web\Response;
 
 class DatabaseController extends Controller
@@ -19,6 +20,10 @@ class DatabaseController extends Controller
         $this->requirePostRequest();
         $this->requireAcceptsJson();
         $this->requireAdmin();
+
+        if (!Plugin::getInstance()->getTelemetry()->canEditTransforms()) {
+            throw new ForbiddenHttpException('Transform editing is disabled in this environment.');
+        }
 
         return true;
     }

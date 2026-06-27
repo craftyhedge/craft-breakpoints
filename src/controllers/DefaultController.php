@@ -14,6 +14,7 @@ use craftyhedge\craftbreakpoints\web\assets\transforms\TransformsAsset;
 use yii\helpers\Json;
 use yii\helpers\Markdown;
 use yii\web\BadRequestHttpException;
+use yii\web\ForbiddenHttpException;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
 
@@ -41,6 +42,19 @@ class DefaultController extends Controller
             'file' => 'reference/twig-image-tag.md',
         ],
     ];
+
+    public function beforeAction($action): bool
+    {
+        if (!parent::beforeAction($action)) {
+            return false;
+        }
+
+        if (!Plugin::getInstance()->getTelemetry()->canEditTransforms()) {
+            throw new ForbiddenHttpException('Transform editing is disabled in this environment.');
+        }
+
+        return true;
+    }
 
     public function actionIndex(): Response
     {

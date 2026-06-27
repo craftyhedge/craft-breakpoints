@@ -47,18 +47,14 @@ final class PluginRegistrationTest extends Unit
         });
     }
 
-    public function testSettingsAndDocsNavItemsAreHiddenWhenTransformEditingIsDisabled(): void
+    public function testCpSectionNavIsHiddenWhenTransformEditingIsDisabled(): void
     {
         $plugin = Plugin::getInstance();
 
         $this->withMergedConfigValue('allowTransformEditing', false, function() use ($plugin): void {
             $cpNavItem = $plugin->getCpNavItem();
 
-            $this->assertIsArray($cpNavItem);
-            $this->assertArrayHasKey('subnav', $cpNavItem);
-            $this->assertArrayHasKey('processing', $cpNavItem['subnav']);
-            $this->assertArrayNotHasKey('settings', $cpNavItem['subnav']);
-            $this->assertArrayNotHasKey('docs', $cpNavItem['subnav']);
+            $this->assertNull($cpNavItem);
         });
     }
 

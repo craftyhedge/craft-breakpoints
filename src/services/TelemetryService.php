@@ -72,7 +72,7 @@ class TelemetryService extends Component
 
     public function recordUsage(string $transformHandle, ?InitOptions $initOptions = null, ?bool $includeEscapeWidth = null): void
     {
-        if (!$this->canWriteTelemetry()) {
+        if (!$this->canWriteTelemetry() || !$this->canEditTransforms()) {
             return;
         }
 

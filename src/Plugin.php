@@ -231,6 +231,10 @@ class Plugin extends BasePlugin
      */
     public function getCpNavItem(): ?array
     {
+        if (!$this->getConfigService()->allowTransformEditing()) {
+            return null;
+        }
+
         $item = parent::getCpNavItem();
 
         if ($item === null) {
@@ -246,16 +250,14 @@ class Plugin extends BasePlugin
             ],
         ];
 
-        if ($this->getConfigService()->allowTransformEditing()) {
-            $item['subnav']['settings'] = [
-                'label' => Craft::t('breakpoints', 'Settings'),
-                'url' => 'breakpoints/settings',
-            ];
-            $item['subnav']['docs'] = [
-                'label' => Craft::t('breakpoints', 'Docs'),
-                'url' => 'breakpoints/docs',
-            ];
-        }
+        $item['subnav']['settings'] = [
+            'label' => Craft::t('breakpoints', 'Settings'),
+            'url' => 'breakpoints/settings',
+        ];
+        $item['subnav']['docs'] = [
+            'label' => Craft::t('breakpoints', 'Docs'),
+            'url' => 'breakpoints/docs',
+        ];
 
         return $item;
     }

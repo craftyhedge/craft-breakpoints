@@ -18,6 +18,19 @@ use yii\web\ForbiddenHttpException;
 
 class TransformsController extends Controller
 {
+    public function beforeAction($action): bool
+    {
+        if (!parent::beforeAction($action)) {
+            return false;
+        }
+
+        if (!Plugin::getInstance()->getTelemetry()->canEditTransforms()) {
+            throw new ForbiddenHttpException('Transform editing is disabled in this environment.');
+        }
+
+        return true;
+    }
+
     public function actionEditorInit(): Response
     {
         $this->requireCpRequest();
