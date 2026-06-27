@@ -20,7 +20,11 @@ function buildRuntimeDom() {
     <button id="bpts-stop-processing"></button>
     <button id="bpts-close-preview"></button>
     <button id="bpts-copy-output"></button>
+    <button id="bpts-compact-breakpoint-cards"></button>
+    <input id="bpts-compact-breakpoint-cards-signal-bridge" type="checkbox" />
   `;
+
+    document.querySelector('.bpts-transforms-page')?.setAttribute('data-can-edit-transforms', '0');
 }
 
 async function loadRuntimeHooks() {
@@ -172,6 +176,17 @@ describe('transforms runtime helper logic', () => {
         if (savedSetNamesBridge instanceof HTMLInputElement) {
             savedSetNamesBridge.value = '[]';
         }
+    });
+
+    it('defaults read-only review cards to compact previews without overwriting the stored editor preference', () => {
+        const compactBridge = document.getElementById('bpts-compact-breakpoint-cards-signal-bridge');
+        const compactButton = document.getElementById('bpts-compact-breakpoint-cards');
+
+        expect(compactBridge).toBeInstanceOf(HTMLInputElement);
+        expect(compactButton).toBeInstanceOf(HTMLButtonElement);
+        expect(compactBridge.checked).toBe(true);
+        expect(compactButton.classList.contains('active')).toBe(true);
+        expect(window.localStorage.getItem('breakpoints.transforms.compactBreakpointCards')).toBeNull();
     });
 
     it('applies initial stored review payload without requiring processing', async () => {

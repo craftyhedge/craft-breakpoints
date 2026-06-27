@@ -2355,6 +2355,10 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         return bridge.checked === true;
     }
 
+    function canEditTransforms() {
+        return elements.page?.getAttribute('data-can-edit-transforms') === '1';
+    }
+
     function readStoredCompactBreakpointCardsValue() {
         try {
             const stored = window.localStorage?.getItem(COMPACT_BREAKPOINT_CARDS_STORAGE_KEY);
@@ -2496,6 +2500,15 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     }
 
     function setupCompactBreakpointCardsToggle() {
+        if (!canEditTransforms()) {
+            if (!getCompactBreakpointCardsSignalValue()) {
+                setCompactBreakpointCardsSignal(true);
+            }
+            syncCompactBreakpointCardsButtonFromSignal();
+            scheduleBreakpointPreviewHeightSync();
+            return;
+        }
+
         if (elements.compactBreakpointCardsSignalBridge instanceof HTMLInputElement
             && elements.compactBreakpointCardsSignalBridge.dataset.bpiSignalBridgeBound !== '1') {
             elements.compactBreakpointCardsSignalBridge.addEventListener('change', () => {
