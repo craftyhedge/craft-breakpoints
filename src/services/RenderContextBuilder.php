@@ -34,6 +34,7 @@ class RenderContextBuilder extends Component
         if ($imgAttributes === null || empty($imgAttributes)) {
             return null;
         }
+        $sourceConfigsBySlot = $this->getSourceConfigsBySlot($mergedConfig, $image);
 
         return [
             'config' => $mergedConfig,
@@ -42,7 +43,8 @@ class RenderContextBuilder extends Component
             'pictureAttributes' => $this->getPictureAttributes($mergedConfig),
             'imgAttributes' => $imgAttributes,
             'breakpoints' => $this->_plugin->getImageTransforms()->getBreakpointsForTemplate($mergedConfig),
-            'sourceAssetsBySlot' => $this->getSourceAssetsBySlot($mergedConfig, $image),
+            'sourceAssetsBySlot' => $this->sourceAssetsFromConfigs($sourceConfigsBySlot),
+            'sourceConfigsBySlot' => $sourceConfigsBySlot,
         ];
     }
 
@@ -51,6 +53,15 @@ class RenderContextBuilder extends Component
      * @return array<string, Asset>
      */
     public function getSourceAssetsBySlot(array $config, Asset $defaultImage): array
+    {
+        return $this->sourceAssetsFromConfigs($this->getSourceConfigsBySlot($config, $defaultImage));
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     * @return array<string, array{asset: Asset, quality?: int}>
+     */
+    public function getSourceConfigsBySlot(array $config, Asset $defaultImage): array
     {
         if ($this->_plugin === null) {
             return [];
@@ -69,7 +80,7 @@ class RenderContextBuilder extends Component
 
         $includeEscapeWidth = $this->_plugin->getBreakpointPolicy()->resolveIncludeEscapeWidth($config, $set);
         $slotsByKey = $this->_plugin->getBreakpointSlots()->getSlotsByKey($includeEscapeWidth);
-        $assetsBySlot = [];
+        $configsBySlot = [];
 
         foreach ($sources as $sourceName => $sourceConfig) {
             if (!is_array($sourceConfig)) {
@@ -102,15 +113,44 @@ class RenderContextBuilder extends Component
                 }
 
                 if ((string)$asset->id === (string)$defaultImage->id) {
-                    unset($assetsBySlot[$slotKey]);
+                    unset($configsBySlot[$slotKey]);
                     continue;
                 }
 
-                $assetsBySlot[$slotKey] = $asset;
+                $slotConfig = ['asset' => $asset];
+                $quality = $this->normalizeSourceQuality($sourceConfig['quality'] ?? null);
+                if ($quality !== null) {
+                    $slotConfig['quality'] = $quality;
+                }
+
+                $configsBySlot[$slotKey] = $slotConfig;
             }
         }
 
-        return $assetsBySlot;
+        return $configsBySlot;
+    }
+
+    private function normalizeSourceQuality(mixed $quality): ?int
+    {
+        if (!is_numeric($quality)) {
+            return null;
+        }
+
+        $normalized = (int)$quality;
+
+        return $normalized >= 1 && $normalized <= 100 ? $normalized : null;
+    }
+
+    /**
+     * @param array<string, array{asset: Asset, quality?: int}> $sourceConfigsBySlot
+     * @return array<string, Asset>
+     */
+    private function sourceAssetsFromConfigs(array $sourceConfigsBySlot): array
+    {
+        return array_map(
+            static fn(array $sourceConfig): Asset => $sourceConfig['asset'],
+            $sourceConfigsBySlot,
+        );
     }
 
     /**

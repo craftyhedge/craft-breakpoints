@@ -41,6 +41,7 @@ final class RenderContextBuilderTest extends Unit
         $this->assertArrayHasKey('imgAttributes', $context);
         $this->assertArrayHasKey('breakpoints', $context);
         $this->assertArrayHasKey('sourceAssetsBySlot', $context);
+        $this->assertArrayHasKey('sourceConfigsBySlot', $context);
 
         // Normal (non-processing) render with editing disabled: no processing
         // or public editing markers leak out.
@@ -182,6 +183,35 @@ final class RenderContextBuilderTest extends Unit
         $this->assertSame($overrideAsset, $assetsBySlot['xs'] ?? null);
         $this->assertArrayNotHasKey('unknown', $assetsBySlot);
         $this->assertArrayNotHasKey('sm', $assetsBySlot);
+    }
+
+    public function testSourceConfigsBySlotIncludesValidSourceQuality(): void
+    {
+        $builder = Plugin::getInstance()->getRenderContextBuilder();
+        $defaultAsset = $this->createMockAsset(100);
+        $mobileAsset = $this->createMockAsset(200);
+        $desktopAsset = $this->createMockAsset(300);
+
+        $configsBySlot = $builder->getSourceConfigsBySlot([
+            'setName' => 'default',
+            'sources' => [
+                'mobile' => [
+                    'asset' => $mobileAsset,
+                    'slots' => ['base'],
+                    'quality' => 62,
+                ],
+                'desktop' => [
+                    'asset' => $desktopAsset,
+                    'slots' => ['xs'],
+                    'quality' => 0,
+                ],
+            ],
+        ], $defaultAsset);
+
+        $this->assertSame($mobileAsset, $configsBySlot['base']['asset'] ?? null);
+        $this->assertSame(62, $configsBySlot['base']['quality'] ?? null);
+        $this->assertSame($desktopAsset, $configsBySlot['xs']['asset'] ?? null);
+        $this->assertArrayNotHasKey('quality', $configsBySlot['xs'] ?? []);
     }
 
     public function testGetImageAttributesUsesEmptyAltWhenNoOptionOrAssetAltExists(): void

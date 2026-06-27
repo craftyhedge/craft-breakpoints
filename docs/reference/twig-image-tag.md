@@ -172,13 +172,16 @@ Use `sources` when a single responsive picture needs different Craft assets for 
   sources: {
     mobile: {
       asset: entry.mobileMasthead.one(),
-      slots: ['base', 'xs']
+      slots: ['base', 'xs'],
+      quality: 65
     }
   }
 }) }}
 ```
 
 `slots` uses canonical Breakpoints slot keys: `base` first, then the configured breakpoint keys by position. Slots without an override use the default asset. If multiple source overrides target the same slot, later overrides win for that slot.
+
+`quality` is optional and applies only to that source's generated `<source>` URLs. It does not change the fallback `<img>` or save anything to the transform set.
 
 SVG renders stay single-asset; `sources` applies to raster picture output only.
 
@@ -264,7 +267,7 @@ Breakpoints treats width as auto.
 
 ## Transform Overrides
 
-These options can adjust transform behavior for a specific image call when the transform set has not already saved its own value. If the saved transform set defines the same field, the saved transform value takes precedence.
+These options can adjust transform behavior for a specific image call when the transform set has not already saved its own value. If the saved transform set defines `format`, `secondaryFormat`, `mode`, or `position`, the saved transform value takes precedence for that field. `quality` is render-time only and is not saved to transform sets.
 
 - `format` (string): primary format
 - `secondaryFormat` (string): fallback format

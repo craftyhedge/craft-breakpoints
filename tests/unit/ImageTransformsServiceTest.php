@@ -365,7 +365,6 @@ final class ImageTransformsServiceTest extends Unit
                 'config' => [
                     'format' => 'jpg',
                     'secondaryFormat' => 'webp',
-                    'quality' => 82,
                 ],
             ],
         ], function(Plugin $plugin): void {

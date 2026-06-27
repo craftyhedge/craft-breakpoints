@@ -42,6 +42,7 @@ Breakpoints passes these variables to custom templates:
 - `imgAttributes`: attributes for the fallback `<img>` element
 - `breakpoints`: ordered breakpoint map used by the template
 - `sourceAssetsBySlot`: art-directed asset overrides keyed by canonical slot key
+- `sourceConfigsBySlot`: art-directed source config keyed by canonical slot key
 
 `pictureAttributes` is useful for raster templates. SVG templates usually only need `image`, `config`, and `imgAttributes`.
 
@@ -56,6 +57,8 @@ Use `craft.images.getBreakpointData()` inside raster templates to build each `<s
 `getBreakpointData()` automatically uses the configured art-directed source
 asset for the current slot when `config.sources` is present. `sourceAssetsBySlot`
 is available when a custom template needs to inspect those overrides directly.
+Use `sourceConfigsBySlot` when you need source options such as per-source
+quality.
 
 The returned array includes:
 

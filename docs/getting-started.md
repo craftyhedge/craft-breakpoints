@@ -47,6 +47,30 @@ init values.
 
 By using these init values you can leave the task of configuring breakpoint transforms until later. 
 
+### Use different assets for selected slots
+
+For art-directed images, pass `sources` when one `<picture>` should use
+different Craft assets at different breakpoint slots.
+
+```twig
+{{ image(entry.desktopMasthead.one(), 'masthead', {
+  priority: true,
+  sources: {
+    mobile: {
+      asset: entry.mobileMasthead.one(),
+      slots: ['base', 'xs'],
+      quality: 65
+    }
+  }
+}) }}
+```
+
+The first asset remains the default image and fallback `<img>`. Any slot listed
+in `sources.*.slots` uses that source asset instead. If a source asset is `null`,
+Breakpoints ignores that source and uses the default image for those slots.
+Optional source quality only affects that source's generated URLs and is not
+saved to the transform set.
+
 See the [`image()` reference](reference/twig-image-tag.md) for every option. For
 setting system defaults, see
 [Configuration](configuration.md).

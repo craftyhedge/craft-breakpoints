@@ -41,26 +41,43 @@ class Images extends Component
             return [];
         }
 
-        $effectiveImage = $this->resolveEffectiveImageForBreakpoint($plugin, $loopIndex, $config, $image);
+        $sourceConfig = $this->resolveEffectiveSourceConfigForBreakpoint($plugin, $loopIndex, $config, $image);
+        $effectiveImage = $sourceConfig['asset'] ?? $image;
+        $effectiveConfig = $this->mergeSourceConfigForBreakpoint($config, $sourceConfig);
 
-        return $plugin->getImageTransforms()->getBreakpointData($loopIndex, $breakpoint, $config, $effectiveImage);
+        return $plugin->getImageTransforms()->getBreakpointData($loopIndex, $breakpoint, $effectiveConfig, $effectiveImage);
     }
 
     /**
      * @param array<string, mixed> $config
+     * @return array{asset?: Asset, quality?: int}
      */
-    private function resolveEffectiveImageForBreakpoint(Plugin $plugin, int $loopIndex, array $config, Asset $image): Asset
+    private function resolveEffectiveSourceConfigForBreakpoint(Plugin $plugin, int $loopIndex, array $config, Asset $image): array
     {
         $breakpoints = $plugin->getImageTransforms()->getBreakpointsForTemplate($config);
         $slotKey = array_keys($breakpoints)[$loopIndex] ?? null;
         if ($slotKey === null) {
-            return $image;
+            return ['asset' => $image];
         }
 
-        $sourceAssetsBySlot = $plugin->getRenderContextBuilder()->getSourceAssetsBySlot($config, $image);
-        $sourceAsset = $sourceAssetsBySlot[(string)$slotKey] ?? null;
+        $sourceConfigsBySlot = $plugin->getRenderContextBuilder()->getSourceConfigsBySlot($config, $image);
+        $sourceConfig = $sourceConfigsBySlot[(string)$slotKey] ?? null;
 
-        return $sourceAsset instanceof Asset ? $sourceAsset : $image;
+        return is_array($sourceConfig) ? $sourceConfig : ['asset' => $image];
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     * @param array{asset?: Asset, quality?: int} $sourceConfig
+     * @return array<string, mixed>
+     */
+    private function mergeSourceConfigForBreakpoint(array $config, array $sourceConfig): array
+    {
+        if (isset($sourceConfig['quality']) && is_int($sourceConfig['quality'])) {
+            $config['quality'] = $sourceConfig['quality'];
+        }
+
+        return $config;
     }
 
     private function plugin(): ?Plugin

@@ -361,7 +361,7 @@ class ImageTransforms extends Component
         );
         $mode = (string)($namedSetConfig['mode'] ?? $mergedConfig['mode'] ?? 'crop');
         $position = (string)($namedSetConfig['position'] ?? $mergedConfig['position'] ?? 'center-center');
-        $quality = (int)($namedSetConfig['quality'] ?? $mergedConfig['quality'] ?? 80);
+        $quality = (int)($mergedConfig['quality'] ?? 80);
 
         $sourceWidth = (int)($image->getWidth() ?? 0);
         $sourceHeight = (int)($image->getHeight() ?? 0);
@@ -470,9 +470,7 @@ class ImageTransforms extends Component
                 'height' => $transformHeight,
                 'mode' => is_array($namedSetVariant) && isset($namedSetVariant['mode']) ? (string)$namedSetVariant['mode'] : $mode,
                 'position' => is_array($namedSetVariant) && isset($namedSetVariant['position']) ? (string)$namedSetVariant['position'] : $position,
-                'quality' => is_array($namedSetVariant) && isset($namedSetVariant['quality']) && is_numeric($namedSetVariant['quality'])
-                    ? (int)$namedSetVariant['quality']
-                    : $quality,
+                'quality' => $quality,
                 'format' => $targetFormat,
             ];
 

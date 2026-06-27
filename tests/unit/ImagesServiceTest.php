@@ -73,6 +73,34 @@ final class ImagesServiceTest extends Unit
         $this->assertStringContainsString('/mobile/', (string)($breakpointData['primarySourceAttributes']['srcset'] ?? ''));
     }
 
+    public function testGetBreakpointDataAppliesSourceQualityOnlyForConfiguredSlot(): void
+    {
+        $service = Plugin::getInstance()->getImages();
+        $defaultAsset = $this->createMockAssetWithQualityUrl(100, 'default');
+        $mobileAsset = $this->createMockAssetWithQualityUrl(200, 'mobile');
+        $config = [
+            'transformName' => 'default',
+            'escapeWidth' => 0,
+            'secondaryFormat' => 'none',
+            'quality' => 80,
+            'sources' => [
+                'mobile' => [
+                    'asset' => $mobileAsset,
+                    'slots' => ['base'],
+                    'quality' => 61,
+                ],
+            ],
+        ];
+
+        $mobileData = $service->getBreakpointData(0, 480, $config, $defaultAsset);
+        $defaultData = $service->getBreakpointData(1, 640, $config, $defaultAsset);
+
+        $this->assertStringContainsString('/mobile/', (string)($mobileData['primarySourceAttributes']['srcset'] ?? ''));
+        $this->assertStringContainsString('q=61', (string)($mobileData['primarySourceAttributes']['srcset'] ?? ''));
+        $this->assertStringContainsString('/default/', (string)($defaultData['primarySourceAttributes']['srcset'] ?? ''));
+        $this->assertStringContainsString('q=80', (string)($defaultData['primarySourceAttributes']['srcset'] ?? ''));
+    }
+
     public function testRenderDelegatesToImageRendererService(): void
     {
         $plugin = Plugin::getInstance();
@@ -130,6 +158,36 @@ final class ImagesServiceTest extends Unit
             return $prefix === ''
                 ? "https://example.test/{$path}"
                 : "https://example.test/{$prefix}/{$path}";
+        });
+
+        return $asset;
+    }
+
+    private function createMockAssetWithQualityUrl(int $id, string $prefix): Asset
+    {
+        $asset = $this->getMockBuilder(Asset::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['getUrl', 'getWidth', 'getHeight'])
+            ->getMock();
+
+        $asset->id = $id;
+        $prefix = trim($prefix, '/');
+
+        $asset->method('getWidth')->willReturn(1600);
+        $asset->method('getHeight')->willReturn(900);
+        $asset->method('getUrl')->willReturnCallback(static function(...$args) use ($prefix): string {
+            $transform = $args[0] ?? [];
+
+            if (!is_array($transform)) {
+                return "https://example.test/{$prefix}/original.jpg";
+            }
+
+            $width = (int)($transform['width'] ?? 0);
+            $height = (int)($transform['height'] ?? 0);
+            $format = (string)($transform['format'] ?? 'jpg');
+            $quality = (int)($transform['quality'] ?? 80);
+
+            return "https://example.test/{$prefix}/{$width}x{$height}.{$format}?q={$quality}";
         });
 
         return $asset;

@@ -59,6 +59,7 @@ class ImageRenderer extends Component
         $breakpoints = is_array($context['breakpoints'] ?? null) ? $context['breakpoints'] : [];
         $mergedConfig = is_array($context['config'] ?? null) ? $context['config'] : [];
         $sourceAssetsBySlot = is_array($context['sourceAssetsBySlot'] ?? null) ? $context['sourceAssetsBySlot'] : [];
+        $sourceConfigsBySlot = is_array($context['sourceConfigsBySlot'] ?? null) ? $context['sourceConfigsBySlot'] : [];
         $isSvg = $this->isSvgAsset($image);
         $templatePath = $isSvg ? $svgTemplatePath : $pictureTemplatePath;
 
@@ -75,6 +76,7 @@ class ImageRenderer extends Component
                 'imgAttributes' => $imgAttributes,
                 'breakpoints' => $breakpoints,
                 'sourceAssetsBySlot' => $sourceAssetsBySlot,
+                'sourceConfigsBySlot' => $sourceConfigsBySlot,
                 'isProcessing' => ProcessingRequest::isActive(),
             ]);
         } catch (\Throwable $e) {

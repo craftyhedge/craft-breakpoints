@@ -27,8 +27,10 @@ Values are merged from lowest to highest priority:
 One further rule applies on top of this:
 
 - A **saved transform set's** own `config` (its `format`, `secondaryFormat`,
-  `quality`, `mode`, `position`) takes precedence over per-call options for those
+  `mode`, `position`) takes precedence over per-call options for those
   fields. A set's saved widths/heights always win for dimensions.
+
+`quality` is render-time config and is not saved to transform sets.
 
 ## Settings reference
 

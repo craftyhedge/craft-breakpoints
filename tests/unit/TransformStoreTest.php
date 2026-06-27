@@ -36,6 +36,127 @@ final class TransformStoreTest extends Unit
         }
     }
 
+    public function testReplaceSetsForRuntimeKeepsOnlyAllowedSavedOptions(): void
+    {
+        $store = Plugin::getInstance()->getTransformStore();
+        $previousSets = $store->getSets();
+
+        try {
+            $store->replaceSetsForRuntime([
+                'quality-transform' => [
+                    'name' => 'quality-transform',
+                    'includeEscapeWidth' => false,
+                    'variants' => [
+                        'base' => [
+                            'width' => 640,
+                            'height' => 360,
+                            'enabled' => true,
+                            'autoDimension' => null,
+                            'ratioWidth' => 16,
+                            'ratioHeight' => 9,
+                            'ratioSourceDimension' => 'width',
+                            'ratioLocked' => true,
+                            'mode' => 'fit',
+                            'position' => 'top-center',
+                            'quality' => 61,
+                            'loading' => 'eager',
+                        ],
+                    ],
+                    'config' => [
+                        'format' => 'webp',
+                        'secondaryFormat' => 'avif',
+                        'mode' => 'crop',
+                        'position' => 'center-center',
+                        'passHeightWhenRenderedLteSaved' => true,
+                        'allowAnyHeight' => false,
+                        'quality' => 72,
+                        'preload' => true,
+                        'fetchpriority' => 'high',
+                        'sources' => [],
+                    ],
+                ],
+            ]);
+
+            $normalized = $store->getSet('quality-transform');
+            $this->assertNotNull($normalized);
+            $this->assertSame([
+                'format' => 'webp',
+                'secondaryFormat' => 'avif',
+                'mode' => 'crop',
+                'position' => 'center-center',
+                'passHeightWhenRenderedLteSaved' => true,
+                'allowAnyHeight' => false,
+            ], $normalized['config'] ?? []);
+            $this->assertSame([
+                'width' => 640,
+                'height' => 360,
+                'enabled' => true,
+                'autoDimension' => null,
+                'ratioWidth' => 16,
+                'ratioHeight' => 9,
+                'ratioSourceDimension' => 'width',
+                'ratioLocked' => true,
+                'mode' => 'fit',
+                'position' => 'top-center',
+            ], $normalized['variants']['base'] ?? []);
+
+            $legacy = $store->getTransform('quality-transform');
+            $this->assertNotNull($legacy);
+            $this->assertSame($normalized['config'] ?? [], $legacy['config'] ?? []);
+            $this->assertSame($normalized['variants']['base'] ?? [], $legacy['transforms'][0] ?? []);
+        } finally {
+            $store->replaceSetsForRuntime($previousSets);
+        }
+    }
+
+    public function testReplaceTransformsForRuntimeKeepsOnlyAllowedSavedOptions(): void
+    {
+        $store = Plugin::getInstance()->getTransformStore();
+        $previousTransforms = $store->getTransforms();
+
+        try {
+            $store->replaceTransformsForRuntime([
+                'legacy-quality-transform' => [
+                    'name' => 'legacy-quality-transform',
+                    'includeEscapeWidth' => false,
+                    'transforms' => [
+                        [
+                            'width' => 640,
+                            'height' => 360,
+                            'enabled' => true,
+                            'mode' => 'fit',
+                            'position' => 'top-center',
+                            'quality' => 61,
+                            'loading' => 'eager',
+                        ],
+                    ],
+                    'config' => [
+                        'format' => 'webp',
+                        'mode' => 'crop',
+                        'quality' => 72,
+                        'priority' => true,
+                    ],
+                ],
+            ]);
+
+            $normalized = $store->getSet('legacy-quality-transform');
+            $this->assertNotNull($normalized);
+            $this->assertSame([
+                'format' => 'webp',
+                'mode' => 'crop',
+            ], $normalized['config'] ?? []);
+            $this->assertSame([
+                'width' => 640,
+                'height' => 360,
+                'enabled' => true,
+                'mode' => 'fit',
+                'position' => 'top-center',
+            ], $normalized['variants']['base'] ?? []);
+        } finally {
+            $store->replaceTransformsForRuntime($previousTransforms);
+        }
+    }
+
     public function testReplaceTransformsForRuntimeNormalizesMissingTransformsToEmptyEntries(): void
     {
         $store = Plugin::getInstance()->getTransformStore();

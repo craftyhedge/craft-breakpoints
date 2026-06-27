@@ -12,6 +12,26 @@ class TransformStore extends Component
 {
     private const CONFIG_FOLDER_PERMISSIONS = 0755;
     private const SETS_CONFIG_PATH = '/breakpoints/transform-sets.json';
+    private const SAVED_CONFIG_KEYS = [
+        'format',
+        'secondaryFormat',
+        'mode',
+        'position',
+        'passHeightWhenRenderedLteSaved',
+        'allowAnyHeight',
+    ];
+    private const SAVED_VARIANT_KEYS = [
+        'width',
+        'height',
+        'enabled',
+        'autoDimension',
+        'ratioWidth',
+        'ratioHeight',
+        'ratioSourceDimension',
+        'ratioLocked',
+        'mode',
+        'position',
+    ];
 
     private ?Plugin $_plugin = null;
     /**
@@ -319,7 +339,7 @@ class TransformStore extends Component
                     throw new InvalidArgumentException('Each variant must be an array.');
                 }
 
-                $normalizedVariants[$breakpointName] = $variant;
+                $normalizedVariants[$breakpointName] = $this->filterSavedVariantOptions($variant);
             }
 
             $canonicalVariants = [];
@@ -332,6 +352,7 @@ class TransformStore extends Component
             if (!is_array($config)) {
                 throw new InvalidArgumentException('Set config must be an array when provided.');
             }
+            $config = $this->filterSavedConfigOptions($config);
 
             $notes = $setDefinition['notes'] ?? '';
             $notes = is_string($notes) ? $this->normalizeNotes($notes) : '';
@@ -349,6 +370,24 @@ class TransformStore extends Component
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
+    private function filterSavedConfigOptions(array $options): array
+    {
+        return array_intersect_key($options, array_flip(self::SAVED_CONFIG_KEYS));
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
+    private function filterSavedVariantOptions(array $options): array
+    {
+        return array_intersect_key($options, array_flip(self::SAVED_VARIANT_KEYS));
     }
 
     private function normalizeNotes(string $value): string
@@ -475,7 +514,9 @@ class TransformStore extends Component
             $entries = [];
             foreach ($breakpointNames as $breakpointName) {
                 $entry = $variants[$breakpointName] ?? [];
-                $entries[] = is_array($entry) ? $entry : [];
+                $entries[] = is_array($entry)
+                    ? $this->filterSavedVariantOptions($entry)
+                    : [];
             }
 
             $legacy[$setName] = [
@@ -486,7 +527,7 @@ class TransformStore extends Component
                 'includeEscapeWidth' => $this->resolveIncludeEscapeWidthForSet($setDefinition),
                 'transforms' => $entries,
                 'config' => isset($setDefinition['config']) && is_array($setDefinition['config'])
-                    ? $setDefinition['config']
+                    ? $this->filterSavedConfigOptions($setDefinition['config'])
                     : [],
             ];
         }
@@ -516,7 +557,9 @@ class TransformStore extends Component
             $variants = [];
             foreach ($breakpointNames as $index => $breakpointName) {
                 $entry = $entries[$index] ?? [];
-                $variants[$breakpointName] = is_array($entry) ? $entry : [];
+                $variants[$breakpointName] = is_array($entry)
+                    ? $this->filterSavedVariantOptions($entry)
+                    : [];
             }
 
             $sets[$setName] = [
@@ -524,7 +567,7 @@ class TransformStore extends Component
                 'includeEscapeWidth' => $includeEscapeWidth,
                 'variants' => $variants,
                 'config' => isset($legacyDefinition['config']) && is_array($legacyDefinition['config'])
-                    ? $legacyDefinition['config']
+                    ? $this->filterSavedConfigOptions($legacyDefinition['config'])
                     : [],
             ];
         }
