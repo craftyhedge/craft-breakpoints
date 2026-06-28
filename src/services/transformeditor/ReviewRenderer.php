@@ -39,6 +39,7 @@ final class ReviewRenderer
      * @param array<string, mixed> $editTabBySet
      * @param array<string, mixed> $selectedAssetKeyBySet
      * @param array<string, mixed> $preferredOrderBySet
+     * @param array<int, string> $newSetNames
      * @return array<string, mixed>
      */
     public function renderResultReview(
@@ -136,6 +137,7 @@ final class ReviewRenderer
      * @param array<string, mixed> $editTabBySet
      * @param array<string, mixed> $selectedAssetKeyBySet
      * @param array<string, mixed> $preferredOrderBySet
+     * @param array<int, string> $newSetNames
      * @return array<string, mixed>
      */
     private function renderReview(
@@ -284,7 +286,7 @@ final class ReviewRenderer
     }
 
     /**
-     * @return array{signalKey: string, rowsByBreakpoint: array<int|string, array<string, mixed>>}
+     * @return array{signalKey: string, rowsByBreakpoint: array<int|string, array<string, mixed>>, hasCurrentBreakpointMismatch?: bool, hasResolvedBreakpointMismatchAwaitingVerification?: bool, hasCardWarningDanger?: bool}
      */
     public function buildSignalDeltasForTransform(
         string $setName,
@@ -577,6 +579,7 @@ final class ReviewRenderer
      * @param array<string, mixed> $normalizedScopeState
      * @param array<string, mixed> $normalizedTabState
      * @param array<string, mixed> $normalizedSelectedAssetKeyBySet
+     * @param array<int, string> $newSetNames
      */
     private function buildReviewCardsMarkup(
         array $rowsByBreakpoint,
@@ -1505,6 +1508,7 @@ final class ReviewRenderer
      * @param array<string, mixed> $preferredOrderBySet
      * @param array<string, bool> $breakpointMismatchTransformNames
      * @param array<string, bool> $assetMismatchTransformNames
+     * @param array<string, true> $newSetTransformNames
      * @return array<int, string>
      */
     private function orderReviewTransformNames(

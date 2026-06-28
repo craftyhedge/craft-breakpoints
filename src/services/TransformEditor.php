@@ -549,6 +549,7 @@ class TransformEditor extends Component
      * @param array<string, mixed> $editTabBySet
      * @param array<string, mixed> $selectedAssetKeyBySet
      * @param array<string, mixed> $preferredOrderBySet
+     * @param array<int, string> $newSetNames
      * @return array<string, mixed>
      */
     public function renderResultReview(
@@ -631,7 +632,7 @@ class TransformEditor extends Component
      * Compute the current signal deltas for all breakpoints of a transform.
      * Used after operations to send PatchSignals instead of re-rendering the card.
      *
-     * @return array{signalKey: string, rowsByBreakpoint: array<int|string, array<string, mixed>>}
+     * @return array{signalKey: string, rowsByBreakpoint: array<int|string, array<string, mixed>>, hasCurrentBreakpointMismatch?: bool, hasResolvedBreakpointMismatchAwaitingVerification?: bool, hasCardWarningDanger?: bool}
      */
     public function buildSignalDeltasForTransform(
         string $setName,

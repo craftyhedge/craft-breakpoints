@@ -93,15 +93,15 @@ class UsageTracking extends Utility
         }
 
         uasort($groups, static function(array $a, array $b): int {
-            $missingSort = ((bool)($b['isMissingSavedSet'] ?? false) <=> (bool)($a['isMissingSavedSet'] ?? false));
+            $missingSort = ((bool)$b['isMissingSavedSet'] <=> (bool)$a['isMissingSavedSet']);
             if ($missingSort !== 0) {
                 return $missingSort;
             }
 
-            $lastSeen = strcmp((string)($b['lastSeenAt'] ?? ''), (string)($a['lastSeenAt'] ?? ''));
+            $lastSeen = strcmp((string)$b['lastSeenAt'], (string)$a['lastSeenAt']);
             return $lastSeen !== 0
                 ? $lastSeen
-                : strcmp((string)($a['transformHandle'] ?? ''), (string)($b['transformHandle'] ?? ''));
+                : strcmp((string)$a['transformHandle'], (string)$b['transformHandle']);
         });
 
         return array_values($groups);

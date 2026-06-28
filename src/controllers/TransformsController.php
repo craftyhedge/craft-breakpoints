@@ -584,7 +584,7 @@ class TransformsController extends Controller
                     'hasCardWarningDanger',
                 ] as $deltaKey) {
                     if (array_key_exists($deltaKey, $deltas)) {
-                        $cardSignalPatch[$deltaKey] = ($deltas[$deltaKey] ?? false) === true;
+                        $cardSignalPatch[$deltaKey] = (bool)($deltas[$deltaKey] ?? false);
                     }
                 }
                 if (!empty($deltas['rowsByBreakpoint'])) {
