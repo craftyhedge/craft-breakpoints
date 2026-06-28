@@ -16,7 +16,6 @@ final class ReviewRenderer
 {
     private const REVIEW_MODE_PROCESSED = 'processed';
     private const REVIEW_MODE_SAVED = 'saved';
-    private const OBSERVED_UNSAVED_MESSAGE = 'This transform handle was observed on the front end and needs attention. Process the entry or remove the observation.';
     private readonly CardStateBuilder $cardStateBuilder;
     private readonly ReviewBreakpointStateBuilder $breakpointStateBuilder;
     private readonly InitialStoredReviewBuilder $initialStoredReviewBuilder;
@@ -55,13 +54,7 @@ final class ReviewRenderer
         array $newSetNames = [],
     ): array {
         $normalizedReviewMode = $this->normalizeReviewMode($reviewMode);
-        $this->initialStoredReviewBuilder->resetTelemetryInitCache();
         $rowsByBreakpoint = $this->normalizeReviewRowsByBreakpoint($result['rowsBySlot'] ?? ($result['rowsByBreakpoint'] ?? []));
-        $observedMissingHandles = $this->normalizeObservedMissingHandles($result['observedMissingHandles'] ?? []);
-        $rowsByBreakpoint = $this->mergeObservedMissingRowsByBreakpoint(
-            $rowsByBreakpoint,
-            $observedMissingHandles,
-        );
         $breakpoints = $rowsByBreakpoint !== [] ? array_keys($rowsByBreakpoint) : $this->normalizeReviewBreakpoints($result['breakpoints'] ?? []);
         if ($breakpoints === []) {
             $breakpoints = $this->getReviewConfiguredBreakpoints();
@@ -78,43 +71,14 @@ final class ReviewRenderer
             $hideAssetPagination,
             $normalizedReviewMode,
             $onlyTransformName,
-            $observedMissingHandles,
-            $this->normalizeObservedMissingHandles($newSetNames),
+            $this->normalizeHandleList($newSetNames),
         );
-    }
-
-    /**
-     * @param array<int, array<int, array<string, mixed>>> $rowsByBreakpoint
-     * @param string[] $handles
-     * @return array<int, array<int, array<string, mixed>>>
-     */
-    private function mergeObservedMissingRowsByBreakpoint(array $rowsByBreakpoint, array $handles): array
-    {
-        if ($handles === []) {
-            return $rowsByBreakpoint;
-        }
-
-        $observedByHandle = $this->plugin->getTelemetry()->getMostRecentByHandle();
-        foreach ($handles as $handle) {
-            $observedEntry = $observedByHandle[$handle] ?? null;
-            if (!is_array($observedEntry)) {
-                continue;
-            }
-
-            foreach ($this->initialStoredReviewBuilder->buildObservedUnsavedRowsByBreakpoint($observedEntry) as $slotId => $rows) {
-                foreach ($rows as $row) {
-                    $rowsByBreakpoint[$slotId][] = $row;
-                }
-            }
-        }
-
-        return $rowsByBreakpoint;
     }
 
     /**
      * @return string[]
      */
-    private function normalizeObservedMissingHandles(mixed $rawHandles): array
+    private function normalizeHandleList(mixed $rawHandles): array
     {
         if (!is_array($rawHandles)) {
             return [];
@@ -147,7 +111,6 @@ final class ReviewRenderer
         ?string $onlyTransformName = null,
         array $result = [],
     ): array {
-        $this->initialStoredReviewBuilder->resetTelemetryInitCache();
         $resultRowsByBreakpoint = $this->normalizeReviewRowsByBreakpoint($result['rowsBySlot'] ?? ($result['rowsByBreakpoint'] ?? []));
         $resultBreakpoints = $this->normalizeReviewBreakpoints($result['breakpoints'] ?? []);
         $mergedRowsByBreakpoint = $this->initialStoredReviewBuilder->buildRowsByBreakpoint($resultRowsByBreakpoint);
@@ -173,7 +136,6 @@ final class ReviewRenderer
      * @param array<string, mixed> $editTabBySet
      * @param array<string, mixed> $selectedAssetKeyBySet
      * @param array<string, mixed> $preferredOrderBySet
-     * @param string[] $observedMissingHandles
      * @return array<string, mixed>
      */
     private function renderReview(
@@ -187,7 +149,6 @@ final class ReviewRenderer
         bool $hideAssetPagination,
         string $reviewMode,
         ?string $onlyTransformName,
-        array $observedMissingHandles = [],
         array $newSetNames = [],
     ): array {
         if ($breakpoints === []) {
@@ -219,7 +180,6 @@ final class ReviewRenderer
                 $hideAssetPagination,
                 $reviewMode,
                 $onlyTransformName,
-                $observedMissingHandles,
                 $newSetNames,
             ),
             'warningCount' => $this->countReviewWarningsByTransform($warningsByTransform),
@@ -617,7 +577,6 @@ final class ReviewRenderer
      * @param array<string, mixed> $normalizedScopeState
      * @param array<string, mixed> $normalizedTabState
      * @param array<string, mixed> $normalizedSelectedAssetKeyBySet
-     * @param string[] $observedMissingHandles
      */
     private function buildReviewCardsMarkup(
         array $rowsByBreakpoint,
@@ -634,7 +593,6 @@ final class ReviewRenderer
         bool $hideAssetPagination,
         string $reviewMode,
         ?string $onlyTransformName,
-        array $observedMissingHandles = [],
         array $newSetNames = [],
     ): string {
         $isProcessedReview = $reviewMode === self::REVIEW_MODE_PROCESSED;
@@ -690,12 +648,12 @@ final class ReviewRenderer
                 continue;
             }
 
-            $observedBreakpoints = [];
+            $renderedBreakpoints = [];
             foreach ($configuredBreakpoints as $breakpoint) {
                 $rows = $rowsByBreakpoint[$breakpoint] ?? [];
                 foreach ($rows as $row) {
                     if (($row['transform'] ?? '') === $transformName) {
-                        $observedBreakpoints[] = $breakpoint;
+                        $renderedBreakpoints[] = $breakpoint;
                         break;
                     }
                 }
@@ -708,8 +666,8 @@ final class ReviewRenderer
                 $includeEscapeWidth = ($snapshotTransformMetadata[$transformName]['includeEscapeWidth'] ?? null) === true;
             }
 
-            $transformBreakpoints = $observedBreakpoints !== []
-                ? $observedBreakpoints
+            $transformBreakpoints = $renderedBreakpoints !== []
+                ? $renderedBreakpoints
                 : $this->getReviewBreakpointsForTransformConfig($includeEscapeWidth, $configuredBreakpoints);
 
             if ($transformBreakpoints === []) {
@@ -717,8 +675,7 @@ final class ReviewRenderer
             }
 
             $hasSavedSet = $storedTransformConfig !== null;
-            $isObservedMissingPlaceholder = !$hasSavedSet && in_array($transformName, $observedMissingHandles, true);
-            $hideBreakpointCardsForObservedUnsaved = (!$isProcessedReview && !$hasSavedSet) || $isObservedMissingPlaceholder;
+            $hideBreakpointCardsForMissingSavedSet = !$isProcessedReview && !$hasSavedSet;
 
             // Reactive missing-set / process-again state (processed mode only):
             //   'missing'           -> no saved definition (danger banner + "Set to rendered")
@@ -758,17 +715,6 @@ final class ReviewRenderer
                 $storedTransformConfig,
                 $transformBreakpoints,
             );
-            $initSeedState = $this->initialStoredReviewBuilder->buildInitSeedStateByBreakpoint(
-                $transformName,
-                $transformBreakpoints,
-                !$hasSavedSet,
-            );
-            if (($initSeedState['seedRows'] ?? []) !== []) {
-                $currentRows = $this->initialStoredReviewBuilder->applyInitSeedRowsToCurrentRows(
-                    $currentRows,
-                    $initSeedState['seedRows'],
-                );
-            }
 
             $cardState = $this->cardStateBuilder->build(
                 $currentRows,
@@ -945,7 +891,7 @@ final class ReviewRenderer
             $lastBreakpoint = end($transformBreakpoints);
             reset($transformBreakpoints);
             $previousMediaWidth = null;
-            if (!$hideBreakpointCardsForObservedUnsaved) {
+            if (!$hideBreakpointCardsForMissingSavedSet) {
                 foreach ($transformBreakpoints as $breakpoint) {
                     $rows = $selectedAssetRowsByBreakpoint[$breakpoint] ?? [];
                     $mediaWidth = $this->getReviewSlotMediaWidthById($breakpoint, $includeEscapeWidth) ?? $breakpoint;
@@ -1034,7 +980,7 @@ final class ReviewRenderer
 
             $suppressMismatchBanners = $hasMissingSetWarning || $hasEmptyBreakpointsWarning;
 
-            $reactiveWarningsEnabled = $isProcessedReview && $canEditTransforms && !$isObservedMissingPlaceholder;
+            $reactiveWarningsEnabled = $isProcessedReview && $canEditTransforms;
 
             // The reactive block owns the missing-set warning; drop it from the static
             // list so it is not rendered twice.
@@ -1044,19 +990,10 @@ final class ReviewRenderer
                     static fn($w): bool => !is_array($w) || (string)($w['code'] ?? '') !== 'missing-set-definitions',
                 ))
                 : $cardWarnings;
-            if ($hideBreakpointCardsForObservedUnsaved) {
-                $staticCardWarnings = array_map(static function ($warning): mixed {
-                    if (is_array($warning) && (string)($warning['code'] ?? '') === 'missing-set-definitions') {
-                        $warning['message'] = self::OBSERVED_UNSAVED_MESSAGE;
-                    }
-
-                    return $warning;
-                }, $staticCardWarnings);
-            }
             $staticWarningsMarkup = $this->renderReviewWarningsMarkup(
                 $staticCardWarnings,
                 false,
-                $isObservedMissingPlaceholder ? self::REVIEW_MODE_SAVED : $reviewMode,
+                $reviewMode,
                 $transformName,
             );
 
@@ -1161,7 +1098,7 @@ final class ReviewRenderer
                 'includeEscapeWidth' => $includeEscapeWidth ? '1' : '0',
                 'selectedAssetKey' => $this->escapeReviewHtml($selectedAssetKey),
                 'renderedApplyHiddenClass' => $hideRenderedApplyForCard ? 'bpts-force-hidden' : '',
-                'cardBreakpointsHiddenClass' => $hideBreakpointCardsForObservedUnsaved ? 'bpts-force-hidden' : '',
+                'cardBreakpointsHiddenClass' => $hideBreakpointCardsForMissingSavedSet ? 'bpts-force-hidden' : '',
                 // Delete is only meaningful for a saved set; hide it while the set is
                 // unsaved ('missing'). Kept in sync reactively via setReviewState.
                 'deleteSetHiddenClass' => $setReviewState === 'missing' ? 'bpts-force-hidden' : '',

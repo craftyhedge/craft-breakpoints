@@ -178,7 +178,6 @@ class TransformsController extends Controller
             $operationResult = match ($operation->operation) {
                 'renderedValues.apply'                       => $this->dispatchRenderedValuesApply($operation, $editor),
                 'set.delete'                                 => $editor->deleteSetOperation($operation->setName, $operation->baseVersion),
-                'observation.delete'                         => $editor->deleteObservedUsageOperation($operation->setName),
                 'dimensions.apply'                           => $this->dispatchDimensionsApply($operation, $editor),
                 'dimensions.toggleAutoWidth'                 => $this->dispatchToggleAutoWidth($operation, $editor),
                 'dimensions.toggleAutoHeight'                => $this->dispatchToggleAutoHeight($operation, $editor),
@@ -557,7 +556,7 @@ class TransformsController extends Controller
         if ($persisted && $operation->setName !== '') {
             $signalKey = $this->buildCardSignalKey($operation->setName);
             if ($signalKey !== '') {
-                if ($operation->field === 'deleteSet' || $operation->field === 'observation') {
+                if ($operation->field === 'deleteSet') {
                     $cardId = $this->buildCardDomId($operation->setName);
                     if ($cardId !== '') {
                         $events[] = new PatchElements('', [
@@ -1318,7 +1317,6 @@ class TransformsController extends Controller
             return match ($field) {
                 'renderedValues' => 'Rendered values applied.',
                 'deleteSet' => 'Transform set deleted.',
-                'observation' => 'Observation removed.',
                 'dimensions' => 'Dimensions updated.',
                 'ratio' => 'Ratio applied.',
                 'breakpointEnabled' => 'Breakpoint state updated.',

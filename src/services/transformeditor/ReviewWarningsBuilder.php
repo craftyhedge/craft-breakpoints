@@ -35,8 +35,8 @@ final class ReviewWarningsBuilder
     public function buildWarningsByTransform(array $rowsByBreakpoint, array $storedTransforms): array
     {
         $warningsByTransform = [];
-        $observedTransformNames = self::collectTransformNames($rowsByBreakpoint);
-        $observedTransformSet = array_fill_keys($observedTransformNames, true);
+        $renderedTransformNames = self::collectTransformNames($rowsByBreakpoint);
+        $renderedTransformSet = array_fill_keys($renderedTransformNames, true);
         $configTransformNames = array_keys($storedTransforms);
 
         foreach ($storedTransforms as $transformName => $transformDefinition) {
@@ -44,7 +44,7 @@ final class ReviewWarningsBuilder
                 continue;
             }
 
-            if (!isset($observedTransformSet[$transformName])) {
+            if (!isset($renderedTransformSet[$transformName])) {
                 continue;
             }
 
@@ -54,7 +54,7 @@ final class ReviewWarningsBuilder
             }
         }
 
-        $missingDefinitions = array_values(array_diff($observedTransformNames, $configTransformNames));
+        $missingDefinitions = array_values(array_diff($renderedTransformNames, $configTransformNames));
         if ($missingDefinitions === []) {
             return $warningsByTransform;
         }
@@ -66,44 +66,16 @@ final class ReviewWarningsBuilder
             && $entryId > 0
             && (string)($runEntryData['cpEditUrl'] ?? '') !== '#';
         $entryMissing = $entryId > 0 && !$entryAvailable;
-        $observedByHandle = (!$entryAvailable)
-            ? $this->telemetry->getMostRecentByHandle()
-            : [];
 
         foreach ($missingDefinitions as $transformName) {
-            $warningEntryId = $entryId;
-            $warningEntryAvailable = $entryAvailable;
-            $warningEntryMissing = $entryMissing;
-
-            if (!$warningEntryAvailable) {
-                $observedEntryId = $this->resolveObservedEntryId($observedByHandle[$transformName] ?? null);
-                if ($observedEntryId > 0) {
-                    $warningEntryId = $observedEntryId;
-                    $warningEntryAvailable = true;
-                    $warningEntryMissing = false;
-                }
-            }
-
             $warningsByTransform[$transformName][] = $this->buildMissingSetDefinitionWarning(
-                $warningEntryId,
-                $warningEntryAvailable,
-                $warningEntryMissing,
+                $entryId,
+                $entryAvailable,
+                $entryMissing,
             );
         }
 
         return $warningsByTransform;
-    }
-
-    /**
-     * @param mixed $observedEntry
-     */
-    private function resolveObservedEntryId(mixed $observedEntry): int
-    {
-        if (!is_array($observedEntry) || !is_numeric($observedEntry['entryId'] ?? null)) {
-            return 0;
-        }
-
-        return max(0, (int)$observedEntry['entryId']);
     }
 
     /**

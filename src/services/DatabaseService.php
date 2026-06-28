@@ -11,7 +11,7 @@ use yii\base\Component;
  */
 class DatabaseService extends Component
 {
-    public const TABLE_USAGE = '{{%bpi_transform_last_processed}}';
+    public const TABLE_USAGE_OBSERVATIONS = '{{%bpi_transform_usage_observations}}';
     public const TABLE_RUN_SNAPSHOT = '{{%bpi_processing_run_snapshot}}';
     public const TABLE_RUN_SNAPSHOT_ROWS = '{{%bpi_processing_run_snapshot_breakpoints}}';
     public const TABLE_PREVIEW_CACHE = '{{%bpi_preview_cache}}';
@@ -28,9 +28,9 @@ class DatabaseService extends Component
         return $rows;
     }
 
-    public function clearObservedUsage(): int
+    public function clearUsageTracking(): int
     {
-        return $this->truncate(self::TABLE_USAGE);
+        return $this->truncate(self::TABLE_USAGE_OBSERVATIONS);
     }
 
     /**
@@ -41,7 +41,7 @@ class DatabaseService extends Component
         return [
             'previewCache' => $this->clearPreviewCache(),
             'runSnapshot' => $this->clearRunSnapshots(),
-            'usage' => $this->clearObservedUsage(),
+            'usageTracking' => $this->clearUsageTracking(),
         ];
     }
 

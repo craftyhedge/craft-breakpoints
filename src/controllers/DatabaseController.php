@@ -21,7 +21,10 @@ class DatabaseController extends Controller
         $this->requireAcceptsJson();
         $this->requireAdmin();
 
-        if (!Plugin::getInstance()->getTelemetry()->canEditTransforms()) {
+        $telemetry = Plugin::getInstance()->getTelemetry();
+        $isUsageTrackingAction = $action->id === 'clear-usage-tracking';
+
+        if (!$telemetry->canEditTransforms() && (!$isUsageTrackingAction || !$telemetry->canTrackUsage())) {
             throw new ForbiddenHttpException('Transform editing is disabled in this environment.');
         }
 
@@ -36,11 +39,11 @@ class DatabaseController extends Controller
         return $this->respond($message, $result + ['total' => $total]);
     }
 
-    public function actionClearObservations(): Response
+    public function actionClearUsageTracking(): Response
     {
-        $rows = Plugin::getInstance()->getDatabase()->clearObservedUsage();
-        $message = sprintf('Cleared observed transform usage (%d row%s deleted).', $rows, $rows === 1 ? '' : 's');
-        return $this->respond($message, ['usage' => $rows, 'total' => $rows]);
+        $rows = Plugin::getInstance()->getDatabase()->clearUsageTracking();
+        $message = sprintf('Cleared transform usage tracking (%d row%s deleted).', $rows, $rows === 1 ? '' : 's');
+        return $this->respond($message, ['usageTracking' => $rows, 'total' => $rows]);
     }
 
     /**

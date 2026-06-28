@@ -62,6 +62,7 @@ panel exposes the common output, transform, template, and editor defaults.
 | `processingLazyLoadingSizesAttribute` | string | `data-sizes` | Attribute copied to `sizes` by the `attributes` processing adapter. |
 | `processingLazyLoadingCustomHandler` | string | *(blank)* | Global async function used by the `custom` adapter, for example `window.project.prepareBreakpointImages`. |
 | `previewCenter` | bool | `true` | Editor-only: centers the preview width in the Transform Sets UI. |
+| `enableUsageTracking` | bool | `false` | Development/staging utility: records transform set usage by page/source for the Transform Tracking utility. Keep disabled in production unless explicitly needed. |
 | `dpr` | array | `[1]` | Device pixel ratios for `srcset`. `1x` is always included; add `2`/`3` for high-density variants. |
 
 Notes:
@@ -113,6 +114,9 @@ return [
 
     // Local development only: enables processing and transform-set saving.
     'allowTransformEditing' => App::env('ALLOW_TRANSFORM_EDITING') ?? false,
+
+    // Optional development/staging audit table for transform set usage by page.
+    'enableUsageTracking' => App::env('ENABLE_BREAKPOINT_USAGE_TRACKING') ?? false,
 ];
 ```
 

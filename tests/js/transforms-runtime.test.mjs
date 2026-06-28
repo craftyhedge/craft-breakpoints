@@ -5,7 +5,12 @@ function buildRuntimeDom() {
     <input id="bpts-ui-results-heading-signal-bridge" value="Saved Sets" />
     <input id="bpts-sidebar-saved-set-names-signal-bridge" value="[]" />
     <div id="bpts-editor-status" data-kind="ready" data-message=""></div>
-    <input id="bpts-source-entry" value="" />
+    <input id="bpts-source-mode-toggle-input" value="entry" />
+    <div id="bpts-source-mode-toggle"></div>
+    <div data-bpts-source-entry-wrap>
+      <input id="bpts-source-entry" value="" />
+    </div>
+    <input id="bpts-source-url" value="" />
     <div id="bpts-status"></div>
     <div id="bpts-progress-host"></div>
     <div id="bpts-frame-pane"></div>
@@ -176,6 +181,20 @@ describe('transforms runtime helper logic', () => {
         if (savedSetNamesBridge instanceof HTMLInputElement) {
             savedSetNamesBridge.value = '[]';
         }
+        const sourceMode = document.getElementById('bpts-source-mode-toggle-input');
+        if (sourceMode instanceof HTMLInputElement) {
+            sourceMode.value = 'entry';
+        }
+        const sourceEntry = document.getElementById('bpts-source-entry');
+        if (sourceEntry instanceof HTMLElement) {
+            sourceEntry.innerHTML = '';
+            sourceEntry.value = '';
+        }
+        const sourceUrl = document.getElementById('bpts-source-url');
+        if (sourceUrl instanceof HTMLInputElement) {
+            sourceUrl.value = '';
+        }
+        window.history.replaceState(window.history.state, '', `${window.location.origin}/`);
     });
 
     it('defaults read-only review cards to compact previews without overwriting the stored editor preference', () => {
@@ -1841,6 +1860,97 @@ describe('transforms runtime helper logic', () => {
             .toContain('Breakpoints processing markers were not found.');
     });
 
+    it('resolves URL mode sources from relative paths and enables processing controls', async () => {
+        const sourceMode = document.getElementById('bpts-source-mode-toggle-input');
+        const sourceUrl = document.getElementById('bpts-source-url');
+        const runButton = document.getElementById('bpts-run-processing');
+
+        sourceMode.value = 'url';
+        sourceUrl.value = '/tracked-page?preview=1';
+        sourceMode.dispatchEvent(new Event('change', { bubbles: true }));
+        sourceUrl.dispatchEvent(new Event('change', { bubbles: true }));
+
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+
+        await expect(hooks.resolveSelectedSourceUrl()).resolves.toBe(`${window.location.origin}/tracked-page?preview=1`);
+        expect(window.location.search).toBe('?source_url=%2Ftracked-page%3Fpreview%3D1');
+        expect(runButton.disabled).toBe(false);
+    });
+
+    it('keeps entry mode on the existing entry URL resolver and clears source_url', async () => {
+        window.history.replaceState(window.history.state, '', `${window.location.origin}/?source_url=%2Fold`);
+        const sourceMode = document.getElementById('bpts-source-mode-toggle-input');
+        const sourceEntry = document.getElementById('bpts-source-entry');
+
+        sourceMode.value = 'entry';
+        sourceEntry.innerHTML = '<input type="hidden" name="bpts-source-entry-id" value="42" />';
+        window.Craft = {
+            sendActionRequest: vi.fn().mockResolvedValue({
+                data: {
+                    url: 'https://example.test/entry-page',
+                },
+            }),
+        };
+
+        sourceMode.dispatchEvent(new Event('change', { bubbles: true }));
+        sourceEntry.dispatchEvent(new Event('change', { bubbles: true }));
+
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+
+        await expect(hooks.resolveSelectedSourceUrl()).resolves.toBe('https://example.test/entry-page');
+        expect(window.Craft.sendActionRequest).toHaveBeenCalledWith('POST', 'breakpoints/default/entry-url', {
+            data: {
+                entryId: 42,
+            },
+        });
+        expect(window.location.search).toBe('?entry_id=42');
+    });
+
+    it('reports a source URL load error before falling through to marker-missing diagnostics', async () => {
+        const sourceMode = document.getElementById('bpts-source-mode-toggle-input');
+        const sourceUrl = document.getElementById('bpts-source-url');
+        sourceMode.value = 'url';
+        sourceUrl.value = '/missing-page';
+
+        const frameDocument = document.implementation.createHTMLDocument('404 Not Found');
+        frameDocument.body.innerHTML = '<h1>404 Not Found</h1>';
+        hooks.setPreviewFrameForTests(frameDocument);
+
+        const publishResult = vi.fn();
+        const persistRunSnapshot = vi.fn().mockResolvedValue(true);
+
+        hooks.setRunProcessingOverridesForTests({
+            ensurePreviewFrame: vi.fn().mockResolvedValue(undefined),
+            setPreviewWidth: vi.fn().mockResolvedValue(undefined),
+            publishResult,
+            persistRunSnapshot,
+        });
+
+        await hooks.runProcessing();
+
+        expect(publishResult).not.toHaveBeenCalled();
+        expect(persistRunSnapshot).toHaveBeenCalledTimes(1);
+
+        const [report, rowsBySlot] = persistRunSnapshot.mock.calls[0];
+        expect(report.status).toBe('failed');
+        expect(report.failure.stage).toBe('validate-source-url');
+        expect(report.issues).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                severity: 'error',
+                code: 'source-url-load-failed',
+                message: `Source URL did not load a valid page: ${window.location.origin}/missing-page`,
+            }),
+        ]));
+        expect(report.issues).not.toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                code: 'processing-markers-missing',
+            }),
+        ]));
+        expect(rowsBySlot).toEqual({});
+        expect(document.getElementById('bpts-status').textContent)
+            .toContain(`Source URL did not load a valid page: ${window.location.origin}/missing-page`);
+    });
+
     it('persists run snapshots and refreshes review when persistence succeeds', async () => {
         const report = hooks.createRunReport('https://example.test/source', [480], false);
         report.status = 'completed';
@@ -2313,7 +2423,7 @@ describe('transforms runtime helper logic', () => {
         }));
     });
 
-    it('auto-applies observed processed sets even when the saved-name signal is stale', async () => {
+    it('auto-applies processed sets even when the saved-name signal is stale', async () => {
         document.getElementById('bpts-sidebar-saved-set-names-signal-bridge').value = '["image-test"]';
 
         const requestedSets = hooks.buildAutoApplyNewSetDescriptors({
@@ -2338,6 +2448,9 @@ describe('transforms runtime helper logic', () => {
     it('reports cancelled processing when wait is aborted and avoids publishing results', async () => {
         const sourceEntry = document.getElementById('bpts-source-entry');
         sourceEntry.innerHTML = '<input type="hidden" name="bpts-source-entry-id" value="42" />';
+        const frameDocument = document.implementation.createHTMLDocument('Preview');
+        frameDocument.body.innerHTML = '<main>Valid preview shell</main>';
+        hooks.setPreviewFrameForTests(frameDocument);
 
         let publishCount = 0;
         let persistCallCount = 0;
@@ -2463,72 +2576,6 @@ describe('transforms runtime helper logic', () => {
         vi.useRealTimers();
     });
 
-    describe('syncSidebarObservedUnsavedFromSavedNames', () => {
-        const seedSidebar = () => {
-            const list = document.getElementById('bpts-transform-sets-list');
-            list.innerHTML = `
-                <li data-set="heroImage" class="bpts-transform-sidebar-item-warning" data-observed-unsaved="1">
-                    <a href="#" class="bpts-transform-sidebar-link bpts-transform-sidebar-link-warning" data-set="heroImage">
-                        <span class="bpts-transform-sidebar-warning-icon" aria-hidden="true"><svg></svg></span>
-                        <span class="visually-hidden">Not saved: </span>
-                        heroImage
-                    </a>
-                </li>
-                <li data-set="cardImage" class="bpts-transform-sidebar-item-warning" data-observed-unsaved="1">
-                    <a href="#" class="bpts-transform-sidebar-link bpts-transform-sidebar-link-warning" data-set="cardImage">
-                        <span class="bpts-transform-sidebar-warning-icon" aria-hidden="true"><svg></svg></span>
-                        <span class="visually-hidden">Not saved: </span>
-                        cardImage
-                    </a>
-                </li>
-                <li data-set="staticImage">
-                    <a href="#" class="bpts-transform-sidebar-link" data-set="staticImage">staticImage</a>
-                </li>
-            `;
-        };
-
-        it('clears warning state for handles now present in saved names', () => {
-            seedSidebar();
-
-            hooks.syncSidebarObservedUnsavedFromSavedNames(['heroImage', 'staticImage']);
-
-            const hero = document.querySelector('li[data-set="heroImage"]');
-            expect(hero.classList.contains('bpts-transform-sidebar-item-warning')).toBe(false);
-            expect(hero.hasAttribute('data-observed-unsaved')).toBe(false);
-            const heroLink = hero.querySelector('a.bpts-transform-sidebar-link');
-            expect(heroLink.classList.contains('bpts-transform-sidebar-link-warning')).toBe(false);
-            expect(heroLink.querySelector('.bpts-transform-sidebar-warning-icon')).toBeNull();
-            expect(heroLink.querySelector('.visually-hidden')).toBeNull();
-
-            const card = document.querySelector('li[data-set="cardImage"]');
-            expect(card.classList.contains('bpts-transform-sidebar-item-warning')).toBe(true);
-            expect(card.getAttribute('data-observed-unsaved')).toBe('1');
-            expect(card.querySelector('.bpts-transform-sidebar-warning-icon')).not.toBeNull();
-        });
-
-        it('is a no-op when savedSetNames is not an array', () => {
-            seedSidebar();
-
-            hooks.syncSidebarObservedUnsavedFromSavedNames(null);
-            hooks.syncSidebarObservedUnsavedFromSavedNames(undefined);
-            hooks.syncSidebarObservedUnsavedFromSavedNames('heroImage');
-
-            const hero = document.querySelector('li[data-set="heroImage"]');
-            expect(hero.classList.contains('bpts-transform-sidebar-item-warning')).toBe(true);
-            expect(hero.getAttribute('data-observed-unsaved')).toBe('1');
-        });
-
-        it('ignores non-observed rows even if their handles match saved names', () => {
-            seedSidebar();
-
-            hooks.syncSidebarObservedUnsavedFromSavedNames(['staticImage']);
-
-            const staticItem = document.querySelector('li[data-set="staticImage"]');
-            expect(staticItem.classList.contains('bpts-transform-sidebar-item-warning')).toBe(false);
-            expect(staticItem.hasAttribute('data-observed-unsaved')).toBe(false);
-        });
-    });
-
     describe('ensureSidebarItemsForSavedNames', () => {
         it('appends a saved-state row for a first-time-saved set with no existing item', () => {
             const list = document.getElementById('bpts-transform-sets-list');
@@ -2542,7 +2589,6 @@ describe('transforms runtime helper logic', () => {
 
             const created = document.querySelector('li[data-set="newImage"]');
             expect(created).not.toBeNull();
-            expect(created.hasAttribute('data-observed-unsaved')).toBe(false);
             expect(created.classList.contains('bpts-transform-sidebar-item-warning')).toBe(false);
 
             const link = created.querySelector('a.bpts-transform-sidebar-link[data-set="newImage"]');
@@ -2587,9 +2633,6 @@ describe('transforms runtime helper logic', () => {
                 <li data-set="cardImage">
                     <a href="#" class="bpts-transform-sidebar-link" data-set="cardImage">cardImage</a>
                 </li>
-                <li data-set="observedImage" class="bpts-transform-sidebar-item-warning" data-observed-unsaved="1">
-                    <a href="#" class="bpts-transform-sidebar-link bpts-transform-sidebar-link-warning" data-set="observedImage">observedImage</a>
-                </li>
             `;
         };
 
@@ -2611,22 +2654,13 @@ describe('transforms runtime helper logic', () => {
             expect(document.querySelector('li[data-set="cardImage"]')).toBeNull();
         });
 
-        it('removes observed-unsaved rows when they are not saved', () => {
-            seedSaved();
-
-            hooks.removeSidebarItemsNotInSavedNames([]);
-
-            const observed = document.querySelector('li[data-set="observedImage"]');
-            expect(observed).toBeNull();
-        });
-
         it('is a no-op when savedSetNames is not an array', () => {
             seedSaved();
 
             hooks.removeSidebarItemsNotInSavedNames(null);
             hooks.removeSidebarItemsNotInSavedNames('heroImage');
 
-            expect(document.querySelectorAll('li[data-set]').length).toBe(3);
+            expect(document.querySelectorAll('li[data-set]').length).toBe(2);
         });
     });
 });

@@ -34,6 +34,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     const BREAKPOINT_SAFETY_PX = 1;
     const PROCESSING_QUERY_PARAM = '__bpiProcessing';
     const ENTRY_ID_QUERY_PARAM = 'entry_id';
+    const SOURCE_URL_QUERY_PARAM = 'source_url';
     const PREVIEW_WIDTH_SETTLE_TIMEOUT_MS = 800;
     const PREVIEW_WIDTH_SETTLE_TOLERANCE_PX = 2;
     const PREVIEW_FRAME_TAG = 'ifr' + 'ame';
@@ -68,7 +69,11 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         editorBaseVersionSignalBridge: document.getElementById('bpts-editor-base-version-signal-bridge'),
         transformSetsSidebar: document.getElementById('bpts-transform-sets-sidebar'),
         transformSetsList: document.getElementById('bpts-transform-sets-list'),
+        sourceMode: document.getElementById('bpts-source-mode-toggle-input'),
+        sourceModeToggle: document.getElementById('bpts-source-mode-toggle'),
         sourceEntry: document.getElementById('bpts-source-entry'),
+        sourceEntryWrap: document.querySelector('[data-bpts-source-entry-wrap]'),
+        sourceUrl: document.getElementById('bpts-source-url'),
         status: document.getElementById('bpts-status'),
         progressHost: document.getElementById('bpts-progress-host'),
         resultsSettingsLightswitch: document.getElementById('bpts-results-settings-lightswitch'),
@@ -103,6 +108,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         previewHeightSyncRaf: null,
         sourceSyncRaf: null,
         selectedEntryId: null,
+        selectedSourceSignature: '',
         updateStatusResetTimersByTransform: {},
         updateStatusTransitionTimersByTransform: {},
         updateStatusStartedAtByTransform: {},
@@ -458,14 +464,6 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                     return;
                 }
 
-                const observedHandle = String(target.dataset.observedHandle || '').trim();
-                if (observedHandle !== '') {
-                    await runProcessing({
-                        requestedObservedHandle: observedHandle,
-                    });
-                    return;
-                }
-
                 if (elements.btnRun) {
                     elements.btnRun.click();
                 }
@@ -588,10 +586,9 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
     function syncPostPatchReviewState() {
         // The saved-names signal is seeded from the server on load, so it is the
-        // authoritative list of saved sets: reconcile additions, warning state,
-        // and removals against it on every patch (an empty list is meaningful).
+        // authoritative list of saved sets: reconcile additions and removals
+        // against it on every patch (an empty list is meaningful).
         const savedSetNames = getSidebarSavedSetNamesSignalValue();
-        syncSidebarObservedUnsavedFromSavedNames(savedSetNames);
         ensureSidebarItemsForSavedNames(savedSetNames);
         removeSidebarItemsNotInSavedNames(savedSetNames);
 
@@ -755,43 +752,6 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         });
     }
 
-    function syncSidebarObservedUnsavedFromSavedNames(savedSetNames) {
-        const list = elements.transformSetsList;
-        if (!(list instanceof HTMLElement) || !Array.isArray(savedSetNames)) {
-            return;
-        }
-
-        const savedSet = new Set(
-            savedSetNames
-                .filter((name) => typeof name === 'string' && name !== '')
-                .map((name) => String(name))
-        );
-
-        const items = Array.from(list.querySelectorAll('li[data-observed-unsaved="1"][data-set]'));
-        items.forEach((item) => {
-            const setName = String(item.getAttribute('data-set') || '').trim();
-            if (setName === '' || !savedSet.has(setName)) {
-                return;
-            }
-
-            item.classList.remove('bpts-transform-sidebar-item-warning');
-            item.removeAttribute('data-observed-unsaved');
-
-            const link = item.querySelector('a.bpts-transform-sidebar-link');
-            if (link instanceof HTMLElement) {
-                link.classList.remove('bpts-transform-sidebar-link-warning');
-                const icon = link.querySelector('.bpts-transform-sidebar-warning-icon');
-                if (icon) {
-                    icon.remove();
-                }
-                const srOnly = link.querySelector('.visually-hidden');
-                if (srOnly) {
-                    srOnly.remove();
-                }
-            }
-        });
-    }
-
     function syncSidebarTransformOrderToCards() {
         const list = elements.transformSetsList;
         if (!(list instanceof HTMLElement)) {
@@ -924,7 +884,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     }
 
     function setButtonsDisabled(disabled) {
-        const hasSourceSelection = getSelectedEntryId() !== null;
+        const hasSourceSelection = hasSelectedSource();
         const runShouldDisable = disabled || !hasSourceSelection;
         const openShouldDisable = disabled || state.previewVisible || !hasSourceSelection;
 
@@ -969,17 +929,20 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
         state.sourceSyncRaf = window.requestAnimationFrame(() => {
             state.sourceSyncRaf = null;
+            updateSourceModeVisibility();
             const selectedEntryId = getSelectedEntryId();
-            const sourceChanged = selectedEntryId !== state.selectedEntryId;
+            const sourceSignature = getSelectedSourceSignature();
+            const sourceChanged = sourceSignature !== state.selectedSourceSignature;
             state.selectedEntryId = selectedEntryId;
+            state.selectedSourceSignature = sourceSignature;
 
             setButtonsDisabled(state.busy);
 
             if (!state.busy && sourceChanged) {
-                if (selectedEntryId) {
+                if (hasSelectedSource()) {
                     setStatus('Source selected. Run Processing next.');
                 } else {
-                    setStatus('Select a source entry.');
+                    setStatus(getSelectedSourceMode() === 'url' ? 'Enter a source URL.' : 'Select a source entry.');
                 }
             }
         });
@@ -989,6 +952,8 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         if (!elements.sourceEntry) {
             return;
         }
+
+        updateSourceModeVisibility();
 
         const observer = new MutationObserver(() => {
             scheduleSourceControlSync();
@@ -1005,6 +970,30 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         elements.sourceEntry.addEventListener('click', () => {
             window.setTimeout(scheduleSourceControlSync, 0);
         });
+
+        if (elements.sourceMode) {
+            elements.sourceMode.addEventListener('change', () => {
+                syncSelectedSourceToUrl();
+                scheduleSourceControlSync();
+            });
+        }
+
+        if (elements.sourceModeToggle) {
+            elements.sourceModeToggle.addEventListener('click', () => {
+                window.setTimeout(() => {
+                    syncSelectedSourceToUrl();
+                    scheduleSourceControlSync();
+                }, 0);
+            });
+        }
+
+        if (elements.sourceUrl) {
+            elements.sourceUrl.addEventListener('input', scheduleSourceControlSync);
+            elements.sourceUrl.addEventListener('change', () => {
+                syncSelectedSourceToUrl();
+                scheduleSourceControlSync();
+            });
+        }
     }
 
     function applyDatastarIgnoreAttribute(target) {
@@ -1171,7 +1160,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     function normalizeUrl(rawUrl) {
         const input = String(rawUrl || '').trim();
         if (!input) {
-            throw new Error('Source entry URL is required.');
+            throw new Error('Source URL is required.');
         }
         return new URL(input, window.location.origin).toString();
     }
@@ -1214,6 +1203,43 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         return null;
     }
 
+    function getSelectedSourceMode() {
+        return elements.sourceMode instanceof HTMLInputElement && elements.sourceMode.value === 'url'
+            ? 'url'
+            : 'entry';
+    }
+
+    function getSelectedSourceUrlInput() {
+        return elements.sourceUrl instanceof HTMLInputElement
+            ? elements.sourceUrl.value.trim()
+            : '';
+    }
+
+    function getSelectedSourceSignature() {
+        const mode = getSelectedSourceMode();
+        if (mode === 'url') {
+            return `url:${getSelectedSourceUrlInput()}`;
+        }
+
+        return `entry:${getSelectedEntryId() || ''}`;
+    }
+
+    function hasSelectedSource() {
+        return getSelectedSourceMode() === 'url'
+            ? getSelectedSourceUrlInput() !== ''
+            : getSelectedEntryId() !== null;
+    }
+
+    function updateSourceModeVisibility() {
+        const isUrlMode = getSelectedSourceMode() === 'url';
+        if (elements.sourceEntryWrap instanceof HTMLElement) {
+            elements.sourceEntryWrap.hidden = isUrlMode;
+        }
+        if (elements.sourceUrl instanceof HTMLInputElement) {
+            elements.sourceUrl.hidden = !isUrlMode;
+        }
+    }
+
     async function resolveSelectedEntryUrl() {
         const entryId = getSelectedEntryId();
         if (!entryId) {
@@ -1233,6 +1259,14 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         return normalizeUrl(response?.data?.url || '');
     }
 
+    async function resolveSelectedSourceUrl() {
+        if (getSelectedSourceMode() === 'url') {
+            return normalizeUrl(getSelectedSourceUrlInput());
+        }
+
+        return resolveSelectedEntryUrl();
+    }
+
     function syncSelectedEntryIdToUrl(entryIdRaw) {
         const entryId = parseEntryId(entryIdRaw);
         if (entryId === null || typeof window === 'undefined' || !window.location || !window.history || typeof window.history.replaceState !== 'function') {
@@ -1242,6 +1276,41 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         try {
             const currentUrl = new URL(window.location.href);
             currentUrl.searchParams.set(ENTRY_ID_QUERY_PARAM, String(entryId));
+            currentUrl.searchParams.delete(SOURCE_URL_QUERY_PARAM);
+
+            const nextUrl = currentUrl.toString();
+            if (nextUrl !== window.location.href) {
+                window.history.replaceState(window.history.state, '', nextUrl);
+            }
+        } catch (_error) {
+            // Ignore URL sync failures so processing flow remains uninterrupted.
+        }
+    }
+
+    function syncSelectedSourceToUrl() {
+        if (typeof window === 'undefined' || !window.location || !window.history || typeof window.history.replaceState !== 'function') {
+            return;
+        }
+
+        try {
+            const currentUrl = new URL(window.location.href);
+            if (getSelectedSourceMode() === 'url') {
+                const sourceUrl = getSelectedSourceUrlInput();
+                currentUrl.searchParams.delete(ENTRY_ID_QUERY_PARAM);
+                if (sourceUrl !== '') {
+                    currentUrl.searchParams.set(SOURCE_URL_QUERY_PARAM, sourceUrl);
+                } else {
+                    currentUrl.searchParams.delete(SOURCE_URL_QUERY_PARAM);
+                }
+            } else {
+                const entryId = getSelectedEntryId();
+                currentUrl.searchParams.delete(SOURCE_URL_QUERY_PARAM);
+                if (entryId !== null) {
+                    currentUrl.searchParams.set(ENTRY_ID_QUERY_PARAM, String(entryId));
+                } else {
+                    currentUrl.searchParams.delete(ENTRY_ID_QUERY_PARAM);
+                }
+            }
 
             const nextUrl = currentUrl.toString();
             if (nextUrl !== window.location.href) {
@@ -2559,7 +2628,6 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         if (elements.visualResults && typeof payload.visualResultsHtml === 'string') {
             elements.visualResults.innerHTML = payload.visualResultsHtml;
 
-            syncSidebarObservedUnsavedFromSavedNames(payload.savedSetNames);
             syncSidebarTransformOrderToCards();
             reapplyTransformUpdateStatuses();
             scheduleBreakpointPreviewHeightSync();
@@ -2817,6 +2885,19 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         return metadata;
     }
 
+    function buildReviewAssetKeyFromRow(transformName, row) {
+        const pictureId = String(row?.pictureId || '').trim();
+        if (pictureId !== '') {
+            return `picture:${transformName}:${pictureId}`;
+        }
+
+        const assetId = String(row?.assetId || '').trim();
+        if (assetId !== '') {
+            return `asset:${transformName}:${assetId}`;
+        }
+        return '';
+    }
+
     function flattenResultRowsBySlot(result) {
         const rowsBySlot = result && typeof result === 'object' && result.rowsBySlot && typeof result.rowsBySlot === 'object'
             ? result.rowsBySlot
@@ -2835,58 +2916,6 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             });
         });
         return rows;
-    }
-
-    function resultContainsTransformHandle(result, transformHandle) {
-        const handle = String(transformHandle || '').trim();
-        if (handle === '') {
-            return true;
-        }
-
-        return flattenResultRowsBySlot(result).some((row) => String(row?.transform || '').trim() === handle);
-    }
-
-    function buildObservedHandleMissingMessage(transformHandle) {
-        const handle = String(transformHandle || '').trim();
-        if (handle === '') {
-            return '';
-        }
-
-        return `Transform handle "${handle}" was not found on the processed page. It may no longer be used there; remove the observation if it is stale.`;
-    }
-
-    function markObservedHandleMissingOnResult(result, transformHandle) {
-        if (!result || typeof result !== 'object') {
-            return result;
-        }
-
-        const handle = String(transformHandle || '').trim();
-        if (handle === '' || resultContainsTransformHandle(result, handle)) {
-            return result;
-        }
-
-        const existing = Array.isArray(result.observedMissingHandles)
-            ? result.observedMissingHandles.map((value) => String(value || '').trim()).filter((value) => value !== '')
-            : [];
-        if (!existing.includes(handle)) {
-            existing.push(handle);
-        }
-        result.observedMissingHandles = existing;
-
-        return result;
-    }
-
-    function buildReviewAssetKeyFromRow(transformName, row) {
-        const pictureId = String(row?.pictureId || '').trim();
-        if (pictureId !== '') {
-            return `picture:${transformName}:${pictureId}`;
-        }
-
-        const assetId = String(row?.assetId || '').trim();
-        if (assetId !== '') {
-            return `asset:${transformName}:${assetId}`;
-        }
-        return '';
     }
 
     function buildAutoApplyNewSetDescriptors(result) {
@@ -2974,7 +3003,6 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         }
         if (Array.isArray(data.savedSetNames)) {
             setSidebarSavedSetNamesSignalValue(data.savedSetNames);
-            syncSidebarObservedUnsavedFromSavedNames(data.savedSetNames);
         }
 
         return {
@@ -3021,9 +3049,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             .filter((name) => name !== '' && !skippedNames.has(name));
     }
 
-    function buildCompletionStatusFromResult(result, snapshotPersisted, autoApplySummary = null, options = null) {
-        const requestedObservedHandle = String(options?.requestedObservedHandle || '').trim();
-        const observedHandleMissing = requestedObservedHandle !== '' && !resultContainsTransformHandle(result, requestedObservedHandle);
+    function buildCompletionStatusFromResult(result, snapshotPersisted, autoApplySummary = null) {
         const warningCount = Math.max(0, Number(result?.summary?.warningCount) || 0);
         const mismatchCount = Math.max(
             0,
@@ -3031,11 +3057,9 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                 || (Number(result?.summary?.breakpointMismatchCount) || 0)
                 + (Number(result?.summary?.assetMismatchCount) || 0),
         );
-        const needsReview = warningCount > 0 || mismatchCount > 0 || observedHandleMissing;
+        const needsReview = warningCount > 0 || mismatchCount > 0;
         const completionState = needsReview ? 'warning' : 'success';
-        let completionStatus = observedHandleMissing && warningCount < 1
-            ? 'Observation not found'
-            : (warningCount > 0 || mismatchCount > 0 ? 'Warnings to address' : 'All passed');
+        let completionStatus = warningCount > 0 || mismatchCount > 0 ? 'Warnings to address' : 'All passed';
         const appliedCount = Math.max(0, Number(autoApplySummary?.appliedCount) || 0);
         const skippedCount = getBlockingAutoApplySkippedCount(autoApplySummary);
 
@@ -3051,13 +3075,6 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             completionStatus += '. No new sets';
         }
 
-        if (observedHandleMissing) {
-            const missingMessage = buildObservedHandleMissingMessage(requestedObservedHandle);
-            if (missingMessage !== '') {
-                completionStatus += `. ${missingMessage}`;
-            }
-        }
-
         return {
             message: snapshotPersisted
                 ? completionStatus
@@ -3071,13 +3088,13 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     }
 
     async function loadPreviewForSelectedEntry(successMessage) {
-        setStatus('Loading entry...');
+        setStatus('Loading source...');
         const firstMeasurementWidth = getFirstBreakpointMeasurementWidth();
         if (firstMeasurementWidth !== null) {
             await setPreviewWidth(firstMeasurementWidth);
         }
 
-        const sourceUrl = await resolveSelectedEntryUrl();
+        const sourceUrl = await resolveSelectedSourceUrl();
         await ensurePreviewFrame(sourceUrl, false);
 
         // Initial review and preview load start in parallel.
@@ -3104,6 +3121,63 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         }
     }
 
+    class SourceUrlLoadError extends Error {
+        constructor(message) {
+            super(message);
+            this.name = 'SourceUrlLoadError';
+        }
+    }
+
+    function detectSourceUrlLoadError(sourceUrl, frameDocument = getFrameDocument()) {
+        if (!frameDocument || typeof frameDocument.querySelector !== 'function') {
+            return 'Source URL could not be inspected after loading.';
+        }
+
+        const bodyText = String(frameDocument.body?.innerText || frameDocument.body?.textContent || '').trim();
+        const title = String(frameDocument.title || '').trim();
+        const loadedUrl = String(frameDocument.location?.href || frameDocument.URL || '').trim();
+        const normalizedSourceUrl = normalizeUrl(sourceUrl);
+
+        if (!frameDocument.body) {
+            return 'Source URL could not be inspected after loading.';
+        }
+
+        const lowerTitle = title.toLowerCase();
+        const lowerBody = bodyText.slice(0, 2000).toLowerCase();
+        const browserErrorTitle = [
+            'not found',
+            'page not found',
+            'server not found',
+            'problem loading page',
+            'this site can’t be reached',
+            'this site cannot be reached',
+        ].some((needle) => lowerTitle.includes(needle));
+        const frameworkErrorBody = [
+            'notfoundhttpexception',
+            'not found (#404)',
+            '404 not found',
+            'yii\\web\\notfoundhttpexception',
+        ].some((needle) => lowerBody.includes(needle));
+
+        if (browserErrorTitle || frameworkErrorBody) {
+            return `Source URL did not load a valid page: ${normalizedSourceUrl}`;
+        }
+
+        if (loadedUrl !== '' && loadedUrl !== 'about:blank') {
+            try {
+                const loaded = new URL(loadedUrl);
+                const expected = new URL(normalizedSourceUrl);
+                if (loaded.origin === expected.origin && loaded.pathname !== expected.pathname && lowerTitle.includes('not found')) {
+                    return `Source URL did not load a valid page: ${normalizedSourceUrl}`;
+                }
+            } catch (_error) {
+                // Ignore URL comparison failures.
+            }
+        }
+
+        return '';
+    }
+
     function appendBreakpointReadinessIssues(report, breakpointReport, breakpoint, readinessByKey) {
         processingAppendBreakpointReadinessIssues({
             report,
@@ -3123,8 +3197,6 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         const isAutoVerification = runOptions.autoVerification === true;
         const autoVerifyAfterSave = runOptions.autoVerifyAfterSave !== false && !isAutoVerification;
         const autoApplySummary = runOptions.autoApplySummary || null;
-        const requestedObservedHandle = String(runOptions.requestedObservedHandle || '').trim();
-
         if (state.busy && !isAutoVerification) {
             return;
         }
@@ -3161,12 +3233,12 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         let completionAutoApplySummary = autoApplySummary;
 
         try {
-            failureStage = 'resolve-entry-url';
-            const sourceUrlResolver = getRunOverride('resolveSelectedEntryUrl') || resolveSelectedEntryUrl;
+            failureStage = 'resolve-source-url';
+            const sourceUrlResolver = getRunOverride('resolveSelectedSourceUrl') || getRunOverride('resolveSelectedEntryUrl') || resolveSelectedSourceUrl;
             const sourceUrl = await sourceUrlResolver();
             runReport.sourceUrl = sanitizeIssueSource(sourceUrl);
 
-            syncSelectedEntryIdToUrl(getSelectedEntryId());
+            syncSelectedSourceToUrl();
             getOrCreatePreviewFrame();
 
             failureStage = 'ensure-preview-frame';
@@ -3174,6 +3246,18 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             await ensureFrame(sourceUrl, true);
             completedProgressSteps += 1;
             updateProcessingProgress(completedProgressSteps);
+
+            failureStage = 'validate-source-url';
+            const sourceLoadError = detectSourceUrlLoadError(sourceUrl, getFrameDocument());
+            if (sourceLoadError !== '') {
+                appendRunIssue(runReport, {
+                    severity: 'error',
+                    code: 'source-url-load-failed',
+                    message: sourceLoadError,
+                    source: sourceUrl,
+                });
+                throw new SourceUrlLoadError(sourceLoadError);
+            }
 
             failureStage = 'inspect-processing-markers';
             const markerHealthInspector = getRunOverride('inspectProcessingMarkerHealth') || inspectProcessingMarkerHealth;
@@ -3405,7 +3489,6 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             publishRunReport(finalizedReport);
 
             const result = buildStructuredOutput(state.previewUrl || runReport.sourceUrl || '', slots, rowsBySlot, startedAt, finalizedReport);
-            markObservedHandleMissingOnResult(result, requestedObservedHandle);
 
             let snapshotPersisted = true;
             try {
@@ -3449,9 +3532,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                 if (skippedCount > 0) {
                     const resultPublisher = getRunOverride('publishResult') || publishResult;
                     await resultPublisher(result);
-                    const status = buildCompletionStatusFromResult(result, snapshotPersisted, autoApplyResult, {
-                        requestedObservedHandle,
-                    });
+                    const status = buildCompletionStatusFromResult(result, snapshotPersisted, autoApplyResult);
                     setStatus(status.message, { state: status.state });
                     return;
                 }
@@ -3461,13 +3542,12 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             await resultPublisher(result, {
                 autoApplySummary: completionAutoApplySummary,
             });
-            const status = buildCompletionStatusFromResult(result, snapshotPersisted, completionAutoApplySummary, {
-                requestedObservedHandle,
-            });
+            const status = buildCompletionStatusFromResult(result, snapshotPersisted, completionAutoApplySummary);
             setStatus(status.message, { state: status.state });
         } catch (error) {
             const cancelled = error instanceof ProcessingCancelledError;
             const missingMarkers = error instanceof MissingProcessingMarkersError;
+            const sourceUrlLoadFailed = error instanceof SourceUrlLoadError;
 
             if (runReport.authorDiagnostics) {
                 runReport.authorDiagnostics.failure = {
@@ -3498,6 +3578,8 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             const snapshotFailureNote = snapshotPersisted ? '' : ' Run details were not saved.';
             if (cancelled) {
                 setStatus(`Processing cancelled. No partial results were published.${snapshotFailureNote}`);
+            } else if (sourceUrlLoadFailed) {
+                setStatus(`${error.message}${snapshotFailureNote}`, { state: 'warning' });
             } else if (missingMarkers) {
                 setStatus(`${error.message}${snapshotFailureNote}`, { state: 'warning' });
             } else {
@@ -3590,14 +3672,13 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
     async function loadInitialPreview() {
         getOrCreatePreviewFrame();
-        const entryId = getSelectedEntryId();
-        if (!entryId) {
-            setStatus('Select a source entry.');
+        if (!hasSelectedSource()) {
+            setStatus(getSelectedSourceMode() === 'url' ? 'Enter a source URL.' : 'Select a source entry.');
             return;
         }
 
         try {
-            await loadPreviewForSelectedEntry('Entry ready to process.');
+            await loadPreviewForSelectedEntry('Source ready to process.');
         } catch (error) {
             setStatus(`Error: ${error.message}`);
         }
@@ -3630,17 +3711,15 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             publishRunReport,
             getLastReport: () => state.lastReport,
             runProcessing,
+            resolveSelectedSourceUrl,
             persistRunSnapshot,
-            resultContainsTransformHandle,
             buildAutoApplyNewSetDescriptors,
-            buildObservedHandleMissingMessage,
             summarizeFailureReasonCountsFromReport,
             collectReviewEditStateFromDom,
             parseServerStatusFromPatchSignalsArgs,
             renderInitialStoredReview,
             renderResultReview,
             applyRenderedReviewPayload,
-            syncSidebarObservedUnsavedFromSavedNames,
             ensureSidebarItemsForSavedNames,
             removeSidebarItemsNotInSavedNames,
             setLastResultForTests: (result) => {
@@ -3677,6 +3756,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     updateCopyButtonVisibility();
     updateResultsOrderingNote();
     state.selectedEntryId = getSelectedEntryId();
+    state.selectedSourceSignature = getSelectedSourceSignature();
     setupDatastarModalIgnoreGuard();
     bindSourceSelectionSync();
     bindEntrySlideoutLinks();

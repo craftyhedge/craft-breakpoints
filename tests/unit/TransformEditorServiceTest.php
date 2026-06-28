@@ -161,46 +161,21 @@ final class TransformEditorServiceTest extends Unit
         $this->assertSame(3, $summary['warningCount'] ?? null);
     }
 
-    public function testBuildSidebarTransformRowsOmitsObservedUnsavedHandles(): void
+    public function testBuildSidebarTransformRowsListsConfiguredSets(): void
     {
         $plugin = Plugin::getInstance();
         $editor = $plugin->getTransformEditor();
-        $previousTelemetry = $plugin->getTelemetry();
 
-        $plugin->set('telemetry', new class() extends TelemetryService {
-            public function getObservedUnsavedHandles(array $configuredHandles): array
-            {
-                return [
-                    [
-                        'handle' => 'observedOnly',
-                        'entryId' => 123,
-                        'sourceUrl' => null,
-                        'lastSeenAt' => '',
-                        'initWidth' => null,
-                        'initHeight' => null,
-                        'initRatio' => null,
-                        'initWidthAuto' => false,
-                        'initHeightAuto' => false,
-                        'includeEscapeWidth' => false,
-                    ],
-                ];
-            }
-        });
-
-        try {
-            $rows = $this->withRuntimeSets([
-                'hero' => [
-                    'name' => 'hero',
-                    'includeEscapeWidth' => false,
-                    'variants' => [
-                        'xs' => ['width' => 640, 'height' => null, 'enabled' => true, 'autoDimension' => null],
-                    ],
-                    'config' => [],
+        $rows = $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'xs' => ['width' => 640, 'height' => null, 'enabled' => true, 'autoDimension' => null],
                 ],
-            ], fn() => $editor->buildSidebarTransformRows());
-        } finally {
-            $plugin->set('telemetry', $previousTelemetry);
-        }
+                'config' => [],
+            ],
+        ], fn() => $editor->buildSidebarTransformRows());
 
         $this->assertSame(['hero'], array_map(static fn(array $row): string => (string)$row['name'], $rows));
     }
@@ -1889,204 +1864,6 @@ final class TransformEditorServiceTest extends Unit
         $heightToggle = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-auto-toggle ') and @data-bpts-action='dimensions' and @aria-label='Toggle auto height']");
         $this->assertNotFalse($heightToggle);
         $this->assertSame(1, $heightToggle->length);
-    }
-
-    public function testRenderInitialStoredReviewSeedsInitWidthAndHeightForUnsavedSetFromTelemetry(): void
-    {
-        $editor = Plugin::getInstance()->getTransformEditor();
-
-        $previousTelemetry = Plugin::getInstance()->getTelemetry();
-        Plugin::getInstance()->set('telemetry', new class() extends TelemetryService {
-            public function canEditTransforms(): bool
-            {
-                return true;
-            }
-            public function getMostRecentByHandle(): array
-            {
-                return [
-                    'hero' => [
-                        'handle' => 'hero',
-                        'entryId' => null,
-                        'sourceUrl' => null,
-                        'lastSeenAt' => '',
-                        'initWidth' => 320,
-                        'initHeight' => 180,
-                        'initRatio' => null,
-                        'initWidthAuto' => false,
-                        'initHeightAuto' => false,
-                        'includeEscapeWidth' => false,
-                    ],
-                ];
-            }
-            public function getObservedUnsavedHandles(array $configuredHandles): array
-            {
-                return array_values($this->getMostRecentByHandle());
-            }
-        });
-
-        try {
-            $result = $this->withRuntimeSets([], fn() => $editor->renderInitialStoredReview());
-        } finally {
-            Plugin::getInstance()->set('telemetry', $previousTelemetry);
-        }
-
-        $html = (string)($result['visualResultsHtml'] ?? '');
-        $this->assertStringContainsString('&quot;widthInput&quot;:&quot;320&quot;', $html);
-        $this->assertStringContainsString('&quot;heightInput&quot;:&quot;180&quot;', $html);
-    }
-
-    public function testRenderInitialStoredReviewHidesBreakpointCardsForObservedUnsavedSet(): void
-    {
-        $editor = Plugin::getInstance()->getTransformEditor();
-
-        $previousTelemetry = Plugin::getInstance()->getTelemetry();
-        Plugin::getInstance()->set('telemetry', new class() extends TelemetryService {
-            public function canEditTransforms(): bool
-            {
-                return true;
-            }
-
-            public function getMostRecentByHandle(): array
-            {
-                return [
-                    'hero' => [
-                        'handle' => 'hero',
-                        'entryId' => null,
-                        'sourceUrl' => null,
-                        'lastSeenAt' => '',
-                        'initWidth' => null,
-                        'initHeight' => null,
-                        'initRatio' => null,
-                        'initWidthAuto' => false,
-                        'initHeightAuto' => false,
-                        'includeEscapeWidth' => false,
-                    ],
-                ];
-            }
-
-            public function getObservedUnsavedHandles(array $configuredHandles): array
-            {
-                return array_values($this->getMostRecentByHandle());
-            }
-        });
-
-        try {
-            $result = $this->withRuntimeSets([], fn() => $editor->renderInitialStoredReview());
-        } finally {
-            Plugin::getInstance()->set('telemetry', $previousTelemetry);
-        }
-
-        $xpath = $this->createReviewMarkupXPath((string)($result['visualResultsHtml'] ?? ''));
-        $cards = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-card ') and @data-set='hero']");
-        $this->assertNotFalse($cards);
-        $card = $cards->item(0);
-        $this->assertNotNull($card);
-
-        $hiddenGrid = $xpath->query(".//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-breakpoint-grid ') and contains(concat(' ', normalize-space(@class), ' '), ' bpts-force-hidden ')]", $card);
-        $this->assertNotFalse($hiddenGrid);
-        $this->assertSame(1, $hiddenGrid->length);
-
-        $breakpointColumns = $xpath->query(".//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-breakpoint-column ')]", $card);
-        $this->assertNotFalse($breakpointColumns);
-        $this->assertSame(0, $breakpointColumns->length);
-    }
-
-    public function testRenderInitialStoredReviewUsesObservedEntryForUnsavedSetProcessButton(): void
-    {
-        $previousTelemetry = Plugin::getInstance()->getTelemetry();
-        $previousEditor = Plugin::getInstance()->get('transformEditor');
-        Plugin::getInstance()->set('telemetry', new class() extends TelemetryService {
-            public function canEditTransforms(): bool
-            {
-                return true;
-            }
-
-            public function getMostRecentByHandle(): array
-            {
-                return [
-                    'hero' => [
-                        'handle' => 'hero',
-                        'entryId' => 123,
-                        'sourceUrl' => null,
-                        'lastSeenAt' => '',
-                        'initWidth' => null,
-                        'initHeight' => null,
-                        'initRatio' => null,
-                        'initWidthAuto' => false,
-                        'initHeightAuto' => false,
-                        'includeEscapeWidth' => false,
-                    ],
-                ];
-            }
-
-            public function getObservedUnsavedHandles(array $configuredHandles): array
-            {
-                return array_values($this->getMostRecentByHandle());
-            }
-        });
-        Plugin::getInstance()->set('transformEditor', TransformEditor::class);
-
-        try {
-            $editor = Plugin::getInstance()->getTransformEditor();
-            $result = $this->withRuntimeSets([], fn() => $editor->renderInitialStoredReview());
-        } finally {
-            Plugin::getInstance()->set('transformEditor', $previousEditor);
-            Plugin::getInstance()->set('telemetry', $previousTelemetry);
-        }
-
-        $xpath = $this->createReviewMarkupXPath((string)($result['visualResultsHtml'] ?? ''));
-        $buttons = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpts-warning-process-entry ') and @data-bpts-action='processWarningEntry']");
-        $this->assertNotFalse($buttons);
-        $this->assertSame(1, $buttons->length);
-
-        $button = $buttons->item(0);
-        $this->assertInstanceOf(\DOMElement::class, $button);
-        $this->assertSame('123', $button->getAttribute('data-entry-id'));
-        $this->assertFalse($button->hasAttribute('disabled'));
-    }
-
-    public function testRenderInitialStoredReviewSeedsInitAutoForUnsavedSetFromTelemetry(): void
-    {
-        $editor = Plugin::getInstance()->getTransformEditor();
-
-        $previousTelemetry = Plugin::getInstance()->getTelemetry();
-        Plugin::getInstance()->set('telemetry', new class() extends TelemetryService {
-            public function canEditTransforms(): bool
-            {
-                return true;
-            }
-            public function getMostRecentByHandle(): array
-            {
-                return [
-                    'hero' => [
-                        'handle' => 'hero',
-                        'entryId' => null,
-                        'sourceUrl' => null,
-                        'lastSeenAt' => '',
-                        'initWidth' => null,
-                        'initHeight' => 180,
-                        'initRatio' => null,
-                        'initWidthAuto' => true,
-                        'initHeightAuto' => false,
-                        'includeEscapeWidth' => false,
-                    ],
-                ];
-            }
-            public function getObservedUnsavedHandles(array $configuredHandles): array
-            {
-                return array_values($this->getMostRecentByHandle());
-            }
-        });
-
-        try {
-            $result = $this->withRuntimeSets([], fn() => $editor->renderInitialStoredReview());
-        } finally {
-            Plugin::getInstance()->set('telemetry', $previousTelemetry);
-        }
-
-        $html = (string)($result['visualResultsHtml'] ?? '');
-        $this->assertStringContainsString('&quot;widthAuto&quot;:&quot;1&quot;', $html);
-        $this->assertStringContainsString('&quot;heightAuto&quot;:&quot;0&quot;', $html);
     }
 
     private function setEditorPlugin(TransformEditor $editor, ?Plugin $plugin): void

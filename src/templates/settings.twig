@@ -323,28 +323,8 @@
 <div id="database" {% if useTabs and selectedTab != 'database' %}class="hidden"{% endif %}>
     <h2>{{ 'Database'|t('breakpoints') }}</h2>
 
-    <h3>{{ 'Clear observations'|t('breakpoints') }}</h3>
-    <p class="instructions warning">{{ 'Removes observed transform usage rows only. Run snapshots and preview cache are preserved.'|t('breakpoints') }}</p>
-    <div class="buttons">
-        {{ forms.button({
-            label: 'Clear observations'|t('breakpoints'),
-            icon: 'trash',
-            spinner: true,
-            busyMessage: 'Clearing…'|t('breakpoints'),
-            class: ['secondary'],
-            attributes: {
-                data: {
-                    'bpts-db-action': 'clear-observations',
-                    'bpts-db-confirm': 'Permanently clear observed transform usage rows? This cannot be undone.'|t('breakpoints'),
-                },
-            },
-        }) }}
-    </div>
-
-    <hr>
-
     <h3>{{ 'Clear all plugin data'|t('breakpoints') }}</h3>
-    <p class="instructions warning">{{ 'Empties every plugin-owned table. Transform configuration is preserved, but telemetry, snapshots, and preview cache are removed.'|t('breakpoints') }}</p>
+    <p class="instructions warning">{{ 'Empties every plugin-owned table. Transform configuration is preserved, but tracking rows, snapshots, and preview cache are removed.'|t('breakpoints') }}</p>
     <div class="buttons">
         {{ forms.button({
             label: 'Clear all'|t('breakpoints'),
@@ -399,7 +379,6 @@
     }
 
     var actionMap = {
-        'clear-observations': 'breakpoints/database/clear-observations',
         'clear-all': 'breakpoints/database/clear-all'
     };
 

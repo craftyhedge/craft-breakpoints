@@ -1,0 +1,318 @@
+{% import '_includes/forms' as forms %}
+
+<h2>{{ 'Transform Set Usage'|t('breakpoints') }}</h2>
+
+{% if not (usageTrackingEnabled ?? false) %}
+    <p class="instructions">{{ 'Frontend transform set tracking is disabled. Enable `enableUsageTracking` in config during development or staging to collect rows here.'|t('breakpoints') }}</p>
+{% endif %}
+
+{% macro sourceLabel(row) %}
+    {% if row.sourceUrl %}
+        <a href="{{ row.sourceUrl }}" target="_blank" rel="noopener">{{ row.sourceLabel ?? row.sourceUrl }}</a>
+    {% elseif row.sourceElementId %}
+        {{ 'Entry ID {id}'|t('breakpoints', { id: row.sourceElementId }) }}
+    {% else %}
+        <span class="light">{{ 'Unknown source'|t('breakpoints') }}</span>
+    {% endif %}
+{% endmacro %}
+
+{% macro processButton(row, isMissingSavedSet, canEditTransforms) %}
+    {% if canEditTransforms and isMissingSavedSet and row.processingUrl %}
+        <a class="btn small bpts-usage-process-btn" href="{{ row.processingUrl }}">{{ 'Process'|t('breakpoints') }}</a>
+    {% else %}
+        <span aria-hidden="true"></span>
+    {% endif %}
+{% endmacro %}
+
+{% set usageGroups = usageTrackingGroups ?? [] %}
+{% set canProcessMissingSets = canEditTransforms ?? false %}
+{% if usageGroups|length %}
+    <div class="bpts-usage-list">
+        <div class="bpts-usage-list-header">
+            <span>{{ 'Transform set'|t('breakpoints') }}</span>
+            <span>{{ 'Status'|t('breakpoints') }}</span>
+            <span>{{ 'Most recent page / source'|t('breakpoints') }}</span>
+            <span>{{ 'Sources'|t('breakpoints') }}</span>
+            <span>{{ 'Seen'|t('breakpoints') }}</span>
+            <span>{{ 'First seen'|t('breakpoints') }}</span>
+            <span>{{ 'Last seen'|t('breakpoints') }}</span>
+        </div>
+
+        {% for group in usageGroups %}
+            {% set hasMultipleSources = group.sourceCount > 1 %}
+            {% set rowTag = hasMultipleSources ? 'summary' : 'div' %}
+            {% if hasMultipleSources %}
+                <details class="bpts-usage-group">
+            {% else %}
+                <div class="bpts-usage-group">
+            {% endif %}
+                <{{ rowTag }} class="bpts-usage-summary{% if not hasMultipleSources %} bpts-usage-summary-static{% endif %}">
+                    <span class="bpts-usage-summary-handle"><code>{{ group.transformHandle }}</code></span>
+                    <span class="bpts-usage-status-cell">
+                        {% if group.isMissingSavedSet %}
+                            <span class="bpts-usage-status bpts-usage-status-missing">
+                                <span class="bpts-usage-status-icon" aria-hidden="true">{{ iconSvg('triangle-exclamation') }}</span>
+                                {{ 'Missing'|t('breakpoints') }}
+                            </span>
+                            {{ _self.processButton(group.recentSource, group.isMissingSavedSet, canProcessMissingSets) }}
+                        {% else %}
+                            <span class="bpts-usage-status">
+                                <span class="bpts-usage-status-icon" aria-hidden="true">{{ iconSvg('check') }}</span>
+                                {{ 'Set'|t('breakpoints') }}
+                            </span>
+                        {% endif %}
+                    </span>
+                    <span class="bpts-usage-source">{{ _self.sourceLabel(group.recentSource) }}</span>
+                    <span class="bpts-usage-source-count">
+                        <span>{{ group.sourceCount }} {{ group.sourceCount == 1 ? 'source'|t('breakpoints') : 'sources'|t('breakpoints') }}</span>
+                        {% if hasMultipleSources %}
+                            <span class="bpts-usage-toggle-icon" aria-hidden="true">{{ iconSvg('angle-right') }}</span>
+                        {% else %}
+                            <span class="bpts-usage-toggle-icon bpts-usage-toggle-icon-placeholder" aria-hidden="true"></span>
+                        {% endif %}
+                    </span>
+                    <span>{{ group.seenCount }}</span>
+                    <span>{{ group.firstSeenAt }}</span>
+                    <span>{{ group.lastSeenAt }}</span>
+                </{{ rowTag }}>
+
+                {% if hasMultipleSources %}
+                    <div class="bpts-usage-sources">
+                        {% for source in group.sources %}
+                            <div class="bpts-usage-source-row">
+                                <span aria-hidden="true"></span>
+                                <span class="bpts-usage-status-cell">
+                                    <span aria-hidden="true"></span>
+                                    {{ _self.processButton(source, group.isMissingSavedSet, canProcessMissingSets) }}
+                                </span>
+                                <span class="bpts-usage-source">{{ _self.sourceLabel(source) }}</span>
+                                <span aria-hidden="true"></span>
+                                <span>{{ source.seenCount }}</span>
+                                <span>{{ source.firstSeenAt }}</span>
+                                <span>{{ source.lastSeenAt }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% if hasMultipleSources %}
+                </details>
+            {% else %}
+                </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+{% else %}
+    <p class="zilch">{{ 'No transform usage rows have been recorded.'|t('breakpoints') }}</p>
+{% endif %}
+
+<div class="buttons">
+    {{ forms.button({
+        label: 'Clear usage tracking'|t('breakpoints'),
+        icon: 'trash',
+        spinner: true,
+        busyMessage: 'Clearing…'|t('breakpoints'),
+        class: ['secondary'],
+        attributes: {
+            data: {
+                'bpts-clear-usage-tracking': true,
+                'bpts-db-confirm': 'Permanently clear transform usage tracking rows? This cannot be undone.'|t('breakpoints'),
+            },
+        },
+    }) }}
+</div>
+
+{% js %}
+(function() {
+    if (typeof Craft === 'undefined' || !Craft.sendActionRequest) {
+        return;
+    }
+
+    document.querySelectorAll('[data-bpts-clear-usage-tracking]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var confirmMessage = btn.getAttribute('data-bpts-db-confirm');
+            if (confirmMessage && !window.confirm(confirmMessage)) {
+                return;
+            }
+
+            btn.disabled = true;
+            btn.setAttribute('aria-busy', 'true');
+            Craft.sendActionRequest('POST', 'breakpoints/database/clear-usage-tracking')
+                .then(function(response) {
+                    var data = response && response.data ? response.data : {};
+                    if (data.message) {
+                        Craft.cp.displayNotice(data.message);
+                    }
+                    window.location.reload();
+                })
+                .catch(function(error) {
+                    var msg = (error && error.response && error.response.data && error.response.data.message)
+                        ? error.response.data.message
+                        : Craft.t('breakpoints', 'Database action failed.');
+                    Craft.cp.displayError(msg);
+                })
+                .finally(function() {
+                    btn.disabled = false;
+                    btn.removeAttribute('aria-busy');
+                });
+        });
+    });
+})();
+{% endjs %}
+
+{% css %}
+.bpts-usage-list {
+    border-block-start: 1px solid var(--hairline-color);
+    max-inline-size: 96rem;
+}
+
+.bpts-usage-list-header,
+.bpts-usage-summary,
+.bpts-usage-source-row {
+    display: grid;
+    grid-template-columns: minmax(10rem, 1.1fr) 10rem minmax(18rem, 2fr) 6rem 4rem 10rem 10rem;
+    gap: 1rem;
+    align-items: baseline;
+}
+
+.bpts-usage-list-header {
+    padding: 0.5rem 0.75rem;
+    color: var(--gray-600);
+    font-size: 0.75rem;
+    font-weight: 700;
+    border-block-end: 1px solid var(--hairline-color);
+}
+
+.bpts-usage-group {
+    border-block-end: 1px solid var(--hairline-color);
+}
+
+.bpts-usage-summary {
+    padding: 0.625rem 0.75rem;
+    cursor: pointer;
+    list-style: none;
+}
+
+.bpts-usage-summary-static {
+    cursor: default;
+}
+
+.bpts-usage-summary::-webkit-details-marker {
+    display: none;
+}
+
+.bpts-usage-summary-handle {
+    display: block;
+    min-width: 0;
+}
+
+.bpts-usage-summary-handle code {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.bpts-usage-source-count {
+    display: grid;
+    grid-template-columns: max-content 0.8rem;
+    align-items: center;
+    justify-content: start;
+    gap: 0.35rem;
+    white-space: nowrap;
+}
+
+.bpts-usage-toggle-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: 0.8rem;
+    block-size: 0.8rem;
+    color: var(--gray-500);
+    transform: translateY(0.08rem);
+    transition: transform 0.12s ease-out;
+}
+
+.bpts-usage-toggle-icon svg {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+}
+
+.bpts-usage-group[open] .bpts-usage-toggle-icon {
+    transform: rotate(90deg) translateX(0.05rem);
+}
+
+.bpts-usage-toggle-icon-placeholder {
+    visibility: hidden;
+}
+
+.bpts-usage-source {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.bpts-usage-status-cell {
+    display: grid;
+    grid-template-columns: minmax(4.25rem, max-content) max-content;
+    align-items: center;
+    gap: 0.5rem;
+    white-space: nowrap;
+}
+
+.bpts-usage-process-btn {
+    margin-inline-start: 0.125rem;
+    white-space: nowrap;
+}
+
+.bpts-usage-status {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.3rem;
+    color: var(--fg-success);
+    font-size: 0.8125rem;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.bpts-usage-status-missing {
+    color: var(--fg-error);
+    font-weight: 400;
+}
+
+.bpts-usage-status-icon {
+    display: inline-flex;
+    inline-size: 0.75rem;
+    block-size: 0.75rem;
+    align-self: center;
+}
+
+.bpts-usage-status-icon svg {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+    color: inherit;
+    fill: currentColor;
+}
+
+.bpts-usage-status-icon svg * {
+    fill: currentColor;
+}
+
+.bpts-usage-sources {
+    margin: 0;
+    max-block-size: 18rem;
+    overflow-y: auto;
+    padding-block: 0.25rem;
+    background: var(--gray-050);
+    border-block-start: 1px solid var(--hairline-color);
+    overscroll-behavior: contain;
+}
+
+.bpts-usage-source-row {
+    padding: 0.375rem 0.75rem;
+    color: var(--gray-700);
+    font-size: 0.8125rem;
+}
+
+.bpts-usage-source-row + .bpts-usage-source-row {
+    border-block-start: 1px solid var(--hairline-color);
+}
+{% endcss %}

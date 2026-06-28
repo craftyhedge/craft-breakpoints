@@ -121,10 +121,9 @@ class TransformEditor extends Component
     // ---- Sidebar ----
 
     /**
-     * Builds sidebar rows for configured transform sets. Observed-unsaved
-     * handles are reviewed in the main cards only and are intentionally omitted.
+     * Builds sidebar rows for configured transform sets.
      *
-     * @return array<int, array{name: string, isObservedUnsaved: bool, entryId: ?int, sourceUrl: ?string}>
+     * @return array<int, array{name: string, entryId: ?int, sourceUrl: ?string}>
      */
     public function buildSidebarTransformRows(): array
     {
@@ -141,7 +140,6 @@ class TransformEditor extends Component
         foreach ($configuredNames as $name) {
             $rows[] = [
                 'name' => $name,
-                'isObservedUnsaved' => false,
                 'entryId' => null,
                 'sourceUrl' => null,
             ];
@@ -508,34 +506,6 @@ class TransformEditor extends Component
         }
 
         return $this->_operationsService->deleteSetOperation($transformName, $expectedVersion);
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    public function deleteObservedUsageOperation(string $transformName): array
-    {
-        $validation = $this->defaultValidation();
-        $handle = trim($transformName);
-        if ($handle === '') {
-            $validation['hasErrors'] = true;
-            $validation['global'][] = 'setName is required.';
-            return ['persisted' => false, 'validation' => $validation];
-        }
-
-        if ($this->_plugin === null) {
-            $validation['hasErrors'] = true;
-            $validation['global'][] = 'Plugin is unavailable.';
-            return ['persisted' => false, 'validation' => $validation];
-        }
-
-        $this->_plugin->getTelemetry()->deleteObservedUsageByTransformHandle($handle);
-
-        return [
-            'persisted' => true,
-            'validation' => $validation,
-            'currentVersion' => $this->_plugin->getTransformStore()->getCurrentVersion(),
-        ];
     }
 
     // ---- Summary / Validation ----

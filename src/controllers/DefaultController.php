@@ -112,6 +112,7 @@ class DefaultController extends Controller
         $config = $plugin->getProcessingConfig()->getConfig();
         $siteId = Craft::$app->getSites()->getCurrentSite()->id;
         $requestedEntryId = (int)($this->request->getQueryParam('entry_id') ?? 0);
+        $requestedSourceUrl = trim((string)($this->request->getQueryParam('source_url') ?? ''));
 
         $selectedSourceEntry = null;
         if ($requestedEntryId > 0) {
@@ -136,6 +137,7 @@ class DefaultController extends Controller
             'applyCardOperationUrl' => UrlHelper::actionUrl('breakpoints/transforms/apply-card-operation'),
             'renderTransformCardUrl' => UrlHelper::actionUrl('breakpoints/transforms/render-transform-card'),
             'selectedSourceEntries' => $selectedSourceEntry ? [$selectedSourceEntry] : [],
+            'selectedSourceUrl' => $selectedSourceEntry ? '' : $requestedSourceUrl,
             'previewCenter' => (bool)$plugin->getConfigService()->get('previewCenter', true),
             'transformsDeveloperActionsEnabled' => $plugin->getConfigService()->areTransformsDeveloperActionsEnabled(),
             'canEditTransforms' => $plugin->getTelemetry()->canEditTransforms(),

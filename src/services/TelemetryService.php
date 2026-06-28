@@ -9,6 +9,7 @@ use craft\web\Application as WebApplication;
 use craftyhedge\craftbreakpoints\helpers\ProcessingRequest;
 use craftyhedge\craftbreakpoints\Plugin;
 use yii\base\Component;
+use yii\db\Expression;
 
 class TelemetryService extends Component
 {
@@ -19,6 +20,7 @@ class TelemetryService extends Component
     private const RUN_SNAPSHOT_ROWS_TABLE = '{{%bpi_processing_run_snapshot_breakpoints}}';
     private const RUN_SNAPSHOT_DIMENSIONS_TABLE = '{{%bpi_processing_run_snapshot_dimensions}}';
     private const PREVIEW_CACHE_TABLE = '{{%bpi_preview_cache}}';
+    private const USAGE_OBSERVATIONS_TABLE = '{{%bpi_transform_usage_observations}}';
     private const SOURCE_URL_MAX_LENGTH = 255;
     private const DISPLAY_ASSET_URL_MAX_LENGTH = 1024;
     private const ASSET_ID_MAX_LENGTH = 255;
@@ -35,6 +37,8 @@ class TelemetryService extends Component
     /** @var array<string, bool> */
     private array $_seenHandles = [];
 
+    private ?bool $_usageObservationsTableExists = null;
+
     private function getConfigService(): ?ConfigService
     {
         $plugin = Plugin::getInstance();
@@ -43,21 +47,6 @@ class TelemetryService extends Component
         }
 
         return $plugin->getConfigService();
-    }
-
-    public function isTelemetryEnabled(): bool
-    {
-        $configService = $this->getConfigService();
-        if ($configService === null) {
-            return false;
-        }
-
-        return $configService->isTelemetryEnabled();
-    }
-
-    public function canWriteTelemetry(): bool
-    {
-        return $this->isTelemetryEnabled();
     }
 
     public function canEditTransforms(): bool
@@ -70,9 +59,21 @@ class TelemetryService extends Component
         return $configService->allowTransformEditing();
     }
 
+    public function canTrackUsage(): bool
+    {
+        $configService = $this->getConfigService();
+        if ($configService === null) {
+            return false;
+        }
+
+        return $configService->isUsageTrackingEnabled();
+    }
+
     public function recordUsage(string $transformHandle, ?InitOptions $initOptions = null, ?bool $includeEscapeWidth = null): void
     {
-        if (!$this->canWriteTelemetry() || !$this->canEditTransforms()) {
+        $canRecordUsageObservation = $this->canTrackUsage();
+
+        if (!$canRecordUsageObservation) {
             return;
         }
 
@@ -103,13 +104,13 @@ class TelemetryService extends Component
             }
 
             $this->_seenHandles[$handle] = true;
-            $this->upsertUsage($handle, $sourceElementId, $sourceUrl, $initOptions, $includeEscapeWidth);
+            $this->upsertUsageObservation($handle, $sourceElementId, $sourceUrl, $initOptions, $includeEscapeWidth);
 
             return;
         }
 
         // Queue/console runtimes have no web request lifecycle; write immediately.
-        $this->upsertUsage($handle, $sourceElementId, $sourceUrl, $initOptions, $includeEscapeWidth);
+        $this->upsertUsageObservation($handle, $sourceElementId, $sourceUrl, $initOptions, $includeEscapeWidth);
     }
 
     public function flushPendingUsage(): void
@@ -118,80 +119,115 @@ class TelemetryService extends Component
         $this->_seenHandles = [];
     }
 
-    private function upsertUsage(string $handle, ?int $sourceElementId, ?string $sourceUrl, ?InitOptions $initOptions = null, ?bool $includeEscapeWidth = null): void
+    private function upsertUsageObservation(string $handle, ?int $sourceElementId, ?string $sourceUrl, ?InitOptions $initOptions = null, ?bool $includeEscapeWidth = null): void
     {
-        $now = Db::prepareDateForDb(new \DateTime());
-        $normalizedSourceUrl = $sourceUrl;
-        if (is_string($normalizedSourceUrl) && $normalizedSourceUrl !== '') {
-            $normalizedSourceUrl = mb_substr($normalizedSourceUrl, 0, self::SOURCE_URL_MAX_LENGTH);
+        $db = Craft::$app->getDb();
+        if (!$this->usageObservationsTableExists()) {
+            return;
         }
+
+        $now = Db::prepareDateForDb(new \DateTime());
+        $normalizedSourceUrl = $this->normalizeSourceUrl($sourceUrl);
+        $sourceKey = $this->buildUsageObservationSourceKey($sourceElementId, $normalizedSourceUrl);
 
         $row = [
             'transformHandle' => $handle,
+            'sourceKey' => $sourceKey,
             'sourceElementId' => $sourceElementId,
             'sourceUrl' => $normalizedSourceUrl,
+            'firstSeenAt' => $now,
             'lastSeenAt' => $now,
+            'seenCount' => 1,
             'initWidth' => null,
             'initHeight' => null,
             'initRatio' => null,
             'initWidthAuto' => null,
             'initHeightAuto' => null,
             'includeEscapeWidth' => $includeEscapeWidth === null ? null : ($includeEscapeWidth ? 1 : 0),
+            'dateCreated' => $now,
+            'dateUpdated' => $now,
         ];
 
-        if ($initOptions !== null) {
-            $hasAnyInit = $initOptions->width !== null
-                || $initOptions->height !== null
-                || $initOptions->ratio !== null
-                || $initOptions->widthAuto
-                || $initOptions->heightAuto;
-
-            if ($hasAnyInit) {
-                $row['initWidth'] = $initOptions->width;
-                $row['initHeight'] = $initOptions->height;
-                $row['initRatio'] = $initOptions->ratio !== null
-                    ? ($initOptions->ratioRaw ?? rtrim(rtrim(number_format($initOptions->ratio, 8, '.', ''), '0'), '.'))
-                    : null;
-                $row['initWidthAuto'] = $initOptions->widthAuto ? 1 : 0;
-                $row['initHeightAuto'] = $initOptions->heightAuto ? 1 : 0;
-            }
-        }
+        $row = $this->applyInitOptionsToUsageRow($row, $initOptions);
 
         try {
-            Db::upsert('{{%bpi_transform_last_processed}}', $row);
+            $db->createCommand()->upsert(self::USAGE_OBSERVATIONS_TABLE, $row, [
+                'sourceElementId' => $sourceElementId,
+                'sourceUrl' => $normalizedSourceUrl,
+                'lastSeenAt' => $now,
+                'seenCount' => new Expression('[[seenCount]] + 1'),
+                'initWidth' => $row['initWidth'],
+                'initHeight' => $row['initHeight'],
+                'initRatio' => $row['initRatio'],
+                'initWidthAuto' => $row['initWidthAuto'],
+                'initHeightAuto' => $row['initHeightAuto'],
+                'includeEscapeWidth' => $row['includeEscapeWidth'],
+                'dateUpdated' => $now,
+            ])->execute();
         } catch (\Throwable $e) {
-            Plugin::warning('Telemetry write failed for handle "' . $handle . '": ' . $e->getMessage());
+            Plugin::warning('Usage tracking write failed for handle "' . $handle . '": ' . $e->getMessage());
         }
     }
 
     /**
-     * @return array<int, array<string, mixed>>
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
      */
-    public function getRecentlySeen(int $limit = 50): array
+    private function applyInitOptionsToUsageRow(array $row, ?InitOptions $initOptions): array
     {
-        return (new Query())
-            ->select(['transformHandle', 'sourceElementId', 'sourceUrl', 'lastSeenAt'])
-            ->from('{{%bpi_transform_last_processed}}')
-            ->orderBy(['lastSeenAt' => SORT_DESC])
-            ->limit($limit)
-            ->all();
+        if ($initOptions === null) {
+            return $row;
+        }
+
+        $hasAnyInit = $initOptions->width !== null
+            || $initOptions->height !== null
+            || $initOptions->ratio !== null
+            || $initOptions->widthAuto
+            || $initOptions->heightAuto;
+
+        if (!$hasAnyInit) {
+            return $row;
+        }
+
+        $row['initWidth'] = $initOptions->width;
+        $row['initHeight'] = $initOptions->height;
+        $row['initRatio'] = $initOptions->ratio !== null
+            ? ($initOptions->ratioRaw ?? rtrim(rtrim(number_format($initOptions->ratio, 8, '.', ''), '0'), '.'))
+            : null;
+        $row['initWidthAuto'] = $initOptions->widthAuto ? 1 : 0;
+        $row['initHeightAuto'] = $initOptions->heightAuto ? 1 : 0;
+
+        return $row;
+    }
+
+    private function buildUsageObservationSourceKey(?int $sourceElementId, ?string $sourceUrl): string
+    {
+        $source = $sourceUrl !== null && $sourceUrl !== ''
+            ? 'url:' . $sourceUrl
+            : 'entry:' . (($sourceElementId !== null && $sourceElementId > 0) ? $sourceElementId : 'unknown');
+
+        return hash('sha256', $source);
     }
 
     /**
-     * Returns one row per observed transform handle, carrying the most-recently
-     * observed entry reference and persisted init options for that handle.
-     *
-     * @return array<string, array{handle: string, entryId: ?int, sourceUrl: ?string, lastSeenAt: string, initWidth: ?int, initHeight: ?int, initRatio: ?string, initWidthAuto: ?bool, initHeightAuto: ?bool, includeEscapeWidth: ?bool}>
+     * @return array<int, array{transformHandle: string, sourceElementId: ?int, sourceUrl: ?string, firstSeenAt: string, lastSeenAt: string, seenCount: int, initWidth: ?int, initHeight: ?int, initRatio: ?string, initWidthAuto: ?bool, initHeightAuto: ?bool, includeEscapeWidth: ?bool}>
      */
-    public function getMostRecentByHandle(): array
+    public function getUsageObservationRows(?int $limit = null): array
     {
+        $db = Craft::$app->getDb();
+        if (!$this->usageObservationsTableExists()) {
+            return [];
+        }
+
         try {
-            $rows = (new Query())
+            $query = (new Query())
                 ->select([
                     'transformHandle',
                     'sourceElementId',
                     'sourceUrl',
+                    'firstSeenAt',
                     'lastSeenAt',
+                    'seenCount',
                     'initWidth',
                     'initHeight',
                     'initRatio',
@@ -199,21 +235,20 @@ class TelemetryService extends Component
                     'initHeightAuto',
                     'includeEscapeWidth',
                 ])
-                ->from('{{%bpi_transform_last_processed}}')
-                ->orderBy(['lastSeenAt' => SORT_DESC])
-                ->all();
+                ->from(self::USAGE_OBSERVATIONS_TABLE)
+                ->orderBy(['lastSeenAt' => SORT_DESC, 'transformHandle' => SORT_ASC]);
+
+            if ($limit !== null) {
+                $query->limit(max(1, $limit));
+            }
+
+            $rows = $query->all($db);
         } catch (\Throwable $e) {
-            Plugin::warning('Failed to read observed transform handles: ' . $e->getMessage());
+            Plugin::warning('Failed to read usage tracking rows: ' . $e->getMessage());
             return [];
         }
 
-        $byHandle = [];
-        foreach ($rows as $row) {
-            $handle = trim((string)($row['transformHandle'] ?? ''));
-            if ($handle === '' || isset($byHandle[$handle])) {
-                continue;
-            }
-
+        return array_map(function(array $row): array {
             $entryId = $row['sourceElementId'] ?? null;
             $initWidth = $row['initWidth'] ?? null;
             $initHeight = $row['initHeight'] ?? null;
@@ -222,11 +257,13 @@ class TelemetryService extends Component
             $initHeightAuto = $row['initHeightAuto'] ?? null;
             $includeEscapeWidth = $row['includeEscapeWidth'] ?? null;
 
-            $byHandle[$handle] = [
-                'handle' => $handle,
-                'entryId' => $entryId !== null ? (int)$entryId : null,
-                'sourceUrl' => isset($row['sourceUrl']) ? (string)$row['sourceUrl'] : null,
+            return [
+                'transformHandle' => (string)($row['transformHandle'] ?? ''),
+                'sourceElementId' => $entryId !== null && $entryId !== '' ? (int)$entryId : null,
+                'sourceUrl' => isset($row['sourceUrl']) && $row['sourceUrl'] !== '' ? (string)$row['sourceUrl'] : null,
+                'firstSeenAt' => (string)($row['firstSeenAt'] ?? ''),
                 'lastSeenAt' => (string)($row['lastSeenAt'] ?? ''),
+                'seenCount' => max(0, (int)($row['seenCount'] ?? 0)),
                 'initWidth' => $initWidth !== null && $initWidth !== '' ? (int)$initWidth : null,
                 'initHeight' => $initHeight !== null && $initHeight !== '' ? (int)$initHeight : null,
                 'initRatio' => $initRatio !== null && $initRatio !== '' ? (string)$initRatio : null,
@@ -234,38 +271,16 @@ class TelemetryService extends Component
                 'initHeightAuto' => $initHeightAuto === null || $initHeightAuto === '' ? null : ((int)$initHeightAuto === 1),
                 'includeEscapeWidth' => $includeEscapeWidth === null || $includeEscapeWidth === '' ? null : ((int)$includeEscapeWidth === 1),
             ];
-        }
-
-        return $byHandle;
+        }, $rows);
     }
 
-    /**
-     * Returns one row per observed transform handle whose handle is not present
-     * in $configuredHandles. The row carries the most-recently observed entry
-     * reference and persisted init options for that handle.
-     *
-     * @param array<int, string> $configuredHandles
-     * @return array<int, array{handle: string, entryId: ?int, sourceUrl: ?string, lastSeenAt: string, initWidth: ?int, initHeight: ?int, initRatio: ?string, initWidthAuto: ?bool, initHeightAuto: ?bool, includeEscapeWidth: ?bool}>
-     */
-    public function getObservedUnsavedHandles(array $configuredHandles): array
+    private function usageObservationsTableExists(): bool
     {
-        $configuredSet = [];
-        foreach ($configuredHandles as $handle) {
-            if (is_string($handle) && $handle !== '') {
-                $configuredSet[$handle] = true;
-            }
+        if ($this->_usageObservationsTableExists === null) {
+            $this->_usageObservationsTableExists = Craft::$app->getDb()->tableExists(self::USAGE_OBSERVATIONS_TABLE);
         }
 
-        $byHandle = $this->getMostRecentByHandle();
-        foreach (array_keys($byHandle) as $handle) {
-            if (isset($configuredSet[$handle])) {
-                unset($byHandle[$handle]);
-            }
-        }
-
-        ksort($byHandle, SORT_STRING);
-
-        return array_values($byHandle);
+        return $this->_usageObservationsTableExists;
     }
 
     /**
@@ -1089,32 +1104,6 @@ class TelemetryService extends Component
                 ->execute();
         } catch (\Throwable $e) {
             Plugin::warning('Preview cache delete failed for "' . $handle . '": ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * Delete the observed usage row for a given transform handle so the handle
-     * is no longer flagged as observed-but-unsaved. It must be observed again
-     * (via a fresh front-end render) before it reappears.
-     */
-    public function deleteObservedUsageByTransformHandle(string $transformHandle): void
-    {
-        $handle = trim($transformHandle);
-        if ($handle === '') {
-            return;
-        }
-
-        $db = Craft::$app->getDb();
-        if (!$db->tableExists('{{%bpi_transform_last_processed}}')) {
-            return;
-        }
-
-        try {
-            $db->createCommand()
-                ->delete('{{%bpi_transform_last_processed}}', ['transformHandle' => $handle])
-                ->execute();
-        } catch (\Throwable $e) {
-            Plugin::warning('Observed usage delete failed for "' . $handle . '": ' . $e->getMessage());
         }
     }
 

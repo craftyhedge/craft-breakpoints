@@ -71,14 +71,40 @@
             <span class="icon bpts-compact-breakpoint-cards-icon bpts-compact-breakpoint-cards-icon-compact" data-icon="eye-slash" aria-hidden="true"></span>
         </button>
         <div class="bpts-source-entry-control"{% if not (canEditTransforms ?? false) %} hidden aria-hidden="true"{% endif %}>
+            {% set initialSourceMode = (selectedSourceUrl ?? '') is not empty ? 'url' : 'entry' %}
+            {{ forms.buttonGroup({
+                id: 'bpts-source-mode-toggle',
+                name: 'bpts-source-mode',
+                value: initialSourceMode,
+                class: ['bpts-source-mode-toggle'],
+                options: [
+                    { label: 'Entry'|t('breakpoints'), value: 'entry', class: ['small'] },
+                    { label: 'URL'|t('breakpoints'), value: 'url', class: ['small'] },
+                ],
+            }) }}
             {{ forms.elementSelect({
                 id: 'bpts-source-entry',
                 name: 'bpts-source-entry-id',
                 elementType: 'craft\\elements\\Entry',
                 selectionLabel: 'Choose Source'|t('breakpoints'),
                 single: true,
-                elements: selectedSourceEntries ?? []
+                elements: selectedSourceEntries ?? [],
+                containerAttributes: {
+                    data: {
+                        'bpts-source-entry-wrap': true,
+                    },
+                    hidden: initialSourceMode == 'url',
+                }
             }) }}
+            <input
+                type="text"
+                id="bpts-source-url"
+                class="text bpts-source-url"
+                value="{{ selectedSourceUrl ?? '' }}"
+                placeholder="{{ '/path-or-full-url'|t('breakpoints') }}"
+                aria-label="{{ 'Source URL'|t('breakpoints') }}"
+                {% if initialSourceMode != 'url' %}hidden{% endif %}
+            >
         </div>
         {{ forms.button({
             id: 'bpts-run-processing',

@@ -30,7 +30,7 @@ return [
     'processingLazyLoadingSizesAttribute' => 'data-sizes',
     'processingLazyLoadingCustomHandler' => '',
     'previewCenter' => true,
-    'enableTelemetry' => true,
+    'enableUsageTracking' => false,
     'dpr' => [1],
     'allowTransformEditing' => true,
 ];

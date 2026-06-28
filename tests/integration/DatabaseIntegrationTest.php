@@ -27,44 +27,32 @@ final class DatabaseIntegrationTest extends Unit
         $this->assertSame('Breakpoints', $plugin->name);
     }
 
-    public function testClearObservedUsageOnlyClearsObservationRows(): void
+    public function testClearUsageTrackingOnlyClearsUsageTrackingRows(): void
     {
         $db = Craft::$app->getDb();
         $now = (new \DateTimeImmutable())->format('Y-m-d H:i:s');
 
-        $db->createCommand()->delete(DatabaseService::TABLE_USAGE)->execute();
-        $db->createCommand()->delete(DatabaseService::TABLE_PREVIEW_CACHE)->execute();
+        $db->createCommand()->delete(DatabaseService::TABLE_USAGE_OBSERVATIONS)->execute();
 
         try {
-            $db->createCommand()->insert(DatabaseService::TABLE_USAGE, [
+            $db->createCommand()->insert(DatabaseService::TABLE_USAGE_OBSERVATIONS, [
                 'transformHandle' => 'hero',
+                'sourceKey' => hash('sha256', 'url:/example'),
                 'sourceElementId' => null,
                 'sourceUrl' => '/example',
+                'firstSeenAt' => $now,
                 'lastSeenAt' => $now,
+                'seenCount' => 1,
                 'dateCreated' => $now,
                 'dateUpdated' => $now,
             ])->execute();
 
-            $db->createCommand()->insert(DatabaseService::TABLE_PREVIEW_CACHE, [
-                'transformHandle' => 'hero',
-                'slotKey' => 'default',
-                'slotIndex' => 0,
-                'breakpointWidth' => 768,
-                'measureWidth' => 768,
-                'rowStatus' => 'processed',
-                'lastProcessedAt' => $now,
-                'dateCreated' => $now,
-                'dateUpdated' => $now,
-            ])->execute();
-
-            $deleted = Plugin::getInstance()->getDatabase()->clearObservedUsage();
+            $deleted = Plugin::getInstance()->getDatabase()->clearUsageTracking();
 
             $this->assertSame(1, $deleted);
-            $this->assertSame(0, (int)(new Query())->from(DatabaseService::TABLE_USAGE)->count('*', $db));
-            $this->assertSame(1, (int)(new Query())->from(DatabaseService::TABLE_PREVIEW_CACHE)->count('*', $db));
+            $this->assertSame(0, (int)(new Query())->from(DatabaseService::TABLE_USAGE_OBSERVATIONS)->count('*', $db));
         } finally {
-            $db->createCommand()->delete(DatabaseService::TABLE_USAGE)->execute();
-            $db->createCommand()->delete(DatabaseService::TABLE_PREVIEW_CACHE)->execute();
+            $db->createCommand()->delete(DatabaseService::TABLE_USAGE_OBSERVATIONS)->execute();
         }
     }
 }

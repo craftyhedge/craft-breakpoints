@@ -18,73 +18,98 @@ final class TelemetryServiceTest extends Unit
     {
         parent::_before();
 
-        Craft::$app->getDb()->createCommand()
-            ->delete('{{%bpi_transform_last_processed}}')
-            ->execute();
+        if (Craft::$app->getDb()->tableExists(DatabaseService::TABLE_USAGE_OBSERVATIONS)) {
+            Craft::$app->getDb()->createCommand()
+                ->delete(DatabaseService::TABLE_USAGE_OBSERVATIONS)
+                ->execute();
+        }
+
+        Plugin::getInstance()->getTelemetry()->flushPendingUsage();
     }
 
-    public function testRecordUsageRoundTripsInitOptionsThroughGetMostRecentByHandle(): void
+    public function testRecordUsageRoundTripsInitOptionsThroughUsageTrackingRows(): void
     {
-        $telemetry = Plugin::getInstance()->getTelemetry();
-        $initOptions = InitOptions::fromConfig([
-            'initWidth' => 320,
-            'initRatio' => '16:9',
-            'initWidthAuto' => false,
-            'initHeightAuto' => false,
-        ], false);
+        $this->withMergedConfigValues(['enableUsageTracking' => true], function(): void {
+            $telemetry = Plugin::getInstance()->getTelemetry();
+            $initOptions = InitOptions::fromConfig([
+                'initWidth' => 320,
+                'initRatio' => '16:9',
+                'initWidthAuto' => false,
+                'initHeightAuto' => false,
+            ], false);
 
-        $telemetry->recordUsage('hero', $initOptions);
+            $telemetry->recordUsage('hero', $initOptions);
 
-        $byHandle = $telemetry->getMostRecentByHandle();
+            $rows = $telemetry->getUsageObservationRows();
 
-        $this->assertArrayHasKey('hero', $byHandle);
-        $row = $byHandle['hero'];
-        $this->assertSame(320, $row['initWidth']);
-        $this->assertNull($row['initHeight']);
-        // initRatio round-trips in its preserved raw form, not as a computed float.
-        $this->assertSame('16:9', $row['initRatio']);
-        $this->assertFalse($row['initWidthAuto']);
-        $this->assertFalse($row['initHeightAuto']);
+            $this->assertSame('hero', $rows[0]['transformHandle'] ?? null);
+            $this->assertSame(320, $rows[0]['initWidth'] ?? null);
+            $this->assertNull($rows[0]['initHeight'] ?? null);
+            // initRatio round-trips in its preserved raw form, not as a computed float.
+            $this->assertSame('16:9', $rows[0]['initRatio'] ?? null);
+            $this->assertFalse($rows[0]['initWidthAuto'] ?? null);
+            $this->assertFalse($rows[0]['initHeightAuto'] ?? null);
+        });
     }
 
     public function testRecordUsagePersistsAutoFlagsForUnsavedSet(): void
     {
-        $telemetry = Plugin::getInstance()->getTelemetry();
-        $initOptions = InitOptions::fromConfig([
-            'initWidth' => null,
-            'initHeight' => 180,
-            'initRatio' => null,
-            'initWidthAuto' => true,
-            'initHeightAuto' => false,
-        ], false);
+        $this->withMergedConfigValues(['enableUsageTracking' => true], function(): void {
+            $telemetry = Plugin::getInstance()->getTelemetry();
+            $initOptions = InitOptions::fromConfig([
+                'initWidth' => null,
+                'initHeight' => 180,
+                'initRatio' => null,
+                'initWidthAuto' => true,
+                'initHeightAuto' => false,
+            ], false);
 
-        $telemetry->recordUsage('autoHero', $initOptions);
+            $telemetry->recordUsage('autoHero', $initOptions);
 
-        $byHandle = $telemetry->getMostRecentByHandle();
+            $rows = $telemetry->getUsageObservationRows();
 
-        $this->assertArrayHasKey('autoHero', $byHandle);
-        $row = $byHandle['autoHero'];
-        $this->assertNull($row['initWidth']);
-        $this->assertSame(180, $row['initHeight']);
-        $this->assertTrue($row['initWidthAuto']);
-        $this->assertFalse($row['initHeightAuto']);
+            $this->assertSame('autoHero', $rows[0]['transformHandle'] ?? null);
+            $this->assertNull($rows[0]['initWidth'] ?? null);
+            $this->assertSame(180, $rows[0]['initHeight'] ?? null);
+            $this->assertTrue($rows[0]['initWidthAuto'] ?? null);
+            $this->assertFalse($rows[0]['initHeightAuto'] ?? null);
+        });
     }
 
     public function testRecordUsageWithoutInitOptionsLeavesInitColumnsNull(): void
     {
-        $telemetry = Plugin::getInstance()->getTelemetry();
+        $this->withMergedConfigValues(['enableUsageTracking' => true], function(): void {
+            $telemetry = Plugin::getInstance()->getTelemetry();
 
-        $telemetry->recordUsage('plain');
+            $telemetry->recordUsage('plain');
 
-        $byHandle = $telemetry->getMostRecentByHandle();
+            $rows = $telemetry->getUsageObservationRows();
 
-        $this->assertArrayHasKey('plain', $byHandle);
-        $row = $byHandle['plain'];
-        $this->assertNull($row['initWidth']);
-        $this->assertNull($row['initHeight']);
-        $this->assertNull($row['initRatio']);
-        $this->assertNull($row['initWidthAuto']);
-        $this->assertNull($row['initHeightAuto']);
+            $this->assertSame('plain', $rows[0]['transformHandle'] ?? null);
+            $this->assertNull($rows[0]['initWidth'] ?? null);
+            $this->assertNull($rows[0]['initHeight'] ?? null);
+            $this->assertNull($rows[0]['initRatio'] ?? null);
+            $this->assertNull($rows[0]['initWidthAuto'] ?? null);
+            $this->assertNull($rows[0]['initHeightAuto'] ?? null);
+        });
+    }
+
+    public function testUsageTrackingPersistsRowsWhenTransformEditingIsDisabled(): void
+    {
+        $this->withMergedConfigValues([
+            'allowTransformEditing' => false,
+            'enableUsageTracking' => true,
+        ], function(): void {
+            $telemetry = Plugin::getInstance()->getTelemetry();
+            $telemetry->recordUsage('trackedHero', null, true);
+
+            $rows = $telemetry->getUsageObservationRows();
+
+            $this->assertSame(1, count($rows));
+            $this->assertSame('trackedHero', $rows[0]['transformHandle']);
+            $this->assertSame(1, $rows[0]['seenCount']);
+            $this->assertTrue($rows[0]['includeEscapeWidth']);
+        });
     }
 
     public function testRenderingSvgAssetDoesNotRecordObservedUsage(): void
@@ -101,7 +126,6 @@ final class TelemetryServiceTest extends Unit
         ]);
 
         $this->assertStringContainsString('<picture data-set="svgOnly">', (string)$markup);
-        $this->assertArrayNotHasKey('svgOnly', $plugin->getTelemetry()->getMostRecentByHandle());
     }
 
     public function testPersistRunSnapshotUsesBreakpointSourceForDisplayUrls(): void
@@ -186,5 +210,28 @@ final class TelemetryServiceTest extends Unit
         $asset->method('getUrl')->willReturn('https://example.test/original.svg');
 
         return $asset;
+    }
+
+    /**
+     * @param array<string, mixed> $values
+     */
+    private function withMergedConfigValues(array $values, callable $callback): void
+    {
+        $configService = Plugin::getInstance()->getConfigService();
+        $property = new \ReflectionProperty($configService, '_mergedConfig');
+        $previous = $property->getValue($configService);
+
+        $nextConfig = is_array($previous) ? $previous : $configService->getConfig();
+        foreach ($values as $key => $value) {
+            $nextConfig[$key] = $value;
+        }
+        $property->setValue($configService, $nextConfig);
+
+        try {
+            $callback();
+        } finally {
+            $property->setValue($configService, $previous);
+            Plugin::getInstance()->getTelemetry()->flushPendingUsage();
+        }
     }
 }

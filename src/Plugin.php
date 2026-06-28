@@ -5,11 +5,13 @@ namespace craftyhedge\craftbreakpoints;
 use Craft;
 use craft\base\Model;
 use craft\base\Plugin as BasePlugin;
+use craft\events\RegisterComponentTypesEvent;
 use craft\events\RegisterTemplateRootsEvent;
 use craft\events\RegisterUrlRulesEvent;
 use craft\helpers\App;
 use craft\helpers\UrlHelper;
 use craft\log\MonologTarget;
+use craft\services\Utilities;
 use craft\web\UrlManager;
 use craft\web\View;
 use craft\web\twig\variables\CraftVariable;
@@ -28,6 +30,7 @@ use craftyhedge\craftbreakpoints\services\TransformSets;
 use craftyhedge\craftbreakpoints\services\TransformStore;
 use craftyhedge\craftbreakpoints\services\TransformEditor;
 use craftyhedge\craftbreakpoints\services\TelemetryService;
+use craftyhedge\craftbreakpoints\utilities\UsageTracking;
 use craftyhedge\craftbreakpoints\web\twig\Extension;
 use Monolog\Formatter\LineFormatter;
 use Psr\Log\LogLevel;
@@ -46,6 +49,7 @@ class Plugin extends BasePlugin
 
     public bool $hasCpSettings = true;
     public bool $hasCpSection = true;
+    public string $schemaVersion = '1.0.1';
 
     /**
      * @return array{components: array<string, class-string>}
@@ -89,6 +93,7 @@ class Plugin extends BasePlugin
         $this->registerTwigExtension();
         $this->registerTemplateRoots();
         $this->registerTwigVariable();
+        $this->registerUtilities();
         $this->getTransformStore()->initialize();
 
         Event::on(
@@ -100,7 +105,7 @@ class Plugin extends BasePlugin
                 $event->rules['breakpoints/processing'] = 'breakpoints/default/transforms';
                 $event->rules['breakpoints/docs'] = 'breakpoints/default/docs';
                 $event->rules['breakpoints/docs/<slug:.+>'] = 'breakpoints/default/docs';
-                $event->rules['POST breakpoints/database/clear-observations'] = 'breakpoints/database/clear-observations';
+                $event->rules['POST breakpoints/database/clear-usage-tracking'] = 'breakpoints/database/clear-usage-tracking';
                 $event->rules['POST breakpoints/database/clear-all'] = 'breakpoints/database/clear-all';
             }
         );
@@ -329,6 +334,17 @@ class Plugin extends BasePlugin
                 }
 
                 $variable->set('images', Images::class);
+            }
+        );
+    }
+
+    private function registerUtilities(): void
+    {
+        Event::on(
+            Utilities::class,
+            Utilities::EVENT_REGISTER_UTILITIES,
+            static function(RegisterComponentTypesEvent $event): void {
+                $event->types[] = UsageTracking::class;
             }
         );
     }

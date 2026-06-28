@@ -1502,7 +1502,6 @@ final class OperationsService
 
         if (($result['persisted'] ?? false) === true) {
             $this->telemetry->deletePreviewCacheByTransformHandle($transformName);
-            $this->telemetry->deleteObservedUsageByTransformHandle($transformName);
         }
 
         return $result;

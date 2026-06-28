@@ -273,11 +273,11 @@ class ConfigService extends Component
     /**
      * @param array<string, mixed> $overrides
      */
-    public function isTelemetryEnabled(array $overrides = []): bool
+    public function isUsageTrackingEnabled(array $overrides = []): bool
     {
         return App::parseBooleanEnv(
-            $this->get('enableTelemetry', true, $overrides)
-        ) ?? true;
+            $this->get('enableUsageTracking', false, $overrides)
+        ) ?? false;
     }
 
     /**
