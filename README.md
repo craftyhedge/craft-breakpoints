@@ -24,7 +24,8 @@ Processing is intended for local development environments with the resulting tra
   measurements back into the set.
 - **Escape width** — an optional extra-large variant for the final slot, to keep very
   wide layouts sharp.
-- **DPR variants** — high-density `srcset` descriptors (`1x` always; opt in to `2x`/`3x`).
+- **DPR variants** — high-density `srcset` descriptors (`1x` always; opt in to
+  common ratios like `2x`/`3x`, or configure custom numeric ratios).
 
 ## Features
 

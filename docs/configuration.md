@@ -63,7 +63,7 @@ panel exposes the common output, transform, template, and editor defaults.
 | `processingLazyLoadingCustomHandler` | string | *(blank)* | Global async function used by the `custom` adapter, for example `window.project.prepareBreakpointImages`. |
 | `previewCenter` | bool | `true` | Editor-only: centers the preview width in the Transform Sets UI. |
 | `enableUsageTracking` | bool | `false` | Development/staging utility: records transform set usage by page/source for the Transform Tracking utility. Keep disabled in production unless explicitly needed. |
-| `dpr` | array | `[1]` | Device pixel ratios for `srcset`. `1x` is always included; add `2`/`3` for high-density variants. |
+| `dpr` | array | `[1]` | Device pixel ratios for `srcset`. `1x` is always included. The Control Panel offers common `2x`/`3x` presets; project config may provide any positive numeric ratio such as `1.5`. |
 
 Notes:
 
@@ -100,7 +100,7 @@ return [
     'format' => 'webp',
     'secondaryFormat' => 'jpg',
     'quality' => 82,
-    'dpr' => [1, 2],
+    'dpr' => [1, 1.5, 2],
 
     // Processing lazy loading is explicit; no library auto-detection occurs.
     'processingLazyLoadingAdapter' => 'attributes',

@@ -63,7 +63,10 @@ The width comes from the `escapeWidth` setting. The default is `1920`; set it to
 
 Breakpoints also supports DPR variants through `srcset` density descriptors.
 
-The `1x` image is always included. If you enable additional ratios such as `2x` or `3x`, the browser can choose a sharper asset for higher-density displays when it needs one.
+The `1x` image is always included. The Control Panel offers common `2x` and
+`3x` presets, and project or Twig config may provide any positive numeric ratio
+such as `1.5`. The browser can choose a sharper asset for higher-density
+displays when it needs one.
 
 ## Settings That Matter
 

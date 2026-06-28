@@ -155,11 +155,12 @@ Sets the device pixel ratios for this image's `srcset` output.
 
 ```twig
 {{ image(asset, 'hero', {
-  dpr: [1, 2, 3]
+  dpr: [1, 1.5, 2]
 }) }}
 ```
 
-Breakpoints always includes `1x`. Invalid, zero, negative, and non-finite values are ignored.
+Breakpoints always includes `1x`. Any positive numeric ratio can be used.
+Invalid, zero, negative, and non-finite values are ignored.
 
 ### `sources`
 **Type**: `array`
