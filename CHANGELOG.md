@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.6 - 2026-06-28
+
+- Added a **Transform Tracking** utility for development and staging use, with grouped frontend transform-set observations, missing saved-set status, source/page details, and clear tracking controls.
+- Added processing links for missing observed transform sets, preferring source entry IDs and falling back to observed source URLs.
+- Added URL-based processing support alongside entry processing, including clearer handling for invalid or missing source URLs.
+- Removed observation details from the main Transform Sets review UI now that tracking lives in the dedicated utility.
+
 ## 0.1.5 - 2026-06-27
 
 - Added art-directed raster image sources via `image()` options, allowing selected canonical slots to render from alternate Craft assets within one `<picture>` with optional source-specific quality. Custom picture templates that use `craft.images.getBreakpointData()` continue to receive the correct per-slot source asset automatically.
