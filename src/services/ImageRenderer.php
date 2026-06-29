@@ -57,6 +57,7 @@ class ImageRenderer extends Component
         $pictureAttributes = is_array($context['pictureAttributes'] ?? null) ? $context['pictureAttributes'] : [];
         $imgAttributes = is_array($context['imgAttributes'] ?? null) ? $context['imgAttributes'] : [];
         $breakpoints = is_array($context['breakpoints'] ?? null) ? $context['breakpoints'] : [];
+        $breakpointData = is_array($context['breakpointData'] ?? null) ? $context['breakpointData'] : [];
         $mergedConfig = is_array($context['config'] ?? null) ? $context['config'] : [];
         $sourceAssetsBySlot = is_array($context['sourceAssetsBySlot'] ?? null) ? $context['sourceAssetsBySlot'] : [];
         $sourceConfigsBySlot = is_array($context['sourceConfigsBySlot'] ?? null) ? $context['sourceConfigsBySlot'] : [];
@@ -75,6 +76,7 @@ class ImageRenderer extends Component
                 'pictureAttributes' => $pictureAttributes,
                 'imgAttributes' => $imgAttributes,
                 'breakpoints' => $breakpoints,
+                'breakpointData' => $breakpointData,
                 'sourceAssetsBySlot' => $sourceAssetsBySlot,
                 'sourceConfigsBySlot' => $sourceConfigsBySlot,
                 'isProcessing' => ProcessingRequest::isActive(),

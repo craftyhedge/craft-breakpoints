@@ -124,6 +124,43 @@ Registers responsive image preload links for the rendered picture. Use this for 
 
 For raster pictures, Breakpoints registers one responsive preload link per canonical slot using `imagesrcset`, rather than one link per DPR candidate. When `sources` is used, each slot preloads the same effective asset that its rendered `<source>` uses.
 
+### `thumbhash`
+**Type**: `boolean`
+
+Overrides the global ThumbHash integration setting for this image. The
+`craftyhedge/craft-thumbhash` plugin must be installed and available; otherwise
+Breakpoints leaves the normal image markup unchanged.
+
+```twig
+{{ image(asset, 'hero', {
+  thumbhash: true
+}) }}
+```
+
+### `thumbhashMode`
+**Type**: `string`  
+**Default**: configured `thumbhashMode`  
+**Values**: `'bg'` | `'srcset'`
+
+Controls how ThumbHash attributes are rendered for this image.
+
+ThumbHash is skipped when native lazy loading is enabled, and for eager renders
+including images with `loading: 'eager'` or `priority: true`.
+
+`bg` mode adds one `data-thumbhash` value to the `<picture>`. When the render is
+using JavaScript lazy loading, the fallback `<img>` receives a transparent SVG
+placeholder sized to the fallback image dimensions.
+
+`srcset` mode adds `data-thumbhash-render="srcset"` to the `<picture>` and adds
+per-source/per-image `data-thumbhash` values.
+
+```twig
+{{ image(asset, 'hero', {
+  thumbhash: true,
+  thumbhashMode: 'srcset'
+}) }}
+```
+
 ### `decoding`
 **Type**: `string`  
 **Default**: `'async'`  

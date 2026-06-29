@@ -35,6 +35,8 @@ class Settings extends Model
     public bool $nativeLazyLoadingEnabled = true;
     public bool $priority = false;
     public bool $preload = false;
+    public bool $thumbhashEnabled = false;
+    public string $thumbhashMode = 'bg';
     public string $processingLazyLoadingAdapter = 'attributes';
     public string $processingLazyLoadingSrcAttribute = 'data-src';
     public string $processingLazyLoadingSrcsetAttribute = 'data-srcset';
@@ -60,16 +62,18 @@ class Settings extends Model
                 'interlace',
                 'pictureTemplatePath',
                 'svgTemplatePath',
+                'thumbhashMode',
                 'processingLazyLoadingAdapter',
                 'processingLazyLoadingSrcAttribute',
                 'processingLazyLoadingSrcsetAttribute',
                 'processingLazyLoadingSizesAttribute',
                 'processingLazyLoadingCustomHandler',
             ], 'string'],
+            ['thumbhashMode', 'in', 'range' => ['bg', 'srcset']],
             ['processingLazyLoadingAdapter', 'in', 'range' => ['none', 'attributes', 'lazysizes', 'vanilla-lazyload', 'lozad', 'custom']],
             ['processingLazyLoadingCustomHandler', 'required', 'when' => static fn(self $model): bool => $model->processingLazyLoadingAdapter === 'custom'],
             [['escapeWidth', 'defaultWidth', 'defaultHeight', 'quality', 'allowUpscale'], 'integer', 'min' => 0],
-            [['nativeLazyLoadingEnabled', 'priority', 'preload', 'previewCenter'], 'boolean'],
+            [['nativeLazyLoadingEnabled', 'priority', 'preload', 'thumbhashEnabled', 'previewCenter'], 'boolean'],
             [['breakpoints', 'dpr'], 'safe'],
             ['quality', 'integer', 'min' => 1, 'max' => 100],
         ]);

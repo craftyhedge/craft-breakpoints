@@ -41,6 +41,7 @@ Breakpoints passes these variables to custom templates:
 - `pictureAttributes`: attributes for the `<picture>` element
 - `imgAttributes`: attributes for the fallback `<img>` element
 - `breakpoints`: ordered breakpoint map used by the template
+- `breakpointData`: prebuilt source rows keyed by canonical slot key
 - `sourceAssetsBySlot`: art-directed asset overrides keyed by canonical slot key
 - `sourceConfigsBySlot`: art-directed source config keyed by canonical slot key
 
@@ -48,17 +49,24 @@ Breakpoints passes these variables to custom templates:
 
 ## Source Data
 
-Use `craft.images.getBreakpointData()` inside raster templates to build each `<source>` element.
+Use `breakpointData` inside raster templates to build each `<source>` element.
+These rows are prebuilt before Twig renders, so render adapters such as
+ThumbHash can update the source attributes without custom template changes.
 
 ```twig
-{% set breakpointData = craft.images.getBreakpointData(loop.index0, breakpoint, config, image) %}
+{% for key, row in breakpointData %}
+  <source{{ _self.attrs(row.primarySourceAttributes) }}>
+{% endfor %}
 ```
 
-`getBreakpointData()` automatically uses the configured art-directed source
-asset for the current slot when `config.sources` is present. `sourceAssetsBySlot`
-is available when a custom template needs to inspect those overrides directly.
-Use `sourceConfigsBySlot` when you need source options such as per-source
-quality.
+The older `craft.images.getBreakpointData()` helper remains available, but it
+returns raw Breakpoints source data for the requested slot. Prefer
+`breakpointData` when custom templates should participate in render adapters.
+
+`breakpointData` automatically uses the configured art-directed source asset for
+each slot when `config.sources` is present. `sourceAssetsBySlot` is available
+when a custom template needs to inspect those overrides directly. Use
+`sourceConfigsBySlot` when you need source options such as per-source quality.
 
 The returned array includes:
 
@@ -66,6 +74,7 @@ The returned array includes:
 - `secondaryFormat`: secondary transform data, or `null` when no secondary format is enabled
 - `primarySourceAttributes`: attributes for the primary `<source>`
 - `secondarySourceAttributes`: attributes for the secondary `<source>`
+- `asset`: the effective Craft asset for this slot
 
 The source attribute arrays can include `srcset`, `type`, `width`, `height`, and `media`.
 
@@ -83,14 +92,12 @@ This example mirrors the built-in raster template and is a safe starting point f
 {% endmacro %}
 
 <picture{{ _self.attrs(pictureAttributes) }}>
-  {% for key, breakpoint in breakpoints %}
-    {% set breakpointData = craft.images.getBreakpointData(loop.index0, breakpoint, config, image) %}
+  {% for key, row in breakpointData %}
+    {% if row.primaryFormat %}
+      <source{{ _self.attrs(row.primarySourceAttributes) }}>
 
-    {% if breakpointData.primaryFormat %}
-      <source{{ _self.attrs(breakpointData.primarySourceAttributes) }}>
-
-      {% if breakpointData.secondaryFormat %}
-        <source{{ _self.attrs(breakpointData.secondarySourceAttributes) }}>
+      {% if row.secondaryFormat %}
+        <source{{ _self.attrs(row.secondarySourceAttributes) }}>
       {% endif %}
     {% endif %}
   {% endfor %}
@@ -192,15 +199,13 @@ That fallback keeps the page from failing hard, but it will not include the full
 
 {# templating #}
 <picture {{ pictureTemplate.attributes(pictureAttributes, false, false) }}>
-  {% for key, breakpoint in breakpoints %}
-    {% set breakpointData = craft.images.getBreakpointData(loop.index0, breakpoint, config, image) %}
-
-    {% if breakpointData.primaryFormat %}
+  {% for key, row in breakpointData %}
+    {% if row.primaryFormat %}
       {# Sources get real srcsets in data-srcset and LQIP placeholders in srcset. #}
-      <source {{ pictureTemplate.attributes(breakpointData.primarySourceAttributes, useLazySizes, false) }}{% if useLazySizes %} srcset="{{ pictureTemplate.lqipUrl(image, breakpointData.primarySourceAttributes, lqipConfig, config.format ?? null) }}"{% endif %}>
+      <source {{ pictureTemplate.attributes(row.primarySourceAttributes, useLazySizes, false) }}{% if useLazySizes %} srcset="{{ pictureTemplate.lqipUrl(image, row.primarySourceAttributes, lqipConfig, config.format ?? null) }}"{% endif %}>
 
-      {% if breakpointData.secondaryFormat %}
-        <source {{ pictureTemplate.attributes(breakpointData.secondarySourceAttributes, useLazySizes, false) }}{% if useLazySizes %} srcset="{{ pictureTemplate.lqipUrl(image, breakpointData.secondarySourceAttributes, lqipConfig, config.secondaryFormat ?? null) }}"{% endif %}>
+      {% if row.secondaryFormat %}
+        <source {{ pictureTemplate.attributes(row.secondarySourceAttributes, useLazySizes, false) }}{% if useLazySizes %} srcset="{{ pictureTemplate.lqipUrl(image, row.secondarySourceAttributes, lqipConfig, config.secondaryFormat ?? null) }}"{% endif %}>
       {% endif %}
     {% endif %}
   {% endfor %}

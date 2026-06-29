@@ -30,6 +30,7 @@ use craftyhedge\craftbreakpoints\services\TransformSets;
 use craftyhedge\craftbreakpoints\services\TransformStore;
 use craftyhedge\craftbreakpoints\services\TransformEditor;
 use craftyhedge\craftbreakpoints\services\TelemetryService;
+use craftyhedge\craftbreakpoints\services\ThumbhashRenderModeAdapter;
 use craftyhedge\craftbreakpoints\utilities\UsageTracking;
 use craftyhedge\craftbreakpoints\web\twig\Extension;
 use Monolog\Formatter\LineFormatter;
@@ -71,6 +72,7 @@ class Plugin extends BasePlugin
                 'transformEditor' => TransformEditor::class,
                 'telemetry' => TelemetryService::class,
                 'database' => DatabaseService::class,
+                'thumbhashRenderModeAdapter' => ThumbhashRenderModeAdapter::class,
             ],
         ];
     }
@@ -208,6 +210,13 @@ class Plugin extends BasePlugin
     {
         /** @var DatabaseService $component */
         $component = $this->get('database');
+        return $component;
+    }
+
+    public function getThumbhashRenderModeAdapter(): ThumbhashRenderModeAdapter
+    {
+        /** @var ThumbhashRenderModeAdapter $component */
+        $component = $this->get('thumbhashRenderModeAdapter');
         return $component;
     }
 

@@ -53,13 +53,15 @@ panel exposes the common output, transform, template, and editor defaults.
 | `allowUpscale` | bool | `false` | Whether transforms may upscale beyond the source size. |
 | `pictureTemplatePath` | string | *(plugin default)* | Custom template for raster assets. Project paths are relative to Craft's `templates/` directory; blank uses the built-in template. |
 | `svgTemplatePath` | string | *(plugin default)* | Custom template for SVG assets. Project paths are relative to Craft's `templates/` directory; blank uses the built-in template. |
-| `nativeLazyLoadingEnabled` | bool | `true` | When on, the `<img>` gets a `loading` attribute (`lazy` by default). |
+| `nativeLazyLoadingEnabled` | bool | `true` | When on, the `<img>` gets a native `loading` attribute (`lazy` by default), and non-native loading features such as JS lazy-loading adapters and ThumbHash output are disabled. When off, those features can rewrite `src`/`srcset` to data attributes. |
 | `priority` | bool | `false` | Convenience option that enables `preload`, `loading: 'eager'`, and `fetchpriority: 'high'` unless individually overridden. |
 | `preload` | bool | `false` | Whether `image()` calls register responsive image preload links by default. Usually set per call for above-the-fold images. |
-| `processingLazyLoadingAdapter` | string | `attributes` | Explicit processing adapter: `none`, `attributes`, `lazysizes`, `vanilla-lazyload`, `lozad`, or `custom`. No automatic detection is performed. |
-| `processingLazyLoadingSrcAttribute` | string | `data-src` | Attribute copied to `src` by the `attributes` processing adapter. |
-| `processingLazyLoadingSrcsetAttribute` | string | `data-srcset` | Attribute copied to `srcset` by the `attributes` processing adapter. |
-| `processingLazyLoadingSizesAttribute` | string | `data-sizes` | Attribute copied to `sizes` by the `attributes` processing adapter. |
+| `thumbhashEnabled` | bool | `false` | Enables optional integration with `craftyhedge/craft-thumbhash` when that plugin is installed. |
+| `thumbhashMode` | string | `'bg'` | Default ThumbHash render mode: `bg` for one picture-level hash, or `srcset` for per-source hashes. |
+| `processingLazyLoadingAdapter` | string | `attributes` | Explicit JS lazy-loading adapter: `none`, `attributes`, `lazysizes`, `vanilla-lazyload`, `lozad`, or `custom`. Used for front-end output when native lazy loading is disabled, and for processing preview activation. |
+| `processingLazyLoadingSrcAttribute` | string | `data-src` | Attribute used for lazy-loaded image `src` values. |
+| `processingLazyLoadingSrcsetAttribute` | string | `data-srcset` | Attribute used for lazy-loaded `srcset` values. |
+| `processingLazyLoadingSizesAttribute` | string | `data-sizes` | Attribute used for lazy-loaded `sizes` values. |
 | `processingLazyLoadingCustomHandler` | string | *(blank)* | Global async function used by the `custom` adapter, for example `window.project.prepareBreakpointImages`. |
 | `previewCenter` | bool | `true` | Editor-only: centers the preview width in the Transform Sets UI. |
 | `enableUsageTracking` | bool | `false` | Development/staging utility: records transform set usage by page/source for the Transform Tracking utility. Keep disabled in production unless explicitly needed. |
@@ -102,7 +104,11 @@ return [
     'quality' => 82,
     'dpr' => [1, 1.5, 2],
 
-    // Processing lazy loading is explicit; no library auto-detection occurs.
+    // Optional ThumbHash integration. Render calls can override this per image.
+    'thumbhashEnabled' => false,
+    'thumbhashMode' => 'bg',
+
+    // JavaScript lazy loading is explicit; no library auto-detection occurs.
     'processingLazyLoadingAdapter' => 'attributes',
     'processingLazyLoadingSrcAttribute' => 'data-src',
     'processingLazyLoadingSrcsetAttribute' => 'data-srcset',
@@ -119,6 +125,11 @@ return [
     'enableUsageTracking' => App::env('ENABLE_BREAKPOINT_USAGE_TRACKING') ?? false,
 ];
 ```
+
+When native lazy loading is disabled and `loading` is not `eager`, Breakpoints
+moves `src`, `srcset`, and `sizes` into the configured lazy attributes. Library
+adapters also append their expected class to `<img>`: `lazyload` for lazysizes,
+`lazy` for vanilla-lazyload, and `lozad` for Lozad.
 
 The `custom` adapter calls the configured global function once per slot inside
 the processing iframe. The function receives `{ document, window, breakpoint,

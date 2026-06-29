@@ -40,8 +40,11 @@ final class RenderContextBuilderTest extends Unit
         $this->assertArrayHasKey('pictureAttributes', $context);
         $this->assertArrayHasKey('imgAttributes', $context);
         $this->assertArrayHasKey('breakpoints', $context);
+        $this->assertArrayHasKey('breakpointData', $context);
         $this->assertArrayHasKey('sourceAssetsBySlot', $context);
         $this->assertArrayHasKey('sourceConfigsBySlot', $context);
+        $this->assertArrayHasKey('xs', $context['breakpointData']);
+        $this->assertArrayHasKey('primarySourceAttributes', $context['breakpointData']['xs']);
 
         // Normal (non-processing) render with editing disabled: no processing
         // or public editing markers leak out.
@@ -113,6 +116,51 @@ final class RenderContextBuilderTest extends Unit
         $this->assertIsArray($attributes);
         $this->assertArrayNotHasKey('loading', $attributes);
         $this->assertSame('no-loading', $attributes['class'] ?? null);
+    }
+
+    public function testBuildAddsLazyLoadingClassAndDataAttributesWhenNativeLazyLoadingDisabled(): void
+    {
+        $builder = Plugin::getInstance()->getRenderContextBuilder();
+
+        $context = $builder->build([
+            'setName' => 'default',
+            'breakpoints' => ['xs' => 480],
+            'escapeWidth' => 0,
+            'secondaryFormat' => 'none',
+            'nativeLazyLoadingEnabled' => false,
+            'processingLazyLoadingAdapter' => 'lazysizes',
+            'imgClass' => 'hero-image',
+        ], $this->createMockAsset());
+
+        $this->assertIsArray($context);
+        $this->assertSame('https://example.test/480x270.jpg', $context['imgAttributes']['data-src'] ?? null);
+        $this->assertArrayNotHasKey('src', $context['imgAttributes']);
+        $this->assertSame('hero-image lazyload', $context['imgAttributes']['class'] ?? null);
+        $this->assertSame('https://example.test/640x360.jpg', $context['breakpointData']['xs']['primarySourceAttributes']['data-srcset'] ?? null);
+        $this->assertArrayNotHasKey('srcset', $context['breakpointData']['xs']['primarySourceAttributes']);
+    }
+
+    public function testBuildKeepsNormalAttributesForEagerImagesWhenNativeLazyLoadingDisabled(): void
+    {
+        $builder = Plugin::getInstance()->getRenderContextBuilder();
+
+        $context = $builder->build([
+            'setName' => 'default',
+            'breakpoints' => ['xs' => 480],
+            'escapeWidth' => 0,
+            'secondaryFormat' => 'none',
+            'nativeLazyLoadingEnabled' => false,
+            'processingLazyLoadingAdapter' => 'lazysizes',
+            'loading' => 'eager',
+            'imgClass' => 'hero-image',
+        ], $this->createMockAsset());
+
+        $this->assertIsArray($context);
+        $this->assertSame('https://example.test/480x270.jpg', $context['imgAttributes']['src'] ?? null);
+        $this->assertArrayNotHasKey('data-src', $context['imgAttributes']);
+        $this->assertSame('hero-image', $context['imgAttributes']['class'] ?? null);
+        $this->assertSame('https://example.test/640x360.jpg', $context['breakpointData']['xs']['primarySourceAttributes']['srcset'] ?? null);
+        $this->assertArrayNotHasKey('data-srcset', $context['breakpointData']['xs']['primarySourceAttributes']);
     }
 
     public function testGetImageAttributesUsesAssetAltAsFallbackAltAndAllowsOverride(): void

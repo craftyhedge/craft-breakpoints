@@ -13,7 +13,7 @@
 ] %}
 
 {% set formatsTabClass = settings.getErrors('format') or settings.getErrors('secondaryFormat') or settings.getErrors('quality') or settings.getErrors('interlace') or settings.getErrors('dpr') ? 'error' : '' %}
-{% set loadingTabClass = settings.getErrors('nativeLazyLoadingEnabled') or settings.getErrors('processingLazyLoadingAdapter') or settings.getErrors('processingLazyLoadingSrcAttribute') or settings.getErrors('processingLazyLoadingSrcsetAttribute') or settings.getErrors('processingLazyLoadingSizesAttribute') or settings.getErrors('processingLazyLoadingCustomHandler') ? 'error' : '' %}
+{% set loadingTabClass = settings.getErrors('nativeLazyLoadingEnabled') or settings.getErrors('thumbhashEnabled') or settings.getErrors('thumbhashMode') or settings.getErrors('processingLazyLoadingAdapter') or settings.getErrors('processingLazyLoadingSrcAttribute') or settings.getErrors('processingLazyLoadingSrcsetAttribute') or settings.getErrors('processingLazyLoadingSizesAttribute') or settings.getErrors('processingLazyLoadingCustomHandler') ? 'error' : '' %}
 {% set behaviorTabClass = settings.getErrors('mode') or settings.getErrors('allowUpscale') or settings.getErrors('defaultWidth') or settings.getErrors('defaultHeight') ? 'error' : '' %}
 {% set editorTabClass = settings.getErrors('previewCenter') ? 'error' : '' %}
 {% set templatesTabClass = settings.getErrors('pictureTemplatePath') or settings.getErrors('svgTemplatePath') ? 'error' : '' %}

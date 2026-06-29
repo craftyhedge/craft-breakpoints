@@ -24,6 +24,8 @@ return [
     'nativeLazyLoadingEnabled' => true,
     'priority' => false,
     'preload' => false,
+    'thumbhashEnabled' => false,
+    'thumbhashMode' => 'bg',
     'processingLazyLoadingAdapter' => 'attributes',
     'processingLazyLoadingSrcAttribute' => 'data-src',
     'processingLazyLoadingSrcsetAttribute' => 'data-srcset',

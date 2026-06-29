@@ -7,6 +7,7 @@
     - pictureAttributes: Attributes for the <picture> element
     - imgAttributes: Attributes for the <img> element
     - breakpoints: Breakpoint map from plugin configuration
+    - breakpointData: Prebuilt source data keyed by breakpoint slot
 #}
 
 {% macro attrs(attributes) %}
@@ -18,14 +19,12 @@
 {% endmacro %}
 
 <picture{{ _self.attrs(pictureAttributes) }}>
-  {% for key, breakpoint in breakpoints %}
-    {% set breakpointData = craft.images.getBreakpointData(loop.index0, breakpoint, config, image) %}
+  {% for key, row in breakpointData %}
+    {% if row.primaryFormat %}
+      <source{{ _self.attrs(row.primarySourceAttributes) }}>
 
-    {% if breakpointData.primaryFormat %}
-      <source{{ _self.attrs(breakpointData.primarySourceAttributes) }}>
-
-      {% if breakpointData.secondaryFormat %}
-        <source{{ _self.attrs(breakpointData.secondarySourceAttributes) }}>
+      {% if row.secondaryFormat %}
+        <source{{ _self.attrs(row.secondarySourceAttributes) }}>
       {% endif %}
     {% endif %}
   {% endfor %}

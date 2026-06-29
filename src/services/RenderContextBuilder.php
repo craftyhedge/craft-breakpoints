@@ -35,17 +35,25 @@ class RenderContextBuilder extends Component
             return null;
         }
         $sourceConfigsBySlot = $this->getSourceConfigsBySlot($mergedConfig, $image);
+        $breakpoints = $this->_plugin->getImageTransforms()->getBreakpointsForTemplate($mergedConfig);
+        $sourceAssetsBySlot = $this->sourceAssetsFromConfigs($sourceConfigsBySlot);
 
-        return [
+        $context = [
+            'image' => $image,
             'config' => $mergedConfig,
             'pictureTemplatePath' => $this->_plugin->getConfigService()->getPictureTemplatePath($mergedConfig),
             'svgTemplatePath' => $this->_plugin->getConfigService()->getSvgTemplatePath($mergedConfig),
             'pictureAttributes' => $this->getPictureAttributes($mergedConfig),
             'imgAttributes' => $imgAttributes,
-            'breakpoints' => $this->_plugin->getImageTransforms()->getBreakpointsForTemplate($mergedConfig),
-            'sourceAssetsBySlot' => $this->sourceAssetsFromConfigs($sourceConfigsBySlot),
+            'breakpoints' => $breakpoints,
+            'breakpointData' => $this->getBreakpointDataForTemplate($breakpoints, $mergedConfig, $image, $sourceAssetsBySlot),
+            'sourceAssetsBySlot' => $sourceAssetsBySlot,
             'sourceConfigsBySlot' => $sourceConfigsBySlot,
         ];
+
+        $context = $this->applyLazyLoadingAttributes($context);
+
+        return $this->_plugin->getThumbhashRenderModeAdapter()->apply($context);
     }
 
     /**
@@ -151,6 +159,138 @@ class RenderContextBuilder extends Component
             static fn(array $sourceConfig): Asset => $sourceConfig['asset'],
             $sourceConfigsBySlot,
         );
+    }
+
+    /**
+     * @param array<string, int> $breakpoints
+     * @param array<string, mixed> $config
+     * @param array<string, Asset> $sourceAssetsBySlot
+     * @return array<string, array<string, mixed>>
+     */
+    private function getBreakpointDataForTemplate(array $breakpoints, array $config, Asset $image, array $sourceAssetsBySlot): array
+    {
+        if ($this->_plugin === null) {
+            return [];
+        }
+
+        $rows = [];
+        $index = 0;
+        foreach ($breakpoints as $slotKey => $breakpoint) {
+            $data = $this->_plugin->getImages()->getBreakpointData($index, (int)$breakpoint, $config, $image);
+            $data['asset'] = $sourceAssetsBySlot[(string)$slotKey] ?? $image;
+            $rows[(string)$slotKey] = $data;
+            $index++;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     * @return array<string, mixed>
+     */
+    private function applyLazyLoadingAttributes(array $context): array
+    {
+        if ($this->_plugin === null) {
+            return $context;
+        }
+
+        $config = is_array($context['config'] ?? null) ? $context['config'] : [];
+        if ((bool)($config['nativeLazyLoadingEnabled'] ?? true)) {
+            return $context;
+        }
+
+        $imgAttributes = is_array($context['imgAttributes'] ?? null) ? $context['imgAttributes'] : [];
+        $loading = strtolower(trim((string)($config['loading'] ?? $imgAttributes['loading'] ?? 'lazy')));
+        if ($loading === 'eager') {
+            return $context;
+        }
+
+        $lazyConfig = $this->_plugin->getConfigService()->getProcessingLazyLoadingConfig($config);
+        $adapter = (string)($lazyConfig['adapter'] ?? 'none');
+        if ($adapter === 'none') {
+            return $context;
+        }
+
+        $attributes = is_array($lazyConfig['attributes'] ?? null) ? $lazyConfig['attributes'] : [];
+        $srcAttribute = (string)($attributes['src'] ?? 'data-src');
+        $srcsetAttribute = (string)($attributes['srcset'] ?? 'data-srcset');
+        $sizesAttribute = (string)($attributes['sizes'] ?? 'data-sizes');
+
+        $breakpointData = is_array($context['breakpointData'] ?? null) ? $context['breakpointData'] : [];
+        foreach ($breakpointData as $slotKey => $data) {
+            if (!is_array($data)) {
+                continue;
+            }
+
+            foreach (['primarySourceAttributes', 'secondarySourceAttributes'] as $attributeKey) {
+                if (!is_array($data[$attributeKey] ?? null)) {
+                    continue;
+                }
+
+                $data[$attributeKey] = $this->moveAttribute($data[$attributeKey], 'srcset', $srcsetAttribute);
+                $data[$attributeKey] = $this->moveAttribute($data[$attributeKey], 'sizes', $sizesAttribute);
+            }
+
+            $breakpointData[$slotKey] = $data;
+        }
+        $context['breakpointData'] = $breakpointData;
+
+        $imgAttributes = $this->moveAttribute($imgAttributes, 'src', $srcAttribute);
+        $imgAttributes = $this->moveAttribute($imgAttributes, 'srcset', $srcsetAttribute);
+        $imgAttributes = $this->moveAttribute($imgAttributes, 'sizes', $sizesAttribute);
+        $imgAttributes = $this->appendClass($imgAttributes, $this->lazyLoadingClassForAdapter($adapter));
+        $context['imgAttributes'] = $imgAttributes;
+
+        return $context;
+    }
+
+    /**
+     * @param array<string, mixed> $attributes
+     * @return array<string, mixed>
+     */
+    private function moveAttribute(array $attributes, string $from, string $to): array
+    {
+        if (array_key_exists($from, $attributes) && !array_key_exists($to, $attributes)) {
+            $attributes[$to] = $attributes[$from];
+        }
+
+        unset($attributes[$from]);
+
+        return $attributes;
+    }
+
+    private function lazyLoadingClassForAdapter(string $adapter): string
+    {
+        return match ($adapter) {
+            'lazysizes' => 'lazyload',
+            'vanilla-lazyload' => 'lazy',
+            'lozad' => 'lozad',
+            default => '',
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $attributes
+     * @return array<string, mixed>
+     */
+    private function appendClass(array $attributes, string $class): array
+    {
+        $class = trim($class);
+        if ($class === '') {
+            return $attributes;
+        }
+
+        $classes = preg_split('/\s+/', trim((string)($attributes['class'] ?? '')), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        foreach (preg_split('/\s+/', $class, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $newClass) {
+            if (!in_array($newClass, $classes, true)) {
+                $classes[] = $newClass;
+            }
+        }
+
+        $attributes['class'] = implode(' ', $classes);
+
+        return $attributes;
     }
 
     /**

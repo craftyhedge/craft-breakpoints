@@ -7,8 +7,12 @@
 
 {% import '_includes/forms' as forms %}
 {% set configFileName = 'breakpoints' %}
+{% set projectConfig = craft.app.config.getConfigFromFile(configFileName) %}
 {% set useTabs = useTabs ?? false %}
 {% set selectedTab = selectedTab ?? (craft.app.request.getParam('tab') ?? 'formats') %}
+{% set nativeLazyLoadingRawValue = projectConfig.nativeLazyLoadingEnabled is defined ? projectConfig.nativeLazyLoadingEnabled : (settings.nativeLazyLoadingEnabled ?? true) %}
+{% set nativeLazyLoadingTextValue = nativeLazyLoadingRawValue is same as(true) ? '1' : (nativeLazyLoadingRawValue is same as(false) ? '0' : nativeLazyLoadingRawValue|lower|trim) %}
+{% set effectiveNativeLazyLoadingEnabled = nativeLazyLoadingTextValue not in ['0', 'false', 'off', 'no', ''] %}
 
 {% set pictureTemplatePathValue = settings.pictureTemplatePath ?? '' %}
 {% if pictureTemplatePathValue == 'breakpoints/picture.twig' %}
@@ -36,6 +40,7 @@
         ],
         value: settings.format,
         errors: settings.getErrors('format'),
+        disabled: projectConfig.format is defined,
         warning: _self.warning('format', configFileName)
     }) }}
 
@@ -53,6 +58,7 @@
         ],
         value: settings.secondaryFormat,
         errors: settings.getErrors('secondaryFormat'),
+        disabled: projectConfig.secondaryFormat is defined,
         warning: _self.warning('secondaryFormat', configFileName)
     }) }}
 
@@ -74,6 +80,7 @@
         ],
         value: settings.quality,
         errors: settings.getErrors('quality'),
+        disabled: projectConfig.quality is defined,
         warning: _self.warning('quality', configFileName)
     }) }}
 
@@ -89,6 +96,7 @@
         ],
         value: settings.interlace,
         errors: settings.getErrors('interlace'),
+        disabled: projectConfig.interlace is defined,
         warning: _self.warning('interlace', configFileName)
     }) }}
 
@@ -105,6 +113,7 @@
         ],
         values: (settings.dpr ?? [1])|map(d => d|string),
         errors: settings.getErrors('dpr'),
+        disabled: projectConfig.dpr is defined,
         warning: _self.warning('dpr', configFileName)
     }) }}
 
@@ -123,103 +132,137 @@
         instructions: "Enable native browser lazy loading on images. </br><em style='color: #6b7280; font-size: 13px;'>Disable if using a JavaScript lazy-loading library. Requires custom implementation (e.g., lazysizes, lozad).</em>",
         id: 'nativeLazyLoadingEnabled',
         name: "settings[nativeLazyLoadingEnabled]",
-        on: settings.nativeLazyLoadingEnabled ?? true,
-        value: settings.nativeLazyLoadingEnabled ?? true,
-        disabled: false,
+        on: effectiveNativeLazyLoadingEnabled,
+        value: effectiveNativeLazyLoadingEnabled,
+        disabled: projectConfig.nativeLazyLoadingEnabled is defined,
         errors: settings.getErrors('nativeLazyLoadingEnabled'),
         warning: _self.warning('nativeLazyLoadingEnabled', configFileName)
     }) }}
 
-    {{ forms.selectField({
-        label: "Processing Lazy-Loading Adapter",
-        instructions: "Controls how the processing preview activates JavaScript lazy-loaded images. Selection is explicit; processing does not auto-detect libraries.",
-        id: 'processingLazyLoadingAdapter',
-        name: "settings[processingLazyLoadingAdapter]",
-        options: [
-            { label: "Attribute swap (default)", value: "attributes" },
-            { label: "None", value: "none" },
-            { label: "lazysizes", value: "lazysizes" },
-            { label: "Vanilla LazyLoad", value: "vanilla-lazyload" },
-            { label: "Lozad", value: "lozad" },
-            { label: "Custom async handler", value: "custom" }
-        ],
-        value: settings.processingLazyLoadingAdapter ?? 'attributes',
-        errors: settings.getErrors('processingLazyLoadingAdapter'),
-        warning: _self.warning('processingLazyLoadingAdapter', configFileName)
-    }) }}
-
-    <div id="processing-lazy-loading-attributes">
-        {{ forms.textField({
-            label: "Source Attribute",
-            instructions: "Attribute copied to `src` during processing.",
-            name: "settings[processingLazyLoadingSrcAttribute]",
-            value: settings.processingLazyLoadingSrcAttribute ?? 'data-src',
-            placeholder: "data-src",
-            errors: settings.getErrors('processingLazyLoadingSrcAttribute'),
-            warning: _self.warning('processingLazyLoadingSrcAttribute', configFileName)
+    <div id="non-native-loading-settings"{% if effectiveNativeLazyLoadingEnabled %} hidden{% endif %}>
+        {{ forms.lightswitchField({
+            label: "ThumbHash",
+            instructions: "Enable integration with the ThumbHash plugin. Render calls can override this with the `thumbhash` option.",
+            id: 'thumbhashEnabled',
+            name: "settings[thumbhashEnabled]",
+            on: settings.thumbhashEnabled ?? false,
+            value: settings.thumbhashEnabled ?? false,
+            errors: settings.getErrors('thumbhashEnabled'),
+            disabled: projectConfig.thumbhashEnabled is defined,
+            warning: _self.warning('thumbhashEnabled', configFileName)
         }) }}
 
-        {{ forms.textField({
-            label: "Source Set Attribute",
-            instructions: "Attribute copied to `srcset` during processing.",
-            name: "settings[processingLazyLoadingSrcsetAttribute]",
-            value: settings.processingLazyLoadingSrcsetAttribute ?? 'data-srcset',
-            placeholder: "data-srcset",
-            errors: settings.getErrors('processingLazyLoadingSrcsetAttribute'),
-            warning: _self.warning('processingLazyLoadingSrcsetAttribute', configFileName)
+        {{ forms.selectField({
+            label: "ThumbHash Mode",
+            instructions: "Default rendering mode when ThumbHash is enabled. Render calls can override this with the `thumbhashMode` option.",
+            id: 'thumbhashMode',
+            name: "settings[thumbhashMode]",
+            options: [
+                { label: "Background (picture)", value: "bg" },
+                { label: "Srcset (per source)", value: "srcset" }
+            ],
+            value: settings.thumbhashMode ?? 'bg',
+            errors: settings.getErrors('thumbhashMode'),
+            disabled: projectConfig.thumbhashMode is defined,
+            warning: _self.warning('thumbhashMode', configFileName)
         }) }}
 
-        {{ forms.textField({
-            label: "Sizes Attribute",
-            instructions: "Attribute copied to `sizes` during processing.",
-            name: "settings[processingLazyLoadingSizesAttribute]",
-            value: settings.processingLazyLoadingSizesAttribute ?? 'data-sizes',
-            placeholder: "data-sizes",
-            errors: settings.getErrors('processingLazyLoadingSizesAttribute'),
-            warning: _self.warning('processingLazyLoadingSizesAttribute', configFileName)
+        {{ forms.selectField({
+            label: "Lazy-Loading Adapter",
+            instructions: "Select the JavaScript lazy-loading pattern used when native lazy loading is disabled. Processing uses the same selection to activate preview images.",
+            id: 'processingLazyLoadingAdapter',
+            name: "settings[processingLazyLoadingAdapter]",
+            options: [
+                { label: "Attribute swap", value: "attributes" },
+                { label: "None", value: "none" },
+                { label: "lazysizes", value: "lazysizes" },
+                { label: "Vanilla LazyLoad", value: "vanilla-lazyload" },
+                { label: "Lozad", value: "lozad" },
+                { label: "Custom async handler", value: "custom" }
+            ],
+            value: settings.processingLazyLoadingAdapter ?? 'attributes',
+            errors: settings.getErrors('processingLazyLoadingAdapter'),
+            disabled: projectConfig.processingLazyLoadingAdapter is defined,
+            warning: _self.warning('processingLazyLoadingAdapter', configFileName)
         }) }}
-    </div>
 
-    <div id="processing-lazy-loading-lazysizes">
-        <h3>lazysizes Processing Calls</h3>
-        <ul>
-            <li><code>window.lazySizes.loader.checkElems()</code></li>
-            <li><code>window.lazySizes.autoSizer.checkElems()</code></li>
-            <li><code>window.lazySizes.loader.unveil(image)</code> for each <code>img.lazyload</code></li>
-        </ul>
-    </div>
+        <div id="processing-lazy-loading-attributes">
+            {{ forms.textField({
+                label: "Source Attribute",
+                instructions: "Attribute copied to `src` during processing.",
+                name: "settings[processingLazyLoadingSrcAttribute]",
+                value: settings.processingLazyLoadingSrcAttribute ?? 'data-src',
+                placeholder: "data-src",
+                errors: settings.getErrors('processingLazyLoadingSrcAttribute'),
+                disabled: projectConfig.processingLazyLoadingSrcAttribute is defined,
+                warning: _self.warning('processingLazyLoadingSrcAttribute', configFileName)
+            }) }}
 
-    <div id="processing-lazy-loading-vanilla-lazyload">
-        <h3>Vanilla LazyLoad Processing Calls</h3>
-        <ul>
-            <li><code>instance.update()</code></li>
-            <li><code>instance.loadAll()</code></li>
-            <li><code>instance.load(image)</code> for each lazy image</li>
-            <li><code>window.LazyLoad.load(image)</code> when the static API is available</li>
-        </ul>
-        <p class="light">Recognized instance globals: <code>lazyLoadInstance</code>, <code>__lazyLoadInstance</code>, <code>lazyLoadInstances</code>, and <code>__lazyLoadInstances</code>.</p>
-    </div>
+            {{ forms.textField({
+                label: "Source Set Attribute",
+                instructions: "Attribute copied to `srcset` during processing.",
+                name: "settings[processingLazyLoadingSrcsetAttribute]",
+                value: settings.processingLazyLoadingSrcsetAttribute ?? 'data-srcset',
+                placeholder: "data-srcset",
+                errors: settings.getErrors('processingLazyLoadingSrcsetAttribute'),
+                disabled: projectConfig.processingLazyLoadingSrcsetAttribute is defined,
+                warning: _self.warning('processingLazyLoadingSrcsetAttribute', configFileName)
+            }) }}
 
-    <div id="processing-lazy-loading-lozad">
-        <h3>Lozad Processing Calls</h3>
-        <ul>
-            <li><code>instance.observe()</code></li>
-            <li><code>instance.triggerLoad(element)</code> for each <code>.lozad</code> element</li>
-            <li><code>window.lozad('.lozad')</code>, followed by <code>observe()</code> and <code>triggerLoad(element)</code>, when no observer instance is exposed</li>
-        </ul>
-        <p class="light">Recognized instance globals: <code>lozadObserver</code>, <code>lozadInstance</code>, <code>__lozadObserver</code>, <code>__lozadInstance</code>, <code>lozadObservers</code>, and <code>__lozadObservers</code>.</p>
-    </div>
+            {{ forms.textField({
+                label: "Sizes Attribute",
+                instructions: "Attribute copied to `sizes` during processing.",
+                name: "settings[processingLazyLoadingSizesAttribute]",
+                value: settings.processingLazyLoadingSizesAttribute ?? 'data-sizes',
+                placeholder: "data-sizes",
+                errors: settings.getErrors('processingLazyLoadingSizesAttribute'),
+                disabled: projectConfig.processingLazyLoadingSizesAttribute is defined,
+                warning: _self.warning('processingLazyLoadingSizesAttribute', configFileName)
+            }) }}
+        </div>
 
-    <div id="processing-lazy-loading-custom">
-        {{ forms.textField({
-            label: "Custom Handler",
-            instructions: "Global async JavaScript function called inside the preview frame, for example `window.project.prepareBreakpointImages`. Standard configured source attributes are tracked while the handler activates them.",
-            name: "settings[processingLazyLoadingCustomHandler]",
-            value: settings.processingLazyLoadingCustomHandler ?? '',
-            placeholder: "window.project.prepareBreakpointImages",
-            errors: settings.getErrors('processingLazyLoadingCustomHandler'),
-            warning: _self.warning('processingLazyLoadingCustomHandler', configFileName)
-        }) }}
+        <div id="processing-lazy-loading-lazysizes">
+            <h3>lazysizes Processing Calls</h3>
+            <ul>
+                <li><code>window.lazySizes.loader.checkElems()</code></li>
+                <li><code>window.lazySizes.autoSizer.checkElems()</code></li>
+                <li><code>window.lazySizes.loader.unveil(image)</code> for each <code>img.lazyload</code></li>
+            </ul>
+        </div>
+
+        <div id="processing-lazy-loading-vanilla-lazyload">
+            <h3>Vanilla LazyLoad Processing Calls</h3>
+            <ul>
+                <li><code>instance.update()</code></li>
+                <li><code>instance.loadAll()</code></li>
+                <li><code>instance.load(image)</code> for each lazy image</li>
+                <li><code>window.LazyLoad.load(image)</code> when the static API is available</li>
+            </ul>
+            <p class="light">Recognized instance globals: <code>lazyLoadInstance</code>, <code>__lazyLoadInstance</code>, <code>lazyLoadInstances</code>, and <code>__lazyLoadInstances</code>.</p>
+        </div>
+
+        <div id="processing-lazy-loading-lozad">
+            <h3>Lozad Processing Calls</h3>
+            <ul>
+                <li><code>instance.observe()</code></li>
+                <li><code>instance.triggerLoad(element)</code> for each <code>.lozad</code> element</li>
+                <li><code>window.lozad('.lozad')</code>, followed by <code>observe()</code> and <code>triggerLoad(element)</code>, when no observer instance is exposed</li>
+            </ul>
+            <p class="light">Recognized instance globals: <code>lozadObserver</code>, <code>lozadInstance</code>, <code>__lozadObserver</code>, <code>__lozadInstance</code>, <code>lozadObservers</code>, and <code>__lozadObservers</code>.</p>
+        </div>
+
+        <div id="processing-lazy-loading-custom">
+            {{ forms.textField({
+                label: "Custom Handler",
+                instructions: "Global async JavaScript function called inside the preview frame, for example `window.project.prepareBreakpointImages`. Standard configured source attributes are tracked while the handler activates them.",
+                name: "settings[processingLazyLoadingCustomHandler]",
+                value: settings.processingLazyLoadingCustomHandler ?? '',
+                placeholder: "window.project.prepareBreakpointImages",
+                errors: settings.getErrors('processingLazyLoadingCustomHandler'),
+                disabled: projectConfig.processingLazyLoadingCustomHandler is defined,
+                warning: _self.warning('processingLazyLoadingCustomHandler', configFileName)
+            }) }}
+        </div>
     </div>
 </div>
 
@@ -238,6 +281,7 @@
         ],
         value: settings.mode,
         errors: settings.getErrors('mode'),
+        disabled: projectConfig.mode is defined,
         warning: _self.warning('mode', configFileName)
     }) }}
 
@@ -250,6 +294,7 @@
         value: allowUpscaleEnabled,
         on: allowUpscaleEnabled,
         errors: settings.getErrors('allowUpscale'),
+        disabled: projectConfig.allowUpscale is defined,
         warning: _self.warning('allowUpscale', configFileName)
     }) }}
 
@@ -266,6 +311,7 @@
         name: "settings[defaultWidth]",
         value: settings.defaultWidth,
         errors: settings.getErrors('defaultWidth'),
+        disabled: projectConfig.defaultWidth is defined,
         warning: _self.warning('defaultWidth', configFileName)
     }) }}
 
@@ -275,6 +321,7 @@
         name: "settings[defaultHeight]",
         value: settings.defaultHeight,
         errors: settings.getErrors('defaultHeight'),
+        disabled: projectConfig.defaultHeight is defined,
         warning: _self.warning('defaultHeight', configFileName)
     }) }}
 </div>
@@ -290,6 +337,7 @@
         on: settings.previewCenter ?? true,
         value: settings.previewCenter ?? true,
         errors: settings.getErrors('previewCenter'),
+        disabled: projectConfig.previewCenter is defined,
         warning: _self.warning('previewCenter', configFileName)
     }) }}
 </div>
@@ -302,7 +350,7 @@
         instructions: "Path relative to templates folder. Leave blank for default plugin template.",
         name: "settings[pictureTemplatePath]",
         value: pictureTemplatePathValue,
-        disabled: false,
+        disabled: projectConfig.pictureTemplatePath is defined,
         placeholder: "e.g. _partials/picture.twig",
         errors: settings.getErrors('pictureTemplatePath'),
         warning: _self.warning('pictureTemplatePath', configFileName)
@@ -313,7 +361,7 @@
         instructions: "Path relative to templates folder. Leave blank for default plugin template.",
         name: "settings[svgTemplatePath]",
         value: svgTemplatePathValue,
-        disabled: false,
+        disabled: projectConfig.svgTemplatePath is defined,
         placeholder: "e.g. _partials/svg.twig",
         errors: settings.getErrors('svgTemplatePath'),
         warning: _self.warning('svgTemplatePath', configFileName)
@@ -344,6 +392,12 @@
 
 {% js %}
 (function() {
+    var initialNativeLazyLoadingEnabled = {{ effectiveNativeLazyLoadingEnabled ? 'true' : 'false' }};
+    var nativeLazyLoading = document.querySelector('[name="settings[nativeLazyLoadingEnabled]"][type="checkbox"]')
+        || document.querySelector('#nativeLazyLoadingEnabled input[type="checkbox"]')
+        || document.querySelector('[name="settings[nativeLazyLoadingEnabled]"]');
+    var nativeLazyLoadingSwitch = document.getElementById('nativeLazyLoadingEnabled');
+    var nonNativeLoadingSettings = document.getElementById('non-native-loading-settings');
     var lazyAdapter = document.querySelector('[name="settings[processingLazyLoadingAdapter]"]');
     var lazyAttributes = document.getElementById('processing-lazy-loading-attributes');
     var lazyCustom = document.getElementById('processing-lazy-loading-custom');
@@ -353,26 +407,70 @@
         'lozad': document.getElementById('processing-lazy-loading-lozad')
     };
 
+    function isNativeLazyLoadingEnabled() {
+        if (nativeLazyLoading && nativeLazyLoading.type === 'checkbox') {
+            return nativeLazyLoading.checked === true;
+        }
+
+        if (nativeLazyLoadingSwitch) {
+            var ariaChecked = nativeLazyLoadingSwitch.getAttribute('aria-checked');
+            if (ariaChecked === 'true' || ariaChecked === 'false') {
+                return ariaChecked === 'true';
+            }
+
+            if (nativeLazyLoadingSwitch.classList && nativeLazyLoadingSwitch.classList.contains('on')) {
+                return true;
+            }
+        }
+
+        if (nativeLazyLoading) {
+            var value = String(nativeLazyLoading.value || '').toLowerCase();
+            if (['1', 'true', 'on', 'yes'].indexOf(value) !== -1) {
+                return true;
+            }
+            if (['0', 'false', 'off', 'no', ''].indexOf(value) !== -1) {
+                return false;
+            }
+        }
+
+        return initialNativeLazyLoadingEnabled;
+    }
+
     function updateLazyLoadingFields() {
         var adapter = lazyAdapter ? lazyAdapter.value : 'attributes';
+        var nativeEnabled = isNativeLazyLoadingEnabled();
+        if (nonNativeLoadingSettings) {
+            nonNativeLoadingSettings.hidden = nativeEnabled;
+        }
         if (lazyAttributes) {
-            lazyAttributes.hidden = adapter !== 'attributes';
+            lazyAttributes.hidden = nativeEnabled || adapter !== 'attributes';
         }
         if (lazyCustom) {
-            lazyCustom.hidden = adapter !== 'custom';
+            lazyCustom.hidden = nativeEnabled || adapter !== 'custom';
         }
         Object.keys(lazyLibrarySummaries).forEach(function(key) {
             var summary = lazyLibrarySummaries[key];
             if (summary) {
-                summary.hidden = adapter !== key;
+                summary.hidden = nativeEnabled || adapter !== key;
             }
+        });
+    }
+
+    if (nativeLazyLoading) {
+        nativeLazyLoading.addEventListener('change', updateLazyLoadingFields);
+    }
+
+    if (nativeLazyLoadingSwitch && nativeLazyLoadingSwitch !== nativeLazyLoading) {
+        nativeLazyLoadingSwitch.addEventListener('click', function() {
+            window.setTimeout(updateLazyLoadingFields, 0);
         });
     }
 
     if (lazyAdapter) {
         lazyAdapter.addEventListener('change', updateLazyLoadingFields);
-        updateLazyLoadingFields();
     }
+
+    updateLazyLoadingFields();
 
     if (typeof Craft === 'undefined' || !Craft.sendActionRequest) {
         return;
