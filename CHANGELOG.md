@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.7 - 2026-06-29
+
+- Added optional integration with `craftyhedge/craft-thumbhash`, including global settings, config options, and per-image `thumbhash` / `thumbhashMode` overrides.
+- Added ThumbHash render modes for picture-level background placeholders and per-source `srcset` hashes, with transparent SVG placeholders sized to the fallback image when JavaScript lazy loading is active.
+- Improved non-native lazy-loading output so configured JavaScript lazy-loading adapters move `src`, `srcset`, and `sizes` into the configured data attributes and add the expected image class for lazysizes, Vanilla LazyLoad, or Lozad.
+- Kept ThumbHash and non-native lazy-loading behavior disabled for native lazy loading, eager images, and priority images.
+- Added prebuilt `breakpointData` to picture templates so custom templates that use the provided arrays can receive render-adapter attribute updates without extra template changes.
+- Improved the settings UI so fields controlled by `config/breakpoints.php` are disabled inline while preserving their config override warnings.
+- Clarified DPR documentation to note that project config and Twig options can use any positive numeric ratio, not only the Control Panel's common `2x` and `3x` presets.
+- Expanded documentation and tests for ThumbHash, JavaScript lazy-loading output, custom template data, settings validation, and render-context behavior.
+
 ## 0.1.6 - 2026-06-28
 
 - Added a **Transform Tracking** utility for development and staging use, with grouped frontend transform-set observations, missing saved-set status, source/page details, and clear tracking controls.
