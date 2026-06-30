@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.8 - 2026-06-30
+
+- Registered the ThumbHash frontend script whenever the integration is enabled and available, instead of tying script registration to per-asset placeholder eligibility.
+
 ## 0.1.7 - 2026-06-29
 
 - Added optional integration with `craftyhedge/craft-thumbhash`, including global settings, config options, and per-image `thumbhash` / `thumbhashMode` overrides.

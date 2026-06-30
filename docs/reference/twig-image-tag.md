@@ -144,8 +144,8 @@ Breakpoints leaves the normal image markup unchanged.
 
 Controls how ThumbHash attributes are rendered for this image.
 
-ThumbHash is skipped when native lazy loading is enabled, and for eager renders
-including images with `loading: 'eager'` or `priority: true`.
+ThumbHash attributes are skipped when native lazy loading is enabled, and for
+eager renders including images with `loading: 'eager'` or `priority: true`.
 
 `bg` mode adds one `data-thumbhash` value to the `<picture>`. When the render is
 using JavaScript lazy loading, the fallback `<img>` receives a transparent SVG

@@ -25,7 +25,7 @@ return [
     'priority' => false,
     'preload' => false,
     'thumbhashEnabled' => false,
-    'thumbhashMode' => 'bg',
+    'thumbhashMode' => 'srcset',
     'processingLazyLoadingAdapter' => 'attributes',
     'processingLazyLoadingSrcAttribute' => 'data-src',
     'processingLazyLoadingSrcsetAttribute' => 'data-srcset',

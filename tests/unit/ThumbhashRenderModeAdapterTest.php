@@ -103,6 +103,36 @@ final class ThumbhashRenderModeAdapterTest extends Unit
         $this->assertSame($context, $adapter->apply($context));
     }
 
+    public function testEnabledAdapterRegistersScriptEvenWhenImageAttributesAreSkipped(): void
+    {
+        $adapter = new class extends ThumbhashRenderModeAdapter {
+            public int $scriptRegistrations = 0;
+
+            protected function isAvailable(): bool
+            {
+                return true;
+            }
+
+            protected function registerScript(): void
+            {
+                $this->scriptRegistrations++;
+            }
+        };
+
+        $context = [
+            'image' => null,
+            'config' => [
+                'thumbhashEnabled' => true,
+                'nativeLazyLoadingEnabled' => false,
+            ],
+            'pictureAttributes' => [],
+            'imgAttributes' => ['src' => 'https://example.test/fallback.jpg'],
+        ];
+
+        $this->assertSame($context, $adapter->apply($context));
+        $this->assertSame(1, $adapter->scriptRegistrations);
+    }
+
     public function testEagerRenderSkipsThumbhashAttributes(): void
     {
         $adapter = $this->createAvailableAdapter();

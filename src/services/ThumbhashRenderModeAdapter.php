@@ -12,6 +12,8 @@ class ThumbhashRenderModeAdapter extends Component
     private const MODE_BG = 'bg';
     private const MODE_SRCSET = 'srcset';
 
+    private bool $scriptRegistered = false;
+
     /**
      * @param array<string, mixed> $context
      * @return array<string, mixed>
@@ -22,6 +24,8 @@ class ThumbhashRenderModeAdapter extends Component
         if (!$this->isEnabled($config) || !$this->isAvailable()) {
             return $context;
         }
+
+        $this->registerScript();
 
         if ((App::parseBooleanEnv($config['nativeLazyLoadingEnabled'] ?? true) ?? true) === true) {
             return $context;
@@ -36,10 +40,7 @@ class ThumbhashRenderModeAdapter extends Component
             return $context;
         }
 
-        $mode = $this->normalizeMode($config['thumbhashMode'] ?? self::MODE_BG);
-        $this->registerScript();
-
-        return $mode === self::MODE_SRCSET
+        return $this->normalizeMode($config['thumbhashMode'] ?? self::MODE_BG) === self::MODE_SRCSET
             ? $this->applySrcsetMode($context, $image)
             : $this->applyBgMode($context, $image);
     }
@@ -196,6 +197,10 @@ class ThumbhashRenderModeAdapter extends Component
 
     protected function registerScript(): void
     {
+        if ($this->scriptRegistered) {
+            return;
+        }
+
         $extension = $this->createThumbhashTwigExtension();
         if ($extension === null || !method_exists($extension, 'getThumbhashScript')) {
             return;
@@ -203,6 +208,7 @@ class ThumbhashRenderModeAdapter extends Component
 
         try {
             $extension->getThumbhashScript();
+            $this->scriptRegistered = true;
         } catch (\Throwable $e) {
             Craft::warning('Could not register ThumbHash script: ' . $e->getMessage(), 'breakpoints');
         }
