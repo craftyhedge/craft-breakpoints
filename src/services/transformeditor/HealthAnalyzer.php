@@ -78,6 +78,7 @@ final class HealthAnalyzer
                 'breakpointWidth' => $breakpointWidth,
                 'assetId' => trim((string)($payloadRow['assetId'] ?? '')),
                 'rowStatus' => $this->normalizeLatestRunRowStatus((string)($payloadRow['rowStatus'] ?? '')),
+                'isVisible' => Support::parseNullableBool($payloadRow['isVisible'] ?? null),
                 'renderedWidth' => max(0, (int)($payloadRow['renderedWidth'] ?? 0)),
                 'renderedHeight' => max(0, (int)($payloadRow['renderedHeight'] ?? 0)),
                 'autoDimension' => $autoDimension,
@@ -980,6 +981,9 @@ final class HealthAnalyzer
 
             foreach ($breakpointEntries as $entryIndex => $entry) {
                 if (($entry['enabled'] ?? true) !== true) {
+                    continue;
+                }
+                if (($entry['isVisible'] ?? true) === false) {
                     continue;
                 }
 

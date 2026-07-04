@@ -578,6 +578,54 @@ final class TransformEditorServiceTest extends Unit
         $this->assertSame('Matching', (string)($rows[0]['assetMismatchLabel'] ?? ''));
     }
 
+    public function testBuildLatestRunHealthByTransformIgnoresHiddenZeroSizeRowsForAssetMismatch(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $health = $this->withRuntimeSets([
+            'card-default' => [
+                'name' => 'card-default',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'xl' => ['width' => 64, 'height' => 128, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => [],
+            ],
+        ], fn() => $editor->buildLatestRunHealthByTransform([
+            'rowsPayload' => [
+                [
+                    'transformHandle' => 'card-default',
+                    'slotKey' => 'xl',
+                    'slotIndex' => 4,
+                    'breakpointWidth' => 1280,
+                    'assetId' => '17',
+                    'renderedWidth' => 64,
+                    'renderedHeight' => 128,
+                    'rowStatus' => 'loaded',
+                    'isVisible' => true,
+                ],
+                [
+                    'transformHandle' => 'card-default',
+                    'slotKey' => 'xl',
+                    'slotIndex' => 4,
+                    'breakpointWidth' => 1280,
+                    'assetId' => '17',
+                    'renderedWidth' => 0,
+                    'renderedHeight' => 0,
+                    'rowStatus' => 'loaded',
+                    'isVisible' => false,
+                ],
+            ],
+        ]));
+
+        $this->assertArrayHasKey('card-default', $health);
+        $this->assertFalse(($health['card-default']['hasAssetMismatch'] ?? true) === true);
+        $this->assertSame(0, (int)($health['card-default']['assetMismatchBreakpointCount'] ?? -1));
+        $rows = $health['card-default']['breakpointRows'] ?? [];
+        $this->assertIsArray($rows);
+        $this->assertSame('Matching', (string)($rows[0]['assetMismatchLabel'] ?? ''));
+    }
+
     public function testRenderResultReviewRendersMissingDefinitionWarningWithinTransformCard(): void
     {
         $editor = Plugin::getInstance()->getTransformEditor();
