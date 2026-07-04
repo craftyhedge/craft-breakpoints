@@ -162,7 +162,7 @@ final class SnapshotReader
             return [];
         }
 
-        $hiddenSlotIds = [];
+        $slotVisibility = [];
         foreach ($perAssetRows as $row) {
             if (!is_array($row)) {
                 continue;
@@ -179,17 +179,30 @@ final class SnapshotReader
                 }
             }
 
-            if (($row['isVisible'] ?? null) !== false) {
-                continue;
-            }
-
             $slotId = $this->extractSlotIdFromRow($row);
             if ($slotId > 0) {
-                $hiddenSlotIds[] = $slotId;
+                if (!isset($slotVisibility[$slotId])) {
+                    $slotVisibility[$slotId] = [
+                        'hidden' => false,
+                        'visible' => false,
+                    ];
+                }
+
+                if (($row['isVisible'] ?? null) === false) {
+                    $slotVisibility[$slotId]['hidden'] = true;
+                } elseif (($row['isVisible'] ?? null) === true) {
+                    $slotVisibility[$slotId]['visible'] = true;
+                }
             }
         }
 
-        $hiddenSlotIds = array_values(array_unique($hiddenSlotIds));
+        $hiddenSlotIds = [];
+        foreach ($slotVisibility as $slotId => $visibility) {
+            if (($visibility['hidden'] ?? false) === true && ($visibility['visible'] ?? false) !== true) {
+                $hiddenSlotIds[] = (int)$slotId;
+            }
+        }
+
         sort($hiddenSlotIds, SORT_NUMERIC);
 
         return $hiddenSlotIds;

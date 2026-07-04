@@ -1428,7 +1428,7 @@ final class OperationsService
             $assetKey = Support::parseNullableNonEmptyString($requestedSet['selectedAssetKey'] ?? null);
             $metadata = $this->snapshotReader?->resolveTransformMetadata($transformName);
             $includeEscapeWidth = ($metadata['includeEscapeWidth'] ?? null) === true;
-            $hiddenSlotIds = $this->snapshotReader?->resolveHiddenSlotIdsForTransform($transformName, $assetKey) ?? [];
+            $hiddenSlotIds = $this->snapshotReader?->resolveHiddenSlotIdsForTransform($transformName) ?? [];
             $renderedRows = $this->snapshotReader?->resolveRenderedRowsForTransform($transformName, $assetKey) ?? [];
             if ($renderedRows === []) {
                 $skipped[] = ['name' => $transformName, 'reason' => 'no_rendered_evidence'];

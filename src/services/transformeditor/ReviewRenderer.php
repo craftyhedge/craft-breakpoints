@@ -158,9 +158,13 @@ final class ReviewRenderer
         }
 
         $warningsByTransform = $this->buildReviewWarningsByTransform($rowsByBreakpoint);
+        $latestRunSnapshot = $this->getLatestRunSnapshotForReview();
         $mismatchCounts = $reviewMode === self::REVIEW_MODE_PROCESSED
-            ? $this->countLatestRunMismatchesByTransform($this->getLatestRunSnapshotForReview())
+            ? $this->countLatestRunMismatchesByTransform($latestRunSnapshot)
             : ['breakpointMismatchCount' => 0, 'assetMismatchCount' => 0, 'mismatchCount' => 0];
+        $hiddenSetWarningCount = $reviewMode === self::REVIEW_MODE_PROCESSED
+            ? $this->countLatestRunHiddenSetWarningsByTransform($latestRunSnapshot)
+            : 0;
         $normalizedScopeState = [];
         $normalizedTabState = [];
         $normalizedSelectedAssetKeyBySet = [];
@@ -184,7 +188,7 @@ final class ReviewRenderer
                 $onlyTransformName,
                 $newSetNames,
             ),
-            'warningCount' => $this->countReviewWarningsByTransform($warningsByTransform),
+            'warningCount' => $this->countReviewWarningsByTransform($warningsByTransform) + $hiddenSetWarningCount,
             'breakpointMismatchCount' => $mismatchCounts['breakpointMismatchCount'],
             'assetMismatchCount' => $mismatchCounts['assetMismatchCount'],
             'mismatchCount' => $mismatchCounts['mismatchCount'],
@@ -619,10 +623,14 @@ final class ReviewRenderer
 
         $breakpointMismatchTransformNames = [];
         $assetMismatchTransformNames = [];
+        $hiddenSetWarningTransformNames = [];
         if ($isProcessedReview) {
             foreach ($latestRunSummariesByTransform as $handle => $summary) {
                 if (!is_string($handle)) {
                     continue;
+                }
+                if (($summary['hasAllEnabledBreakpointsHidden'] ?? false) === true) {
+                    $hiddenSetWarningTransformNames[$handle] = true;
                 }
                 if (($summary['hasBreakpointMismatch'] ?? false) === true) {
                     $breakpointMismatchTransformNames[$handle] = true;
@@ -639,6 +647,7 @@ final class ReviewRenderer
             $preferredOrderBySet,
             $breakpointMismatchTransformNames,
             $assetMismatchTransformNames,
+            $hiddenSetWarningTransformNames,
             array_fill_keys($newSetNames, true),
         );
         if ($transformNames === []) {
@@ -1056,9 +1065,9 @@ final class ReviewRenderer
                 : '';
 
             $hiddenSetWarningMarkup = $hasAllEnabledBreakpointsHiddenWarning
-                ? '<div class="bpts-warning-item bpts-warning-item-neutral">'
+                ? '<div class="bpts-warning-item bpts-warning-item-danger">'
                     . '<div class="bpts-warning-copy"><h3 class="bpts-warning-heading">Image Set Hidden</h3></div>'
-                    . '<div class="bpts-warning-detail"><p>This image set is hidden in the latest processing run. If the page normally loads with this hidden, enable Allow Hidden During Processing.</p></div>'
+                    . '<div class="bpts-warning-detail"><p>This image set is hidden in the latest processing run.</p><p>Images that are hidden on page load need developer intervention to force them visible for processing.</p><p>Use the Allow Hidden During Processing option after reverting the intervention.</p></div>'
                     . '</div>'
                 : '';
 
@@ -1070,9 +1079,9 @@ final class ReviewRenderer
                 : '';
 
             $cardWarningsWithMismatch = $reactiveWarningsMarkup
+                . $hiddenSetWarningMarkup
                 . $newSetMarkup
                 . $staticWarningsMarkup
-                . $hiddenSetWarningMarkup
                 . $breakpointMismatchWarningMarkup
                 . $assetMismatchWarningMarkup;
 
@@ -1536,6 +1545,7 @@ final class ReviewRenderer
      * @param array<string, mixed> $preferredOrderBySet
      * @param array<string, bool> $breakpointMismatchTransformNames
      * @param array<string, bool> $assetMismatchTransformNames
+     * @param array<string, bool> $hiddenSetWarningTransformNames
      * @param array<string, true> $newSetTransformNames
      * @return array<int, string>
      */
@@ -1545,6 +1555,7 @@ final class ReviewRenderer
         array $preferredOrderBySet = [],
         array $breakpointMismatchTransformNames = [],
         array $assetMismatchTransformNames = [],
+        array $hiddenSetWarningTransformNames = [],
         array $newSetTransformNames = [],
     ): array
     {
@@ -1565,9 +1576,13 @@ final class ReviewRenderer
         $priorityFor = static function (string $name) use (
             $breakpointMismatchTransformNames,
             $assetMismatchTransformNames,
+            $hiddenSetWarningTransformNames,
             $warningsByTransform,
             $newSetTransformNames,
         ): int {
+            if (!empty($hiddenSetWarningTransformNames[$name])) {
+                return -2;
+            }
             if (!empty($newSetTransformNames[$name])) {
                 return -1;
             }
@@ -1828,6 +1843,18 @@ final class ReviewRenderer
             'assetMismatchCount' => $assetMismatchCount,
             'mismatchCount' => $breakpointMismatchCount + $assetMismatchCount,
         ];
+    }
+
+    private function countLatestRunHiddenSetWarningsByTransform(?array $snapshot): int
+    {
+        $count = 0;
+        foreach ($this->buildLatestRunSummaryByTransform($snapshot) as $summary) {
+            if (is_array($summary) && (($summary['hasAllEnabledBreakpointsHidden'] ?? false) === true)) {
+                $count++;
+            }
+        }
+
+        return $count;
     }
 
     /**

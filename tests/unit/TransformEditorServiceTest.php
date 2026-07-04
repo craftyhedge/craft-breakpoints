@@ -626,6 +626,66 @@ final class TransformEditorServiceTest extends Unit
         $this->assertSame('Matching', (string)($rows[0]['assetMismatchLabel'] ?? ''));
     }
 
+    public function testBuildLatestRunHealthByTransformIgnoresHiddenRowsWhenVisibleRowsVerifySet(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $health = $this->withRuntimeSets([
+            'mega-menu-card' => [
+                'name' => 'mega-menu-card',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'lg' => ['width' => 64, 'height' => 128, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => [],
+            ],
+        ], fn() => $editor->buildLatestRunHealthByTransform([
+            'rowsPayload' => [
+                [
+                    'transformHandle' => 'mega-menu-card',
+                    'slotKey' => 'lg',
+                    'slotIndex' => 3,
+                    'breakpointWidth' => 1024,
+                    'assetId' => '17',
+                    'renderedWidth' => 64,
+                    'renderedHeight' => 128,
+                    'rowStatus' => 'loaded',
+                    'isVisible' => true,
+                ],
+                [
+                    'transformHandle' => 'mega-menu-card',
+                    'slotKey' => 'lg',
+                    'slotIndex' => 3,
+                    'breakpointWidth' => 1024,
+                    'assetId' => '17',
+                    'renderedWidth' => 64,
+                    'renderedHeight' => 128,
+                    'rowStatus' => 'loaded',
+                    'isVisible' => true,
+                ],
+                [
+                    'transformHandle' => 'mega-menu-card',
+                    'slotKey' => 'lg',
+                    'slotIndex' => 3,
+                    'breakpointWidth' => 1024,
+                    'assetId' => '17',
+                    'renderedWidth' => 0,
+                    'renderedHeight' => 0,
+                    'rowStatus' => 'loaded',
+                    'isVisible' => false,
+                ],
+            ],
+        ]));
+
+        $this->assertArrayHasKey('mega-menu-card', $health);
+        $this->assertFalse(($health['mega-menu-card']['hasAssetMismatch'] ?? true) === true);
+        $this->assertFalse(($health['mega-menu-card']['hasBreakpointMismatch'] ?? true) === true);
+        $this->assertSame(0, (int)($health['mega-menu-card']['assetMismatchBreakpointCount'] ?? -1));
+        $rows = $health['mega-menu-card']['breakpointRows'] ?? [];
+        $this->assertIsArray($rows);
+        $this->assertSame('Matching', (string)($rows[0]['assetMismatchLabel'] ?? ''));
+    }
+
     public function testBuildLatestRunHealthByTransformAllowsAllEnabledRowsHiddenWhenSetOptsIn(): void
     {
         $editor = Plugin::getInstance()->getTransformEditor();

@@ -503,13 +503,11 @@ final class HealthAnalyzer
         bool $allowAnyHeight = false,
         bool $allowHiddenDuringProcessing = false,
     ): bool {
+        $comparisonRows = $this->selectComparableReviewRows($rows, $allowHiddenDuringProcessing);
         $hasLoadedRow = false;
 
-        foreach ($rows as $row) {
+        foreach ($comparisonRows as $row) {
             $enabled = ($row['enabled'] ?? false) === true;
-            if ($allowHiddenDuringProcessing && $enabled && ($row['isVisible'] ?? true) === false) {
-                continue;
-            }
             if ($enabled && ($row['loaded'] ?? false) === true) {
                 $hasLoadedRow = true;
             }
@@ -523,14 +521,14 @@ final class HealthAnalyzer
             return false;
         }
 
-        $comparison = $this->resolveReviewDimensionComparison($rows);
+        $comparison = $this->resolveReviewDimensionComparison($comparisonRows);
         $compareWidth = $comparison['compareWidth'];
         $compareHeight = $comparison['compareHeight'];
         if (!$compareWidth && !$compareHeight) {
             return false;
         }
 
-        $summary = $this->summarizeReviewRows($rows);
+        $summary = $this->summarizeReviewRows($comparisonRows);
         $renderedWidth = max(0, (int)($summary['renderedWidth'] ?? 0));
         $renderedHeight = max(0, (int)($summary['renderedHeight'] ?? 0));
 
@@ -558,6 +556,32 @@ final class HealthAnalyzer
     }
 
     /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function selectComparableReviewRows(array $rows, bool $allowHiddenDuringProcessing): array
+    {
+        $enabledRows = [];
+        $visibleEnabledRows = [];
+        foreach ($rows as $row) {
+            if (!is_array($row) || ($row['enabled'] ?? false) !== true) {
+                continue;
+            }
+
+            $enabledRows[] = $row;
+            if (($row['isVisible'] ?? true) !== false) {
+                $visibleEnabledRows[] = $row;
+            }
+        }
+
+        if ($visibleEnabledRows !== []) {
+            return $visibleEnabledRows;
+        }
+
+        return $allowHiddenDuringProcessing ? [] : $enabledRows;
+    }
+
+    /**
      * @param array<int, string> $assetKeys
      * @param array<string, array<int, array<int, array<string, mixed>>>> $rowsByAssetByBreakpoint
      * @param array<int, int> $transformBreakpoints
@@ -580,8 +604,9 @@ final class HealthAnalyzer
                 if (!is_array($rows) || $rows === []) {
                     break;
                 }
-                $comparison = $this->resolveReviewDimensionComparison($rows);
-                $summary = $this->summarizeReviewRows($rows);
+                $comparisonRows = $this->selectComparableReviewRows($rows, $allowHiddenDuringProcessing);
+                $comparison = $this->resolveReviewDimensionComparison($comparisonRows);
+                $summary = $this->summarizeReviewRows($comparisonRows);
                 $refW = max(0, (int)($summary['renderedWidth'] ?? 0));
                 $refH = max(0, (int)($summary['renderedHeight'] ?? 0));
 
@@ -1014,9 +1039,14 @@ final class HealthAnalyzer
                 }
             }
 
-            $comparisonEntries = $breakpointEnabled
-                ? ($allowHiddenDuringProcessing ? $visibleEnabledEntries : $enabledEntries)
-                : [];
+            $comparisonEntries = [];
+            if ($breakpointEnabled) {
+                if ($visibleEnabledEntries !== []) {
+                    $comparisonEntries = $visibleEnabledEntries;
+                } elseif (!$allowHiddenDuringProcessing) {
+                    $comparisonEntries = $enabledEntries;
+                }
+            }
             $referenceEntry = $comparisonEntries[0] ?? $breakpointEntries[0];
             foreach ($comparisonEntries as $candidateEntry) {
                 if (($candidateEntry['renderedWidth'] ?? 0) > 0 && ($candidateEntry['renderedHeight'] ?? 0) > 0) {
@@ -1048,14 +1078,7 @@ final class HealthAnalyzer
                     'isBreakpointMismatch' => false,
                 ];
 
-            foreach ($breakpointEntries as $entryIndex => $entry) {
-                if (($entry['enabled'] ?? true) !== true) {
-                    continue;
-                }
-                if ($allowHiddenDuringProcessing && ($entry['isVisible'] ?? true) === false) {
-                    continue;
-                }
-
+            foreach ($comparisonEntries as $entryIndex => $entry) {
                 $assetLabel = trim((string)($entry['assetId'] ?? ''));
                 if ($assetLabel === '') {
                     $assetLabel = 'Asset ' . (string)($entryIndex + 1);
