@@ -414,6 +414,27 @@ class TransformEditor extends Component
     /**
      * @return array<string, mixed>
      */
+    public function applySetAllowHiddenDuringProcessingOperation(
+        string $transformName,
+        mixed $value,
+        ?bool $includeEscapeWidth = null,
+        ?string $expectedVersion = null,
+    ): array {
+        if ($this->_operationsService === null) {
+            return ['persisted' => false, 'validation' => $this->defaultValidation()];
+        }
+
+        return $this->_operationsService->applySetAllowHiddenDuringProcessingOperation(
+            $transformName,
+            $value,
+            $includeEscapeWidth,
+            $expectedVersion,
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function applySetNotesOperation(
         string $transformName,
         mixed $value,

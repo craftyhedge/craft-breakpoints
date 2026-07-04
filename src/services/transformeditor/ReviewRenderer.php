@@ -338,10 +338,17 @@ final class ReviewRenderer
         $coreRows = $cardState['rowsByBreakpoint'];
         $passHeightWhenRenderedLteSaved = $this->isPassHeightWhenRenderedLteSavedEnabled($transformConfig);
         $allowAnyHeight = $this->isAllowAnyHeightEnabled($transformConfig);
+        $allowHiddenDuringProcessing = $this->isAllowHiddenDuringProcessingEnabled($transformConfig);
+        $latestRunSnapshot = $this->getLatestRunSnapshotForReview();
+        $latestRunSummary = $reviewMode === self::REVIEW_MODE_PROCESSED
+            ? ($this->buildLatestRunSummaryByTransform($latestRunSnapshot)[$normalized] ?? null)
+            : null;
+        $allowHiddenMismatchNeutral = $allowHiddenDuringProcessing
+            || (is_array($latestRunSummary) && (($latestRunSummary['hasAllEnabledBreakpointsHidden'] ?? false) === true));
         $storedSavedWidthsByTransform = $this->buildStoredSavedWidthsByTransformAndBreakpoint();
         $storedSavedHeightsByTransform = $this->buildStoredSavedHeightsByTransformAndBreakpoint();
         $processSavedDimensionsByTransform = $this->buildProcessSavedDimensionsByTransformAndBreakpoint(
-            $this->getLatestRunSnapshotForReview(),
+            $latestRunSnapshot,
         );
 
         $referenceWidthsById = [];
@@ -361,6 +368,7 @@ final class ReviewRenderer
                 $storedSavedWidthsByTransform[$normalized][$breakpoint] ?? null,
                 $storedSavedHeightsByTransform[$normalized][$breakpoint] ?? null,
                 $allowAnyHeight,
+                $allowHiddenMismatchNeutral,
                 $hideRenderedApply,
                 $reviewMode,
                 $referenceWidthsById[(string)$breakpoint] ?? null,
@@ -369,10 +377,6 @@ final class ReviewRenderer
             $rowsByBreakpoint[$breakpointKey] = array_merge($coreRows[$breakpointKey] ?? [], $ui);
         }
 
-        $latestRunSnapshot = $this->getLatestRunSnapshotForReview();
-        $latestRunSummary = $reviewMode === self::REVIEW_MODE_PROCESSED
-            ? ($this->buildLatestRunSummaryByTransform($latestRunSnapshot)[$normalized] ?? null)
-            : null;
         $warningsByTransform = $this->buildReviewWarningsByTransform($resultRowsByBreakpoint);
         $hasCurrentBreakpointMismatch = is_array($latestRunSummary)
             && (($latestRunSummary['hasBreakpointMismatch'] ?? false) === true);
@@ -412,6 +416,7 @@ final class ReviewRenderer
         ?int $savedWidth,
         ?int $savedHeight,
         bool $allowAnyHeight,
+        bool $allowHiddenDuringProcessing,
         bool $hideRenderedApply,
         string $reviewMode,
         ?int $referenceWidth = null,
@@ -426,6 +431,7 @@ final class ReviewRenderer
             $savedWidth,
             $savedHeight,
             $allowAnyHeight,
+            $allowHiddenDuringProcessing,
             $hideRenderedApply,
             $reviewMode,
             $referenceWidth,
@@ -732,6 +738,12 @@ final class ReviewRenderer
             $firstBreakpoint = $cardState['firstBreakpoint'];
             $passHeightWhenRenderedLteSaved = $this->isPassHeightWhenRenderedLteSavedEnabled($storedTransformConfig);
             $allowAnyHeight = $this->isAllowAnyHeightEnabled($storedTransformConfig);
+            $allowHiddenDuringProcessing = $this->isAllowHiddenDuringProcessingEnabled($storedTransformConfig);
+            $latestRunSummaryForTransform = $latestRunSummariesByTransform[$transformName] ?? null;
+            $hasAllEnabledBreakpointsHiddenWarning = $isProcessedReview
+                && is_array($latestRunSummaryForTransform)
+                && (($latestRunSummaryForTransform['hasAllEnabledBreakpointsHidden'] ?? false) === true);
+            $allowHiddenMismatchNeutral = $allowHiddenDuringProcessing || $hasAllEnabledBreakpointsHiddenWarning;
             $notes = $this->normalizeSetNotes($storedTransformConfig['notes'] ?? '');
 
             $selectedBreakpoint = $scope['mode'] === 'breakpoint' ? $scope['breakpoint'] : null;
@@ -823,6 +835,7 @@ final class ReviewRenderer
                             'initSeedAppliedAny' => ($cardState['initSeedAppliedAny'] ?? false) === true,
                             'passHeightWhenRenderedLteSaved' => $passHeightWhenRenderedLteSaved,
                             'allowAnyHeight' => $allowAnyHeight,
+                            'allowHiddenDuringProcessing' => $allowHiddenDuringProcessing,
                             'notesInput' => $notes,
                             'notesVisible' => false,
                             'includeEscapeWidth' => $includeEscapeWidth ? '1' : '0',
@@ -876,6 +889,7 @@ final class ReviewRenderer
                     $storedSavedWidthsByTransform[$transformName][$breakpoint] ?? null,
                     $storedSavedHeightsByTransform[$transformName][$breakpoint] ?? null,
                     $allowAnyHeight,
+                    $allowHiddenMismatchNeutral,
                     $hideRenderedApplyForCard,
                     $reviewMode,
                     $referenceWidthsById[(string)$breakpoint] ?? null,
@@ -919,6 +933,7 @@ final class ReviewRenderer
                         $storedSavedWidthsByTransform[$transformName][$breakpoint] ?? null,
                         $storedSavedHeightsByTransform[$transformName][$breakpoint] ?? null,
                         $allowAnyHeight,
+                        $allowHiddenMismatchNeutral,
                         $referenceWidthsById[(string)$breakpoint] ?? null,
                         $processSavedDimensionsByTransform[$transformName][$breakpoint] ?? null,
                     );
@@ -933,6 +948,7 @@ final class ReviewRenderer
                     $passHeightWhenRenderedLteSaved,
                     $storedSavedHeightsByTransform[$transformName] ?? [],
                     $allowAnyHeight,
+                    $allowHiddenMismatchNeutral,
                 )
                 : [];
             $assetPaginationHtml = $this->buildReviewAssetPaginationMarkup(
@@ -953,7 +969,6 @@ final class ReviewRenderer
             $scopeLabel = $scope['mode'] === 'all'
                 ? 'All'
                 : ($scope['mode'] === 'breakpoint' && $scopeBreakpointKey !== '' ? $scopeBreakpointKey : 'Select scope');
-            $latestRunSummaryForTransform = $latestRunSummariesByTransform[$transformName] ?? null;
             $hasAssetMismatchWarning = $isProcessedReview
                 && is_array($latestRunSummaryForTransform)
                 && (($latestRunSummaryForTransform['hasAssetMismatch'] ?? false) === true);
@@ -981,7 +996,7 @@ final class ReviewRenderer
                 }
             }
 
-            $suppressMismatchBanners = $hasMissingSetWarning || $hasEmptyBreakpointsWarning;
+            $suppressMismatchBanners = $hasMissingSetWarning || $hasEmptyBreakpointsWarning || $hasAllEnabledBreakpointsHiddenWarning;
 
             $reactiveWarningsEnabled = $isProcessedReview && $canEditTransforms;
 
@@ -1040,6 +1055,13 @@ final class ReviewRenderer
                     . '</div>'
                 : '';
 
+            $hiddenSetWarningMarkup = $hasAllEnabledBreakpointsHiddenWarning
+                ? '<div class="bpts-warning-item bpts-warning-item-neutral">'
+                    . '<div class="bpts-warning-copy"><h3 class="bpts-warning-heading">Image Set Hidden</h3></div>'
+                    . '<div class="bpts-warning-detail"><p>This image set is hidden in the latest processing run. If the page normally loads with this hidden, enable Allow Hidden During Processing.</p></div>'
+                    . '</div>'
+                : '';
+
             $newSetMarkup = !empty($newSetNameSet[$transformName])
                 ? '<div class="bpts-warning-item bpts-warning-item-neutral">'
                     . '<div class="bpts-warning-copy"><h3 class="bpts-warning-heading">New Transform Set</h3></div>'
@@ -1050,6 +1072,7 @@ final class ReviewRenderer
             $cardWarningsWithMismatch = $reactiveWarningsMarkup
                 . $newSetMarkup
                 . $staticWarningsMarkup
+                . $hiddenSetWarningMarkup
                 . $breakpointMismatchWarningMarkup
                 . $assetMismatchWarningMarkup;
 
@@ -1057,6 +1080,7 @@ final class ReviewRenderer
             // are fixed per render; the missing-set danger toggles reactively via signal,
             // while the neutral "process again" notice must NOT make the card red.
             $staticWarningPresent = $staticWarningsMarkup !== ''
+                || $hiddenSetWarningMarkup !== ''
                 || $breakpointMismatchWarningMarkup !== ''
                 || $assetMismatchWarningMarkup !== '';
             $cardWarningDangerExpr = "(\$editor.cards.{$signalKey}.hasCardWarningDanger === true)"
@@ -1139,8 +1163,10 @@ final class ReviewRenderer
                 'ratioSourceName' => $this->escapeReviewHtml($editPanelId . '-ratio-source'),
                 'passHeightToggleId' => $this->escapeReviewHtml($editPanelId . '-pass-height-toggle'),
                 'allowAnyHeightToggleId' => $this->escapeReviewHtml($editPanelId . '-allow-any-height-toggle'),
+                'allowHiddenDuringProcessingToggleId' => $this->escapeReviewHtml($editPanelId . '-allow-hidden-during-processing-toggle'),
                 'notesInputId' => $this->escapeReviewHtml($editPanelId . '-notes'),
                 'notesInput' => $this->escapeReviewHtml($notes),
+                'allowHiddenDuringProcessingIndicatorHiddenClass' => $allowHiddenDuringProcessing ? '' : 'bpts-force-hidden',
                 'passHeightIndicatorHiddenClass' => ($passHeightWhenRenderedLteSaved || $allowAnyHeight) ? '' : 'bpts-force-hidden',
                 'passHeightIndicatorText' => $allowAnyHeight ? 'All heights allowed' : 'Shorter heights allowed',
                 'ratioSourceBreakpointOptions' => $ratioSourceBreakpointOptions,
@@ -1181,6 +1207,7 @@ final class ReviewRenderer
         ?int $savedWidth = null,
         ?int $savedHeight = null,
         bool $allowAnyHeight = false,
+        bool $allowHiddenDuringProcessing = false,
         ?int $referenceWidth = null,
         ?array $processSavedDimensions = null,
     ): string {
@@ -1193,6 +1220,7 @@ final class ReviewRenderer
             $savedWidth,
             $savedHeight,
             $allowAnyHeight,
+            $allowHiddenDuringProcessing,
             $hideRenderedApply,
             $reviewMode,
             $referenceWidth,
@@ -1964,6 +1992,7 @@ final class ReviewRenderer
         bool $passHeightWhenRenderedLteSaved,
         array $savedHeightsByBreakpoint,
         bool $allowAnyHeight = false,
+        bool $allowHiddenDuringProcessing = false,
     ): array {
         return $this->healthAnalyzer->buildAssetMismatchByKey(
             $assetKeys,
@@ -1972,6 +2001,7 @@ final class ReviewRenderer
             $passHeightWhenRenderedLteSaved,
             $savedHeightsByBreakpoint,
             $allowAnyHeight,
+            $allowHiddenDuringProcessing,
         );
     }
 
@@ -1989,6 +2019,14 @@ final class ReviewRenderer
     private function isAllowAnyHeightEnabled(?array $transformDefinition): bool
     {
         return $this->healthAnalyzer->isAllowAnyHeightEnabled($transformDefinition);
+    }
+
+    /**
+     * @param array<string, mixed>|null $transformDefinition
+     */
+    private function isAllowHiddenDuringProcessingEnabled(?array $transformDefinition): bool
+    {
+        return $this->healthAnalyzer->isAllowHiddenDuringProcessingEnabled($transformDefinition);
     }
 
     private function normalizeSetNotes(mixed $value): string

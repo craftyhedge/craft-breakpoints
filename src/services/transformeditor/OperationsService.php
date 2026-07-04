@@ -1177,6 +1177,25 @@ final class OperationsService
     /**
      * @return array<string, mixed>
      */
+    public function applySetAllowHiddenDuringProcessingOperation(
+        string $transformName,
+        mixed $value,
+        ?bool $includeEscapeWidth = null,
+        ?string $expectedVersion = null,
+    ): array {
+        return $this->applyConfigFlagOperation(
+            $transformName,
+            'allowHiddenDuringProcessing',
+            '',
+            $value === true,
+            $includeEscapeWidth,
+            $expectedVersion,
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function applySetNotesOperation(
         string $transformName,
         mixed $value,
@@ -1266,7 +1285,7 @@ final class OperationsService
 
         $config = $setDefinition['config'] ?? [];
         $config[$flag] = $value;
-        if ($value === true) {
+        if ($value === true && $mutuallyExclusiveFlag !== '') {
             $config[$mutuallyExclusiveFlag] = false;
         }
 
@@ -1282,6 +1301,19 @@ final class OperationsService
     private function normalizeNotes(string $value): string
     {
         return trim(str_replace(["\r\n", "\r"], "\n", $value));
+    }
+
+    /**
+     * @param array<string, mixed> $setDefinition
+     */
+    private function isAllowHiddenDuringProcessingEnabled(array $setDefinition): bool
+    {
+        $config = $setDefinition['config'] ?? null;
+        if (!is_array($config)) {
+            return false;
+        }
+
+        return ($config['allowHiddenDuringProcessing'] ?? null) === true;
     }
 
     /**
@@ -1322,11 +1354,13 @@ final class OperationsService
         ['sets' => $sets, 'set' => $setDefinition, 'includeEscapeWidth' => $resolvedIncludeEscapeWidth] =
             $this->loadOrInitSet($transformName, $includeEscapeWidth);
 
+        $allowHiddenDuringProcessing = $this->isAllowHiddenDuringProcessingEnabled($setDefinition);
+
         $mutation = $this->buildRenderedValuesSetDefinition(
             $setDefinition,
             $resolvedIncludeEscapeWidth,
             $renderedRows,
-            $hiddenBreakpointSlotIds,
+            $allowHiddenDuringProcessing ? [] : $hiddenBreakpointSlotIds,
             $clearAuto,
         );
 

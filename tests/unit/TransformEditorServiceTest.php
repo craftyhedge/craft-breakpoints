@@ -578,7 +578,7 @@ final class TransformEditorServiceTest extends Unit
         $this->assertSame('Matching', (string)($rows[0]['assetMismatchLabel'] ?? ''));
     }
 
-    public function testBuildLatestRunHealthByTransformIgnoresHiddenZeroSizeRowsForAssetMismatch(): void
+    public function testBuildLatestRunHealthByTransformAllowsHiddenRowsWhenSetOptsIn(): void
     {
         $editor = Plugin::getInstance()->getTransformEditor();
 
@@ -589,7 +589,7 @@ final class TransformEditorServiceTest extends Unit
                 'variants' => [
                     'xl' => ['width' => 64, 'height' => 128, 'enabled' => true, 'autoDimension' => null],
                 ],
-                'config' => [],
+                'config' => ['allowHiddenDuringProcessing' => true],
             ],
         ], fn() => $editor->buildLatestRunHealthByTransform([
             'rowsPayload' => [
@@ -624,6 +624,204 @@ final class TransformEditorServiceTest extends Unit
         $rows = $health['card-default']['breakpointRows'] ?? [];
         $this->assertIsArray($rows);
         $this->assertSame('Matching', (string)($rows[0]['assetMismatchLabel'] ?? ''));
+    }
+
+    public function testBuildLatestRunHealthByTransformAllowsAllEnabledRowsHiddenWhenSetOptsIn(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $health = $this->withRuntimeSets([
+            'card-default' => [
+                'name' => 'card-default',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'lg' => ['width' => 64, 'height' => 128, 'enabled' => true, 'autoDimension' => null],
+                    'xl' => ['width' => 64, 'height' => 128, 'enabled' => false, 'autoDimension' => null],
+                ],
+                'config' => ['allowHiddenDuringProcessing' => true],
+            ],
+        ], fn() => $editor->buildLatestRunHealthByTransform([
+            'rowsPayload' => [
+                [
+                    'transformHandle' => 'card-default',
+                    'slotKey' => 'lg',
+                    'slotIndex' => 3,
+                    'breakpointWidth' => 1024,
+                    'assetId' => '17',
+                    'renderedWidth' => 0,
+                    'renderedHeight' => 0,
+                    'rowStatus' => 'loaded',
+                    'isVisible' => false,
+                ],
+                [
+                    'transformHandle' => 'card-default',
+                    'slotKey' => 'xl',
+                    'slotIndex' => 4,
+                    'breakpointWidth' => 1280,
+                    'assetId' => '17',
+                    'renderedWidth' => 0,
+                    'renderedHeight' => 0,
+                    'rowStatus' => 'loaded',
+                    'isVisible' => false,
+                ],
+            ],
+        ]));
+
+        $this->assertArrayHasKey('card-default', $health);
+        $this->assertFalse(($health['card-default']['hasAssetMismatch'] ?? true) === true);
+        $this->assertFalse(($health['card-default']['hasBreakpointMismatch'] ?? true) === true);
+        $this->assertSame(0, (int)($health['card-default']['assetMismatchBreakpointCount'] ?? -1));
+        $this->assertSame(0, (int)($health['card-default']['breakpointMismatchBreakpointCount'] ?? -1));
+    }
+
+    public function testBuildLatestRunHealthByTransformReportsAllEnabledRowsHiddenWithoutMismatch(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $health = $this->withRuntimeSets([
+            'card-default' => [
+                'name' => 'card-default',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'lg' => ['width' => 64, 'height' => 128, 'enabled' => true, 'autoDimension' => null],
+                    'xl' => ['width' => 64, 'height' => 128, 'enabled' => false, 'autoDimension' => null],
+                ],
+                'config' => [],
+            ],
+        ], fn() => $editor->buildLatestRunHealthByTransform([
+            'rowsPayload' => [
+                [
+                    'transformHandle' => 'card-default',
+                    'slotKey' => 'lg',
+                    'slotIndex' => 3,
+                    'breakpointWidth' => 1024,
+                    'assetId' => '17',
+                    'renderedWidth' => 0,
+                    'renderedHeight' => 0,
+                    'rowStatus' => 'loaded',
+                    'isVisible' => false,
+                ],
+                [
+                    'transformHandle' => 'card-default',
+                    'slotKey' => 'xl',
+                    'slotIndex' => 4,
+                    'breakpointWidth' => 1280,
+                    'assetId' => '17',
+                    'renderedWidth' => 0,
+                    'renderedHeight' => 0,
+                    'rowStatus' => 'loaded',
+                    'isVisible' => false,
+                ],
+            ],
+        ]));
+
+        $this->assertArrayHasKey('card-default', $health);
+        $this->assertTrue(($health['card-default']['hasAllEnabledBreakpointsHidden'] ?? false) === true);
+        $this->assertFalse(($health['card-default']['hasAssetMismatch'] ?? true) === true);
+        $this->assertFalse(($health['card-default']['hasBreakpointMismatch'] ?? true) === true);
+        $this->assertSame(1, (int)($health['card-default']['enabledBreakpointCount'] ?? -1));
+        $this->assertSame(1, (int)($health['card-default']['hiddenEnabledBreakpointCount'] ?? -1));
+    }
+
+    public function testRenderResultReviewShowsHiddenSetWarningWhenAllEnabledRowsHiddenWithoutOptIn(): void
+    {
+        $snapshot = $this->buildHiddenRunSnapshot('card-default');
+
+        $result = $this->withLatestRunSnapshot($snapshot, function (): array {
+            $editor = Plugin::getInstance()->getTransformEditor();
+
+            return $this->withRuntimeSets([
+                'card-default' => [
+                    'name' => 'card-default',
+                    'includeEscapeWidth' => false,
+                    'variants' => [
+                        'lg' => ['width' => 64, 'height' => 128, 'enabled' => true, 'autoDimension' => null],
+                        'xl' => ['width' => 64, 'height' => 128, 'enabled' => false, 'autoDimension' => null],
+                    ],
+                    'config' => [],
+                ],
+            ], fn() => $editor->renderResultReview($this->buildHiddenResultRows('card-default')));
+        });
+
+        $html = (string)($result['visualResultsHtml'] ?? '');
+        $xpath = $this->createReviewMarkupXPath($html);
+
+        $this->assertSame(0, $result['breakpointMismatchCount'] ?? null);
+        $this->assertSame(0, $result['assetMismatchCount'] ?? null);
+        $this->assertSame(0, $result['mismatchCount'] ?? null);
+
+        $this->assertSingleWarningHeading($xpath, 'Image Set Hidden');
+        $this->assertSame(0, $this->countWarningHeadings($xpath, 'Breakpoint Mismatch'));
+        $this->assertSame(0, $this->countWarningHeadings($xpath, 'Asset Mismatch'));
+        $this->assertHiddenAllowedIndicatorState($xpath, 'card-default', false);
+    }
+
+    public function testRenderResultReviewShowsHiddenAllowedPillAndSuppressesHiddenWarningWhenOptedIn(): void
+    {
+        $snapshot = $this->buildHiddenRunSnapshot('card-default');
+
+        $result = $this->withLatestRunSnapshot($snapshot, function (): array {
+            $editor = Plugin::getInstance()->getTransformEditor();
+
+            return $this->withRuntimeSets([
+                'card-default' => [
+                    'name' => 'card-default',
+                    'includeEscapeWidth' => false,
+                    'variants' => [
+                        'lg' => ['width' => 64, 'height' => 128, 'enabled' => true, 'autoDimension' => null],
+                        'xl' => ['width' => 64, 'height' => 128, 'enabled' => false, 'autoDimension' => null],
+                    ],
+                    'config' => ['allowHiddenDuringProcessing' => true],
+                ],
+            ], fn() => $editor->renderResultReview($this->buildHiddenResultRows('card-default')));
+        });
+
+        $html = (string)($result['visualResultsHtml'] ?? '');
+        $xpath = $this->createReviewMarkupXPath($html);
+
+        $this->assertSame(0, $result['breakpointMismatchCount'] ?? null);
+        $this->assertSame(0, $result['assetMismatchCount'] ?? null);
+        $this->assertSame(0, $result['mismatchCount'] ?? null);
+
+        $this->assertSame(0, $this->countWarningHeadings($xpath, 'Image Set Hidden'));
+        $this->assertSame(0, $this->countWarningHeadings($xpath, 'Breakpoint Mismatch'));
+        $this->assertSame(0, $this->countWarningHeadings($xpath, 'Asset Mismatch'));
+        $this->assertHiddenAllowedIndicatorState($xpath, 'card-default', true);
+        $this->assertAllowHiddenSettingToggle($xpath, 'card-default', true);
+    }
+
+    public function testRenderResultReviewRendersHiddenAllowedSettingToggleWhenDisabled(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $result = $this->withRuntimeSets([
+            'card-default' => [
+                'name' => 'card-default',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'lg' => ['width' => 64, 'height' => 128, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => [],
+            ],
+        ], fn() => $editor->renderResultReview([
+            'breakpoints' => [1024],
+            'rowsByBreakpoint' => [
+                1024 => [[
+                    'assetId' => '17',
+                    'transform' => 'card-default',
+                    'enabled' => true,
+                    'isVisible' => true,
+                    'loaded' => true,
+                    'rendered' => ['width' => 64, 'height' => 128],
+                    'transformDimensions' => ['width' => 64, 'height' => 128, 'autoDimension' => null],
+                ]],
+            ],
+        ]));
+
+        $xpath = $this->createReviewMarkupXPath((string)($result['visualResultsHtml'] ?? ''));
+
+        $this->assertHiddenAllowedIndicatorState($xpath, 'card-default', false);
+        $this->assertAllowHiddenSettingToggle($xpath, 'card-default', false);
     }
 
     public function testRenderResultReviewRendersMissingDefinitionWarningWithinTransformCard(): void
@@ -1335,6 +1533,69 @@ final class TransformEditorServiceTest extends Unit
         });
     }
 
+    public function testApplySetAllowHiddenDuringProcessingOperationPersistsConfigWithoutMutatingVariants(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'sm' => ['width' => 640, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => ['allowAnyHeight' => true],
+            ],
+        ], function () use ($editor): void {
+            $beforeSm = Plugin::getInstance()->getTransformStore()->getSets()['hero']['variants']['sm'] ?? [];
+
+            $result = $editor->applySetAllowHiddenDuringProcessingOperation(
+                'hero',
+                true,
+                false,
+            );
+
+            $this->assertTrue(($result['persisted'] ?? false) === true);
+            $this->assertTrue(($result['validation']['hasErrors'] ?? true) === false);
+
+            $sets = Plugin::getInstance()->getTransformStore()->getSets();
+            $this->assertTrue((($sets['hero']['config']['allowHiddenDuringProcessing'] ?? false) === true));
+            $this->assertTrue((($sets['hero']['config']['allowAnyHeight'] ?? false) === true));
+            $this->assertSame(
+                $this->extractVariantCoreFields($beforeSm),
+                $this->extractVariantCoreFields($sets['hero']['variants']['sm'] ?? []),
+            );
+        });
+    }
+
+    public function testApplySetAllowHiddenDuringProcessingOperationTreatsNonBooleanValuesAsDisabled(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'sm' => ['width' => 640, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => ['allowHiddenDuringProcessing' => true],
+            ],
+        ], function () use ($editor): void {
+            $result = $editor->applySetAllowHiddenDuringProcessingOperation(
+                'hero',
+                'true',
+                false,
+            );
+
+            $this->assertTrue(($result['persisted'] ?? false) === true);
+            $this->assertTrue(($result['validation']['hasErrors'] ?? true) === false);
+
+            $sets = Plugin::getInstance()->getTransformStore()->getSets();
+            $this->assertFalse((($sets['hero']['config']['allowHiddenDuringProcessing'] ?? true) === true));
+        });
+    }
+
     public function testEnablingAllowAnyHeightClearsPassHeightWhenRenderedLteSaved(): void
     {
         $editor = Plugin::getInstance()->getTransformEditor();
@@ -2016,6 +2277,161 @@ final class TransformEditorServiceTest extends Unit
         $applyButtons = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpts-warning-apply-rendered ')]");
         $this->assertNotFalse($applyButtons);
         $this->assertSame(0, $applyButtons->length);
+    }
+
+    /**
+     * @param array<string, mixed> $snapshot
+     */
+    private function withLatestRunSnapshot(array $snapshot, callable $callback): mixed
+    {
+        $plugin = Plugin::getInstance();
+        $previousTelemetry = $plugin->get('telemetry');
+        $previousEditor = $plugin->get('transformEditor');
+
+        $plugin->set('telemetry', new class($snapshot) extends TelemetryService {
+            /**
+             * @param array<string, mixed> $snapshot
+             */
+            public function __construct(private readonly array $snapshot)
+            {
+                parent::__construct();
+            }
+
+            public function getLatestRunSnapshot(): ?array
+            {
+                return $this->snapshot;
+            }
+        });
+        $plugin->set('transformEditor', TransformEditor::class);
+
+        try {
+            return $callback();
+        } finally {
+            $plugin->set('telemetry', $previousTelemetry);
+            $plugin->set('transformEditor', $previousEditor);
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildHiddenRunSnapshot(string $transformName): array
+    {
+        $rowsPayload = [
+            [
+                'transformHandle' => $transformName,
+                'slotKey' => 'lg',
+                'slotIndex' => 3,
+                'breakpointWidth' => 1024,
+                'assetId' => '17',
+                'renderedWidth' => 0,
+                'renderedHeight' => 0,
+                'rowStatus' => 'loaded',
+                'isVisible' => false,
+            ],
+            [
+                'transformHandle' => $transformName,
+                'slotKey' => 'xl',
+                'slotIndex' => 4,
+                'breakpointWidth' => 1280,
+                'assetId' => '17',
+                'renderedWidth' => 0,
+                'renderedHeight' => 0,
+                'rowStatus' => 'loaded',
+                'isVisible' => false,
+            ],
+        ];
+
+        return [
+            'runStatus' => 'completed',
+            'ranAt' => '2026-07-04 10:20:30',
+            'rowsPayload' => $rowsPayload,
+            'rows' => $rowsPayload,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildHiddenResultRows(string $transformName): array
+    {
+        return [
+            'breakpoints' => [1024, 1280],
+            'rowsByBreakpoint' => [
+                1024 => [[
+                    'assetId' => '17',
+                    'transform' => $transformName,
+                    'enabled' => true,
+                    'isVisible' => false,
+                    'loaded' => true,
+                    'rendered' => ['width' => 0, 'height' => 0],
+                    'transformDimensions' => ['width' => 64, 'height' => 128, 'autoDimension' => null],
+                ]],
+                1280 => [[
+                    'assetId' => '17',
+                    'transform' => $transformName,
+                    'enabled' => false,
+                    'isVisible' => false,
+                    'loaded' => true,
+                    'rendered' => ['width' => 0, 'height' => 0],
+                    'transformDimensions' => ['width' => 64, 'height' => 128, 'autoDimension' => null],
+                ]],
+            ],
+        ];
+    }
+
+    private function assertSingleWarningHeading(\DOMXPath $xpath, string $heading): void
+    {
+        $this->assertSame(1, $this->countWarningHeadings($xpath, $heading), "Expected one '{$heading}' warning.");
+    }
+
+    private function countWarningHeadings(\DOMXPath $xpath, string $heading): int
+    {
+        $headings = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-warning-heading ') and normalize-space(.) = '" . $heading . "']");
+        $this->assertNotFalse($headings);
+
+        return $headings->length;
+    }
+
+    private function assertHiddenAllowedIndicatorState(\DOMXPath $xpath, string $setName, bool $expectVisible): void
+    {
+        $items = $xpath->query("//*[@data-set='" . $setName . "']//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-hidden-processing-indicator ')]");
+        $this->assertNotFalse($items);
+        $this->assertSame(1, $items->length, "Expected one hidden-processing indicator for '{$setName}'.");
+
+        $item = $items->item(0);
+        $this->assertInstanceOf(\DOMElement::class, $item);
+        $this->assertSame('Hidden allowed', trim((string)$item->textContent));
+
+        $class = ' ' . preg_replace('/\s+/', ' ', trim((string)$item->getAttribute('class'))) . ' ';
+        if ($expectVisible) {
+            $this->assertStringNotContainsString(' bpts-force-hidden ', $class, 'Hidden allowed pill should be visible.');
+        } else {
+            $this->assertStringContainsString(' bpts-force-hidden ', $class, 'Hidden allowed pill should start hidden.');
+        }
+    }
+
+    private function assertAllowHiddenSettingToggle(\DOMXPath $xpath, string $setName, bool $expectChecked): void
+    {
+        $toggles = $xpath->query("//*[@data-set='" . $setName . "']//input[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-allow-hidden-during-processing-toggle ')]");
+        $this->assertNotFalse($toggles);
+        $this->assertSame(1, $toggles->length, "Expected one allow-hidden toggle for '{$setName}'.");
+
+        $toggle = $toggles->item(0);
+        $this->assertInstanceOf(\DOMElement::class, $toggle);
+        $this->assertStringEndsWith('.allowHiddenDuringProcessing', $toggle->getAttribute('data-bind'));
+        $this->assertStringContainsString('settings.setAllowHiddenDuringProcessing', $toggle->getAttribute('data-on:change__throttle.300ms'));
+
+        $cards = $xpath->query("//*[@data-set='" . $setName . "']");
+        $this->assertNotFalse($cards);
+        $this->assertSame(1, $cards->length, "Expected one card for '{$setName}'.");
+        $card = $cards->item(0);
+        $this->assertInstanceOf(\DOMElement::class, $card);
+
+        $expectedSignal = $expectChecked
+            ? '"allowHiddenDuringProcessing":true'
+            : '"allowHiddenDuringProcessing":false';
+        $this->assertStringContainsString($expectedSignal, $card->getAttribute('data-signals'));
     }
 
     /**

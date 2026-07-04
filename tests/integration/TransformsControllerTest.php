@@ -641,6 +641,24 @@ final class TransformsControllerTest extends Unit
         $this->assertTrue($controller->postRequestChecked);
     }
 
+    public function testApplyCardOperationRoutesAllowHiddenDuringProcessingField(): void
+    {
+        $controller = $this->controllerWithBody([
+            'baseVersion' => 9,
+            'operation' => 'settings.setAllowHiddenDuringProcessing',
+            'setName' => '',
+            'value' => true,
+        ]);
+        $response = $controller->actionApplyCardOperation();
+
+        $this->assertSame(Response::FORMAT_RAW, $response->format);
+        $this->assertStringContainsString('datastar-patch-elements', (string)$response->content);
+        $this->assertStringContainsString('data-kind="error"', (string)$response->content);
+        $this->assertStringContainsString('setName is required.', (string)$response->content);
+        $this->assertTrue($controller->cpRequestChecked);
+        $this->assertTrue($controller->postRequestChecked);
+    }
+
     public function testRenderResultReviewCoercesNonArrayPayloadsToArrays(): void
     {
         $controller = $this->controllerWithBody([

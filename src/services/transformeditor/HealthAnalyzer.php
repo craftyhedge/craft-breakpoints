@@ -98,16 +98,21 @@ final class HealthAnalyzer
                 : null;
             $passHeightWhenRenderedLteSaved = $this->isPassHeightWhenRenderedLteSavedEnabled($transformDefinition);
             $allowAnyHeight = $this->isAllowAnyHeightEnabled($transformDefinition);
+            $allowHiddenDuringProcessing = $this->isAllowHiddenDuringProcessingEnabled($transformDefinition);
             $breakpointRows = $this->buildLatestRunBreakpointHealthRows(
                 $breakpointEntriesByWidth,
                 $passHeightWhenRenderedLteSaved,
                 $storedSavedWidthsByTransform[$transformHandle] ?? [],
                 $storedSavedHeightsByTransform[$transformHandle] ?? [],
                 $allowAnyHeight,
+                $allowHiddenDuringProcessing,
             );
 
             $assetMismatchBreakpoints = [];
             $breakpointMismatchBreakpoints = [];
+            $enabledBreakpointCount = 0;
+            $hiddenEnabledBreakpointCount = 0;
+            $visibleEnabledBreakpointCount = 0;
             foreach ($breakpointRows as $breakpointRow) {
                 if (!is_array($breakpointRow)) {
                     continue;
@@ -126,6 +131,24 @@ final class HealthAnalyzer
                 if (($breakpointRow['hasBreakpointMismatch'] ?? false) === true) {
                     $breakpointMismatchBreakpoints[] = $breakpointId;
                 }
+                if (($breakpointRow['breakpointEnabled'] ?? false) === true) {
+                    $enabledBreakpointCount++;
+                    if (($breakpointRow['hasVisibleEnabledRows'] ?? false) === true) {
+                        $visibleEnabledBreakpointCount++;
+                    }
+                    if (($breakpointRow['hasHiddenEnabledRows'] ?? false) === true) {
+                        $hiddenEnabledBreakpointCount++;
+                    }
+                }
+            }
+
+            $hasAllEnabledBreakpointsHidden = !$allowHiddenDuringProcessing
+                && $enabledBreakpointCount > 0
+                && $visibleEnabledBreakpointCount === 0
+                && $hiddenEnabledBreakpointCount === $enabledBreakpointCount;
+            if ($hasAllEnabledBreakpointsHidden) {
+                $assetMismatchBreakpoints = [];
+                $breakpointMismatchBreakpoints = [];
             }
 
             sort($assetMismatchBreakpoints, SORT_NUMERIC);
@@ -137,6 +160,9 @@ final class HealthAnalyzer
                 'hasBreakpointMismatch' => $breakpointMismatchBreakpoints !== [],
                 'breakpointMismatchBreakpointCount' => count($breakpointMismatchBreakpoints),
                 'breakpointMismatchBreakpoints' => $breakpointMismatchBreakpoints,
+                'hasAllEnabledBreakpointsHidden' => $hasAllEnabledBreakpointsHidden,
+                'enabledBreakpointCount' => $enabledBreakpointCount,
+                'hiddenEnabledBreakpointCount' => $hiddenEnabledBreakpointCount,
                 'breakpointRows' => $breakpointRows,
             ];
         }
@@ -216,6 +242,13 @@ final class HealthAnalyzer
             $summaries[$transformHandle]['breakpointMismatchBreakpoints'] = isset($health['breakpointMismatchBreakpoints']) && is_array($health['breakpointMismatchBreakpoints'])
                 ? array_values($health['breakpointMismatchBreakpoints'])
                 : [];
+            $summaries[$transformHandle]['hasAllEnabledBreakpointsHidden'] = ($health['hasAllEnabledBreakpointsHidden'] ?? false) === true;
+            $summaries[$transformHandle]['enabledBreakpointCount'] = isset($health['enabledBreakpointCount'])
+                ? max(0, (int)$health['enabledBreakpointCount'])
+                : 0;
+            $summaries[$transformHandle]['hiddenEnabledBreakpointCount'] = isset($health['hiddenEnabledBreakpointCount'])
+                ? max(0, (int)$health['hiddenEnabledBreakpointCount'])
+                : 0;
         }
 
         foreach ($summaries as $transformHandle => $summary) {
@@ -468,11 +501,15 @@ final class HealthAnalyzer
         bool $passHeightWhenRenderedLteSaved,
         ?int $savedHeight,
         bool $allowAnyHeight = false,
+        bool $allowHiddenDuringProcessing = false,
     ): bool {
         $hasLoadedRow = false;
 
         foreach ($rows as $row) {
             $enabled = ($row['enabled'] ?? false) === true;
+            if ($allowHiddenDuringProcessing && $enabled && ($row['isVisible'] ?? true) === false) {
+                continue;
+            }
             if ($enabled && ($row['loaded'] ?? false) === true) {
                 $hasLoadedRow = true;
             }
@@ -534,6 +571,7 @@ final class HealthAnalyzer
         bool $passHeightWhenRenderedLteSaved,
         array $savedHeightsByBreakpoint,
         bool $allowAnyHeight = false,
+        bool $allowHiddenDuringProcessing = false,
     ): array {
         $referenceByBreakpoint = [];
         foreach ($transformBreakpoints as $breakpoint) {
@@ -572,6 +610,7 @@ final class HealthAnalyzer
                     $passHeightWhenRenderedLteSaved,
                     $savedHeightsByBreakpoint[$breakpoint] ?? null,
                     $allowAnyHeight,
+                    $allowHiddenDuringProcessing,
                 )) {
                     $hasMismatch = true;
                     break;
@@ -862,6 +901,23 @@ final class HealthAnalyzer
         return ($config['allowAnyHeight'] ?? null) === true;
     }
 
+    /**
+     * @param array<string, mixed>|null $transformDefinition
+     */
+    public function isAllowHiddenDuringProcessingEnabled(?array $transformDefinition): bool
+    {
+        if (!is_array($transformDefinition)) {
+            return false;
+        }
+
+        $config = $transformDefinition['config'] ?? null;
+        if (!is_array($config)) {
+            return false;
+        }
+
+        return ($config['allowHiddenDuringProcessing'] ?? null) === true;
+    }
+
     public function normalizeLatestRunRowStatus(string $status): string
     {
         $normalized = strtolower(trim($status));
@@ -899,6 +955,7 @@ final class HealthAnalyzer
         array $savedWidthsByBreakpoint,
         array $savedHeightsByBreakpoint,
         bool $allowAnyHeight = false,
+        bool $allowHiddenDuringProcessing = false,
     ): array {
         uasort($breakpointEntriesByWidth, static function (array $a, array $b): int {
             $aFirst = $a[0] ?? [];
@@ -932,6 +989,7 @@ final class HealthAnalyzer
             $savedHeight = $savedHeightsByBreakpoint[$slotKey] ?? null;
             $autoDimension = null;
             $enabledEntries = [];
+            $visibleEnabledEntries = [];
             foreach ($breakpointEntries as $candidateEntry) {
                 if (!is_array($candidateEntry)) {
                     continue;
@@ -940,14 +998,25 @@ final class HealthAnalyzer
                     continue;
                 }
                 $enabledEntries[] = $candidateEntry;
+                if (($candidateEntry['isVisible'] ?? true) !== false) {
+                    $visibleEnabledEntries[] = $candidateEntry;
+                }
                 $entryAuto = Support::normalizeAutoDimension($candidateEntry['autoDimension'] ?? null);
                 if ($entryAuto !== null) {
                     $autoDimension = $entryAuto;
                 }
             }
             $breakpointEnabled = $enabledEntries !== [];
+            $hiddenEnabledEntryCount = 0;
+            foreach ($enabledEntries as $enabledEntry) {
+                if (($enabledEntry['isVisible'] ?? true) === false) {
+                    $hiddenEnabledEntryCount++;
+                }
+            }
 
-            $comparisonEntries = $breakpointEnabled ? $enabledEntries : [];
+            $comparisonEntries = $breakpointEnabled
+                ? ($allowHiddenDuringProcessing ? $visibleEnabledEntries : $enabledEntries)
+                : [];
             $referenceEntry = $comparisonEntries[0] ?? $breakpointEntries[0];
             foreach ($comparisonEntries as $candidateEntry) {
                 if (($candidateEntry['renderedWidth'] ?? 0) > 0 && ($candidateEntry['renderedHeight'] ?? 0) > 0) {
@@ -963,7 +1032,7 @@ final class HealthAnalyzer
             $compareHeight = $comparison['compareHeight'];
             $assetMismatchDetails = [];
 
-            $representativeEvaluation = $breakpointEnabled
+            $representativeEvaluation = $breakpointEnabled && (!$allowHiddenDuringProcessing || $comparisonEntries !== [])
                 ? $this->evaluateBreakpointMatch(
                     $expectedAssetWidth,
                     $expectedAssetHeight,
@@ -974,8 +1043,8 @@ final class HealthAnalyzer
                     $allowAnyHeight,
                 )
                 : [
-                    'widthStatus' => 'disabled',
-                    'heightStatus' => 'disabled',
+                    'widthStatus' => $breakpointEnabled ? 'match' : 'disabled',
+                    'heightStatus' => $breakpointEnabled ? 'match' : 'disabled',
                     'isBreakpointMismatch' => false,
                 ];
 
@@ -983,7 +1052,7 @@ final class HealthAnalyzer
                 if (($entry['enabled'] ?? true) !== true) {
                     continue;
                 }
-                if (($entry['isVisible'] ?? true) === false) {
+                if ($allowHiddenDuringProcessing && ($entry['isVisible'] ?? true) === false) {
                     continue;
                 }
 
@@ -1062,6 +1131,12 @@ final class HealthAnalyzer
                 'slotKey' => $slotKey,
                 'slotIndex' => $slotIndex,
                 'breakpointWidth' => $breakpointId,
+                'breakpointEnabled' => $breakpointEnabled,
+                'enabledEntryCount' => count($enabledEntries),
+                'visibleEnabledEntryCount' => count($visibleEnabledEntries),
+                'hiddenEnabledEntryCount' => $hiddenEnabledEntryCount,
+                'hasVisibleEnabledRows' => $visibleEnabledEntries !== [],
+                'hasHiddenEnabledRows' => $hiddenEnabledEntryCount > 0,
                 'hasAssetMismatch' => $hasAssetMismatch,
                 'assetMismatchLabel' => $hasAssetMismatch ? 'Mismatch' : 'Matching',
                 'assetMismatchInfo' => $hasAssetMismatch ? implode('; ', $visibleDetails) : '-',
@@ -1179,6 +1254,9 @@ final class HealthAnalyzer
             'hasBreakpointMismatch' => false,
             'breakpointMismatchBreakpointCount' => 0,
             'breakpointMismatchBreakpoints' => [],
+            'hasAllEnabledBreakpointsHidden' => false,
+            'enabledBreakpointCount' => 0,
+            'hiddenEnabledBreakpointCount' => 0,
         ];
     }
 }

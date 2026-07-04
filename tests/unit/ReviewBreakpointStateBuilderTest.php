@@ -58,6 +58,7 @@ final class ReviewBreakpointStateBuilderTest extends Unit
         ?int $savedHeight,
         ?array $processSavedDimensions,
         string $reviewMode = 'processed',
+        bool $allowHiddenDuringProcessing = false,
     ): array {
         return $this->createBuilder()->build(
             'hero',
@@ -68,6 +69,7 @@ final class ReviewBreakpointStateBuilderTest extends Unit
             $savedWidth,
             $savedHeight,
             false,
+            $allowHiddenDuringProcessing,
             false,
             $reviewMode,
             null,
@@ -127,6 +129,28 @@ final class ReviewBreakpointStateBuilderTest extends Unit
         $this->assertSame('', $state['currentWidthEditedClass']);
         $this->assertSame('', $state['currentHeightEditedClass']);
         $this->assertTrue($state['hasBreakpointMismatch']);
+    }
+
+    public function testHiddenOnlyRowsAreNeutralWhenHiddenProcessingIsAllowed(): void
+    {
+        $state = $this->build(
+            [[
+                'enabled' => true,
+                'isVisible' => false,
+                'loaded' => true,
+                'rendered' => ['width' => 0, 'height' => 0],
+            ]],
+            ['width' => 800, 'height' => 600, 'enabled' => true],
+            800,
+            600,
+            ['w' => 800, 'h' => 600],
+            'processed',
+            true,
+        );
+
+        $this->assertFalse($state['hasBreakpointMismatch']);
+        $this->assertSame('bpi_dimension-no-transform', $state['widthClass']);
+        $this->assertSame('bpi_dimension-no-transform', $state['heightClass']);
     }
 
     public function testEditedDimensionGoesStaleAndFlagsCurrentValue(): void

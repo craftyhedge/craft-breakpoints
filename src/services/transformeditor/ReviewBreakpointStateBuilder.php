@@ -32,6 +32,7 @@ final class ReviewBreakpointStateBuilder
         ?int $savedWidth,
         ?int $savedHeight,
         bool $allowAnyHeight,
+        bool $allowHiddenDuringProcessing,
         bool $hideRenderedApply,
         string $reviewMode,
         ?int $referenceWidth = null,
@@ -120,7 +121,12 @@ final class ReviewBreakpointStateBuilder
 
         $currentEnabled = ($currentRow['enabled'] ?? true) === true;
         $hasBreakpointMismatch = false;
-        if ($reviewMode === self::REVIEW_MODE_PROCESSED && $currentEnabled) {
+        $hiddenOnlyAllowed = $allowHiddenDuringProcessing
+            && $currentEnabled
+            && (int)($summary['hiddenCount'] ?? 0) > 0
+            && $renderedWidth < 1
+            && $renderedHeight < 1;
+        if ($reviewMode === self::REVIEW_MODE_PROCESSED && $currentEnabled && !$hiddenOnlyAllowed) {
             $columnEvaluation = $this->healthAnalyzer->evaluateBreakpointMatch(
                 $renderedWidth,
                 $renderedHeight,

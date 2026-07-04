@@ -91,6 +91,21 @@ final class CardOperationRequestTest extends Unit
         $this->assertSame('asset:hero:100', $operation->selectedAssetKey);
     }
 
+    public function testFromRequestAcceptsAllowHiddenDuringProcessingOperation(): void
+    {
+        $this->request()->setBodyParams([
+            'operation' => 'settings.setAllowHiddenDuringProcessing',
+            'value' => true,
+        ]);
+
+        $operation = CardOperationRequest::fromRequest($this->request(), 'fallback-version');
+
+        $this->assertTrue($operation->hasValidOperation);
+        $this->assertSame('settings.setAllowHiddenDuringProcessing', $operation->operation);
+        $this->assertSame('allowHiddenDuringProcessing', $operation->field);
+        $this->assertTrue($operation->valueRaw);
+    }
+
     public function testFromRequestAcceptsNotesOperation(): void
     {
         $this->request()->setBodyParams([

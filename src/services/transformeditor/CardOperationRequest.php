@@ -23,6 +23,7 @@ final class CardOperationRequest
     private const FIELD_BREAKPOINT_ENABLED = 'breakpointEnabled';
     private const FIELD_PASS_HEIGHT_WHEN_RENDERED_LTE_SAVED = 'passHeightWhenRenderedLteSaved';
     private const FIELD_ALLOW_ANY_HEIGHT = 'allowAnyHeight';
+    private const FIELD_ALLOW_HIDDEN_DURING_PROCESSING = 'allowHiddenDuringProcessing';
     private const FIELD_RENDERED_VALUES = 'renderedValues';
     private const FIELD_DELETE_SET = 'deleteSet';
     private const FIELD_NOTES = 'notes';
@@ -39,6 +40,7 @@ final class CardOperationRequest
     private const OPERATION_BREAKPOINT_TOGGLE_ENABLED = 'breakpoint.toggleEnabled';
     private const OPERATION_SETTINGS_SET_PASS_HEIGHT_WHEN_RENDERED_LTE_SAVED = 'settings.setPassHeightWhenRenderedLteSaved';
     private const OPERATION_SETTINGS_SET_ALLOW_ANY_HEIGHT = 'settings.setAllowAnyHeight';
+    private const OPERATION_SETTINGS_SET_ALLOW_HIDDEN_DURING_PROCESSING = 'settings.setAllowHiddenDuringProcessing';
     private const OPERATION_RENDERED_VALUES_APPLY = 'renderedValues.apply';
     private const OPERATION_SET_DELETE = 'set.delete';
     private const OPERATION_SET_NOTES_UPDATE = 'set.notes.update';
@@ -60,6 +62,7 @@ final class CardOperationRequest
         self::OPERATION_BREAKPOINT_TOGGLE_ENABLED => self::FIELD_BREAKPOINT_ENABLED,
         self::OPERATION_SETTINGS_SET_PASS_HEIGHT_WHEN_RENDERED_LTE_SAVED => self::FIELD_PASS_HEIGHT_WHEN_RENDERED_LTE_SAVED,
         self::OPERATION_SETTINGS_SET_ALLOW_ANY_HEIGHT => self::FIELD_ALLOW_ANY_HEIGHT,
+        self::OPERATION_SETTINGS_SET_ALLOW_HIDDEN_DURING_PROCESSING => self::FIELD_ALLOW_HIDDEN_DURING_PROCESSING,
         self::OPERATION_RENDERED_VALUES_APPLY => self::FIELD_RENDERED_VALUES,
         self::OPERATION_SET_DELETE => self::FIELD_DELETE_SET,
         self::OPERATION_SET_NOTES_UPDATE => self::FIELD_NOTES,

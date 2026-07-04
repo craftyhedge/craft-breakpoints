@@ -13,7 +13,8 @@
              - selectedAssetKey
     - cardSignalsStructural
       - includeEscapeWidth, cardWarningsHtml, signalPathBase
-      - passHeightIndicatorHiddenClass, passHeightIndicatorText, breakpointColumns, cardBreakpointsHiddenClass
+      - passHeightIndicatorHiddenClass, passHeightIndicatorText, allowHiddenDuringProcessingIndicatorHiddenClass
+      - breakpointColumns, cardBreakpointsHiddenClass
       - renderedApplyHiddenClass, deleteSetHiddenClass, editScopeAllCheckedAttr
       - assetPaginationHtml, editPanelId
       - dimensions/ratio/settings tab class/selected/tabindex attrs
@@ -23,7 +24,7 @@
       - notesPanelActiveClass, notesPanelHiddenAttr
       - widthInputId, heightInputId, ratioWidthInputId, ratioHeightInputId
     - ratioFloatInputId
-      - ratioSourceName, passHeightToggleId, allowAnyHeightToggleId, notesInputId
+      - ratioSourceName, passHeightToggleId, allowAnyHeightToggleId, allowHiddenDuringProcessingToggleId, notesInputId
       - ratioSourceBreakpointOptions, lastProcessPanelHtml
 #}
 {% autoescape false %}
@@ -74,6 +75,10 @@
                         <span class="bpts-transform-title-status-question-mark" aria-hidden="true">?</span>
                     </span>
                     <h2 class="bpts-transform-name">{{ transformNameEscaped }}</h2>
+                    <span class="bpts-transform-pass-height-indicator bpts-transform-hidden-processing-indicator {{ allowHiddenDuringProcessingIndicatorHiddenClass }}"
+                        title="Hidden processing allowed"
+                        aria-label="Hidden processing allowed"
+                        data-class:bpts-force-hidden="$editor.cards.{{ signalKey }}.allowHiddenDuringProcessing === true ? false : true">Hidden allowed</span>
                     <span class="bpts-transform-pass-height-indicator {{ passHeightIndicatorHiddenClass }}"
                         data-class:bpts-force-hidden="$editor.cards.{{ signalKey }}.passHeightWhenRenderedLteSaved === true || $editor.cards.{{ signalKey }}.allowAnyHeight === true ? false : true"
                         data-text="$editor.cards.{{ signalKey }}.allowAnyHeight === true ? 'All heights allowed' : ($editor.cards.{{ signalKey }}.passHeightWhenRenderedLteSaved === true ? 'Shorter heights allowed' : '')">{{ passHeightIndicatorText }}</span>
@@ -284,6 +289,13 @@
                                         <span>Allow Any Height</span>
                                     </label>
                                     <p class="bpts-transform-settings-help">When enabled, height is never flagged as a mismatch regardless of the rendered value.</p>
+                                </div>
+                                <div class="bpts-transform-settings-option">
+                                    <label class="bpts-transform-settings-toggle" for="{{ allowHiddenDuringProcessingToggleId }}">
+                                        <input id="{{ allowHiddenDuringProcessingToggleId }}" type="checkbox" class="bpts-transform-allow-hidden-during-processing-toggle" data-bpts-action="allowHiddenDuringProcessing" data-bind="{{ signalPathBase }}.allowHiddenDuringProcessing" data-on:change__throttle.300ms="@post($_applyCardOperationUrl, {contentType: 'json', headers: {'X-CSRF-Token': $_csrfToken}, payload: {setName: String($editor.cards.{{ signalKey }}.setName || ''), operation: 'settings.setAllowHiddenDuringProcessing', value: $editor.cards.{{ signalKey }}.allowHiddenDuringProcessing === true, {{ cardModePayload }} baseVersion: String($editor.baseVersion || '')}})">
+                                        <span>Allow Hidden During Processing</span>
+                                    </label>
+                                    <p class="bpts-transform-settings-help">When enabled, hidden enabled breakpoints are allowed during processing and do not create mismatch warnings.</p>
                                 </div>
                             </section>
                             </section>

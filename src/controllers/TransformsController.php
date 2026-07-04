@@ -197,6 +197,12 @@ class TransformsController extends Controller
                     $operation->includeEscapeWidth,
                     $operation->baseVersion,
                 ),
+                'settings.setAllowHiddenDuringProcessing'    => $editor->applySetAllowHiddenDuringProcessingOperation(
+                    $operation->setName,
+                    $operation->valueRaw,
+                    $operation->includeEscapeWidth,
+                    $operation->baseVersion,
+                ),
                 'set.notes.update'                           => $editor->applySetNotesOperation(
                     $operation->setName,
                     $operation->notes,
@@ -1322,6 +1328,7 @@ class TransformsController extends Controller
                 'breakpointEnabled' => 'Breakpoint state updated.',
                 'passHeightWhenRenderedLteSaved' => 'Allow shorter heights setting updated.',
                 'allowAnyHeight' => 'Allow any height setting updated.',
+                'allowHiddenDuringProcessing' => 'Allow hidden during processing setting updated.',
                 'notes' => 'Notes updated.',
                 default => ucfirst($field) . ' updated.',
             };
@@ -1335,6 +1342,7 @@ class TransformsController extends Controller
             'breakpointEnabled' => 'Breakpoint state update failed.',
             'passHeightWhenRenderedLteSaved' => 'Allow shorter heights setting update failed.',
             'allowAnyHeight' => 'Allow any height setting update failed.',
+            'allowHiddenDuringProcessing' => 'Allow hidden during processing setting update failed.',
             'notes' => 'Notes update failed.',
             default => ucfirst($field) . ' update failed.',
         };

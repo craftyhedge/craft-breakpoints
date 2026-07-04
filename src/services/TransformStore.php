@@ -19,6 +19,7 @@ class TransformStore extends Component
         'position',
         'passHeightWhenRenderedLteSaved',
         'allowAnyHeight',
+        'allowHiddenDuringProcessing',
     ];
     private const SAVED_VARIANT_KEYS = [
         'width',
