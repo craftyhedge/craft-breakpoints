@@ -66,10 +66,6 @@
 
 {% block actionButton %}
     <div class="buttons bpts-header-controls"{% if not (canEditTransforms ?? false) %} hidden aria-hidden="true" style="display: none !important;"{% endif %}>
-        <button id="bpts-compact-breakpoint-cards" class="bpts-compact-breakpoint-cards" type="button" aria-pressed="false" title="{{ 'Hide previews'|t('breakpoints') }}" aria-label="{{ 'Hide previews'|t('breakpoints') }}">
-            <span class="icon bpts-compact-breakpoint-cards-icon bpts-compact-breakpoint-cards-icon-expanded" data-icon="view" aria-hidden="true"></span>
-            <span class="icon bpts-compact-breakpoint-cards-icon bpts-compact-breakpoint-cards-icon-compact" data-icon="eye-slash" aria-hidden="true"></span>
-        </button>
         <div class="bpts-source-entry-control"{% if not (canEditTransforms ?? false) %} hidden aria-hidden="true"{% endif %}>
             {% set initialSourceMode = (selectedSourceUrl ?? '') is not empty ? 'url' : 'entry' %}
             {{ forms.buttonGroup({
@@ -194,6 +190,10 @@
             <span id="bpts-review-state-label" class="bpts-review-state-label" data-text="$ui.resultsHeading || ''">
                 {{ 'Saved Sets'|t('breakpoints') }}
             </span>
+            <button id="bpts-compact-breakpoint-cards" class="bpts-compact-breakpoint-cards"{% if not (canEditTransforms ?? false) %} hidden aria-hidden="true"{% endif %} type="button" aria-pressed="false" title="{{ 'Hide previews'|t('breakpoints') }}" aria-label="{{ 'Hide previews'|t('breakpoints') }}">
+                <span class="icon bpts-compact-breakpoint-cards-icon bpts-compact-breakpoint-cards-icon-expanded" data-icon="view" aria-hidden="true"></span>
+                <span class="icon bpts-compact-breakpoint-cards-icon bpts-compact-breakpoint-cards-icon-compact" data-icon="eye-slash" aria-hidden="true"></span>
+            </button>
         </div>
 
         <div class="bpts-results-pane">

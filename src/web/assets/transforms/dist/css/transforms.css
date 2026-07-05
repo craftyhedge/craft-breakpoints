@@ -42,6 +42,13 @@
     overflow: visible;
     padding: 4px 0px;
     gap: 4px;
+    margin-block-start: 0px !important;
+}
+
+@media only screen and (max-width: 60.8125rem) {
+    #toolbar>* {
+        margin-block-start: 0px !important;
+    }
 }
 
 .bpts-header-controls {
@@ -61,6 +68,13 @@
 
 .bpts-page-title-wrap .screen-title {
     margin-bottom: 0;
+    width: 185px;
+}
+
+@media (max-width: 974px) {
+    .bpts-page-title-wrap .screen-title {
+        width: auto;
+    }
 }
 
 .bpts-page-title-actions {
@@ -88,6 +102,11 @@
 
     #header {
         margin-bottom: 10px !important;
+        display: flex !important;
+
+        #action-buttons {
+            margin-top: 0px;
+        }
     }
 }
 
@@ -401,6 +420,10 @@
     justify-content: flex-start;
     gap: 12px;
     flex-wrap: wrap;
+}
+
+.bpts-results-heading-wrap .bpts-compact-breakpoint-cards {
+    margin-left: auto;
 }
 
 .bpts-results-heading-wrap .heading {
