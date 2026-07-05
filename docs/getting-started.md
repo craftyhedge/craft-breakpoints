@@ -45,7 +45,7 @@ init values.
 }) }}
 ```
 
-By using these init values you can leave the task of configuring breakpoint transforms until later. 
+By using these init values you can leave the task of configuring breakpoint transforms until later.
 
 ### Use different assets for selected slots
 
@@ -85,7 +85,7 @@ Once your component layout is ready, process the page to measure the real render
 
    ![Choose a source entry for processing](images/choose-source.png)
 
-2. Once processing is complete, any new image transform sets will be applied and saved automatically. If there are any new sets, processing is run again to verify the applied dimensions haven't drifted.
+2. Once processing is complete, any new image transform sets will be applied and saved automatically. If new sets were created, processing runs again automatically to verify the applied dimensions haven't drifted.
 
    ![Processing results](images/results.png)
 
@@ -120,11 +120,11 @@ Enabled breakpoint rows need a saved width or height. If a breakpoint is enabled
 but both values are empty, add the missing dimensions or disable that breakpoint
 if the component should not generate an image there.
 
-Images that are truely not visible when processed have a width and height of zero and are automatically disabled when sets are saved. If you enable one of these you will see this warning. 
+Images that are truly not visible when processed have a width and height of zero and are automatically disabled when sets are saved. If you enable one of these, you will see this warning.
 
 ### Mismatched Assets
 
-Transform set not producing consistant measured sizes.
+Transform set not producing consistent measured sizes.
 
 Transform sets can be reused across templates, so every use of the same set
 handle should render at the same dimensions.
@@ -134,7 +134,7 @@ are grouped together in the transform set card.
 
 You can use the pagination to view the different assets and find the mismatch.
 
-This might require some layout/CSS changes to fix the front-end inconsistancy or separating use cases by creating new transform set handles.
+This might require some layout/CSS changes to fix the front-end inconsistency or separating use cases by creating new transform set handles.
 
 ### Breakpoint Mismatch
 
@@ -160,9 +160,11 @@ Editing is only available when `allowTransformEditing` is enabled in
 `config/breakpoints.php`. Keep that enabled for local development only. See
 [Configuration](configuration.md#sample-configbreakpointsphp).
 
+## Set options
+
 ### Allow height differences
 
-**Set options** provides height warning rules for when an expected height-only mismatch
+This provides height warning rules for when an expected height-only mismatch
 should not block review.
 
 This is useful for image areas whose rendered height is affected by content,
@@ -184,6 +186,18 @@ Two settings are available:
 
 Only one height setting can be active at a time.
 
+### Allow Hidden During Processing
+
+This is a separate setting for transform sets
+whose image is hidden on page load in normal use, such as navigation card
+images that only appear on interaction. Processing requires the image to be
+visible, so you'd normally intervene to force it visible, process it, then
+revert the intervention — after which re-processing would flag the set as a
+mismatch because the image is hidden again. Enabling this setting prevents
+that false mismatch.
+
+## Notes
+
 ### Add notes to a transform set
 
 Use the **Notes** tab to record information that should stay with a transform
@@ -196,7 +210,7 @@ card so they are visible when the set is reviewed later.
    ![notes](images/notes.png)
 
 
-## 6. Collapse the breakpoint view
+## Collapse the breakpoint view
 
 The Transform Sets view shows breakpoints as relatively sized screen and image
 representations. That makes the saved sizes easier to understand visually, but

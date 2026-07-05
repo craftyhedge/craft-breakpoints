@@ -15,23 +15,6 @@ and explains the precedence rules.
 - **Per-call `image()` options.** The third argument to the
   [`image()`](reference/twig-image-tag.md) function, scoped to a single render.
 
-## Precedence
-
-Values are merged from lowest to highest priority:
-
-1. **Built-in defaults** (the values shipped with the plugin).
-2. **Control-panel settings** — only values you have changed from their default.
-3. **`config/breakpoints.php`** — project config file.
-4. **Per-call `image()` options** — for a single render.
-
-One further rule applies on top of this:
-
-- A **saved transform set's** own `config` (its `format`, `secondaryFormat`,
-  `mode`, `position`) takes precedence over per-call options for those
-  fields. A set's saved widths/heights always win for dimensions.
-
-`quality` is render-time config and is not saved to transform sets.
-
 ## Settings reference
 
 The table lists each project-level setting, its built-in default, and what it
@@ -77,6 +60,44 @@ Notes:
   `srcset`, see [Responsive Images](responsive-images.md).
 - For native Craft transforms and external transform service compatibility, see
   [Responsive Images](responsive-images.md#transform-services).
+
+## ThumbHash integration
+
+ThumbHash placeholders are an optional integration with the separate
+[`craftyhedge/craft-thumbhash`](https://github.com/craftyhedge/craft-thumbhash)
+plugin. Breakpoints doesn't depend on it — if the ThumbHash plugin isn't
+installed and enabled, `thumbhashEnabled` has no effect and no ThumbHash
+attributes are rendered.
+
+ThumbHash only applies when native lazy loading is off. If
+`nativeLazyLoadingEnabled` is on, or the render is eager (`priority: true` or
+`loading: 'eager'`), ThumbHash output is skipped regardless of
+`thumbhashEnabled`. SVG assets are never given a hash.
+
+> Requires a JS lazy loading library.
+
+Enable it project-wide in `config/breakpoints.php`:
+
+```php
+'thumbhashEnabled' => true,
+'thumbhashMode' => 'srcset',
+```
+
+`thumbhashMode` controls where the hash is applied:
+
+- **`srcset`** — a hash per `<source>`, computed per breakpoint slot from
+  whichever asset renders at that slot, plus a fallback hash on the `<img>`.
+  Use this when different slots render different source assets and each
+  should get its own placeholder.
+- **`bg`** — one hash, computed from the fallback asset, applied to the
+  `<picture>` element. Allows for nice fades but has the draw back of not working with multiple assets per picture.
+  
+For the least set up and standard placeholder practice the `srcset` mode is recommended for the default.
+
+`bg` mode requires CSS animations to create nice fades and work with your lazy loading set up.
+
+You can still leaverage both thumbhash modes per `image()` call for creative purposes.
+
 
 ## Sample `config/breakpoints.php`
 
