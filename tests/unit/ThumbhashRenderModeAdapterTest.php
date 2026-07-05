@@ -84,6 +84,47 @@ final class ThumbhashRenderModeAdapterTest extends Unit
         $this->assertSame('data:image/svg+xml,4x4', $context['imgAttributes']['src'] ?? null);
     }
 
+    public function testSrcsetModeSkipsDisabledBreakpointSources(): void
+    {
+        $adapter = $this->createAvailableAdapter();
+        $context = $adapter->apply([
+            'image' => $this->createMockAsset(100),
+            'config' => [
+                'thumbhashEnabled' => true,
+                'thumbhashMode' => 'srcset',
+                'nativeLazyLoadingEnabled' => false,
+            ],
+            'pictureAttributes' => [],
+            'imgAttributes' => [
+                'data-src' => 'https://example.test/fallback.jpg',
+            ],
+            'breakpointData' => [
+                'base' => [
+                    'asset' => $this->createMockAsset(200),
+                    'disabled' => true,
+                    'primarySourceAttributes' => [
+                        'data-srcset' => 'data:image/svg+xml;base64,placeholder',
+                    ],
+                    'secondarySourceAttributes' => [
+                        'data-srcset' => 'data:image/svg+xml;base64,placeholder-webp',
+                    ],
+                ],
+                'md' => [
+                    'asset' => $this->createMockAsset(300),
+                    'primarySourceAttributes' => [
+                        'data-srcset' => 'https://example.test/desktop.jpg',
+                    ],
+                    'secondarySourceAttributes' => [],
+                ],
+            ],
+        ]);
+
+        $this->assertArrayNotHasKey('data-thumbhash', $context['breakpointData']['base']['primarySourceAttributes']);
+        $this->assertArrayNotHasKey('data-thumbhash', $context['breakpointData']['base']['secondarySourceAttributes']);
+        $this->assertSame('hash-300', $context['breakpointData']['md']['primarySourceAttributes']['data-thumbhash'] ?? null);
+        $this->assertSame('hash-100', $context['imgAttributes']['data-thumbhash'] ?? null);
+    }
+
     public function testDisabledOrUnavailableAdapterLeavesContextUntouched(): void
     {
         $adapter = new class extends ThumbhashRenderModeAdapter {

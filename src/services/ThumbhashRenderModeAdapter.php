@@ -109,6 +109,10 @@ class ThumbhashRenderModeAdapter extends Component
                 continue;
             }
 
+            if (($data['disabled'] ?? false) === true) {
+                continue;
+            }
+
             $asset = $data['asset'] ?? null;
             if (!$asset instanceof Asset || !$this->isSupportedAsset($asset)) {
                 continue;
