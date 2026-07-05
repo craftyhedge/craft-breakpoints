@@ -52,7 +52,7 @@ image width when enabled.
 
 ```twig
 {{ image(asset, 'hero', {
-  includeEscapeWidth: true
+  escape: true
 }) }}
 ```
 

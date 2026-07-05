@@ -223,7 +223,7 @@ Use `sources` when a single responsive picture needs different Craft assets for 
 
 SVG renders stay single-asset; `sources` applies to raster picture output only.
 
-### `includeEscapeWidth`
+### `escape`
 **Type**: `boolean`  
 **Default**: `false`
 
@@ -231,9 +231,11 @@ Adds an extra image variant at the escape width. This can help keep very large l
 
 ```twig
 {{ image(asset, 'hero', {
-  includeEscapeWidth: true
+  escape: true
 }) }}
 ```
+
+`includeEscapeWidth` is still accepted as a fallback alias for `escape`.
 
 ## First-Time Transform Defaults
 

@@ -145,6 +145,10 @@ class BreakpointPolicy extends Component
      */
     public function resolveIncludeEscapeWidth(array $config = [], ?array $set = null): bool
     {
+        if (array_key_exists('escape', $config)) {
+            return (bool)$config['escape'] === true;
+        }
+
         if (array_key_exists('includeEscapeWidth', $config)) {
             return (bool)$config['includeEscapeWidth'] === true;
         }
