@@ -113,6 +113,7 @@ class DefaultController extends Controller
         $siteId = Craft::$app->getSites()->getCurrentSite()->id;
         $requestedEntryId = (int)($this->request->getQueryParam('entry_id') ?? 0);
         $requestedSourceUrl = trim((string)($this->request->getQueryParam('source_url') ?? ''));
+        $requestedAutoRun = (bool)$this->request->getQueryParam('auto');
 
         $selectedSourceEntry = null;
         if ($requestedEntryId > 0) {
@@ -122,6 +123,8 @@ class DefaultController extends Controller
                 ->status(null)
                 ->one();
         }
+
+        $autoRunSource = $requestedAutoRun && ($selectedSourceEntry !== null || $requestedSourceUrl !== '');
 
         $this->view->registerAssetBundle(TransformsAsset::class);
         $this->view->registerJs(
@@ -138,6 +141,7 @@ class DefaultController extends Controller
             'renderTransformCardUrl' => UrlHelper::actionUrl('breakpoints/transforms/render-transform-card'),
             'selectedSourceEntries' => $selectedSourceEntry ? [$selectedSourceEntry] : [],
             'selectedSourceUrl' => $selectedSourceEntry ? '' : $requestedSourceUrl,
+            'autoRunSource' => $autoRunSource,
             'previewCenter' => (bool)$plugin->getConfigService()->get('previewCenter', true),
             'transformsDeveloperActionsEnabled' => $plugin->getConfigService()->areTransformsDeveloperActionsEnabled(),
             'canEditTransforms' => $plugin->getTelemetry()->canEditTransforms(),

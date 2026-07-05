@@ -24,6 +24,24 @@
     {% endif %}
 {% endmacro %}
 
+{% macro clearButton(dataAttr, dataValue, label) %}
+    <button type="button" class="btn small bpts-usage-clear-row-btn" data-{{ dataAttr }}="{{ dataValue }}" title="{{ label }}" aria-label="{{ label }}">
+        {{ iconSvg('trash') }}
+    </button>
+{% endmacro %}
+
+{% macro clearRowButton(row) %}
+    {% if row.id ?? null %}
+        {{ _self.clearButton('bpts-clear-usage-tracking-row', row.id, 'Clear this row'|t('breakpoints')) }}
+    {% else %}
+        <span aria-hidden="true"></span>
+    {% endif %}
+{% endmacro %}
+
+{% macro clearHandleButton(transformHandle) %}
+    {{ _self.clearButton('bpts-clear-usage-tracking-handle', transformHandle, 'Clear all rows for this transform set'|t('breakpoints')) }}
+{% endmacro %}
+
 {% set usageGroups = usageTrackingGroups ?? [] %}
 {% set canProcessMissingSets = canEditTransforms ?? false %}
 {% if usageGroups|length %}
@@ -36,6 +54,7 @@
             <span>{{ 'Seen'|t('breakpoints') }}</span>
             <span>{{ 'First seen'|t('breakpoints') }}</span>
             <span>{{ 'Last seen'|t('breakpoints') }}</span>
+            <span class="bpts-usage-clear-header">{{ 'Clear'|t('breakpoints') }}</span>
         </div>
 
         {% for group in usageGroups %}
@@ -74,6 +93,13 @@
                     <span>{{ group.seenCount }}</span>
                     <span>{{ group.firstSeenAt }}</span>
                     <span>{{ group.lastSeenAt }}</span>
+                    <span class="bpts-usage-clear-cell">
+                        {% if hasMultipleSources %}
+                            {{ _self.clearHandleButton(group.transformHandle) }}
+                        {% else %}
+                            {{ _self.clearRowButton(group.recentSource) }}
+                        {% endif %}
+                    </span>
                 </{{ rowTag }}>
 
                 {% if hasMultipleSources %}
@@ -90,6 +116,7 @@
                                 <span>{{ source.seenCount }}</span>
                                 <span>{{ source.firstSeenAt }}</span>
                                 <span>{{ source.lastSeenAt }}</span>
+                                <span class="bpts-usage-clear-cell">{{ _self.clearRowButton(source) }}</span>
                             </div>
                         {% endfor %}
                     </div>
@@ -156,6 +183,81 @@
                 });
         });
     });
+
+    document.querySelectorAll('[data-bpts-clear-usage-tracking-row]').forEach(function(btn) {
+        btn.addEventListener('click', function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            var id = btn.getAttribute('data-bpts-clear-usage-tracking-row');
+            if (!id) {
+                return;
+            }
+
+            if (!window.confirm(Craft.t('breakpoints', 'Permanently clear this usage tracking row? This cannot be undone.'))) {
+                return;
+            }
+
+            btn.disabled = true;
+            btn.setAttribute('aria-busy', 'true');
+            Craft.sendActionRequest('POST', 'breakpoints/database/clear-usage-tracking-row', {
+                data: { id: id },
+            })
+                .then(function(response) {
+                    var data = response && response.data ? response.data : {};
+                    if (data.message) {
+                        Craft.cp.displayNotice(data.message);
+                    }
+                    window.location.reload();
+                })
+                .catch(function(error) {
+                    var msg = (error && error.response && error.response.data && error.response.data.message)
+                        ? error.response.data.message
+                        : Craft.t('breakpoints', 'Database action failed.');
+                    Craft.cp.displayError(msg);
+                    btn.disabled = false;
+                    btn.removeAttribute('aria-busy');
+                });
+        });
+    });
+
+    document.querySelectorAll('[data-bpts-clear-usage-tracking-handle]').forEach(function(btn) {
+        btn.addEventListener('click', function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            var transformHandle = btn.getAttribute('data-bpts-clear-usage-tracking-handle');
+            if (!transformHandle) {
+                return;
+            }
+
+            var confirmMessage = Craft.t('breakpoints', 'Permanently clear all usage tracking rows for "{handle}"? This cannot be undone.', { handle: transformHandle });
+            if (!window.confirm(confirmMessage)) {
+                return;
+            }
+
+            btn.disabled = true;
+            btn.setAttribute('aria-busy', 'true');
+            Craft.sendActionRequest('POST', 'breakpoints/database/clear-usage-tracking-handle', {
+                data: { transformHandle: transformHandle },
+            })
+                .then(function(response) {
+                    var data = response && response.data ? response.data : {};
+                    if (data.message) {
+                        Craft.cp.displayNotice(data.message);
+                    }
+                    window.location.reload();
+                })
+                .catch(function(error) {
+                    var msg = (error && error.response && error.response.data && error.response.data.message)
+                        ? error.response.data.message
+                        : Craft.t('breakpoints', 'Database action failed.');
+                    Craft.cp.displayError(msg);
+                    btn.disabled = false;
+                    btn.removeAttribute('aria-busy');
+                });
+        });
+    });
 })();
 {% endjs %}
 
@@ -169,9 +271,49 @@
 .bpts-usage-summary,
 .bpts-usage-source-row {
     display: grid;
-    grid-template-columns: minmax(10rem, 1.1fr) 10rem minmax(18rem, 2fr) 6rem 4rem 10rem 10rem;
+    grid-template-columns: minmax(10rem, 1.1fr) 10rem minmax(18rem, 2fr) 6rem 4rem 10rem 10rem 3rem;
     gap: 1rem;
     align-items: baseline;
+}
+
+.bpts-usage-clear-header {
+    text-align: end;
+}
+
+.bpts-usage-clear-cell {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.bpts-usage-clear-row-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+    background: transparent !important;
+    border: 1px solid var(--border-hairline-medium) !important;
+    color: var(--red-700, #b22424) !important;
+}
+
+.bpts-usage-clear-row-btn:hover,
+.bpts-usage-clear-row-btn:focus-visible {
+    background: var(--gray-050, #f7f7f8) !important;
+    border-color: var(--border-hairline-medium) !important;
+    color: var(--red-800, #8f1c1c) !important;
+}
+
+.bpts-usage-clear-row-btn:focus-visible {
+    outline: 2px solid var(--red-200, #f5c9c3);
+    outline-offset: 1px;
+}
+
+.bpts-usage-clear-row-btn svg {
+    display: block;
+    inline-size: 0.875rem;
+    block-size: 0.875rem;
+    fill: currentColor;
+    color: inherit;
 }
 
 .bpts-usage-list-header {

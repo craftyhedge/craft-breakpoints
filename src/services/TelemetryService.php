@@ -222,6 +222,7 @@ class TelemetryService extends Component
         try {
             $query = (new Query())
                 ->select([
+                    'id',
                     'transformHandle',
                     'sourceElementId',
                     'sourceUrl',
@@ -258,6 +259,7 @@ class TelemetryService extends Component
             $includeEscapeWidth = $row['includeEscapeWidth'] ?? null;
 
             return [
+                'id' => (int)($row['id'] ?? 0),
                 'transformHandle' => (string)($row['transformHandle'] ?? ''),
                 'sourceElementId' => $entryId !== null && $entryId !== '' ? (int)$entryId : null,
                 'sourceUrl' => isset($row['sourceUrl']) && $row['sourceUrl'] !== '' ? (string)$row['sourceUrl'] : null,

@@ -22,7 +22,7 @@ class DatabaseController extends Controller
         $this->requireAdmin();
 
         $telemetry = Plugin::getInstance()->getTelemetry();
-        $isUsageTrackingAction = $action->id === 'clear-usage-tracking';
+        $isUsageTrackingAction = in_array($action->id, ['clear-usage-tracking', 'clear-usage-tracking-row', 'clear-usage-tracking-handle'], true);
 
         if (!$telemetry->canEditTransforms() && (!$isUsageTrackingAction || !$telemetry->canTrackUsage())) {
             throw new ForbiddenHttpException('Transform editing is disabled in this environment.');
@@ -42,6 +42,22 @@ class DatabaseController extends Controller
     public function actionClearUsageTracking(): Response
     {
         $rows = Plugin::getInstance()->getDatabase()->clearUsageTracking();
+        $message = sprintf('Cleared transform usage tracking (%d row%s deleted).', $rows, $rows === 1 ? '' : 's');
+        return $this->respond($message, ['usageTracking' => $rows, 'total' => $rows]);
+    }
+
+    public function actionClearUsageTrackingRow(): Response
+    {
+        $id = (int)$this->request->getRequiredBodyParam('id');
+        $rows = Plugin::getInstance()->getDatabase()->clearUsageTrackingRow($id);
+        $message = sprintf('Cleared transform usage tracking row (%d row%s deleted).', $rows, $rows === 1 ? '' : 's');
+        return $this->respond($message, ['usageTracking' => $rows, 'total' => $rows]);
+    }
+
+    public function actionClearUsageTrackingHandle(): Response
+    {
+        $transformHandle = (string)$this->request->getRequiredBodyParam('transformHandle');
+        $rows = Plugin::getInstance()->getDatabase()->clearUsageTrackingHandle($transformHandle);
         $message = sprintf('Cleared transform usage tracking (%d row%s deleted).', $rows, $rows === 1 ? '' : 's');
         return $this->respond($message, ['usageTracking' => $rows, 'total' => $rows]);
     }

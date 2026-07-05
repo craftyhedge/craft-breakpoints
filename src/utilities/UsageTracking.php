@@ -26,7 +26,11 @@ class UsageTracking extends Utility
 
     public static function isSelectable(): bool
     {
-        return Craft::$app->getUser()->getIsAdmin();
+        if (!Craft::$app->getUser()->getIsAdmin()) {
+            return false;
+        }
+
+        return Plugin::getInstance()?->getTelemetry()->canTrackUsage() ?? false;
     }
 
     public static function contentHtml(): string
@@ -144,6 +148,7 @@ class UsageTracking extends Utility
         if (is_numeric($sourceElementId) && (int)$sourceElementId > 0) {
             return UrlHelper::cpUrl('breakpoints/processing', [
                 'entry_id' => (int)$sourceElementId,
+                'auto' => 1,
             ]);
         }
 
@@ -154,6 +159,7 @@ class UsageTracking extends Utility
 
         return UrlHelper::cpUrl('breakpoints/processing', [
             'source_url' => $sourceUrl,
+            'auto' => 1,
         ]);
     }
 }

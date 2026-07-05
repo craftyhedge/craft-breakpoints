@@ -33,6 +33,49 @@ class DatabaseService extends Component
         return $this->truncate(self::TABLE_USAGE_OBSERVATIONS);
     }
 
+    public function clearUsageTrackingRow(int $id): int
+    {
+        if ($id <= 0) {
+            return 0;
+        }
+
+        $db = Craft::$app->getDb();
+        if (!$db->tableExists(self::TABLE_USAGE_OBSERVATIONS)) {
+            return 0;
+        }
+
+        try {
+            return (int)$db->createCommand()
+                ->delete(self::TABLE_USAGE_OBSERVATIONS, ['id' => $id])
+                ->execute();
+        } catch (\Throwable $e) {
+            Plugin::warning('Database row delete failed for ' . self::TABLE_USAGE_OBSERVATIONS . ': ' . $e->getMessage());
+            return 0;
+        }
+    }
+
+    public function clearUsageTrackingHandle(string $transformHandle): int
+    {
+        $transformHandle = trim($transformHandle);
+        if ($transformHandle === '') {
+            return 0;
+        }
+
+        $db = Craft::$app->getDb();
+        if (!$db->tableExists(self::TABLE_USAGE_OBSERVATIONS)) {
+            return 0;
+        }
+
+        try {
+            return (int)$db->createCommand()
+                ->delete(self::TABLE_USAGE_OBSERVATIONS, ['transformHandle' => $transformHandle])
+                ->execute();
+        } catch (\Throwable $e) {
+            Plugin::warning('Database handle delete failed for ' . self::TABLE_USAGE_OBSERVATIONS . ': ' . $e->getMessage());
+            return 0;
+        }
+    }
+
     /**
      * @return array<string, int>
      */

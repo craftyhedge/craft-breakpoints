@@ -1287,6 +1287,28 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         }
     }
 
+    function stripAutoRunSourceParam() {
+        if (typeof window === 'undefined' || !window.location || !window.history || typeof window.history.replaceState !== 'function') {
+            return;
+        }
+
+        try {
+            const currentUrl = new URL(window.location.href);
+            if (!currentUrl.searchParams.has('auto')) {
+                return;
+            }
+
+            currentUrl.searchParams.delete('auto');
+
+            const nextUrl = currentUrl.toString();
+            if (nextUrl !== window.location.href) {
+                window.history.replaceState(window.history.state, '', nextUrl);
+            }
+        } catch (_error) {
+            // Ignore URL sync failures so processing flow remains uninterrupted.
+        }
+    }
+
     function syncSelectedSourceToUrl() {
         if (typeof window === 'undefined' || !window.location || !window.history || typeof window.history.replaceState !== 'function') {
             return;
@@ -3776,4 +3798,9 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         setReviewHydrated(true);
     });
     void loadInitialPreview();
+
+    if (elements.page?.dataset?.autoRunSource === '1' && elements.btnRun && hasSelectedSource()) {
+        stripAutoRunSourceParam();
+        elements.btnRun.click();
+    }
 })();
