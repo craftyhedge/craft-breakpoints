@@ -110,8 +110,42 @@ final class ReviewBreakpointStateBuilder
         );
         $widthStale = $widthStatus === 'mismatch' && $widthEdited;
         $heightStale = $heightStatus === 'mismatch' && $heightEdited;
-        $widthClass = $widthStale ? 'bpi_dimension-stale' : $this->getRenderedDimensionClass($widthStatus);
-        $heightClass = $heightStale ? 'bpi_dimension-stale' : $this->getRenderedDimensionClass($heightStatus);
+        $currentEnabled = ($currentRow['enabled'] ?? true) === true;
+
+        // A height mismatch that the transform's own settings permit (any height allowed,
+        // or a hidden row while hidden-during-processing is allowed) isn't a real failure —
+        // show it as neutral rather than the alarming mismatch red.
+        $heightMismatchAllowed = $heightStatus === 'mismatch'
+            && !$heightStale
+            && $this->healthAnalyzer->shouldIgnoreHeightMismatch(
+                false,
+                max(0, $renderedHeight),
+                $savedHeight,
+                $allowAnyHeight,
+            );
+        $hiddenRowAllowed = $allowHiddenDuringProcessing
+            && $currentEnabled
+            && $renderedWidth < 1
+            && $renderedHeight < 1;
+
+        // A disabled breakpoint doesn't render at all, so its rendered value naturally
+        // reads as missing/no-transform — that's not a reflection of whether a transform
+        // is actually saved, so keep the chip neutral instead of implying no transform exists.
+        $widthClass = match (true) {
+            !$currentEnabled => 'bpi_dimension-allowed',
+            $widthStale => 'bpi_dimension-stale',
+            $hiddenRowAllowed && ($widthStatus === 'mismatch' || $widthStatus === 'missing')
+                => 'bpi_dimension-allowed',
+            default => $this->getRenderedDimensionClass($widthStatus),
+        };
+        $heightClass = match (true) {
+            !$currentEnabled => 'bpi_dimension-allowed',
+            $heightStale => 'bpi_dimension-stale',
+            $hiddenRowAllowed && ($heightStatus === 'mismatch' || $heightStatus === 'missing')
+                => 'bpi_dimension-allowed',
+            $heightMismatchAllowed => 'bpi_dimension-allowed',
+            default => $this->getRenderedDimensionClass($heightStatus),
+        };
         $renderedApplyNoop = $this->isRenderedApplyNoop(
             $renderedRowsPayload,
             $currentWidth,
@@ -119,7 +153,6 @@ final class ReviewBreakpointStateBuilder
             $autoDimension,
         );
 
-        $currentEnabled = ($currentRow['enabled'] ?? true) === true;
         $hasBreakpointMismatch = false;
         $hiddenOnlyAllowed = $allowHiddenDuringProcessing
             && $currentEnabled

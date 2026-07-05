@@ -2136,6 +2136,12 @@ button.bpts-transform-input-addon:hover:not(:disabled) {
     color: var(--fg-error, var(--red-600));
 }
 
+/* Rendered value differs from saved, but the transform's own settings (heights
+   allowed / hidden allowed) permit it — not a real failure, so keep it neutral. */
+.bpi_rendered-dimension.bpi_dimension-allowed {
+    color: var(--fg-subtle);
+}
+
 /* Measured value whose saved dimension was edited after the processing run —
    neither confirmed (green) nor failing (red) until re-processed. */
 .bpi_rendered-dimension.bpi_dimension-stale {

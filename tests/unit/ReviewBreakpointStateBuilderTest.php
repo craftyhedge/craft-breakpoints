@@ -149,8 +149,8 @@ final class ReviewBreakpointStateBuilderTest extends Unit
         );
 
         $this->assertFalse($state['hasBreakpointMismatch']);
-        $this->assertSame('bpi_dimension-no-transform', $state['widthClass']);
-        $this->assertSame('bpi_dimension-no-transform', $state['heightClass']);
+        $this->assertSame('bpi_dimension-allowed', $state['widthClass']);
+        $this->assertSame('bpi_dimension-allowed', $state['heightClass']);
     }
 
     public function testEditedDimensionGoesStaleAndFlagsCurrentValue(): void
