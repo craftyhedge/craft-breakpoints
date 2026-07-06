@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.9 - 2026-07-06
+
+- Added an "allow hidden" option for transform sets so images that are intentionally hidden on page load (e.g. interaction-only navigation cards) no longer get flagged as mismatches after processing.
+- Improved hidden-image warning messaging and review handling around hidden and mismatched assets.
+- Added an escape option with an `includeEscapeWidth` fallback for breakpoint policy.
+- Disabled ThumbHash rendering for breakpoint slots that are disabled.
+- Improved styling for allowed dimension mismatches in the review UI.
+- Added a button to auto-run processing directly from the Transform Tracking listing.
+- Added a "delete row(s)" control and fixed the disable behaviour for the Transform Tracking utility.
+- Fixed various Transform Sets screen UI issues, including toolbar spacing and the compact-cards toggle placement.
+- Expanded and clarified configuration and getting-started documentation, including ThumbHash modes and the new "allow hidden" set option.
+
 ## 0.1.8 - 2026-06-30
 
 - Registered the ThumbHash frontend script whenever the integration is enabled and available, instead of tying script registration to per-asset placeholder eligibility.
