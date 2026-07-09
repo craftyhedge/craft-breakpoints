@@ -4,6 +4,9 @@
 /.agents/**        export-ignore
 /.codex            export-ignore
 /.codex/**         export-ignore
+/.kilo             export-ignore
+/.kilo/**          export-ignore
+/AGENTS.md         export-ignore
 /.ddev             export-ignore
 /.ddev/**          export-ignore
 /.github           export-ignore
