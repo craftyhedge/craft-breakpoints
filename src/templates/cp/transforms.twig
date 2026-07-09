@@ -142,7 +142,6 @@
         data-signals="{_applyCardOperationUrl: '{{ applyCardOperationUrl|e('js') }}', _renderTransformCardUrl: '{{ renderTransformCardUrl|e('js') }}', _csrfToken: '{{ craft.app.request.csrfToken|e('js') }}', showCardSettings: false, compactBreakpointCards: {{ initialCompactBreakpointCards ? 'true' : 'false' }}, ui: {resultsHeading: 'Saved Sets', showWarningOrder: false, resultsOrderingNoteLabel: ''}, sidebar: {savedSetNamesJson: '{{ initialSavedSetNames|json_encode|e('js') }}'}, editor: {baseVersion: '{{ initialBaseVersion|e('js') }}', cards: {}}}"
         data-on-signal-patch="window.bptsSyncPostPatchReviewState && window.bptsSyncPostPatchReviewState(patch)"
         data-on-signal-patch-filter="{include: /^(editor\.baseVersion|sidebar\.savedSetNamesJson|ui\.)/}"
-        data-persist:breakpoints-editor__session="{include: /^(showCardSettings|editor\\.cards\\.[^.]+\\.selectedAssetKey)$/}"
         data-show-card-settings="0"
         data-attr:data-show-card-settings="(String($showCardSettings) === 'true' || String($showCardSettings) === '1') ? '1' : '0'"
         data-compact-breakpoint-cards="{{ initialCompactBreakpointCards ? '1' : '0' }}"
