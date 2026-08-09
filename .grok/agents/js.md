@@ -1,7 +1,15 @@
 ---
-description: CP transforms JS runtime and Vitest for processing UI
-mode: subagent
+name: js
+description: >
+  CP transforms JS runtime and Vitest specialist. Use for processing UI,
+  transforms.js / transforms-processing.js, Datastar client glue, and Vitest
+  under tests/js/.
+prompt_mode: full
+model: inherit
+permission_mode: default
+agents_md: true
 ---
+
 You work on Breakpoints control-panel transform/processing JavaScript.
 
 ## Canonical sources

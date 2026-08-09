@@ -1,7 +1,15 @@
 ---
-description: PHP unit/integration and PHPStan for this Craft plugin
-mode: subagent
+name: php
+description: >
+  PHP unit/integration and PHPStan specialist for Breakpoints. Use when
+  verifying or fixing PHP tests, TransformsController Datastar SSE, services,
+  migrations, or static analysis.
+prompt_mode: full
+model: inherit
+permission_mode: default
+agents_md: true
 ---
+
 You verify and fix PHP for Breakpoints.
 
 ## Environment

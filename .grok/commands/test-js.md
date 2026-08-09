@@ -1,7 +1,8 @@
 ---
 description: Print Vitest command (user runs it)
-agent: js
+argument-hint: "[path or vitest args]"
 ---
+
 Print the Breakpoints JS test command for the user. Do not execute it unless they explicitly ask you to run tests.
 
 Local Vitest binary only (not npx):

@@ -1,11 +1,7 @@
 # Keep local/dev tooling in the repo, but exclude it from the distributed
 # Composer package (git archive / dist tarballs).
-/.agents           export-ignore
-/.agents/**        export-ignore
-/.codex            export-ignore
-/.codex/**         export-ignore
-/.kilo             export-ignore
-/.kilo/**          export-ignore
+/.grok             export-ignore
+/.grok/**          export-ignore
 /AGENTS.md         export-ignore
 /.ddev             export-ignore
 /.ddev/**          export-ignore
@@ -26,7 +22,6 @@
 
 /.gitattributes    export-ignore
 /.gitignore        export-ignore
-/CLAUDE.local.md   export-ignore
 /TESTING.md        export-ignore
 /codeception.yml   export-ignore
 /composer.lock     export-ignore

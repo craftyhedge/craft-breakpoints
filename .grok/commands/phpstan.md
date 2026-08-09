@@ -1,7 +1,7 @@
 ---
 description: Print PHPStan command (user runs it)
-agent: php
 ---
+
 Print the PHPStan command for the user. Do not execute it unless they explicitly ask you to run analysis.
 
 ```sh

@@ -129,4 +129,4 @@ JS runtime tests prioritize processing correctness and payload contracts; keep C
 ## Local-only / gitignored paths
 
 - `CLAUDE.local.md`, `.nocommit/`, `tests/.env`, `vendor/`, `node_modules/`
-- Empty legacy dirs `.agents/`, `.codex/` may exist; Kilo config lives under `.kilo/`
+- Empty legacy dirs `.agents/`, `.codex/`, `.kilo/` may exist; Grok project agents/commands live under `.grok/`
