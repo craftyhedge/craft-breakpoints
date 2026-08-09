@@ -19,10 +19,13 @@ class DatabaseController extends Controller
         $this->requireCpRequest();
         $this->requirePostRequest();
         $this->requireAcceptsJson();
-        $this->requireAdmin();
 
         $telemetry = Plugin::getInstance()->getTelemetry();
         $isUsageTrackingAction = in_array($action->id, ['clear-usage-tracking', 'clear-usage-tracking-row', 'clear-usage-tracking-handle'], true);
+
+        // Usage clears only need an admin account (runtime bpi_* rows), not allowAdminChanges.
+        // clear-all stays tied to allowAdminChanges like other admin mutations.
+        $this->requireAdmin(!$isUsageTrackingAction);
 
         if (!$telemetry->canEditTransforms() && (!$isUsageTrackingAction || !$telemetry->canTrackUsage())) {
             throw new ForbiddenHttpException('Transform editing is disabled in this environment.');
