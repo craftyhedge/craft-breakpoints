@@ -329,6 +329,7 @@ class ImageTransforms extends Component
                 $initOptions,
                 $this->isEscapeWidthIncluded($config, $namedSet),
             );
+            $this->_plugin->getFrontendProcessButton()->noteUnsavedHandle($setName);
         }
 
         $config['setName'] = $setName;

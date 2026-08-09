@@ -35,4 +35,6 @@ return [
     'enableUsageTracking' => false,
     'dpr' => [1],
     'allowTransformEditing' => true,
+    // Local admin cue for unsaved transform sets: bottom-right|bottom-left|top-right|top-left
+    'frontendProcessButtonPosition' => 'bottom-right',
 ];

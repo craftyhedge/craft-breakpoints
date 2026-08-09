@@ -21,6 +21,7 @@ use craftyhedge\craftbreakpoints\services\BreakpointPolicy;
 use craftyhedge\craftbreakpoints\services\BreakpointSlotResolver;
 use craftyhedge\craftbreakpoints\services\ConfigService;
 use craftyhedge\craftbreakpoints\services\DatabaseService;
+use craftyhedge\craftbreakpoints\services\FrontendProcessButton;
 use craftyhedge\craftbreakpoints\services\ImageRenderer;
 use craftyhedge\craftbreakpoints\services\Images;
 use craftyhedge\craftbreakpoints\services\ImageTransforms;
@@ -71,6 +72,7 @@ class Plugin extends BasePlugin
                 'processingConfig' => ProcessingConfig::class,
                 'transformEditor' => TransformEditor::class,
                 'telemetry' => TelemetryService::class,
+                'frontendProcessButton' => FrontendProcessButton::class,
                 'database' => DatabaseService::class,
                 'thumbhashRenderModeAdapter' => ThumbhashRenderModeAdapter::class,
             ],
@@ -203,6 +205,13 @@ class Plugin extends BasePlugin
     {
         /** @var TelemetryService $component */
         $component = $this->get('telemetry');
+        return $component;
+    }
+
+    public function getFrontendProcessButton(): FrontendProcessButton
+    {
+        /** @var FrontendProcessButton $component */
+        $component = $this->get('frontendProcessButton');
         return $component;
     }
 

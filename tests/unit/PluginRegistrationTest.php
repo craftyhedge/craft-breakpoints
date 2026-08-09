@@ -17,6 +17,10 @@ final class PluginRegistrationTest extends Unit
 
         $this->assertInstanceOf(Plugin::class, $plugin);
         $this->assertSame('Breakpoints', $plugin->name);
+        $this->assertInstanceOf(
+            \craftyhedge\craftbreakpoints\services\FrontendProcessButton::class,
+            $plugin->getFrontendProcessButton()
+        );
     }
 
     public function testPluginReturnsSettingsModel(): void

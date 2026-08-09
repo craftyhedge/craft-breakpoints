@@ -291,6 +291,32 @@ class ConfigService extends Component
     }
 
     /**
+     * Corner for the local-admin front-end process button.
+     *
+     * @param array<string, mixed> $overrides
+     * @return 'bottom-right'|'bottom-left'|'top-right'|'top-left'
+     */
+    public function frontendProcessButtonPosition(array $overrides = []): string
+    {
+        return $this->normalizeFrontendProcessButtonPosition(
+            $this->get('frontendProcessButtonPosition', 'bottom-right', $overrides)
+        );
+    }
+
+    /**
+     * @return 'bottom-right'|'bottom-left'|'top-right'|'top-left'
+     */
+    public function normalizeFrontendProcessButtonPosition(mixed $value): string
+    {
+        $normalized = strtolower(str_replace('_', '-', trim((string)$value)));
+
+        return match ($normalized) {
+            'bottom-left', 'top-right', 'top-left' => $normalized,
+            default => 'bottom-right',
+        };
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function buildMergedConfig(): array
