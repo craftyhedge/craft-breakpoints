@@ -33,9 +33,13 @@ Work only from repository facts and existing code. Do not invent APIs, config ke
 
 ## Verification (prompt user; do not auto-run)
 
-- PHP unit: `ddev exec vendor/bin/codecept run unit`
-- PHP integration: `ddev exec vendor/bin/codecept run integration`
-- PHPStan: `composer phpstan` (or via ddev)
+Print bare paths for the user (they SSH into a ready env):
+
+- PHP unit: `vendor/bin/codecept run unit`
+- PHP integration: `vendor/bin/codecept run integration`
+- PHPStan: `composer phpstan` or `vendor/bin/phpstan --memory-limit=1G`
 - JS: `node_modules/.bin/vitest run` (never `npx vitest` on host Node 18)
+
+If the user asks **you** to run PHP tests/PHPStan and bare paths fail (DB/PDO missing on this host), fall back to `ddev exec …` for the same commands.
 
 Read `AGENTS.md` and the relevant service/controller before editing.

@@ -94,7 +94,23 @@ CP settings Twig disables fields already defined in the project file (`projectCo
 
 **Do not run tests or PHPStan automatically.** After changes, print the exact command(s) and wait for the user to run them and paste results if needed.
 
-PHP (needs PHP 8.2 + MySQL; use ddev):
+### Print for the user (bare paths)
+
+User typically SSHs into an env with PHP 8.2 + MySQL already available:
+
+```sh
+vendor/bin/codecept run unit
+vendor/bin/codecept run integration
+vendor/bin/codecept run
+composer phpstan
+# or: vendor/bin/phpstan --memory-limit=1G
+```
+
+Composer scripts: `composer test`, `composer test:integration`, `composer test:all`, `composer phpstan`.
+
+### Agent-executed fallback
+
+If the user asks the agent to run PHP tests/PHPStan and bare paths fail on this host (missing DB/PDO), fall back to ddev:
 
 ```sh
 ddev start
@@ -102,10 +118,9 @@ ddev composer install   # first time
 ddev exec vendor/bin/codecept run unit
 ddev exec vendor/bin/codecept run integration
 ddev exec vendor/bin/codecept run
-composer phpstan        # or: ddev exec vendor/bin/phpstan --memory-limit=1G
+ddev exec vendor/bin/phpstan --memory-limit=1G
 ```
 
-Composer scripts: `composer test`, `composer test:integration`, `composer test:all`, `composer phpstan`.
 
 JS (Vitest; use local binary, not `npx`):
 

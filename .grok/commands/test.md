@@ -9,9 +9,9 @@ Print the Breakpoints PHP test command for the user. Do not execute it unless th
 Default: unit suite.
 If `$ARGUMENTS` is `integration` or `all`, use that instead.
 
-Commands:
-- unit: `ddev exec vendor/bin/codecept run unit`
-- integration: `ddev exec vendor/bin/codecept run integration`
-- all: `ddev exec vendor/bin/codecept run`
+Commands (bare paths — user runs on SSH / env with PHP + MySQL):
+- unit: `vendor/bin/codecept run unit`
+- integration: `vendor/bin/codecept run integration`
+- all: `vendor/bin/codecept run`
 
 If the user pastes results, report failures with file/test name. Fix only if asked.

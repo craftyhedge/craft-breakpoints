@@ -14,18 +14,26 @@ You verify and fix PHP for Breakpoints.
 
 ## Environment
 
-- PHP tests need ddev (host lacks the test MySQL/PDO setup).
-- Test DB creds: `tests/.env` (ddev: host `db`, user/password/database `db`)
+- PHP tests need PHP 8.2 + MySQL (see `tests/.env`).
 - Suites: Codeception unit + integration under `tests/`
+- When **printing** commands for the user: bare paths only (they SSH into a ready env).
+- When **you** (the agent) execute tests: try bare paths first; if the DB/PDO setup fails, fall back to ddev.
 
-## Verification (do not auto-run)
+## Verification (do not auto-run unless asked)
 
-Print these for the user unless they explicitly ask you to execute:
+**Print for the user (no ddev):**
+
+- unit: `vendor/bin/codecept run unit`
+- integration: `vendor/bin/codecept run integration`
+- all: `vendor/bin/codecept run`
+- PHPStan: `composer phpstan` or `vendor/bin/phpstan --memory-limit=1G`
+
+**Agent-executed fallback (only if bare paths fail on this host):**
 
 - unit: `ddev exec vendor/bin/codecept run unit`
 - integration: `ddev exec vendor/bin/codecept run integration`
 - all: `ddev exec vendor/bin/codecept run`
-- PHPStan: `composer phpstan` or `ddev exec vendor/bin/phpstan --memory-limit=1G`
+- PHPStan: `ddev exec vendor/bin/phpstan --memory-limit=1G`
 
 ## Datastar (TransformsController)
 
