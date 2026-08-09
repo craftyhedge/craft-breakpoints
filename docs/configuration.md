@@ -48,6 +48,7 @@ panel exposes the common output, transform, template, and editor defaults.
 | `processingLazyLoadingCustomHandler` | string | *(blank)* | Global async function used by the `custom` adapter, for example `window.project.prepareBreakpointImages`. |
 | `previewCenter` | bool | `true` | Editor-only: centers the preview width in the Transform Sets UI. |
 | `enableUsageTracking` | bool | `false` | Development/staging utility: records transform set usage by page/source for the Transform Tracking utility. Keep disabled in production unless explicitly needed. |
+| `frontendProcessButtonPosition` | string | `bottom-right` | Local-admin only: corner for the front-end unsaved-set process button. One of `bottom-right`, `bottom-left`, `top-right`, `top-left`. Invalid values fall back to `bottom-right`. |
 | `dpr` | array | `[1]` | Device pixel ratios for `srcset`. `1x` is always included. The Control Panel offers common `2x`/`3x` presets; project config may provide any positive numeric ratio such as `1.5`. |
 
 Notes:
@@ -141,6 +142,10 @@ return [
 
     // Local development only: enables processing and transform-set saving.
     'allowTransformEditing' => App::env('ALLOW_TRANSFORM_EDITING') ?? false,
+
+    // Local-admin cue when a page renders unsaved transform sets.
+    // 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left'
+    'frontendProcessButtonPosition' => 'bottom-right',
 
     // Optional development/staging audit table for transform set usage by page.
     'enableUsageTracking' => App::env('ENABLE_BREAKPOINT_USAGE_TRACKING') ?? false,
