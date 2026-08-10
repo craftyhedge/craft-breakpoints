@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.10 - 2026-08-10
+
+- Added a local-admin front-end process button that appears when a page renders at least one unsaved (non-SVG) transform set, deep-linking into Control Panel processing with auto-run enabled.
+- Added `frontendProcessButtonPosition` config (`bottom-right`, `bottom-left`, `top-right`, `top-left`; default `bottom-right`) for that button’s corner placement.
+- Fixed Transform Tracking usage-clear actions so they only require an admin account, not `allowAdminChanges`, matching runtime `bpi_*` row clears on staging without full project-config write access.
+- Removed a redundant Datastar `data-persist` attribute from the Transform Sets editor markup.
+
 ## 0.1.9 - 2026-07-06
 
 - Added an "allow hidden" option for transform sets so images that are intentionally hidden on page load (e.g. interaction-only navigation cards) no longer get flagged as mismatches after processing.
