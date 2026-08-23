@@ -131,7 +131,6 @@ export function createRunReport({
         report.authorDiagnostics = {
             stageTimings: [],
             activationTrace: [],
-            normalizationSamples: [],
             readinessSnapshots: [],
             failure: null,
         };
@@ -146,7 +145,6 @@ export function createBreakpointReportEntry(breakpoint) {
         width: Number.isFinite(Number(breakpoint)) ? Number(breakpoint) : null,
         status: 'skipped',
         activationStrategies: [],
-        normalizationCount: 0,
         waitDurationMs: 0,
         loadedCount: 0,
         brokenCount: 0,
@@ -828,38 +826,16 @@ export function pushActivationStrategy(prepareResult, strategy, count = 0) {
 }
 
 function isLazyLoadingAdapterAvailable(frameWindow, adapter) {
-    if (adapter === 'lazysizes') {
-        const lazySizes = frameWindow?.lazySizes;
-        return Boolean(lazySizes && typeof lazySizes === 'object' && (
-            typeof lazySizes.loader?.checkElems === 'function'
-            || typeof lazySizes.autoSizer?.checkElems === 'function'
-            || typeof lazySizes.loader?.unveil === 'function'
-        ));
+    if (adapter !== 'lazysizes') {
+        return true;
     }
 
-    if (adapter === 'vanilla-lazyload') {
-        return Boolean(
-            frameWindow?.lazyLoadInstance
-            || frameWindow?.__lazyLoadInstance
-            || frameWindow?.lazyLoadInstances?.length
-            || frameWindow?.__lazyLoadInstances?.length
-            || typeof frameWindow?.LazyLoad?.load === 'function'
-        );
-    }
-
-    if (adapter === 'lozad') {
-        return Boolean(
-            frameWindow?.lozadObserver
-            || frameWindow?.lozadInstance
-            || frameWindow?.__lozadObserver
-            || frameWindow?.__lozadInstance
-            || frameWindow?.lozadObservers?.length
-            || frameWindow?.__lozadObservers?.length
-            || typeof frameWindow?.lozad === 'function'
-        );
-    }
-
-    return true;
+    const lazySizes = frameWindow?.lazySizes;
+    return Boolean(lazySizes && typeof lazySizes === 'object' && (
+        typeof lazySizes.loader?.checkElems === 'function'
+        || typeof lazySizes.autoSizer?.checkElems === 'function'
+        || typeof lazySizes.loader?.unveil === 'function'
+    ));
 }
 
 async function waitForLazyLoadingAdapter(
@@ -1071,175 +1047,6 @@ export async function activateLazySizes(frameWindow, frameDocument, prepareResul
     }
 }
 
-export function activateVanillaLazyLoad(frameWindow, frameDocument, prepareResult, pushStrategy = pushActivationStrategy) {
-    const instanceCandidates = [
-        frameWindow?.lazyLoadInstance,
-        frameWindow?.__lazyLoadInstance,
-    ];
-
-    if (Array.isArray(frameWindow?.lazyLoadInstances)) {
-        instanceCandidates.push(...frameWindow.lazyLoadInstances);
-    }
-
-    if (Array.isArray(frameWindow?.__lazyLoadInstances)) {
-        instanceCandidates.push(...frameWindow.__lazyLoadInstances);
-    }
-
-    const instances = Array.from(new Set(instanceCandidates.filter((candidate) => candidate && typeof candidate === 'object')));
-    let strategyCount = 0;
-
-    instances.forEach((instance) => {
-        if (typeof instance.update === 'function') {
-            instance.update();
-            strategyCount += 1;
-        }
-
-        if (typeof instance.loadAll === 'function') {
-            instance.loadAll();
-            strategyCount += 1;
-        }
-
-        if (typeof instance.load === 'function') {
-            const candidates = Array.from(frameDocument.querySelectorAll(`${PROCESSABLE_IMAGE_SELECTOR}[data-src], ${PROCESSABLE_IMAGE_SELECTOR}[data-srcset]`));
-            candidates.forEach((img) => {
-                try {
-                    instance.load(img);
-                    strategyCount += 1;
-                } catch (_error) {
-                    // Keep activation resilient. Failures are captured in readiness issues.
-                }
-            });
-        }
-    });
-
-    if (typeof frameWindow?.LazyLoad?.load === 'function') {
-        const candidates = Array.from(frameDocument.querySelectorAll(`${PROCESSABLE_IMAGE_SELECTOR}[data-src], ${PROCESSABLE_IMAGE_SELECTOR}[data-srcset]`));
-        candidates.forEach((img) => {
-            try {
-                frameWindow.LazyLoad.load(img);
-                strategyCount += 1;
-            } catch (_error) {
-                // Keep activation resilient. Failures are captured in readiness issues.
-            }
-        });
-    }
-
-    if (strategyCount > 0) {
-        pushStrategy(prepareResult, 'vanilla-lazyload', strategyCount);
-    }
-}
-
-export function activateLozad(frameWindow, frameDocument, prepareResult, pushStrategy = pushActivationStrategy) {
-    const instanceCandidates = [
-        frameWindow?.lozadObserver,
-        frameWindow?.lozadInstance,
-        frameWindow?.__lozadObserver,
-        frameWindow?.__lozadInstance,
-    ];
-
-    if (Array.isArray(frameWindow?.lozadObservers)) {
-        instanceCandidates.push(...frameWindow.lozadObservers);
-    }
-
-    if (Array.isArray(frameWindow?.__lozadObservers)) {
-        instanceCandidates.push(...frameWindow.__lozadObservers);
-    }
-
-    const instances = Array.from(new Set(instanceCandidates.filter((candidate) => candidate && typeof candidate === 'object')));
-    const lozadElements = Array.from(frameDocument.querySelectorAll(`${PROCESSABLE_PICTURE_SELECTOR} .lozad`));
-    let strategyCount = 0;
-
-    instances.forEach((instance) => {
-        if (typeof instance.observe === 'function') {
-            instance.observe();
-            strategyCount += 1;
-        }
-
-        if (typeof instance.triggerLoad === 'function' && lozadElements.length > 0) {
-            lozadElements.forEach((el) => {
-                try {
-                    instance.triggerLoad(el);
-                    strategyCount += 1;
-                } catch (_error) {
-                    // Keep activation resilient. Failures are captured in readiness issues.
-                }
-            });
-        }
-    });
-
-    if (instances.length === 0 && typeof frameWindow?.lozad === 'function' && lozadElements.length > 0) {
-        try {
-            const observer = frameWindow.lozad('.lozad');
-            if (observer && typeof observer.observe === 'function') {
-                observer.observe();
-                strategyCount += 1;
-            }
-            if (observer && typeof observer.triggerLoad === 'function') {
-                lozadElements.forEach((element) => {
-                    observer.triggerLoad(element);
-                    strategyCount += 1;
-                });
-            }
-        } catch (_error) {
-            // Keep activation resilient. Failures are captured in readiness issues.
-        }
-    }
-
-    if (strategyCount > 0) {
-        pushStrategy(prepareResult, 'lozad', strategyCount);
-    }
-}
-
-function resolveGlobalHandler(frameWindow, handlerName) {
-    const segments = String(handlerName || '')
-        .trim()
-        .replace(/^window\./, '')
-        .split('.')
-        .filter((segment) => segment !== '');
-
-    let current = frameWindow;
-    for (const segment of segments) {
-        current = current?.[segment];
-    }
-
-    return typeof current === 'function' ? current : null;
-}
-
-function swapLazyLoadingAttributes(pictures, attributes, prepareResult, recordNormalizationSample) {
-    const attributeMap = attributes && typeof attributes === 'object' ? attributes : {};
-    const rules = [
-        { dataAttr: attributeMap.src || 'data-src', targetAttr: 'src', imgOnly: true },
-        { dataAttr: attributeMap.srcset || 'data-srcset', targetAttr: 'srcset', imgOnly: false },
-        { dataAttr: attributeMap.sizes || 'data-sizes', targetAttr: 'sizes', imgOnly: false },
-    ];
-
-    pictures.forEach((picture) => {
-        const targets = [picture.querySelector('img'), ...picture.querySelectorAll('source')]
-            .filter((target) => target !== null);
-
-        targets.forEach((target) => {
-            rules.forEach((rule) => {
-                if (rule.imgOnly && target.tagName?.toLowerCase() !== 'img') {
-                    return;
-                }
-
-                if (normalizeLazyAttribute(target, {
-                    dataAttr: rule.dataAttr,
-                    targetAttr: rule.targetAttr,
-                    forceWhenDataUri: true,
-                    replaceExisting: true,
-                })) {
-                    prepareResult.normalizationCount += 1;
-                    recordNormalizationSample({
-                        element: target.tagName?.toLowerCase() || 'unknown',
-                        attr: rule.targetAttr,
-                    });
-                }
-            });
-        });
-    });
-}
-
 export function activateSlotSources(pictures, slot) {
     const slotKey = String(slot?.key || '').trim();
     const slotIndex = Number.isFinite(Number(slot?.index)) ? String(slot.index) : '';
@@ -1278,7 +1085,6 @@ export async function prepareBreakpoints({
     getTrackedPictures,
     getPrimarySourceForBreakpoint,
     lazyLoading = null,
-    sampleLimit = 12,
     requestAnimationFrameFn = (callback) => requestAnimationFrame(callback),
     setTimeoutFn = (callback, delay) => setTimeout(callback, delay),
     adapterWaitTimeoutMs = 2000,
@@ -1287,31 +1093,20 @@ export async function prepareBreakpoints({
     const prepareResult = {
         activationStrategies: [],
         activationSamples: [],
-        normalizationCount: 0,
-        normalizationSamples: [],
         lazyTargetsByImage: new Map(),
-    };
-
-    const recordNormalizationSample = (sample) => {
-        if (prepareResult.normalizationSamples.length >= sampleLimit) {
-            return;
-        }
-
-        prepareResult.normalizationSamples.push(sample);
     };
 
     const pictures = getTrackedPictures(frameDocument);
     const lazyLoadingConfig = lazyLoading && typeof lazyLoading === 'object' ? lazyLoading : {};
-    const adapter = String(lazyLoadingConfig.adapter || 'attributes').trim();
-    const libraryAdapters = ['lazysizes', 'vanilla-lazyload', 'lozad'];
-    const sourceTrackedAdapters = [...libraryAdapters, 'custom'];
+    const adapter = String(lazyLoadingConfig.adapter || 'none').trim();
+    const isLazysizes = adapter === 'lazysizes';
 
     const activatedPictureCount = activateSlotSources(pictures, slot);
     if (activatedPictureCount > 0) {
         pushActivationStrategy(prepareResult, 'slot-source', activatedPictureCount);
     }
 
-    if (sourceTrackedAdapters.includes(adapter)) {
+    if (isLazysizes) {
         pictures.forEach((picture) => {
             const img = picture.querySelector('img');
             const source = getPrimarySourceForBreakpoint(picture, breakpoint);
@@ -1324,15 +1119,12 @@ export async function prepareBreakpoints({
                 source,
                 img,
                 frameDocument?.baseURI || '',
-                adapter === 'custom' ? lazyLoadingConfig.attributes : null,
             );
             if (lazyTargetUrls.length > 0) {
                 prepareResult.lazyTargetsByImage.set(img, lazyTargetUrls);
             }
         });
-    }
 
-    if (libraryAdapters.includes(adapter)) {
         const adapterAvailable = await waitForLazyLoadingAdapter(
             frameWindow,
             adapter,
@@ -1345,42 +1137,12 @@ export async function prepareBreakpoints({
                 `Configured processing lazy-loading adapter was not found in the processing preview iframe after ${adapterWaitTimeoutMs}ms: ${adapter}`,
             );
         }
-    }
 
-    if (adapter === 'lazysizes') {
         await activateLazySizes(frameWindow, frameDocument, prepareResult);
-    } else if (adapter === 'vanilla-lazyload') {
-        activateVanillaLazyLoad(frameWindow, frameDocument, prepareResult);
-    } else if (adapter === 'lozad') {
-        activateLozad(frameWindow, frameDocument, prepareResult);
-    } else if (adapter === 'custom') {
-        const handlerName = String(lazyLoadingConfig.customHandler || '').trim();
-        const handler = resolveGlobalHandler(frameWindow, handlerName);
-        if (!handler) {
-            throw new Error(`Configured processing lazy-loading handler was not found: ${handlerName || '(empty)'}`);
+
+        if (prepareResult.activationStrategies.length === 0) {
+            throw new Error(`Configured processing lazy-loading adapter could not be activated: ${adapter}`);
         }
-
-        await Promise.resolve(handler.call(frameWindow, {
-            document: frameDocument,
-            window: frameWindow,
-            breakpoint,
-            slot,
-            pictures,
-        }));
-        pushActivationStrategy(prepareResult, 'custom', 1);
-    }
-
-    if (libraryAdapters.includes(adapter) && prepareResult.activationStrategies.length === 0) {
-        throw new Error(`Configured processing lazy-loading adapter could not be activated: ${adapter}`);
-    }
-
-    if (adapter === 'attributes') {
-        swapLazyLoadingAttributes(
-            pictures,
-            lazyLoadingConfig.attributes,
-            prepareResult,
-            recordNormalizationSample,
-        );
     }
 
     pictures.forEach((picture) => {

@@ -1,7 +1,5 @@
 import {
     activateLazySizes as processingActivateLazySizes,
-    activateLozad as processingActivateLozad,
-    activateVanillaLazyLoad as processingActivateVanillaLazyLoad,
     appendRunIssue as processingAppendRunIssue,
     appendBreakpointReadinessIssues as processingAppendBreakpointReadinessIssues,
     buildBreakpointReadinessTracker as processingBuildBreakpointReadinessTracker,
@@ -46,7 +44,6 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     const CARD_UPDATE_STATUS_PENDING_MIN_DURATION_MS = 600;
     const REPORT_SCHEMA_VERSION = 1;
     const REPORT_ISSUE_LIMIT = 200;
-    const PREPARE_NORMALIZATION_SAMPLE_LIMIT = 12;
     const COMPACT_BREAKPOINT_CARDS_STORAGE_KEY = 'breakpoints.transforms.compactBreakpointCards';
 
     const bpiProcessingConfig = window.bpiProcessingConfig || {};
@@ -1579,18 +1576,6 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         return Array.from(frameDocument.querySelectorAll(PROCESSABLE_PICTURE_SELECTOR));
     }
 
-    function recordNormalizationSample(target, sample) {
-        if (!target || !Array.isArray(target)) {
-            return;
-        }
-
-        if (target.length >= PREPARE_NORMALIZATION_SAMPLE_LIMIT) {
-            return;
-        }
-
-        target.push(sample);
-    }
-
     function pushActivationStrategy(prepareResult, strategy, count = 0) {
         if (!prepareResult || !Array.isArray(prepareResult.activationStrategies)) {
             return;
@@ -1606,14 +1591,6 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
     async function activateLazySizes(frameWindow, frameDocument, prepareResult) {
         await processingActivateLazySizes(frameWindow, frameDocument, prepareResult, pushActivationStrategy);
-    }
-
-    function activateVanillaLazyLoad(frameWindow, frameDocument, prepareResult) {
-        processingActivateVanillaLazyLoad(frameWindow, frameDocument, prepareResult, pushActivationStrategy);
-    }
-
-    function activateLozad(frameWindow, frameDocument, prepareResult) {
-        processingActivateLozad(frameWindow, frameDocument, prepareResult, pushActivationStrategy);
     }
 
     function normalizeLazyAttribute(target, {
@@ -1639,7 +1616,6 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             getTrackedPictures,
             getPrimarySourceForBreakpoint: (_picture, _breakpoint) => getPrimarySourceForSlot(_picture, slot),
             lazyLoading: bpiProcessingConfig?.processing?.lazyLoading,
-            sampleLimit: PREPARE_NORMALIZATION_SAMPLE_LIMIT,
             requestAnimationFrameFn: (callback) => requestAnimationFrame(callback),
             setTimeoutFn: (callback, delay) => window.setTimeout(callback, delay),
         });
@@ -3323,7 +3299,6 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                         ...breakpointReport.activationStrategies,
                         ...prepareResult.activationStrategies,
                     ]));
-                    breakpointReport.normalizationCount += prepareResult.normalizationCount;
 
                     if (runReport.authorDiagnostics) {
                         runReport.authorDiagnostics.stageTimings.push({
@@ -3339,18 +3314,9 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                             passKind,
                             measurementWidth,
                             strategies: prepareResult.activationStrategies.slice(),
-                            normalizationCount: prepareResult.normalizationCount,
                             samples: Array.isArray(prepareResult.activationSamples)
                                 ? prepareResult.activationSamples.slice(0, 24)
                                 : [],
-                        });
-
-                        prepareResult.normalizationSamples.forEach((sample) => {
-                            recordNormalizationSample(runReport.authorDiagnostics.normalizationSamples, {
-                                breakpoint,
-                                element: sample.element,
-                                attr: sample.attr,
-                            });
                         });
                     }
 
@@ -3723,8 +3689,6 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             getMeasurementWidthForBreakpoint,
             isAuthorDiagnosticsEnabled,
             activateLazySizes,
-            activateVanillaLazyLoad,
-            activateLozad,
             waitForImagesToSettle,
             preloadBreakpointSources,
             appendBreakpointReadinessIssues,

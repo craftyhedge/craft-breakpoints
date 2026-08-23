@@ -15,7 +15,7 @@ final class SettingsModelTest extends Unit
 
         $this->assertTrue($settings->validate());
         $this->assertTrue($settings->previewCenter);
-        $this->assertSame('attributes', $settings->processingLazyLoadingAdapter);
+        $this->assertSame('none', $settings->processingLazyLoadingAdapter);
         $this->assertFalse($settings->thumbhashEnabled);
         $this->assertSame('bg', $settings->thumbhashMode);
     }
@@ -29,6 +29,31 @@ final class SettingsModelTest extends Unit
         $this->assertNotEmpty($settings->getErrors('processingLazyLoadingAdapter'));
     }
 
+    /**
+     * @dataProvider removedProcessingLazyLoadingAdapters
+     */
+    public function testRejectsRemovedProcessingLazyLoadingAdapters(string $adapter): void
+    {
+        $settings = new Settings();
+        $settings->processingLazyLoadingAdapter = $adapter;
+
+        $this->assertFalse($settings->validate());
+        $this->assertNotEmpty($settings->getErrors('processingLazyLoadingAdapter'));
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public function removedProcessingLazyLoadingAdapters(): array
+    {
+        return [
+            'attributes' => ['attributes'],
+            'custom' => ['custom'],
+            'vanilla-lazyload' => ['vanilla-lazyload'],
+            'lozad' => ['lozad'],
+        ];
+    }
+
     public function testRejectsUnknownThumbhashMode(): void
     {
         $settings = new Settings();
@@ -36,14 +61,5 @@ final class SettingsModelTest extends Unit
 
         $this->assertFalse($settings->validate());
         $this->assertNotEmpty($settings->getErrors('thumbhashMode'));
-    }
-
-    public function testCustomProcessingAdapterRequiresHandler(): void
-    {
-        $settings = new Settings();
-        $settings->processingLazyLoadingAdapter = 'custom';
-
-        $this->assertFalse($settings->validate());
-        $this->assertNotEmpty($settings->getErrors('processingLazyLoadingCustomHandler'));
     }
 }

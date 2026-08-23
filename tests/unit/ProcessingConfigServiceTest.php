@@ -47,8 +47,9 @@ final class ProcessingConfigServiceTest extends Unit
         $this->assertIsArray($config['processing']);
         $this->assertArrayHasKey('authorDiagnosticsEnabled', $config['processing']);
         $this->assertIsBool($config['processing']['authorDiagnosticsEnabled']);
-        $this->assertSame('attributes', $config['processing']['lazyLoading']['adapter'] ?? null);
-        $this->assertSame('data-srcset', $config['processing']['lazyLoading']['attributes']['srcset'] ?? null);
+        $this->assertSame('none', $config['processing']['lazyLoading']['adapter'] ?? null);
+        $this->assertArrayNotHasKey('attributes', $config['processing']['lazyLoading']);
+        $this->assertArrayNotHasKey('customHandler', $config['processing']['lazyLoading']);
         $this->assertSame(array_values($config['breakpoints']), $config['breakpointValues']);
     }
 }

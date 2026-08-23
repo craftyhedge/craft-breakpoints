@@ -37,11 +37,7 @@ class Settings extends Model
     public bool $preload = false;
     public bool $thumbhashEnabled = false;
     public string $thumbhashMode = 'bg';
-    public string $processingLazyLoadingAdapter = 'attributes';
-    public string $processingLazyLoadingSrcAttribute = 'data-src';
-    public string $processingLazyLoadingSrcsetAttribute = 'data-srcset';
-    public string $processingLazyLoadingSizesAttribute = 'data-sizes';
-    public string $processingLazyLoadingCustomHandler = '';
+    public string $processingLazyLoadingAdapter = 'none';
     public bool $previewCenter = true;
     /**
      * @var array<int, int|float>
@@ -64,14 +60,9 @@ class Settings extends Model
                 'svgTemplatePath',
                 'thumbhashMode',
                 'processingLazyLoadingAdapter',
-                'processingLazyLoadingSrcAttribute',
-                'processingLazyLoadingSrcsetAttribute',
-                'processingLazyLoadingSizesAttribute',
-                'processingLazyLoadingCustomHandler',
             ], 'string'],
             ['thumbhashMode', 'in', 'range' => ['bg', 'srcset']],
-            ['processingLazyLoadingAdapter', 'in', 'range' => ['none', 'attributes', 'lazysizes', 'vanilla-lazyload', 'lozad', 'custom']],
-            ['processingLazyLoadingCustomHandler', 'required', 'when' => static fn(self $model): bool => $model->processingLazyLoadingAdapter === 'custom'],
+            ['processingLazyLoadingAdapter', 'in', 'range' => ['none', 'lazysizes']],
             [['escapeWidth', 'defaultWidth', 'defaultHeight', 'quality', 'allowUpscale'], 'integer', 'min' => 0],
             [['nativeLazyLoadingEnabled', 'priority', 'preload', 'thumbhashEnabled', 'previewCenter'], 'boolean'],
             [['breakpoints', 'dpr'], 'safe'],

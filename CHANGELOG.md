@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Restricted JavaScript lazy-loading adapters to `none` (default) and `lazysizes`. Removed `attributes`, `custom`, Vanilla LazyLoad, and Lozad, along with configurable lazy attribute names and the custom processing handler. Leftover config values fall back to `none`. Native lazy loading forces adapter `none` for processing as well as render. Use a custom template for any other library.
+
 ## 0.1.10 - 2026-08-10
 
 - Added a local-admin front-end process button that appears when a page renders at least one unsaved (non-SVG) transform set, deep-linking into Control Panel processing with auto-run enabled.

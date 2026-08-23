@@ -45,13 +45,7 @@ async function loadRuntimeHooks() {
         processing: {
             authorDiagnosticsEnabled: false,
             lazyLoading: {
-                adapter: 'attributes',
-                attributes: {
-                    src: 'data-src',
-                    srcset: 'data-srcset',
-                    sizes: 'data-sizes',
-                },
-                customHandler: '',
+                adapter: 'none',
             },
         },
     };
@@ -654,37 +648,26 @@ describe('transforms runtime helper logic', () => {
         expect(result.summary.warningCount).toBe(2);
     });
 
-    it('prepares breakpoint images with normalization and eager loading attributes', async () => {
+    it('prepares breakpoint images with eager loading attributes', async () => {
         const frameDocument = document.implementation.createHTMLDocument('preview');
         frameDocument.body.innerHTML = `
             <picture data-set="hero" data-asset-id="asset-hero">
-                <source data-bp-source="primary" data-bp-size="480" data-bp-enabled="true" data-srcset="https://example.test/hero-480.webp 1x" data-sizes="100vw" srcset="https://example.test/placeholder-source.jpg" />
-                <img data-src="https://example.test/hero.jpg" data-srcset="https://example.test/hero@2x.jpg 2x" data-sizes="100vw" src="https://example.test/placeholder.jpg" class="lazyload" />
+                <source data-bp-source="primary" data-bp-size="480" data-bp-enabled="true" srcset="https://example.test/placeholder-source.jpg" />
+                <img src="https://example.test/placeholder.jpg" />
             </picture>
         `;
 
         hooks.setPreviewFrameForTests(frameDocument, {});
         const result = await hooks.prepareBreakpoints(480, {
-            adapter: 'attributes',
-            attributes: {
-                src: 'data-src',
-                srcset: 'data-srcset',
-                sizes: 'data-sizes',
-            },
+            adapter: 'none',
         });
 
         const img = frameDocument.querySelector('img');
-        const source = frameDocument.querySelector('source');
 
-        expect(result.activationStrategies).toEqual(['attributes']);
-        expect(result.normalizationCount).toBe(5);
+        expect(result.activationStrategies).toEqual(['none']);
         expect(img.getAttribute('loading')).toBe('eager');
         expect(img.getAttribute('fetchpriority')).toBe('high');
-        expect(img.getAttribute('src')).toBe('https://example.test/hero.jpg');
-        expect(img.getAttribute('srcset')).toBe('https://example.test/hero@2x.jpg 2x');
-        expect(img.getAttribute('sizes')).toBe('100vw');
-        expect(source.getAttribute('srcset')).toBe('https://example.test/hero-480.webp 1x');
-        expect(source.getAttribute('sizes')).toBe('100vw');
+        expect(img.getAttribute('src')).toBe('https://example.test/placeholder.jpg');
     });
 
     it('forces the requested canonical source active without changing the viewport boundary', () => {
@@ -1331,157 +1314,6 @@ describe('transforms runtime helper logic', () => {
         picture.remove();
     });
 
-    it('activates vanilla-lazyload and lozad fallback observers', () => {
-        const frameDocument = document.implementation.createHTMLDocument('preview');
-        frameDocument.body.innerHTML = `
-            <picture data-set="hero"><img data-src="/hero.jpg" /></picture>
-            <picture data-set="card"><img data-srcset="/card.jpg 1x" /></picture>
-            <picture data-set="lozad"><img class="lozad" /></picture>
-        `;
-
-        const vanillaCalls = {
-            update: 0,
-            loadAll: 0,
-            load: 0,
-            staticLoad: 0,
-        };
-
-        const instance = {
-            update: () => {
-                vanillaCalls.update += 1;
-            },
-            loadAll: () => {
-                vanillaCalls.loadAll += 1;
-            },
-            load: () => {
-                vanillaCalls.load += 1;
-            },
-        };
-
-        let lozadSelector = null;
-        let lozadObserveCount = 0;
-        let lozadTriggerCount = 0;
-
-        const frameWindow = {
-            lazyLoadInstance: instance,
-            LazyLoad: {
-                load: () => {
-                    vanillaCalls.staticLoad += 1;
-                },
-            },
-            lozad: (selector) => {
-                lozadSelector = selector;
-                return {
-                    observe: () => {
-                        lozadObserveCount += 1;
-                    },
-                    triggerLoad: () => {
-                        lozadTriggerCount += 1;
-                    },
-                };
-            },
-        };
-
-        const prepareResult = { activationStrategies: [] };
-        hooks.activateVanillaLazyLoad(frameWindow, frameDocument, prepareResult);
-        hooks.activateLozad(frameWindow, frameDocument, prepareResult);
-
-        expect(vanillaCalls.update).toBe(1);
-        expect(vanillaCalls.loadAll).toBe(1);
-        expect(vanillaCalls.load).toBe(2);
-        expect(vanillaCalls.staticLoad).toBe(2);
-        expect(prepareResult.activationStrategies).toContain('vanilla-lazyload:6');
-        expect(lozadSelector).toBe('.lozad');
-        expect(lozadObserveCount).toBe(1);
-        expect(lozadTriggerCount).toBe(1);
-        expect(prepareResult.activationStrategies).toContain('lozad:2');
-    });
-
-    it('captures configured lazy targets for a custom adapter', async () => {
-        const frameDocument = document.implementation.createHTMLDocument('preview');
-        frameDocument.body.innerHTML = `
-            <picture data-set="hero" data-picture-id="hero">
-                <source data-bp-source="primary" data-bp-size="480" data-original-set="https://example.test/hero.webp 1x" />
-                <img data-original="https://example.test/hero.jpg" src="https://example.test/placeholder.gif" />
-            </picture>
-        `;
-
-        const frameWindow = {
-            project: {
-                prepareImages: () => Promise.resolve(),
-            },
-        };
-        hooks.setPreviewFrameForTests(frameDocument, frameWindow);
-
-        const result = await hooks.prepareBreakpoints(480, {
-            adapter: 'custom',
-            attributes: {
-                src: 'data-original',
-                srcset: 'data-original-set',
-                sizes: 'data-sizes',
-            },
-            customHandler: 'window.project.prepareImages',
-        });
-        const img = frameDocument.querySelector('img');
-
-        expect(result.activationStrategies).toContain('custom:1');
-        expect(result.lazyTargetsByImage.get(img)).toEqual([
-            'https://example.test/hero.webp',
-            'https://example.test/hero.jpg',
-        ]);
-    });
-
-    it('accepts lazy targets from each format source in the selected slot', async () => {
-        const frameDocument = document.implementation.createHTMLDocument('preview');
-        frameDocument.body.innerHTML = `
-            <picture data-set="hero" data-picture-id="hero">
-                <source data-bp-source="primary" data-bp-size="480" data-bp-key="base" data-bp-index="0" data-original-set="https://example.test/hero.jpg 1x" />
-                <source data-bp-source="secondary" data-bp-size="480" data-bp-key="base" data-bp-index="0" data-original-set="https://example.test/hero.webp 1x" />
-                <source data-bp-source="primary" data-bp-size="768" data-bp-key="sm" data-bp-index="1" data-original-set="https://example.test/hero-sm.jpg 1x" />
-                <img src="https://example.test/placeholder.gif" />
-            </picture>
-        `;
-
-        const frameWindow = {
-            project: {
-                prepareImages: () => Promise.resolve(),
-            },
-        };
-        hooks.setPreviewFrameForTests(frameDocument, frameWindow);
-
-        const result = await hooks.prepareBreakpoints(480, {
-            adapter: 'custom',
-            attributes: {
-                src: 'data-original',
-                srcset: 'data-original-set',
-                sizes: 'data-sizes',
-            },
-            customHandler: 'window.project.prepareImages',
-        });
-        const img = frameDocument.querySelector('img');
-
-        expect(result.lazyTargetsByImage.get(img)).toEqual([
-            'https://example.test/hero.jpg',
-            'https://example.test/hero.webp',
-        ]);
-
-        Object.defineProperty(img, 'currentSrc', {
-            configurable: true,
-            value: 'https://example.test/hero.webp',
-        });
-        Object.defineProperty(img, 'complete', { configurable: true, value: true });
-        Object.defineProperty(img, 'naturalWidth', { configurable: true, value: 640 });
-        Object.defineProperty(img, 'naturalHeight', { configurable: true, value: 360 });
-
-        const tracker = hooks.buildBreakpointReadinessTracker(
-            480,
-            null,
-            result.lazyTargetsByImage,
-        );
-        expect(tracker.readinessByKey.get('hero').status).toBe('loaded');
-        tracker.cleanup();
-    });
-
     it('marks pending entries unresolved when cancelled during image wait', async () => {
         const readinessByKey = new Map([
             ['img-1', {
@@ -1707,40 +1539,6 @@ describe('transforms runtime helper logic', () => {
         expect(report.issues[0].source).toBe('https://example.test/no-source.jpg');
         expect(report.issues[1].code).toBe('network-failure');
         expect(report.issues[1].source).toBe('https://example.test/network.jpg');
-    });
-
-    it('activates lozad observer instances when available', () => {
-        const frameDocument = document.implementation.createHTMLDocument('preview');
-        frameDocument.body.innerHTML = `
-            <picture data-set="lozad"><img class="lozad" /></picture>
-            <picture data-set="lozad"><img class="lozad" /></picture>
-        `;
-
-        let observeCount = 0;
-        let triggerCount = 0;
-
-        const observer = {
-            observe: () => {
-                observeCount += 1;
-            },
-            triggerLoad: () => {
-                triggerCount += 1;
-            },
-        };
-
-        const frameWindow = {
-            lozadObserver: observer,
-            lozad: () => {
-                throw new Error('fallback should not run when observer exists');
-            },
-        };
-
-        const prepareResult = { activationStrategies: [] };
-        hooks.activateLozad(frameWindow, frameDocument, prepareResult);
-
-        expect(observeCount).toBe(1);
-        expect(triggerCount).toBe(2);
-        expect(prepareResult.activationStrategies).toContain('lozad:3');
     });
 
     it('publishes processing report events and stores last report state', () => {
@@ -2163,8 +1961,6 @@ describe('transforms runtime helper logic', () => {
             setPreviewWidth: async () => null,
             prepareBreakpoints: () => ({
                 activationStrategies: ['none'],
-                normalizationCount: 0,
-                normalizationSamples: [],
             }),
             preloadBreakpointSources: async () => {
                 preloadCallCount += 1;
@@ -2253,8 +2049,6 @@ describe('transforms runtime helper logic', () => {
             setPreviewWidth: async () => null,
             prepareBreakpoints: () => ({
                 activationStrategies: ['none'],
-                normalizationCount: 0,
-                normalizationSamples: [],
             }),
             preloadBreakpointSources: async () => new Map([['pic-1', true]]),
             buildBreakpointReadinessTracker: () => ({
@@ -2314,8 +2108,6 @@ describe('transforms runtime helper logic', () => {
             setPreviewWidth: async (width) => measuredWidths.push(width),
             prepareBreakpoints: () => ({
                 activationStrategies: ['none'],
-                normalizationCount: 0,
-                normalizationSamples: [],
             }),
             preloadBreakpointSources: async () => new Map(),
             buildBreakpointReadinessTracker: (slot) => {
@@ -2461,8 +2253,6 @@ describe('transforms runtime helper logic', () => {
             setPreviewWidth: async () => null,
             prepareBreakpoints: () => ({
                 activationStrategies: ['none'],
-                normalizationCount: 0,
-                normalizationSamples: [],
             }),
             preloadBreakpointSources: async () => new Map([['pic-1', false]]),
             buildBreakpointReadinessTracker: () => ({

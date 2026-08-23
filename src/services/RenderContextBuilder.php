@@ -208,14 +208,13 @@ class RenderContextBuilder extends Component
 
         $lazyConfig = $this->_plugin->getConfigService()->getProcessingLazyLoadingConfig($config);
         $adapter = (string)($lazyConfig['adapter'] ?? 'none');
-        if ($adapter === 'none') {
+        if ($adapter !== 'lazysizes') {
             return $context;
         }
 
-        $attributes = is_array($lazyConfig['attributes'] ?? null) ? $lazyConfig['attributes'] : [];
-        $srcAttribute = (string)($attributes['src'] ?? 'data-src');
-        $srcsetAttribute = (string)($attributes['srcset'] ?? 'data-srcset');
-        $sizesAttribute = (string)($attributes['sizes'] ?? 'data-sizes');
+        $srcAttribute = 'data-src';
+        $srcsetAttribute = 'data-srcset';
+        $sizesAttribute = 'data-sizes';
 
         $breakpointData = is_array($context['breakpointData'] ?? null) ? $context['breakpointData'] : [];
         foreach ($breakpointData as $slotKey => $data) {
@@ -239,7 +238,7 @@ class RenderContextBuilder extends Component
         $imgAttributes = $this->moveAttribute($imgAttributes, 'src', $srcAttribute);
         $imgAttributes = $this->moveAttribute($imgAttributes, 'srcset', $srcsetAttribute);
         $imgAttributes = $this->moveAttribute($imgAttributes, 'sizes', $sizesAttribute);
-        $imgAttributes = $this->appendClass($imgAttributes, $this->lazyLoadingClassForAdapter($adapter));
+        $imgAttributes = $this->appendClass($imgAttributes, 'lazyload');
         $context['imgAttributes'] = $imgAttributes;
 
         return $context;
@@ -258,16 +257,6 @@ class RenderContextBuilder extends Component
         unset($attributes[$from]);
 
         return $attributes;
-    }
-
-    private function lazyLoadingClassForAdapter(string $adapter): string
-    {
-        return match ($adapter) {
-            'lazysizes' => 'lazyload',
-            'vanilla-lazyload' => 'lazy',
-            'lozad' => 'lozad',
-            default => '',
-        };
     }
 
     /**

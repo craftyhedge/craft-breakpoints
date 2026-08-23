@@ -228,5 +228,5 @@ entire transform set at once.
 ## Next steps
 
 - [Configuration](configuration.md) — settings and the config file.
-- [Custom Image Templates](custom-templates.md) — custom markup, LQIP, and lazy-loading libraries.
+- [Custom Image Templates](custom-templates.md) — custom markup, LQIP, and lazysizes.
 - [Responsive Images](responsive-images.md) — how the output is assembled.

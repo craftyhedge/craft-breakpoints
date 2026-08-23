@@ -31,13 +31,7 @@ class ProcessingConfig extends Component
                 'processing' => [
                     'authorDiagnosticsEnabled' => false,
                     'lazyLoading' => [
-                        'adapter' => 'attributes',
-                        'attributes' => [
-                            'src' => 'data-src',
-                            'srcset' => 'data-srcset',
-                            'sizes' => 'data-sizes',
-                        ],
-                        'customHandler' => '',
+                        'adapter' => 'none',
                     ],
                 ],
             ];

@@ -184,22 +184,36 @@ final class BreakpointConfigServiceTest extends Unit
         $this->assertSame('auto', $overridden['fetchpriority'] ?? null);
     }
 
-    public function testProcessingLazyLoadingConfigIsNormalized(): void
+    public function testProcessingLazyLoadingConfigFallsBackUnknownAdaptersToNone(): void
     {
         $service = Plugin::getInstance()->getConfigService();
 
-        $config = $service->getProcessingLazyLoadingConfig([
-            'processingLazyLoadingAdapter' => 'custom',
-            'processingLazyLoadingSrcAttribute' => ' data-original ',
-            'processingLazyLoadingSrcsetAttribute' => 'invalid attribute',
-            'processingLazyLoadingSizesAttribute' => 'data-responsive-sizes',
-            'processingLazyLoadingCustomHandler' => ' window.project.prepareImages ',
-        ]);
+        foreach (['attributes', 'custom', 'vanilla-lazyload', 'lozad', 'automatic'] as $adapter) {
+            $config = $service->getProcessingLazyLoadingConfig([
+                'nativeLazyLoadingEnabled' => false,
+                'processingLazyLoadingAdapter' => $adapter,
+            ]);
 
-        $this->assertSame('custom', $config['adapter']);
-        $this->assertSame('data-original', $config['attributes']['src']);
-        $this->assertSame('data-srcset', $config['attributes']['srcset']);
-        $this->assertSame('data-responsive-sizes', $config['attributes']['sizes']);
-        $this->assertSame('window.project.prepareImages', $config['customHandler']);
+            $this->assertSame('none', $config['adapter'], $adapter);
+            $this->assertSame(['adapter'], array_keys($config));
+        }
+    }
+
+    public function testProcessingLazyLoadingConfigUsesLazysizesOnlyWhenNativeLazyLoadingIsOff(): void
+    {
+        $service = Plugin::getInstance()->getConfigService();
+
+        $nativeOn = $service->getProcessingLazyLoadingConfig([
+            'nativeLazyLoadingEnabled' => true,
+            'processingLazyLoadingAdapter' => 'lazysizes',
+        ]);
+        $this->assertSame('none', $nativeOn['adapter']);
+
+        $nativeOff = $service->getProcessingLazyLoadingConfig([
+            'nativeLazyLoadingEnabled' => false,
+            'processingLazyLoadingAdapter' => 'lazysizes',
+        ]);
+        $this->assertSame('lazysizes', $nativeOff['adapter']);
+        $this->assertSame(['adapter'], array_keys($nativeOff));
     }
 }

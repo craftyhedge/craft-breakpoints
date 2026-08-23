@@ -142,9 +142,21 @@ If the configured custom template cannot render, Breakpoints logs a warning and 
 
 That fallback keeps the page from failing hard, but it will not include the full responsive `<picture>` source set. Check your Craft logs if a custom image template unexpectedly renders as a plain image.
 
-## Low-Quality Placeholders and Non-native Lazy Loading 
+## Low-Quality Placeholders and Non-native Lazy Loading
+
+When native lazy loading is off, set `processingLazyLoadingAdapter` to
+`lazysizes` if the plugin should rewrite markup and unveil images during
+processing. Use `none` when this template owns `src` / `data-src` itself.
 
 ### Imgixer And Lazysizes
+
+This example owns the attribute rewrite, so keep native lazy loading off and
+adapter `none`:
+
+```php
+'nativeLazyLoadingEnabled' => false,
+'processingLazyLoadingAdapter' => 'none',
+```
 
 ```twig
 {# macros #}

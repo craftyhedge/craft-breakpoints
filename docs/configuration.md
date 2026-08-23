@@ -41,11 +41,7 @@ panel exposes the common output, transform, template, and editor defaults.
 | `preload` | bool | `false` | Whether `image()` calls register responsive image preload links by default. Usually set per call for above-the-fold images. |
 | `thumbhashEnabled` | bool | `false` | Enables optional integration with `craftyhedge/craft-thumbhash` when that plugin is installed. |
 | `thumbhashMode` | string | `'bg'` | Default ThumbHash render mode: `bg` for one picture-level hash, or `srcset` for per-source hashes. |
-| `processingLazyLoadingAdapter` | string | `attributes` | Explicit JS lazy-loading adapter: `none`, `attributes`, `lazysizes`, `vanilla-lazyload`, `lozad`, or `custom`. Used for front-end output when native lazy loading is disabled, and for processing preview activation. |
-| `processingLazyLoadingSrcAttribute` | string | `data-src` | Attribute used for lazy-loaded image `src` values. |
-| `processingLazyLoadingSrcsetAttribute` | string | `data-srcset` | Attribute used for lazy-loaded `srcset` values. |
-| `processingLazyLoadingSizesAttribute` | string | `data-sizes` | Attribute used for lazy-loaded `sizes` values. |
-| `processingLazyLoadingCustomHandler` | string | *(blank)* | Global async function used by the `custom` adapter, for example `window.project.prepareBreakpointImages`. |
+| `processingLazyLoadingAdapter` | string | `none` | When native lazy loading is off: `none` leaves markup unchanged, `lazysizes` rewrites to `data-src` / `data-srcset` / `data-sizes`, adds class `lazyload`, and unveils images during processing. Unknown leftover values fall back to `none`. |
 | `previewCenter` | bool | `true` | Editor-only: centers the preview width in the Transform Sets UI. |
 | `enableUsageTracking` | bool | `false` | Development/staging utility: records transform set usage by page/source for the Transform Tracking utility. Keep disabled in production unless explicitly needed. |
 | `frontendProcessButtonPosition` | string | `bottom-right` | Local-admin only: corner for the front-end unsaved-set process button. One of `bottom-right`, `bottom-left`, `top-right`, `top-left`. Invalid values fall back to `bottom-right`. |
@@ -131,10 +127,8 @@ return [
     'thumbhashMode' => 'bg',
 
     // JavaScript lazy loading is explicit; no library auto-detection occurs.
-    'processingLazyLoadingAdapter' => 'attributes',
-    'processingLazyLoadingSrcAttribute' => 'data-src',
-    'processingLazyLoadingSrcsetAttribute' => 'data-srcset',
-    'processingLazyLoadingSizesAttribute' => 'data-sizes',
+    // `none` (default) or `lazysizes` when native lazy loading is disabled.
+    'processingLazyLoadingAdapter' => 'none',
 
     // Optional project templates (relative to Craft's templates/ directory):
     'pictureTemplatePath' => '_images/breakpoints-picture.twig',
@@ -152,22 +146,10 @@ return [
 ];
 ```
 
-When native lazy loading is disabled and `loading` is not `eager`, Breakpoints
-moves `src`, `srcset`, and `sizes` into the configured lazy attributes. Library
-adapters also append their expected class to `<img>`: `lazyload` for lazysizes,
-`lazy` for vanilla-lazyload, and `lozad` for Lozad.
-
-The `custom` adapter calls the configured global function once per slot inside
-the processing iframe. The function receives `{ document, window, breakpoint,
-slot, pictures }` and may return a promise. Processing waits for that promise,
-then independently waits for each real DOM image to load or decode. Lazy target
-URLs are read from the configured processing source attributes before the
-handler runs so placeholders cannot satisfy readiness.
-
-```php
-'processingLazyLoadingAdapter' => 'custom',
-'processingLazyLoadingCustomHandler' => 'window.project.prepareBreakpointImages',
-```
+When native lazy loading is disabled, `loading` is not `eager`, and the adapter
+is `lazysizes`, Breakpoints moves `src`, `srcset`, and `sizes` into `data-src`,
+`data-srcset`, and `data-sizes`, and appends class `lazyload` on `<img>`.
+Adapter `none` does not rewrite markup. Other libraries need a custom template.
 
 ## See also
 
