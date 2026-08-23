@@ -161,7 +161,7 @@
                 { label: "Background (picture)", value: "bg" },
                 { label: "Srcset (per source)", value: "srcset" }
             ],
-            value: settings.thumbhashMode ?? 'bg',
+            value: settings.thumbhashMode ?? 'srcset',
             errors: settings.getErrors('thumbhashMode'),
             disabled: projectConfig.thumbhashMode is defined,
             warning: _self.warning('thumbhashMode', configFileName)

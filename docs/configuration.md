@@ -15,6 +15,17 @@ and explains the precedence rules.
 - **Per-call `image()` options.** The third argument to the
   [`image()`](reference/twig-image-tag.md) function, scoped to a single render.
 
+Later layers replace earlier ones (`array_merge`, later wins):
+
+1. Plugin defaults — `src/config.php`
+2. Control panel Settings — only keys that differ from a fresh Settings model
+3. Project file — `config/breakpoints.php`
+4. Per-call `image()` options
+
+Untouched Control Panel fields therefore do not override plugin defaults. A
+project file key always beats Settings. A key on the `image()` call beats
+everything.
+
 ## Settings reference
 
 The table lists each project-level setting, its built-in default, and what it
@@ -37,14 +48,15 @@ panel exposes the common output, transform, template, and editor defaults.
 | `pictureTemplatePath` | string | *(plugin default)* | Custom template for raster assets. Project paths are relative to Craft's `templates/` directory; blank uses the built-in template. |
 | `svgTemplatePath` | string | *(plugin default)* | Custom template for SVG assets. Project paths are relative to Craft's `templates/` directory; blank uses the built-in template. |
 | `nativeLazyLoadingEnabled` | bool | `true` | When on, the `<img>` gets a native `loading` attribute (`lazy` by default), and non-native loading features such as JS lazy-loading adapters and ThumbHash output are disabled. When off, those features can rewrite `src`/`srcset` to data attributes. |
-| `priority` | bool | `false` | Convenience option that enables `preload`, `loading: 'eager'`, and `fetchpriority: 'high'` unless individually overridden. |
-| `preload` | bool | `false` | Whether `image()` calls register responsive image preload links by default. Usually set per call for above-the-fold images. |
+| `priority` | bool | `false` | Per-`image()` shortcut for above-the-fold images: sets `preload`, `loading: 'eager'`, and `fetchpriority: 'high'`. Leave this `false` in the project file; set `{ priority: true }` on the `image()` call. Individual hints on that same call still win. |
+| `preload` | bool | `false` | Whether `image()` calls register responsive image preload links by default. Set per call (or via `priority`) for above-the-fold images; do not enable it project-wide. |
 | `thumbhashEnabled` | bool | `false` | Enables optional integration with `craftyhedge/craft-thumbhash` when that plugin is installed. |
-| `thumbhashMode` | string | `'bg'` | Default ThumbHash render mode: `bg` for one picture-level hash, or `srcset` for per-source hashes. |
+| `thumbhashMode` | string | `'srcset'` | Default ThumbHash render mode: `srcset` for per-source hashes, or `bg` for one picture-level hash. |
 | `processingLazyLoadingAdapter` | string | `none` | When native lazy loading is off: `none` leaves markup unchanged, `lazysizes` rewrites to `data-src` / `data-srcset` / `data-sizes`, adds class `lazyload`, and unveils images during processing. Unknown leftover values fall back to `none`. |
 | `previewCenter` | bool | `true` | Editor-only: centers the preview width in the Transform Sets UI. |
+| `allowTransformEditing` | bool | `true` | Enables Control Panel nav, processing, and saving transform sets. Keep on for local development only; the sample turns it off outside local via env. |
 | `enableUsageTracking` | bool | `false` | Development/staging utility: records transform set usage by page/source for the Transform Tracking utility. Keep disabled in production unless explicitly needed. |
-| `frontendProcessButtonPosition` | string | `bottom-right` | Local-admin only: corner for the front-end unsaved-set process button. One of `bottom-right`, `bottom-left`, `top-right`, `top-left`. Invalid values fall back to `bottom-right`. |
+| `frontendProcessButtonPosition` | string | `bottom-right` | Local-admin only: corner for the [front-end unsaved-set process button](getting-started.md#front-end-process-button). One of `bottom-right`, `bottom-left`, `top-right`, `top-left`. Invalid values fall back to `bottom-right`. |
 | `dpr` | array | `[1]` | Device pixel ratios for `srcset`. `1x` is always included. The Control Panel offers common `2x`/`3x` presets; project config may provide any positive numeric ratio such as `1.5`. |
 
 Notes:
@@ -71,7 +83,7 @@ ThumbHash only applies when native lazy loading is off. If
 `loading: 'eager'`), ThumbHash output is skipped regardless of
 `thumbhashEnabled`. SVG assets are never given a hash.
 
-> Requires a JS lazy loading library.
+> Requires the lazysizes JS library.
 
 Enable it project-wide in `config/breakpoints.php`:
 
@@ -124,7 +136,7 @@ return [
 
     // Optional ThumbHash integration. Render calls can override this per image.
     'thumbhashEnabled' => false,
-    'thumbhashMode' => 'bg',
+    'thumbhashMode' => 'srcset',
 
     // JavaScript lazy loading is explicit; no library auto-detection occurs.
     // `none` (default) or `lazysizes` when native lazy loading is disabled.

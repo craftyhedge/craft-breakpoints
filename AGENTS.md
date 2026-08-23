@@ -88,6 +88,7 @@ CP settings Twig disables fields already defined in the project file (`projectCo
 - `docs/responsive-images.md` — media ranges, DPR, escape width
 - `docs/custom-templates.md` — override Twig markup
 - `docs/reference/twig-image-tag.md` — `image()` API
+- `docs/known-limitations.md` — known limitations
 - `TESTING.md` — local test harness (export-ignored from package)
 
 ## Commands

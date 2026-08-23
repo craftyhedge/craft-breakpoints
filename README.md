@@ -32,7 +32,7 @@ Processing is intended for local development environments with the resulting tra
 - One `<source>` per configured breakpoint, with correct `media` ranges.
 - Primary format plus an optional secondary `<source>` fallback (e.g. AVIF + WebP).
 - DPR `srcset` density descriptors.
-- SVG assets pass through to a plain `<img>` (no `<picture>`).
+- SVG assets render as a `<picture>` wrapping `<img>` (no sources; skipped during processing).
 - Native `loading="lazy"` / `decoding` control.
 - Fully overridable Twig templates for custom markup and lazy-loading integrations.
 - File-backed transform sets that are commit-friendly and reviewable in version control.
@@ -96,6 +96,7 @@ See [Getting Started](docs/getting-started.md) for the full walkthrough.
 - [Responsive Images](docs/responsive-images.md) — the output model, media ranges, DPR, and escape width.
 - [Custom Image Templates](docs/custom-templates.md) — render through your own Twig.
 - [`image()` Twig Function](docs/reference/twig-image-tag.md) — full API reference.
+- [Known Limitations](docs/known-limitations.md)
 - [Release history](CHANGELOG.md)
 
 ## Support

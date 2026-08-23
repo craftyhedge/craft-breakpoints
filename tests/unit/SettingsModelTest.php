@@ -17,7 +17,7 @@ final class SettingsModelTest extends Unit
         $this->assertTrue($settings->previewCenter);
         $this->assertSame('none', $settings->processingLazyLoadingAdapter);
         $this->assertFalse($settings->thumbhashEnabled);
-        $this->assertSame('bg', $settings->thumbhashMode);
+        $this->assertSame('srcset', $settings->thumbhashMode);
     }
 
     public function testRejectsUnknownProcessingLazyLoadingAdapter(): void

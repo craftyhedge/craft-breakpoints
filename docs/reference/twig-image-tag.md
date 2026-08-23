@@ -6,7 +6,7 @@ Use the `image()` function when you want Breakpoints to render image markup from
 {{ image(asset, 'hero') }}
 ```
 
-The function returns safe Twig markup for the transform handle you pass in. Raster assets render as a `<picture>` element with responsive sources and a fallback `<img>`. SVG assets render as a plain `<img>`.
+The function returns safe Twig markup for the transform handle you pass in. Raster assets render as a `<picture>` element with responsive sources and a fallback `<img>`. SVG assets render as a `<picture>` wrapping a single `<img>` (no `<source>` elements) and are excluded from transform processing.
 
 ## Basic Usage
 
@@ -88,7 +88,7 @@ Adds a browser fetch-priority hint to the fallback `<img>`. Use `high` sparingly
 **Type**: `boolean`
 **Default**: `false`
 
-Convenience option for important above-the-fold images. It enables preload links, eager loading, and high fetch priority.
+Convenience option for important above-the-fold images. It enables preload links, eager loading, and high fetch priority. Use it on the `image()` call, not in `config/breakpoints.php` — a project-wide `true` would apply to every image.
 
 ```twig
 {{ image(asset, 'hero', {
@@ -234,8 +234,6 @@ Adds an extra image variant at the escape width. This can help keep very large l
   escape: true
 }) }}
 ```
-
-`includeEscapeWidth` is still accepted as a fallback alias for `escape`.
 
 ## First-Time Transform Defaults
 

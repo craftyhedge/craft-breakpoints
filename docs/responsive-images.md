@@ -2,17 +2,28 @@
 
 ## Overview
 
-Breakpoints outputs responsive images using standard picture markup. You choose the breakpoints, image formats, and DPR ratios in the plugin settings; Breakpoints turns those choices into standard HTML:
+Breakpoints outputs responsive images using standard picture markup. You choose
+the breakpoints (in `config/breakpoints.php`), image formats, and DPR ratios;
+Breakpoints turns those choices into standard HTML:
 
 - `<picture>`
 - `<source>`
 - `<img>`
 
-From there, the browser chooses the best available image for the visitor's screen size and device pixel density.
+Raster assets get a `<picture>` with one `<source>` per slot and a fallback
+`<img>`. SVG assets get a `<picture>` wrapping a single `<img>` (no
+`<source>` elements) and are skipped during processing.
+
+From there, the browser chooses the best available image for the visitor's
+screen size and device pixel density.
 
 ## What Gets Rendered
 
-For each configured breakpoint, Breakpoints can render:
+Slots are synthetic `base` plus one slot per configured breakpoint name,
+ordered by ascending width. `base` uses the smallest breakpoint width as its
+media.
+
+For each slot, Breakpoints can render:
 
 - A primary `<source>` for your main image format
 - A secondary `<source>` when you have configured a fallback format
@@ -24,7 +35,8 @@ This keeps the markup compatible with normal browser behavior while still giving
 
 Breakpoints uses native Craft transforms. It will work with external transform services but this requires a plugin or custom code that will convert Craft's native transform methods to the external service.
 
-External transforms services are recommended in general but do improve processing speed when compared to native transforms. Only when new transforms are generated.
+External transform services are recommended. They mainly speed things up when
+new transforms are generated, compared with native Craft transforms.
 
 Known working options:
 - [Imgixer](https://plugins.craftcms.com/imgixer) - as long as you set the transformSource to the external service you configure
@@ -35,11 +47,15 @@ Known working options:
 
 ## Breakpoints
 
-Your configured breakpoints are ordered and turned into media ranges. Smaller breakpoints use `max-width` rules, and the largest breakpoint uses `min-width`.
+Configured breakpoint names are sorted by width and turned into slots (`base`
+first). Smaller slots use `max-width` rules; the last enabled slot uses
+`min-width`.
 
-That means each viewport width has a clear matching source, from the smallest screens through to the largest layouts.
+That means each viewport width has a clear matching source, from the smallest
+screens through to the largest layouts.
 
-This works well with frameworks like Tailwind.
+This works well with frameworks like Tailwind. Set breakpoint widths in
+`config/breakpoints.php` so they match your CSS.
 
 ## Escape Width
 
@@ -56,6 +72,9 @@ image width when enabled.
 }) }}
 ```
 
+After processing, the saved transform set keeps escape on, so later renders do
+not need the Twig flag.
+
 The width comes from the `escapeWidth` setting. The default is `1920`; set it to
 `0` to disable escape width project-wide.
 
@@ -63,10 +82,11 @@ The width comes from the `escapeWidth` setting. The default is `1920`; set it to
 
 Breakpoints also supports DPR variants through `srcset` density descriptors.
 
-The `1x` image is always included. The Control Panel offers common `2x` and
-`3x` presets, and project or Twig config may provide any positive numeric ratio
-such as `1.5`. The browser can choose a sharper asset for higher-density
-displays when it needs one.
+The `1x` image is always included. Density descriptors (`1x`, `2x`, …) are only
+written when `dpr` has more than `1`; a `[1]` config stays a plain URL. The
+Control Panel offers common `2x` and `3x` presets, and project or Twig config
+may provide any positive numeric ratio such as `1.5`. The browser can choose a
+sharper asset for higher-density displays when it needs one.
 
 ## Settings That Matter
 
@@ -78,19 +98,21 @@ The main settings that affect responsive image output are:
 - Secondary Format
 - DPR ratios
 
-The default breakpoint set includes familiar labels such as `xs`, `sm`, `md`, `lg`, `xl`, and `2xl`, but you can adjust these to match your project.
+The default breakpoint set includes familiar labels such as `xs`, `sm`, `md`, `lg`, `xl`, and `2xl`, but you can adjust these to match your project. Those names are preceded by a synthetic `base` slot.
 
 ## Processing Markers
 
-When Breakpoints processes images, it temporarily adds internal `data-bp-*`
-attributes to each generated `<source>`. These attributes help the plugin detect
-the configured sources during processing.
+When transform editing is allowed (local default), `<picture>` includes
+`data-set` so processing can find the image.
 
-Those markers are only added during image processing. Normal front-end output is
-clean and does not include them.
+During a processing request, Breakpoints also adds internal markers:
+`data-bp-*` and `data-set-width` / `data-set-height` on `<source>`, and
+`data-picture-id` / `data-asset-id` / `data-uid` on `<picture>` / `<img>`.
+Those extra markers are not on normal front-end output.
 
-Do not rely on `data-bp-*` attributes in your templates, CSS, or JavaScript. They
-are internal to Breakpoints and are not part of the public output. Using the those attributes in your project may break processing.
+Do not rely on these attributes in your templates, CSS, or JavaScript. They are
+internal to Breakpoints and are not part of the public output. Using them in
+your project may break processing.
 
 ## Caching During Processing
 

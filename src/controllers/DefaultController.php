@@ -41,6 +41,10 @@ class DefaultController extends Controller
             'title' => 'image() Twig Reference',
             'file' => 'reference/twig-image-tag.md',
         ],
+        'known-limitations' => [
+            'title' => 'Known Limitations',
+            'file' => 'known-limitations.md',
+        ],
     ];
 
     public function beforeAction($action): bool

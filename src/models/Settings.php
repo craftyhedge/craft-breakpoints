@@ -36,7 +36,7 @@ class Settings extends Model
     public bool $priority = false;
     public bool $preload = false;
     public bool $thumbhashEnabled = false;
-    public string $thumbhashMode = 'bg';
+    public string $thumbhashMode = 'srcset';
     public string $processingLazyLoadingAdapter = 'none';
     public bool $previewCenter = true;
     /**

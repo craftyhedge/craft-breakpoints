@@ -81,6 +81,29 @@ setting system defaults, see
 
 Once your component layout is ready, process the page to measure the real rendered image sizes.
 
+### Front-end process button
+
+When you are logged in as a Craft admin, `allowTransformEditing` is on, and
+the page renders at least one unsaved raster transform set, Breakpoints
+injects a red process button in the corner of the page (default
+bottom-right):
+
+![Process unsaved transform sets](images/frontend-process-button.svg)
+
+Click it to open **Breakpoints → Transform Sets** in a new tab and start
+processing that page automatically. If the current URL matches an entry,
+that entry is used; otherwise processing uses the page URL.
+
+The button is a local development cue. It does not appear for guests,
+non-admins, control panel requests, SVG-only pages, or while a processing
+run is already active. After the set is saved, it is gone on the next load.
+
+Move the corner with `frontendProcessButtonPosition` in
+`config/breakpoints.php` (`bottom-right`, `bottom-left`, `top-right`, or
+`top-left`). See [Configuration](configuration.md).
+
+You can still start a run from the control panel:
+
 1. Open **Breakpoints → Transform Sets** and choose the entry with the image(s) to process.
 
    ![Choose a source entry for processing](images/choose-source.png)
