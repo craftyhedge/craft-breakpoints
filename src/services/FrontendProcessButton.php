@@ -7,6 +7,7 @@ use craft\elements\Entry;
 use craft\helpers\Html;
 use craft\helpers\UrlHelper;
 use craft\web\Application as WebApplication;
+use craft\web\Request as WebRequest;
 use craft\web\View;
 use craftyhedge\craftbreakpoints\helpers\ProcessingRequest;
 use craftyhedge\craftbreakpoints\Plugin;
@@ -208,10 +209,13 @@ class FrontendProcessButton extends Component
         }
 
         $sourceUrl = null;
-        try {
-            $sourceUrl = Craft::$app->getRequest()->getAbsoluteUrl();
-        } catch (\Throwable) {
-            $sourceUrl = null;
+        $request = Craft::$app->getRequest();
+        if ($request instanceof WebRequest) {
+            try {
+                $sourceUrl = $request->getAbsoluteUrl();
+            } catch (\Throwable) {
+                $sourceUrl = null;
+            }
         }
 
         return $this->buildProcessingUrl($entryId, $sourceUrl);

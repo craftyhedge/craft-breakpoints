@@ -198,7 +198,7 @@ final class SnapshotReader
 
         $hiddenSlotIds = [];
         foreach ($slotVisibility as $slotId => $visibility) {
-            if (($visibility['hidden'] ?? false) === true && ($visibility['visible'] ?? false) !== true) {
+            if ($visibility['hidden'] === true && $visibility['visible'] !== true) {
                 $hiddenSlotIds[] = (int)$slotId;
             }
         }

@@ -1845,6 +1845,9 @@ final class ReviewRenderer
         ];
     }
 
+    /**
+     * @param array<string, mixed>|null $snapshot
+     */
     private function countLatestRunHiddenSetWarningsByTransform(?array $snapshot): int
     {
         $count = 0;
