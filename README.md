@@ -5,8 +5,6 @@
 [![PHP 8.2+](https://img.shields.io/badge/PHP-8.2%20|%208.3%20|%208.4-777BB4?logo=php&logoColor=white)](https://github.com/craftyhedge/craft-breakpoints)
 [![Craft 5.3+](https://img.shields.io/badge/Craft%20CMS-5.3%2B-e5422b?logo=craft-cms&logoColor=white)](https://github.com/craftyhedge/craft-breakpoints)
 
-> Breakpoints is currently in beta. APIs, configuration, and generated
-> transform-set structure may change before the stable `1.0.0` release.
 
 Breakpoints handles the front end markup for your Craft assets and provides a developer processing tool to accurately measure each breakpoint rendering size and create transform sets without any manual work.
 
@@ -49,13 +47,13 @@ Processing is intended for local development environments with the resulting tra
 Install with Composer:
 
 ```sh
-composer require craftyhedge/breakpoints:^0.1.0
+composer require craftyhedge/breakpoints
 ```
 
 To pin the exact release:
 
 ```sh
-composer require craftyhedge/breakpoints:0.1.0
+composer require craftyhedge/breakpoints:1.0.0
 ```
 
 Then install the plugin:
@@ -97,7 +95,6 @@ See [Getting Started](docs/getting-started.md) for the full walkthrough.
 - [Custom Image Templates](docs/custom-templates.md) — render through your own Twig.
 - [`image()` Twig Function](docs/reference/twig-image-tag.md) — full API reference.
 - [Known Limitations](docs/known-limitations.md)
-- [Release history](CHANGELOG.md)
 
 ## Support
 

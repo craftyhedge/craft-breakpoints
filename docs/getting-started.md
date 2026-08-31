@@ -11,6 +11,8 @@ automatically, and lets you review or edit the final dimensions.
 > Processing is intended for local development only, with the transform sets being
 > committed to git.
 
+> When processing pages you must keep your browser at the default 100% zoom level.
+
 ## 1. How It Works
 
 This plugin is designed to work with a mobile-first CSS framework such as Tailwind CSS.

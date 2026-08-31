@@ -8,7 +8,6 @@ Craft CMS 5 plugin for responsive image markup and local transform-set processin
 - PHP `^8.2`, Craft CMS `^5.3.0`
 - Handle: `breakpoints`
 - Internal prefixes: DB tables `bpi_*`, processing query param `__bpiProcessing`; CP UI classes/IDs mostly `bpts-`
-- Beta: APIs and transform-set structure may change before `1.0.0`
 
 ## Product scope
 
