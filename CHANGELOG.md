@@ -1,10 +1,12 @@
 # Changelog
 
-## Unreleased
+## 1.0.0 - 2026-08-31
 
-- Documented the local-admin front-end process button in Getting Started.
-- Aligned the Settings model `thumbhashMode` default with plugin config (`srcset`).
+- First stable release.
 - Restricted JavaScript lazy-loading adapters to `none` (default) and `lazysizes`. Removed `attributes`, `custom`, Vanilla LazyLoad, and Lozad, along with configurable lazy attribute names and the custom processing handler. Leftover config values fall back to `none`. Native lazy loading forces adapter `none` for processing as well as render. Use a custom template for any other library.
+- Aligned the Settings model `thumbhashMode` default with plugin config (`srcset`).
+- Documented the local-admin front-end process button in Getting Started.
+- Documented that processing must be run at 100% browser zoom.
 
 ## 0.1.10 - 2026-08-10
 
