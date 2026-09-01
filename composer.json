@@ -17,9 +17,9 @@
         }
     ],
     "support": {
-        "issues": "https://github.com/craftyhedge/breakpoints/issues",
-        "source": "https://github.com/craftyhedge/breakpoints",
-        "docs": "https://github.com/craftyhedge/breakpoints/blob/main/README.md"
+        "issues": "https://github.com/craftyhedge/craft-breakpoints/issues",
+        "source": "https://github.com/craftyhedge/craft-breakpoints",
+        "docs": "https://github.com/craftyhedge/craft-breakpoints/blob/master/README.md"
     },
     "require": {
         "php": "^8.2",
