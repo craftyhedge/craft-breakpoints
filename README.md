@@ -103,6 +103,4 @@ See [Getting Started](docs/getting-started.md) for the full walkthrough.
 
 ## License
 
-Commercial plugin licensing follows the Craft License model.
-
-See [LICENSE.md](LICENSE.md).
+This commercial plugin uses the [Craft License](https://craftcms.github.io/license/). See [LICENSE.md](LICENSE.md).
