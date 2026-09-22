@@ -154,16 +154,18 @@ final class SnapshotReader
             return [];
         }
 
+        $liveRows = $this->telemetry->getLiveRunRows();
         $snapshot = $this->getLatestRunSnapshot();
         $perAssetRows = is_array($snapshot) && isset($snapshot['rowsPayload']) && is_array($snapshot['rowsPayload'])
             ? $snapshot['rowsPayload']
             : [];
-        if ($perAssetRows === []) {
+        $sourceRows = $liveRows !== [] ? $liveRows : $perAssetRows;
+        if ($sourceRows === []) {
             return [];
         }
 
         $slotVisibility = [];
-        foreach ($perAssetRows as $row) {
+        foreach ($sourceRows as $row) {
             if (!is_array($row)) {
                 continue;
             }
@@ -173,8 +175,7 @@ final class SnapshotReader
             }
 
             if ($assetKey !== null && $assetKey !== '') {
-                $rowAssetId = $this->extractAssetIdFromRow($row);
-                if (!$this->assetKeyMatchesRowAsset($assetKey, $rowAssetId, $transformName)) {
+                if (!$this->rowMatchesSelectedAssetKey($row, $assetKey, $transformName)) {
                     continue;
                 }
             }
@@ -270,7 +271,7 @@ final class SnapshotReader
      * and breakpoint from server-side telemetry sources.
      *
      * Resolution order:
-     *   1. Match snapshot.rowsPayload by transformHandle + slotKey + assetId
+     *   1. The selected picture copy from live-run rows (or snapshot rows)
      *   2. Fall back to previewCacheRows for first-asset evidence
      *   3. Return null (caller must produce an explicit user-facing error)
      *
@@ -288,50 +289,21 @@ final class SnapshotReader
             return null;
         }
 
-        $rowsByTransformAndBreakpoint = $this->getLatestRunRowsByTransformAndBreakpoint();
-        $snapshot = $this->getLatestRunSnapshot();
-        $perAssetRows = is_array($snapshot) && isset($snapshot['rowsPayload']) && is_array($snapshot['rowsPayload'])
-            ? $snapshot['rowsPayload']
-            : [];
-
-        if ($perAssetRows !== []) {
-            $matchedByAsset = null;
-            $firstForRow = null;
-
-            foreach ($perAssetRows as $row) {
-                if (!is_array($row)) {
-                    continue;
-                }
-
-                if (!$this->rowMatchesTransformSlot($row, $transformName, $breakpointWidth, $slotKey)) {
-                    continue;
-                }
-
-                if ($firstForRow === null) {
-                    $firstForRow = $row;
-                }
-
-                if ($assetKey !== null && $assetKey !== '') {
-                    $rowAssetId = $this->extractAssetIdFromRow($row);
-                    if ($this->assetKeyMatchesRowAsset($assetKey, $rowAssetId, $transformName)) {
-                        $matchedByAsset = $row;
-                        break;
-                    }
-                }
+        $renderedRows = $this->resolveRenderedRowsForTransform($transformName, $assetKey);
+        foreach ($renderedRows as $renderedRow) {
+            if (!is_array($renderedRow)) {
+                continue;
             }
 
-            $resolvedRow = $matchedByAsset ?? $firstForRow;
-            if ($resolvedRow !== null) {
-                return $this->extractRenderedDimensionsFromRow($resolvedRow);
+            if ($slotKey !== '' && trim((string)($renderedRow['slotKey'] ?? '')) === $slotKey) {
+                return [
+                    'renderedWidth' => $renderedRow['width'] ?? 0,
+                    'renderedHeight' => $renderedRow['height'] ?? 0,
+                ];
             }
         }
 
         $key = $this->buildTransformBreakpointKey($transformName, $slotKey);
-        $previewRow = $rowsByTransformAndBreakpoint[$key] ?? null;
-        if (is_array($previewRow)) {
-            return $this->extractRenderedDimensionsFromRow($previewRow);
-        }
-
         $previewCacheRows = $this->getPreviewCacheRowsByTransformAndBreakpoint();
         $cachedRow = $previewCacheRows[$key] ?? null;
         if (is_array($cachedRow)) {
@@ -354,57 +326,14 @@ final class SnapshotReader
             return [];
         }
 
+        $liveRows = $this->telemetry->getLiveRunRows();
         $snapshot = $this->getLatestRunSnapshot();
         $perAssetRows = is_array($snapshot) && isset($snapshot['rowsPayload']) && is_array($snapshot['rowsPayload'])
             ? $snapshot['rowsPayload']
             : [];
+        $sourceRows = $liveRows !== [] ? $liveRows : $perAssetRows;
 
-        $renderedRows = [];
-
-        if ($perAssetRows !== []) {
-            $firstByBreakpoint = [];
-            $assetMatchByBreakpoint = [];
-
-            foreach ($perAssetRows as $row) {
-                if (!is_array($row)) {
-                    continue;
-                }
-
-                $rowTransformHandle = $this->extractTransformHandleFromRow($row);
-                $rowBreakpointWidth = $this->extractSlotIdFromRow($row);
-                if ($rowTransformHandle !== $transformName || $rowBreakpointWidth <= 0) {
-                    continue;
-                }
-
-                if (!isset($firstByBreakpoint[$rowBreakpointWidth])) {
-                    $firstByBreakpoint[$rowBreakpointWidth] = $row;
-                }
-
-                if ($assetKey !== null && $assetKey !== '') {
-                    $rowAssetId = $this->extractAssetIdFromRow($row);
-                    if ($this->assetKeyMatchesRowAsset($assetKey, $rowAssetId, $transformName)) {
-                        $assetMatchByBreakpoint[$rowBreakpointWidth] = $row;
-                    }
-                }
-            }
-
-            $resolvedByBreakpoint = [];
-            foreach ($firstByBreakpoint as $bp => $row) {
-                $resolvedByBreakpoint[$bp] = $assetMatchByBreakpoint[$bp] ?? $row;
-            }
-
-            foreach ($resolvedByBreakpoint as $bp => $row) {
-                $dimensions = $this->extractNullableDimensionsFromRow($row);
-                if ($dimensions !== null) {
-                    $renderedRows[] = [
-                        'breakpoint' => $bp,
-                        'slotKey' => $this->extractSlotKeyFromRow($row),
-                        'width' => $dimensions['width'],
-                        'height' => $dimensions['height'],
-                    ];
-                }
-            }
-        }
+        $renderedRows = $this->pickCopyRowsForTransform($sourceRows, $transformName, $assetKey);
 
         if ($renderedRows === []) {
             $previewCacheRows = $this->getPreviewCacheRowsByTransformAndBreakpoint();
@@ -505,18 +434,6 @@ final class SnapshotReader
     /**
      * @param array<string, mixed> $row
      */
-    private function rowMatchesTransformSlot(array $row, string $transformName, int $slotId, string $slotKey): bool
-    {
-        if ($this->extractTransformHandleFromRow($row) !== $transformName) {
-            return false;
-        }
-
-        return $slotKey !== '' && $this->extractSlotKeyFromRow($row) === $slotKey;
-    }
-
-    /**
-     * @param array<string, mixed> $row
-     */
     private function extractAssetIdFromRow(array $row): string
     {
         return trim((string)($row['assetId'] ?? ''));
@@ -535,6 +452,96 @@ final class SnapshotReader
         }
 
         return $assetKey === 'asset:' . $transformName . ':' . $rowAssetId;
+    }
+
+    /**
+     * Pick one picture copy as a unit: every breakpoint from the same instance
+     * (or the same DOM-order occurrence when instance is absent).
+     *
+     * @param array<int, mixed> $rows
+     * @return array<int, array{breakpoint: int, slotKey: string, width: ?int, height: ?int}>
+     */
+    private function pickCopyRowsForTransform(array $rows, string $transformName, ?string $assetKey): array
+    {
+        $byIdentity = [];
+        $identityOrder = [];
+        $occurrenceBySlot = [];
+
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            if ($this->extractTransformHandleFromRow($row) !== $transformName) {
+                continue;
+            }
+
+            $slotId = $this->extractSlotIdFromRow($row);
+            if ($slotId <= 0) {
+                continue;
+            }
+
+            $slotKey = $this->extractSlotKeyFromRow($row);
+            $occurrenceKey = $slotKey !== '' ? $slotKey : (string)$slotId;
+            $occurrenceBySlot[$occurrenceKey] = ($occurrenceBySlot[$occurrenceKey] ?? -1) + 1;
+            $instance = trim((string)($row['instance'] ?? ''));
+            $identity = $instance !== '' ? 'instance:' . $instance : 'copy:' . $occurrenceBySlot[$occurrenceKey];
+
+            if (!isset($byIdentity[$identity])) {
+                $byIdentity[$identity] = [];
+                $identityOrder[] = $identity;
+            }
+
+            if (!isset($byIdentity[$identity][$slotId])) {
+                $byIdentity[$identity][$slotId] = $row;
+            }
+        }
+
+        if ($identityOrder === []) {
+            return [];
+        }
+
+        $selectedIdentity = $identityOrder[0];
+        if ($assetKey !== null && $assetKey !== '') {
+            foreach ($identityOrder as $identity) {
+                foreach ($byIdentity[$identity] as $row) {
+                    if ($this->rowMatchesSelectedAssetKey($row, $assetKey, $transformName)) {
+                        $selectedIdentity = $identity;
+                        break 2;
+                    }
+                }
+            }
+        }
+
+        $renderedRows = [];
+        foreach ($byIdentity[$selectedIdentity] as $slotId => $row) {
+            $dimensions = $this->extractNullableDimensionsFromRow($row);
+            if ($dimensions === null) {
+                continue;
+            }
+
+            $renderedRows[] = [
+                'breakpoint' => $slotId,
+                'slotKey' => $this->extractSlotKeyFromRow($row),
+                'width' => $dimensions['width'],
+                'height' => $dimensions['height'],
+            ];
+        }
+
+        return $renderedRows;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function rowMatchesSelectedAssetKey(array $row, string $assetKey, string $transformName): bool
+    {
+        $instance = trim((string)($row['instance'] ?? ''));
+        if ($instance !== '' && $assetKey === 'picture:' . $transformName . ':' . $instance) {
+            return true;
+        }
+
+        return $this->assetKeyMatchesRowAsset($assetKey, $this->extractAssetIdFromRow($row), $transformName);
     }
 
 }

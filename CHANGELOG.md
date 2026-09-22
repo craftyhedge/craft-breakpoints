@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Measured each use of a transform set on a page as its own copy, including repeated uses of the same asset. Review pages through those copies, and saving rendered values keeps one copy together instead of mixing breakpoints from different copies.
+- Kept rendered measurements visible when paging away from a hidden first copy.
+- When a missing set's first copy is hidden, the review explains that the set cannot be saved, that processing saves the first copy, and that Allow Hidden During Processing may be needed.
+- Custom templates that copy picture markup during processing need to keep `data-picture-instance`.
+- Removed the known limitation that said repeat uses of the same asset were dropped.
+
 ## 1.0.0 - 2026-08-31
 
 - First stable release.

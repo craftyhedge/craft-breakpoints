@@ -2,6 +2,7 @@
 
 namespace craftyhedge\craftbreakpoints\services;
 
+use Craft;
 use craft\elements\Asset;
 use craftyhedge\craftbreakpoints\helpers\ProcessingRequest;
 use craftyhedge\craftbreakpoints\Plugin;
@@ -12,6 +13,8 @@ class RenderContextBuilder extends Component
     private const TRANSPARENT_PIXEL_DATA_URI = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
 
     private ?Plugin $_plugin = null;
+    private int $pictureInstanceSeq = 0;
+    private mixed $pictureInstanceScope = null;
 
     public function init(): void
     {
@@ -323,10 +326,24 @@ class RenderContextBuilder extends Component
                 ? 'true'
                 : 'false',
             'data-picture-id' => $pictureId,
+            'data-picture-instance' => $this->nextPictureInstanceId(),
             'data-asset-id' => $assetId,
             'data-asset-title' => (string)($config['assetTitle'] ?? ''),
             'data-breakpoint-states' => $this->buildBreakpointStatesJson($config),
         ];
+    }
+
+    private function nextPictureInstanceId(): string
+    {
+        $request = Craft::$app->getRequest();
+        if ($this->pictureInstanceScope !== $request) {
+            $this->pictureInstanceScope = $request;
+            $this->pictureInstanceSeq = 0;
+        }
+
+        $this->pictureInstanceSeq++;
+
+        return (string)$this->pictureInstanceSeq;
     }
 
     /**

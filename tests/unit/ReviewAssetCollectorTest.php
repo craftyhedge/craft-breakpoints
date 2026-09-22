@@ -91,4 +91,80 @@ final class ReviewAssetCollectorTest extends Unit
         $this->assertSame('mobile-asset', $selectedRows[1][0]['assetId'] ?? null);
         $this->assertSame('desktop-asset', $selectedRows[2][0]['assetId'] ?? null);
     }
+
+    public function testArtDirectedRowsWithDifferentAssetIdsStayGroupedByInstance(): void
+    {
+        $rowsByBreakpoint = [
+            1 => [[
+                'instance' => '4',
+                'pictureId' => 'hero-default-abc123',
+                'transform' => 'hero',
+                'assetId' => 'mobile-asset',
+                'sourceUsed' => 'https://example.test/mobile.jpg',
+                'src' => 'https://example.test/mobile.jpg',
+                'loaded' => true,
+                'enabled' => true,
+                'isVisible' => true,
+            ]],
+            2 => [[
+                'instance' => '4',
+                'pictureId' => 'hero-default-abc123',
+                'transform' => 'hero',
+                'assetId' => 'desktop-asset',
+                'sourceUsed' => 'https://example.test/desktop.jpg',
+                'src' => 'https://example.test/desktop.jpg',
+                'loaded' => true,
+                'enabled' => true,
+                'isVisible' => true,
+            ]],
+        ];
+
+        $collection = ReviewAssetCollector::buildAssetCollectionForTransform($rowsByBreakpoint, 'hero', [1, 2]);
+        $selectedAssetKey = ReviewAssetCollector::normalizeSelectedAssetKey(null, $collection['assetKeys']);
+        $selectedRows = ReviewAssetCollector::buildSelectedAssetRowsByBreakpoint(
+            $collection['rowsByAssetByBreakpoint'],
+            $selectedAssetKey,
+            [1, 2],
+        );
+
+        $this->assertSame(['picture:hero:4'], $collection['assetKeys']);
+        $this->assertSame('mobile-asset', $selectedRows[1][0]['assetId'] ?? null);
+        $this->assertSame('desktop-asset', $selectedRows[2][0]['assetId'] ?? null);
+    }
+
+    public function testDuplicateCopiesWithTheSamePictureIdPageSeparatelyByInstance(): void
+    {
+        $rowsByBreakpoint = [
+            1 => [
+                [
+                    'instance' => '1',
+                    'pictureId' => 'cta-image-893-d2cdcca4',
+                    'transform' => 'cta-image',
+                    'assetId' => '893',
+                    'sourceUsed' => 'https://example.test/hidden.jpg',
+                    'src' => 'https://example.test/hidden.jpg',
+                    'loaded' => true,
+                    'enabled' => true,
+                    'isVisible' => false,
+                ],
+                [
+                    'instance' => '2',
+                    'pictureId' => 'cta-image-893-d2cdcca4',
+                    'transform' => 'cta-image',
+                    'assetId' => '893',
+                    'sourceUsed' => 'https://example.test/visible.jpg',
+                    'src' => 'https://example.test/visible.jpg',
+                    'loaded' => true,
+                    'enabled' => true,
+                    'isVisible' => true,
+                ],
+            ],
+        ];
+
+        $collection = ReviewAssetCollector::buildAssetCollectionForTransform($rowsByBreakpoint, 'cta-image', [1]);
+
+        $this->assertSame(['picture:cta-image:1', 'picture:cta-image:2'], $collection['assetKeys']);
+        $this->assertCount(1, $collection['rowsByAssetByBreakpoint']['picture:cta-image:1'][1]);
+        $this->assertCount(1, $collection['rowsByAssetByBreakpoint']['picture:cta-image:2'][1]);
+    }
 }

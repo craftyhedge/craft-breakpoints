@@ -60,18 +60,7 @@ async function loadRuntimeHooks() {
     const getFrameDocument = () => harness.frameDocument || document;
     const getFrameWindow = () => harness.frameWindow || window;
     const getTrackedPictures = (frameDocument) => Array.from(frameDocument.querySelectorAll(processing.PROCESSABLE_PICTURE_SELECTOR));
-    const getPictureLoadKey = (picture, index) => {
-        const pictureId = String(picture?.getAttribute('data-picture-id') || '').trim();
-        if (pictureId !== '') {
-            const duplicates = Array.from(picture?.ownerDocument?.querySelectorAll?.(processing.PROCESSABLE_PICTURE_SELECTOR) || [])
-                .filter((candidate) => String(candidate.getAttribute('data-picture-id') || '').trim() === pictureId);
-
-            return duplicates.length > 1 ? `${pictureId}#${index}` : pictureId;
-        }
-
-        const assetId = String(picture?.getAttribute('data-asset-id') || '').trim();
-        return assetId !== '' ? `asset:${assetId}#${index}` : `unknown-${index}`;
-    };
+    const getPictureLoadKey = processing.getPictureLoadKey;
     const getPrimarySourceForBreakpoint = (picture, breakpoint) => picture?.querySelector(`source[data-bp-source="primary"][data-bp-size="${breakpoint}"]`)
         || picture?.querySelector(`source[data-bp-size="${breakpoint}"]`)
         || picture?.querySelector(`source[data-bp-source="primary"][data-bp-key="${breakpoint}"]`)
@@ -740,6 +729,7 @@ describe('transforms runtime helper logic', () => {
 
         expect(rows).toHaveLength(4);
         expect(rows[0].pictureId).toBe('pic-1');
+        expect(rows[0].instance).toBeNull();
         expect(rows[0].loaded).toBe(true);
         expect(rows[0].broken).toBe(false);
         expect(rows[0].unresolved).toBe(false);
@@ -1052,6 +1042,79 @@ describe('transforms runtime helper logic', () => {
         expect(Array.from(tracker.readinessByKey.keys())).toEqual(['repeat#0', 'repeat#1']);
 
         tracker.cleanup();
+    });
+
+    it('keys readiness and extract rows by picture instance when stamped', () => {
+        const frameDocument = document.implementation.createHTMLDocument('preview');
+        frameDocument.body.innerHTML = `
+            <picture data-set="card" data-picture-id="repeat" data-picture-instance="1" data-asset-id="asset-1">
+                <source data-bp-source="primary" data-bp-size="480" srcset="https://example.test/one.webp 1x" />
+                <img src="https://example.test/one.jpg" />
+            </picture>
+            <picture data-set="card" data-picture-id="repeat" data-picture-instance="2" data-asset-id="asset-1">
+                <source data-bp-source="primary" data-bp-size="480" srcset="https://example.test/two.webp 1x" />
+                <img src="https://example.test/two.jpg" />
+            </picture>
+        `;
+
+        hooks.setPreviewFrameForTests(frameDocument, {});
+        const tracker = hooks.buildBreakpointReadinessTracker(480, null);
+
+        expect(Array.from(tracker.readinessByKey.keys())).toEqual(['1', '2']);
+
+        const rows = hooks.extractRowsForBreakpoint(480, null, tracker.readinessByKey);
+        expect(rows.map((row) => row.instance)).toEqual(['1', '2']);
+        expect(rows.map((row) => row.pictureId)).toEqual(['repeat', 'repeat']);
+
+        tracker.cleanup();
+    });
+
+    it('pairs escape-width rows by instance when picture ids are shared', () => {
+        const normalRows = [
+            {
+                instance: '1',
+                pictureId: 'cta-image-893-d2cdcca4',
+                transform: 'cta-image',
+                includeEscapeWidth: true,
+                measureWidth: 1536,
+                rendered: { width: 80, height: 80 },
+            },
+            {
+                instance: '2',
+                pictureId: 'cta-image-893-d2cdcca4',
+                transform: 'cta-image',
+                includeEscapeWidth: true,
+                measureWidth: 1536,
+                rendered: { width: 96, height: 216 },
+            },
+        ];
+        const escapeRows = [
+            {
+                instance: '1',
+                pictureId: 'cta-image-893-d2cdcca4',
+                transform: 'cta-image',
+                includeEscapeWidth: true,
+                measureWidth: 1920,
+                rendered: { width: 400, height: 800 },
+            },
+            {
+                instance: '2',
+                pictureId: 'cta-image-893-d2cdcca4',
+                transform: 'cta-image',
+                includeEscapeWidth: true,
+                measureWidth: 1920,
+                rendered: { width: 200, height: 400 },
+            },
+        ];
+
+        const selection = hooks.selectFinalRows(normalRows, escapeRows);
+
+        expect(selection.rows).toHaveLength(2);
+        expect(selection.unmatchedRows).toEqual([]);
+        expect(selection.rows[0].instance).toBe('1');
+        expect(selection.rows[0].rendered).toEqual({ width: 400, height: 800 });
+        expect(selection.rows[1].instance).toBe('2');
+        expect(selection.rows[1].rendered).toEqual({ width: 200, height: 400 });
     });
 
     it('skips pictures without a matching source for the target breakpoint', () => {
@@ -2234,6 +2297,34 @@ describe('transforms runtime helper logic', () => {
         expect(requestedSets).toEqual([{
             name: 'image-test',
             selectedAssetKey: 'asset:image-test:2458',
+        }]);
+    });
+
+    it('auto-apply descriptors select the first instance as a unit', () => {
+        const requestedSets = hooks.buildAutoApplyNewSetDescriptors({
+            rowsBySlot: {
+                base: [
+                    {
+                        instance: '1',
+                        pictureId: 'cta-image-893-d2cdcca4',
+                        assetId: '893',
+                        transform: 'cta-image',
+                        loaded: true,
+                    },
+                    {
+                        instance: '2',
+                        pictureId: 'cta-image-893-d2cdcca4',
+                        assetId: '893',
+                        transform: 'cta-image',
+                        loaded: true,
+                    },
+                ],
+            },
+        });
+
+        expect(requestedSets).toEqual([{
+            name: 'cta-image',
+            selectedAssetKey: 'picture:cta-image:1',
         }]);
     });
 

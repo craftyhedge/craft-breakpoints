@@ -843,6 +843,311 @@ final class ServerAuthorityOperationsTest extends Unit
         }
     }
 
+    public function testApplyRenderedValuesOperationSavesSelectedInstanceAtEveryBreakpoint(): void
+    {
+        $plugin = Plugin::getInstance();
+        $previousTelemetry = $plugin->getTelemetry();
+
+        $plugin->set('telemetry', new class() extends TelemetryService {
+            public function getLatestRunSnapshot(): ?array
+            {
+                return [
+                    'runStatus' => 'completed',
+                    'ranAt' => '2026-05-01 10:00:00',
+                    'rowsPayload' => [
+                        [
+                            'transformHandle' => 'cta-image',
+                            'slotKey' => 'base',
+                            'slotIndex' => 0,
+                            'breakpointWidth' => 480,
+                            'assetId' => '893',
+                            'instance' => '1',
+                            'renderedWidth' => 0,
+                            'renderedHeight' => 0,
+                            'rowStatus' => 'loaded',
+                        ],
+                        [
+                            'transformHandle' => 'cta-image',
+                            'slotKey' => 'base',
+                            'slotIndex' => 0,
+                            'breakpointWidth' => 480,
+                            'assetId' => '893',
+                            'instance' => '2',
+                            'renderedWidth' => 96,
+                            'renderedHeight' => 216,
+                            'rowStatus' => 'loaded',
+                        ],
+                        [
+                            'transformHandle' => 'cta-image',
+                            'slotKey' => 'xs',
+                            'slotIndex' => 1,
+                            'breakpointWidth' => 640,
+                            'assetId' => '893',
+                            'instance' => '1',
+                            'renderedWidth' => 400,
+                            'renderedHeight' => 800,
+                            'rowStatus' => 'loaded',
+                        ],
+                        [
+                            'transformHandle' => 'cta-image',
+                            'slotKey' => 'xs',
+                            'slotIndex' => 1,
+                            'breakpointWidth' => 640,
+                            'assetId' => '893',
+                            'instance' => '2',
+                            'renderedWidth' => 200,
+                            'renderedHeight' => 400,
+                            'rowStatus' => 'loaded',
+                        ],
+                    ],
+                    'rows' => [],
+                ];
+            }
+        });
+
+        try {
+            $this->withRuntimeSets([
+                'cta-image' => [
+                    'name' => 'cta-image',
+                    'includeEscapeWidth' => false,
+                    'variants' => [
+                        'base' => ['width' => null, 'height' => null, 'enabled' => true, 'autoDimension' => null],
+                        'xs' => ['width' => null, 'height' => null, 'enabled' => true, 'autoDimension' => null],
+                    ],
+                    'config' => [],
+                ],
+            ], function () use ($plugin): void {
+                $snapshotReader = new SnapshotReader(
+                    $plugin->getTransformStore(),
+                    $plugin->getTelemetry(),
+                );
+                $service = new OperationsService(
+                    $plugin->getTransformStore(),
+                    $plugin->getConfigService(),
+                    $plugin->getTelemetry(),
+                    $plugin->getBreakpointPolicy(),
+                    $snapshotReader,
+                );
+
+                $result = $service->applyRenderedValuesOperation(
+                    'cta-image',
+                    'picture:cta-image:2',
+                    false,
+                    false,
+                    $plugin->getTransformStore()->getCurrentVersion(),
+                );
+
+                $this->assertTrue(($result['persisted'] ?? false) === true);
+
+                $sets = $plugin->getTransformStore()->getSets();
+                $this->assertSame(96, $sets['cta-image']['variants']['base']['width'] ?? null);
+                $this->assertSame(216, $sets['cta-image']['variants']['base']['height'] ?? null);
+                $this->assertSame(200, $sets['cta-image']['variants']['xs']['width'] ?? null);
+                $this->assertSame(400, $sets['cta-image']['variants']['xs']['height'] ?? null);
+            });
+        } finally {
+            $plugin->set('telemetry', $previousTelemetry);
+        }
+    }
+
+    public function testApplyRenderedValuesOperationKeepsFirstCopyTogetherWhenInstanceIsAbsent(): void
+    {
+        $plugin = Plugin::getInstance();
+        $previousTelemetry = $plugin->getTelemetry();
+
+        $plugin->set('telemetry', new class() extends TelemetryService {
+            public function getLatestRunSnapshot(): ?array
+            {
+                return [
+                    'runStatus' => 'completed',
+                    'ranAt' => '2026-05-01 10:00:00',
+                    'rowsPayload' => [
+                        [
+                            'transformHandle' => 'cta-image',
+                            'slotKey' => 'base',
+                            'slotIndex' => 0,
+                            'breakpointWidth' => 480,
+                            'assetId' => '893',
+                            'renderedWidth' => 0,
+                            'renderedHeight' => 0,
+                            'rowStatus' => 'loaded',
+                        ],
+                        [
+                            'transformHandle' => 'cta-image',
+                            'slotKey' => 'base',
+                            'slotIndex' => 0,
+                            'breakpointWidth' => 480,
+                            'assetId' => '893',
+                            'renderedWidth' => 96,
+                            'renderedHeight' => 216,
+                            'rowStatus' => 'loaded',
+                        ],
+                        [
+                            'transformHandle' => 'cta-image',
+                            'slotKey' => 'xs',
+                            'slotIndex' => 1,
+                            'breakpointWidth' => 640,
+                            'assetId' => '893',
+                            'renderedWidth' => 400,
+                            'renderedHeight' => 800,
+                            'rowStatus' => 'loaded',
+                        ],
+                        [
+                            'transformHandle' => 'cta-image',
+                            'slotKey' => 'xs',
+                            'slotIndex' => 1,
+                            'breakpointWidth' => 640,
+                            'assetId' => '893',
+                            'renderedWidth' => 200,
+                            'renderedHeight' => 400,
+                            'rowStatus' => 'loaded',
+                        ],
+                    ],
+                    'rows' => [],
+                ];
+            }
+        });
+
+        try {
+            $this->withRuntimeSets([
+                'cta-image' => [
+                    'name' => 'cta-image',
+                    'includeEscapeWidth' => false,
+                    'variants' => [
+                        'base' => ['width' => null, 'height' => null, 'enabled' => true, 'autoDimension' => null],
+                        'xs' => ['width' => null, 'height' => null, 'enabled' => true, 'autoDimension' => null],
+                    ],
+                    'config' => [],
+                ],
+            ], function () use ($plugin): void {
+                $snapshotReader = new SnapshotReader(
+                    $plugin->getTransformStore(),
+                    $plugin->getTelemetry(),
+                );
+                $service = new OperationsService(
+                    $plugin->getTransformStore(),
+                    $plugin->getConfigService(),
+                    $plugin->getTelemetry(),
+                    $plugin->getBreakpointPolicy(),
+                    $snapshotReader,
+                );
+
+                $result = $service->applyRenderedValuesOperation(
+                    'cta-image',
+                    null,
+                    false,
+                    false,
+                    $plugin->getTransformStore()->getCurrentVersion(),
+                );
+
+                $this->assertTrue(($result['persisted'] ?? false) === true);
+
+                $sets = $plugin->getTransformStore()->getSets();
+                $this->assertNull($sets['cta-image']['variants']['base']['width'] ?? null);
+                $this->assertNull($sets['cta-image']['variants']['base']['height'] ?? null);
+                $this->assertSame(400, $sets['cta-image']['variants']['xs']['width'] ?? null);
+                $this->assertSame(800, $sets['cta-image']['variants']['xs']['height'] ?? null);
+            });
+        } finally {
+            $plugin->set('telemetry', $previousTelemetry);
+        }
+    }
+
+    public function testAutoApplyRenderedValuesForNewSetsUsesFirstInstanceAsAUnit(): void
+    {
+        $plugin = Plugin::getInstance();
+        $previousTelemetry = $plugin->getTelemetry();
+
+        $plugin->set('telemetry', new class() extends TelemetryService {
+            public function getLatestRunSnapshot(): ?array
+            {
+                return [
+                    'runStatus' => 'completed',
+                    'ranAt' => '2026-05-01 10:00:00',
+                    'rowsPayload' => [
+                        [
+                            'transformHandle' => 'cta-image',
+                            'slotKey' => 'base',
+                            'slotIndex' => 0,
+                            'breakpointWidth' => 480,
+                            'assetId' => '893',
+                            'instance' => '1',
+                            'renderedWidth' => 80,
+                            'renderedHeight' => 80,
+                            'rowStatus' => 'loaded',
+                        ],
+                        [
+                            'transformHandle' => 'cta-image',
+                            'slotKey' => 'base',
+                            'slotIndex' => 0,
+                            'breakpointWidth' => 480,
+                            'assetId' => '893',
+                            'instance' => '2',
+                            'renderedWidth' => 96,
+                            'renderedHeight' => 216,
+                            'rowStatus' => 'loaded',
+                        ],
+                        [
+                            'transformHandle' => 'cta-image',
+                            'slotKey' => 'xs',
+                            'slotIndex' => 1,
+                            'breakpointWidth' => 640,
+                            'assetId' => '893',
+                            'instance' => '1',
+                            'renderedWidth' => 400,
+                            'renderedHeight' => 800,
+                            'rowStatus' => 'loaded',
+                        ],
+                        [
+                            'transformHandle' => 'cta-image',
+                            'slotKey' => 'xs',
+                            'slotIndex' => 1,
+                            'breakpointWidth' => 640,
+                            'assetId' => '893',
+                            'instance' => '2',
+                            'renderedWidth' => 200,
+                            'renderedHeight' => 400,
+                            'rowStatus' => 'loaded',
+                        ],
+                    ],
+                    'rows' => [],
+                ];
+            }
+        });
+
+        try {
+            $this->withRuntimeSets([], function () use ($plugin): void {
+                $snapshotReader = new SnapshotReader(
+                    $plugin->getTransformStore(),
+                    $plugin->getTelemetry(),
+                );
+                $service = new OperationsService(
+                    $plugin->getTransformStore(),
+                    $plugin->getConfigService(),
+                    $plugin->getTelemetry(),
+                    $plugin->getBreakpointPolicy(),
+                    $snapshotReader,
+                );
+
+                $result = $service->autoApplyRenderedValuesForNewSets(
+                    [['name' => 'cta-image', 'selectedAssetKey' => 'picture:cta-image:1']],
+                    $plugin->getTransformStore()->getCurrentVersion(),
+                );
+
+                $this->assertTrue(($result['persisted'] ?? false) === true);
+                $this->assertSame(1, $result['appliedCount'] ?? 0);
+
+                $sets = $plugin->getTransformStore()->getSets();
+                $this->assertSame(80, $sets['cta-image']['variants']['base']['width'] ?? null);
+                $this->assertSame(80, $sets['cta-image']['variants']['base']['height'] ?? null);
+                $this->assertSame(400, $sets['cta-image']['variants']['xs']['width'] ?? null);
+                $this->assertSame(800, $sets['cta-image']['variants']['xs']['height'] ?? null);
+            });
+        } finally {
+            $plugin->set('telemetry', $previousTelemetry);
+        }
+    }
+
     /**
      * @param array<string, array<string, mixed>> $sets
      */

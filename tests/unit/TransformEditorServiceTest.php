@@ -913,6 +913,61 @@ final class TransformEditorServiceTest extends Unit
         );
     }
 
+    public function testRenderResultReviewExplainsHiddenFirstInstanceInsteadOfMissingSet(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $result = $this->withReviewFixtureSets(fn() => $editor->renderResultReview([
+            'breakpoints' => [640],
+            'rowsByBreakpoint' => [
+                640 => [
+                    [
+                        'instance' => '1',
+                        'assetId' => '893',
+                        'transform' => 'missing-manifest-set',
+                        'enabled' => true,
+                        'isVisible' => false,
+                        'loaded' => true,
+                        'rendered' => ['width' => 0, 'height' => 0],
+                        'transformDimensions' => ['width' => 0, 'height' => 0, 'autoDimension' => null],
+                    ],
+                    [
+                        'instance' => '2',
+                        'assetId' => '893',
+                        'transform' => 'missing-manifest-set',
+                        'enabled' => true,
+                        'isVisible' => true,
+                        'loaded' => true,
+                        'rendered' => ['width' => 96, 'height' => 216],
+                        'transformDimensions' => ['width' => 96, 'height' => 216, 'autoDimension' => null],
+                    ],
+                ],
+            ],
+        ]));
+
+        $html = (string)($result['visualResultsHtml'] ?? '');
+        $xpath = $this->createReviewMarkupXPath($html);
+        $this->assertReviewWarningMarkup($html, 'Hidden Set - Unable To Save');
+        $this->assertStringContainsString(
+            'The first set instance is not visible. You may need to intervene to force the set visible before processing.',
+            $html,
+        );
+        $this->assertStringContainsString(
+            'Processing uses the first instance when it tries to save.',
+            $html,
+        );
+        $this->assertStringContainsString(
+            'This set might need to use the \'Allow Hidden During Processing\' option after your intervention and saving.',
+            $html,
+        );
+        $this->assertSame(0, $this->countWarningHeadings($xpath, 'Transform Set Missing'));
+        $this->assertSame(0, $this->countWarningHeadings($xpath, 'Image Set Hidden'));
+
+        $applyAll = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpts-rendered-apply-all ') and contains(concat(' ', normalize-space(@class), ' '), ' bpts-force-hidden ')]");
+        $this->assertNotFalse($applyAll);
+        $this->assertSame(1, $applyAll->length);
+    }
+
     public function testRenderResultReviewShowsTitleStatusIconForCleanAndWarningCards(): void
     {
         $editor = Plugin::getInstance()->getTransformEditor();
@@ -1258,6 +1313,59 @@ final class TransformEditorServiceTest extends Unit
         $this->assertSame('asset:hero:101', $normalized['hero'] ?? null);
     }
 
+    public function testRenderResultReviewPagesDuplicateCopiesByInstanceAndKeepsOneSet(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $result = $this->withReviewFixtureSets(fn() => $editor->renderResultReview(
+            [
+                'breakpoints' => [640],
+                'rowsByBreakpoint' => [
+                    640 => [
+                        [
+                            'instance' => '1',
+                            'pictureId' => 'cta-image-893-d2cdcca4',
+                            'assetId' => '893',
+                            'transform' => 'hero',
+                            'enabled' => true,
+                            'isVisible' => false,
+                            'loaded' => true,
+                            'rendered' => ['width' => 0, 'height' => 0],
+                            'transformDimensions' => ['width' => 0, 'height' => 0, 'autoDimension' => null],
+                        ],
+                        [
+                            'instance' => '2',
+                            'pictureId' => 'cta-image-893-d2cdcca4',
+                            'assetId' => '893',
+                            'transform' => 'hero',
+                            'enabled' => true,
+                            'isVisible' => true,
+                            'loaded' => true,
+                            'rendered' => ['width' => 96, 'height' => 216],
+                            'transformDimensions' => ['width' => 96, 'height' => 216, 'autoDimension' => null],
+                        ],
+                    ],
+                ],
+            ],
+            [],
+            [],
+            ['hero' => 'picture:hero:2'],
+        ));
+
+        $normalized = is_array($result['selectedAssetKeyBySet'] ?? null)
+            ? $result['selectedAssetKeyBySet']
+            : [];
+        $this->assertSame('picture:hero:2', $normalized['hero'] ?? null);
+
+        $xpath = $this->createReviewMarkupXPath((string)($result['visualResultsHtml'] ?? ''));
+        $assetPages = $xpath->query("//button[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-asset-page ')]");
+        $this->assertNotFalse($assetPages);
+        $this->assertSame(2, $assetPages->length);
+        $cards = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-card ')]");
+        $this->assertNotFalse($cards);
+        $this->assertSame(1, $cards->length);
+    }
+
     public function testRenderInitialStoredReviewRendersCardsAndHidesRenderedApplyAll(): void
     {
         $editor = Plugin::getInstance()->getTransformEditor();
@@ -1285,7 +1393,17 @@ final class TransformEditorServiceTest extends Unit
         $this->assertNotFalse($hiddenApplyButtons);
         $this->assertSame(1, $hiddenApplyButtons->length);
 
+        $renderedRows = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-dimension-icon-rendered ')]/..");
+        $this->assertNotFalse($renderedRows);
+        $this->assertGreaterThan(0, $renderedRows->length);
+        foreach ($renderedRows as $renderedRow) {
+            $this->assertInstanceOf(\DOMElement::class, $renderedRow);
+            $class = ' ' . preg_replace('/\s+/', ' ', trim((string)$renderedRow->getAttribute('class'))) . ' ';
+            $this->assertStringNotContainsString(' bpts-force-hidden ', $class, 'Rendered measurements stay visible in saved-set review.');
+        }
+
         $this->assertStringContainsString('breakpointRenderedApplyHiddenClass&quot;:&quot;1&quot;', (string)($result['visualResultsHtml'] ?? ''));
+        $this->assertStringNotContainsString('breakpointRenderedRowHiddenClass ||', (string)($result['visualResultsHtml'] ?? ''));
     }
 
     public function testRenderInitialStoredReviewUsesEmptyStateWhenNoStoredTransformsExist(): void
@@ -1467,6 +1585,15 @@ final class TransformEditorServiceTest extends Unit
         $dummyHolders = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-breakpoint-column ') and @data-breakpoint='640']//*[contains(concat(' ', normalize-space(@class), ' '), ' bpi_breakpoint-result-image ')]");
         $this->assertNotFalse($dummyHolders);
         $this->assertSame(0, $dummyHolders->length);
+
+        $renderedRows = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-dimension-icon-rendered ')]/..");
+        $this->assertNotFalse($renderedRows);
+        $this->assertGreaterThan(0, $renderedRows->length);
+        foreach ($renderedRows as $renderedRow) {
+            $this->assertInstanceOf(\DOMElement::class, $renderedRow);
+            $class = ' ' . preg_replace('/\s+/', ' ', trim((string)$renderedRow->getAttribute('class'))) . ' ';
+            $this->assertStringNotContainsString(' bpts-force-hidden ', $class, 'A hidden copy should not hide rendered measurements.');
+        }
     }
 
     public function testApplySetPassHeightWhenRenderedLteSavedOperationPersistsConfigWithoutMutatingVariants(): void

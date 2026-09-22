@@ -15,10 +15,3 @@ with Breakpoints. Chromium is recommended.
 Browsers can round pixels differently and produce off-by-one measurements.
 Breakpoints accepts those values as correct.
 
-## Repeat uses of the same asset
-
-Processing indexes images by transform set handle and asset ID. If the same
-component is used more than once on a page with the same asset, only one of
-those instances is measured. The others are dropped.
-
-This will be fixed in a future update.

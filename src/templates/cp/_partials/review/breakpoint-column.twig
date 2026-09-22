@@ -37,7 +37,6 @@
       - breakpointRenderedApplyTitle
       - breakpointRenderedApplyIconName
       - breakpointRenderedApplyHiddenClass
-      - breakpointRenderedRowHiddenClass
       - relativeWidth
       - previewMedia
       - widthClass
@@ -93,8 +92,7 @@
         </div>
         <div class="bpts-dimension-table-wrap">
             <div class="bpts-dimension-matrix" role="table" aria-label="Rendered and current dimensions">
-                <div class="bpts-dimension-row" role="row"
-                    data-class:bpts-force-hidden="String(($editor.cards.{{ signalKey }}.rowsByBreakpoint&&$editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}']) ? ($editor.cards.{{ signalKey }}.rowsByBreakpoint['{{ breakpoint }}'].breakpointRenderedRowHiddenClass || '0') : '0') === '1'">
+                <div class="bpts-dimension-row" role="row">
                     <span class="bpts-dimension-icon bpts-dimension-icon-rendered" role="rowheader" title="Rendered" aria-label="Rendered">
                         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
                             <rect x="2.5" y="3" width="11" height="8.5" rx="1.5"></rect>

@@ -13,6 +13,7 @@ import {
     extractRowsForBreakpoint as processingExtractRowsForBreakpoint,
     finalizeRunReport as processingFinalizeRunReport,
     getMeasurementWidthForBreakpoint as processingGetMeasurementWidthForBreakpoint,
+    getPictureLoadKey as processingGetPictureLoadKey,
     inspectProcessingMarkerHealth as processingInspectProcessingMarkerHealth,
     isImageLikelyBroken as processingIsImageLikelyBroken,
     isImageRenderable as processingIsImageRenderable,
@@ -1491,16 +1492,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     }
 
     function getPictureLoadKey(picture, index) {
-        const pictureId = String(picture?.getAttribute('data-picture-id') || '').trim();
-        if (pictureId !== '') {
-            const duplicates = Array.from(picture?.ownerDocument?.querySelectorAll?.(PROCESSABLE_PICTURE_SELECTOR) || [])
-                .filter((candidate) => String(candidate.getAttribute('data-picture-id') || '').trim() === pictureId);
-
-            return duplicates.length > 1 ? `${pictureId}#${index}` : pictureId;
-        }
-
-        const assetId = String(picture?.getAttribute('data-asset-id') || '').trim();
-        return assetId !== '' ? `asset:${assetId}#${index}` : `unknown-${index}`;
+        return processingGetPictureLoadKey(picture, index);
     }
 
     function getPrimarySourceForSlot(picture, slot) {
@@ -2884,6 +2876,11 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     }
 
     function buildReviewAssetKeyFromRow(transformName, row) {
+        const instance = String(row?.instance || '').trim();
+        if (instance !== '') {
+            return `picture:${transformName}:${instance}`;
+        }
+
         const pictureId = String(row?.pictureId || '').trim();
         if (pictureId !== '') {
             return `picture:${transformName}:${pictureId}`;
@@ -3418,7 +3415,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                     selectedReadiness = new Map();
 
                     selectedRows.forEach((row) => {
-                        const key = String(row?.pictureId || '').trim();
+                        const key = String(row?.instance || row?.pictureId || '').trim();
                         if (key === '') {
                             return;
                         }

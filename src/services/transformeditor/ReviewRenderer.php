@@ -467,7 +467,6 @@ final class ReviewRenderer
                 : "Apply rendered values for {$displayPx}px",
             'breakpointRenderedApplyIconName' => $renderedApplyNoop ? 'check' : 'arrow-down',
             'breakpointRenderedApplyHiddenClass' => $hideRenderedApply ? '1' : '0',
-            'breakpointRenderedRowHiddenClass' => $hideRenderedApply ? '1' : '0',
             'widthClass' => (string)($state['widthClass'] ?? ''),
             'heightClass' => (string)($state['heightClass'] ?? ''),
             'currentWidthDerivedClass' => (string)($state['currentWidthDerivedClass'] ?? '') !== '' ? '1' : '0',
@@ -1034,11 +1033,31 @@ final class ReviewRenderer
                 }
             }
 
+            $firstInstanceHidden = $this->isFirstReviewInstanceHidden(
+                $assetCollection['rowsByAssetByBreakpoint'],
+                $assetKeys,
+            );
+            // A missing set whose first measured copy is hidden cannot be saved from
+            // this run. Explain that instead of "Transform Set Missing".
+            $showHiddenFirstInstanceWarning = $reactiveWarningsEnabled
+                && $setReviewState === 'missing'
+                && $firstInstanceHidden;
+            $missingHeading = $showHiddenFirstInstanceWarning
+                ? 'Hidden Set - Unable To Save'
+                : 'Transform Set Missing';
+            $missingDetailHtml = '<p>' . $this->escapeReviewHtml($missingSetMessage) . '</p>';
+            if ($showHiddenFirstInstanceWarning) {
+                $missingDetailHtml = '<p>The first set instance is not visible. You may need to intervene to force the set visible before processing.</p>'
+                    . '<p>Processing uses the first instance when it tries to save.</p>'
+                    . '<p>This set might need to use the \'Allow Hidden During Processing\' option after your intervention and saving.</p>';
+            }
+
             $reactiveWarningsMarkup = $reactiveWarningsEnabled
                 ? $this->renderReviewPartial('_partials/review/missing-set-reactive', [
                     'signalKey' => $this->escapeReviewHtml($signalKey),
                     'setReviewState' => $setReviewState,
-                    'missingMessage' => $missingSetMessage,
+                    'missingHeading' => $missingHeading,
+                    'missingDetailHtml' => $missingDetailHtml,
                     'processAgainMessage' => 'Process again to double check application.',
                     'applyButtonHtml' => '',
                 ])
@@ -1060,11 +1079,11 @@ final class ReviewRenderer
             $assetMismatchWarningMarkup = ($hasAssetMismatchWarning && !$suppressMismatchBanners)
                 ? '<div class="bpts-warning-item bpts-warning-item-neutral">'
                     . '<div class="bpts-warning-copy"><h3 class="bpts-warning-heading">Asset Mismatch</h3></div>'
-                    . '<div class="bpts-warning-detail"><p>One or more assets have mismatched values that need reviewed.</p></div>'
+                    . '<div class="bpts-warning-detail"><p>One or more assets have mismatched values that need reviewed.</p><p>It is likely the set has multiple use cases creating different outputs.</p><p>Sets should always produce the same output dimensions. You might need to split this in to separate sets.</p></div>'
                     . '</div>'
                 : '';
 
-            $hiddenSetWarningMarkup = $hasAllEnabledBreakpointsHiddenWarning
+            $hiddenSetWarningMarkup = ($hasAllEnabledBreakpointsHiddenWarning && !$showHiddenFirstInstanceWarning)
                 ? '<div class="bpts-warning-item bpts-warning-item-danger">'
                     . '<div class="bpts-warning-copy"><h3 class="bpts-warning-heading">Image Set Hidden</h3></div>'
                     . '<div class="bpts-warning-detail"><p>This image set is hidden in the latest processing run.</p><p>Images that are hidden on page load need developer intervention to force them visible for processing.</p><p>Use the Allow Hidden During Processing option after reverting the intervention.</p></div>'
@@ -1335,7 +1354,6 @@ final class ReviewRenderer
             ),
             'breakpointRenderedApplyIconName' => $renderedApplyNoop ? 'check' : 'arrow-down',
             'breakpointRenderedApplyHiddenClass' => $hideRenderedApply ? 'bpts-force-hidden' : '',
-            'breakpointRenderedRowHiddenClass' => $hideRenderedApply ? 'bpts-force-hidden' : '',
             'relativeWidth' => (string)$relativeWidth,
             'previewMedia' => $previewMedia,
             'widthClass' => $widthClass,
@@ -1354,6 +1372,41 @@ final class ReviewRenderer
      * @param array<int, int> $transformBreakpoints
      * @return array<int, int>
      */
+    /**
+     * Page 1 is the first asset key. It is hidden when every enabled row for
+     * that copy is not visible.
+     *
+     * @param array<string, array<int, array<int, array<string, mixed>>>> $rowsByAssetByBreakpoint
+     * @param array<int, string> $assetKeys
+     */
+    private function isFirstReviewInstanceHidden(array $rowsByAssetByBreakpoint, array $assetKeys): bool
+    {
+        $firstKey = $assetKeys[0] ?? '';
+        if ($firstKey === '' || !isset($rowsByAssetByBreakpoint[$firstKey]) || !is_array($rowsByAssetByBreakpoint[$firstKey])) {
+            return false;
+        }
+
+        $sawEnabled = false;
+        foreach ($rowsByAssetByBreakpoint[$firstKey] as $rows) {
+            if (!is_array($rows)) {
+                continue;
+            }
+
+            foreach ($rows as $row) {
+                if (!is_array($row) || ($row['enabled'] ?? true) !== true) {
+                    continue;
+                }
+
+                $sawEnabled = true;
+                if (($row['isVisible'] ?? false) === true) {
+                    return false;
+                }
+            }
+        }
+
+        return $sawEnabled;
+    }
+
     private function buildProcessedHiddenBreakpoints(array $rowsByBreakpoint, array $transformBreakpoints): array
     {
         $hiddenBreakpoints = [];
@@ -1418,6 +1471,7 @@ final class ReviewRenderer
                 $unresolved = ($row['unresolved'] ?? false) === true;
                 $transformName = (string)($row['transform'] ?? 'unknown');
                 $pictureId = trim((string)($row['pictureId'] ?? ''));
+                $instance = trim((string)($row['instance'] ?? ''));
                 $assetId = trim((string)($row['assetId'] ?? ''));
                 $sourceUsed = (string)($row['sourceUsed'] ?? '');
                 $src = (string)($row['src'] ?? ($row['sourceUsed'] ?? ''));
@@ -1441,8 +1495,9 @@ final class ReviewRenderer
                     'mediaWidth' => Support::normalizeNullablePositiveInt($row['mediaWidth'] ?? null) ?? $this->getReviewSlotMediaWidthById($breakpoint),
                     'measureWidth' => Support::normalizeNullablePositiveInt($row['measureWidth'] ?? null),
                     'pictureId' => $pictureId,
+                    'instance' => $instance,
                     'assetId' => $assetId,
-                    'assetKey' => $this->buildReviewAssetKey($transformName, $assetId, $sourceUsed, $src, $title, $pictureId),
+                    'assetKey' => $this->buildReviewAssetKey($transformName, $assetId, $sourceUsed, $src, $title, $pictureId, $instance),
                     'transform' => $transformName,
                     'title' => $title,
                     'enabled' => ($row['enabled'] ?? true) === true,
@@ -1981,8 +2036,9 @@ final class ReviewRenderer
         string $src,
         string $title,
         string $pictureId = '',
+        string $instance = '',
     ): string {
-        return ReviewAssetCollector::buildAssetKey($transformName, $assetId, $sourceUsed, $src, $title, $pictureId);
+        return ReviewAssetCollector::buildAssetKey($transformName, $assetId, $sourceUsed, $src, $title, $pictureId, $instance);
     }
 
     /**

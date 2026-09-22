@@ -140,6 +140,8 @@ final class TelemetryServiceTest extends Unit
                 'mediaWidth' => 480,
                 'measureWidth' => 480,
                 'assetId' => '100',
+                'instance' => '3',
+                'pictureId' => 'hero-100-abcdef12',
                 'transform' => 'hero',
                 'sourceUsed' => 'https://example.test/hero-base.jpg',
                 'src' => 'https://example.test/hero-fallback.jpg',
@@ -192,6 +194,16 @@ final class TelemetryServiceTest extends Unit
         ];
         $this->assertSame($expected, array_column($snapshotUrls, 'displayAssetUrl', 'slotKey'));
         $this->assertSame($expected, array_column($previewUrls, 'displayAssetUrl', 'slotKey'));
+
+        $schema = $db->getTableSchema(DatabaseService::TABLE_RUN_SNAPSHOT_ROWS);
+        $this->assertNotNull($schema);
+        $this->assertArrayNotHasKey('instance', $schema->columns);
+        $this->assertArrayNotHasKey('pictureId', $schema->columns);
+
+        $liveRows = Plugin::getInstance()->getTelemetry()->getLiveRunRows();
+        $this->assertNotSame([], $liveRows);
+        $this->assertSame('3', $liveRows[0]['instance'] ?? null);
+        $this->assertArrayNotHasKey('pictureId', $liveRows[0]);
     }
 
     private function createMockSvgAsset(): Asset

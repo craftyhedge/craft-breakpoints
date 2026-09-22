@@ -10,7 +10,30 @@ export function getMeasurementWidthForBreakpoint(breakpoint, safetyPx = 1) {
     return Math.max(1, parsed - Math.max(0, Number(safetyPx) || 0));
 }
 
+export function getPictureLoadKey(picture, index) {
+    const instance = String(picture?.getAttribute('data-picture-instance') || '').trim();
+    if (instance !== '') {
+        return instance;
+    }
+
+    const pictureId = String(picture?.getAttribute('data-picture-id') || '').trim();
+    if (pictureId !== '') {
+        const duplicates = Array.from(picture?.ownerDocument?.querySelectorAll?.(PROCESSABLE_PICTURE_SELECTOR) || [])
+            .filter((candidate) => String(candidate.getAttribute('data-picture-id') || '').trim() === pictureId);
+
+        return duplicates.length > 1 ? `${pictureId}#${index}` : pictureId;
+    }
+
+    const assetId = String(picture?.getAttribute('data-asset-id') || '').trim();
+    return assetId !== '' ? `asset:${assetId}#${index}` : `unknown-${index}`;
+}
+
 function getProcessingRowIdentity(row) {
+    const instance = String(row?.instance || '').trim();
+    if (instance !== '') {
+        return `instance:${instance}`;
+    }
+
     const pictureId = String(row?.pictureId || '').trim();
     if (pictureId !== '') {
         return `picture:${pictureId}`;
@@ -1679,6 +1702,7 @@ export function extractRowsForBreakpoint({
             mediaWidth: Number.isFinite(Number(slot?.mediaWidth)) ? Number(slot.mediaWidth) : breakpoint,
             measureWidth: Number.isFinite(Number(slot?.measureWidth)) ? Number(slot.measureWidth) : toPositiveIntOrNullFn(source?.getAttribute('data-bp-measure-width')),
             pictureId: picture?.getAttribute('data-picture-id') || null,
+            instance: picture?.getAttribute('data-picture-instance') || null,
             assetId,
             transform: picture?.getAttribute('data-set') || 'unknown',
             title: getSourceAssetTitle(source, picture),

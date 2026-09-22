@@ -18,8 +18,14 @@ final class ReviewAssetCollector
         string $src,
         string $title,
         string $pictureId = '',
+        string $instance = '',
     ): string {
         $normalizedTransform = trim($transformName) !== '' ? trim($transformName) : 'unknown';
+        $normalizedInstance = trim($instance);
+        if ($normalizedInstance !== '') {
+            return 'picture:' . $normalizedTransform . ':' . $normalizedInstance;
+        }
+
         $normalizedPictureId = trim($pictureId);
         if ($normalizedPictureId !== '') {
             return 'picture:' . $normalizedTransform . ':' . $normalizedPictureId;
@@ -87,6 +93,7 @@ final class ReviewAssetCollector
                         (string)($row['src'] ?? ''),
                         (string)($row['title'] ?? ''),
                         (string)($row['pictureId'] ?? ''),
+                        (string)($row['instance'] ?? ''),
                     );
                 }
 

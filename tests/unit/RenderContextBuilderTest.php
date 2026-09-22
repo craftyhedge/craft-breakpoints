@@ -50,6 +50,7 @@ final class RenderContextBuilderTest extends Unit
         // or public editing markers leak out.
         $this->assertArrayNotHasKey('data-set', $context['pictureAttributes']);
         $this->assertArrayNotHasKey('data-picture-id', $context['pictureAttributes']);
+        $this->assertArrayNotHasKey('data-picture-instance', $context['pictureAttributes']);
     }
 
     public function testGetPictureAttributesExposeSetHandleWhenTransformEditingAllowed(): void
@@ -63,6 +64,7 @@ final class RenderContextBuilderTest extends Unit
 
         $this->assertSame('hero', $attributes['data-set'] ?? null);
         $this->assertArrayNotHasKey('data-picture-id', $attributes);
+        $this->assertArrayNotHasKey('data-picture-instance', $attributes);
         $this->assertArrayNotHasKey('data-breakpoint-states', $attributes);
     }
 
@@ -304,6 +306,55 @@ final class RenderContextBuilderTest extends Unit
         $this->assertIsArray($decoded);
         $this->assertSame('enabled', $decoded['base'] ?? null);
         $this->assertSame('disabled', $decoded['xs'] ?? null);
+        $this->assertArrayHasKey('data-picture-instance', $attributes);
+        $this->assertMatchesRegularExpression('/^[1-9][0-9]*$/', (string)$attributes['data-picture-instance']);
+    }
+
+    public function testComposePictureMarkersStampDistinctInstanceIdsForSameSetAndAsset(): void
+    {
+        $builder = Plugin::getInstance()->getRenderContextBuilder();
+        $this->resetPictureInstanceScope($builder);
+
+        $compose = new \ReflectionMethod($builder, 'composePictureMarkers');
+        $config = [
+            'setName' => 'cta-image',
+            'imageId' => 893,
+            'pictureClass' => 'cta',
+            'imgClass' => 'cta-img',
+        ];
+
+        $first = $compose->invoke($builder, $config);
+        $second = $compose->invoke($builder, $config);
+
+        $this->assertSame($first['data-picture-id'], $second['data-picture-id']);
+        $this->assertNotSame($first['data-picture-instance'], $second['data-picture-instance']);
+        $this->assertSame('1', $first['data-picture-instance']);
+        $this->assertSame('2', $second['data-picture-instance']);
+    }
+
+    public function testComposePictureMarkersResetInstanceSequenceWhenRequestChanges(): void
+    {
+        $builder = Plugin::getInstance()->getRenderContextBuilder();
+        $this->resetPictureInstanceScope($builder);
+
+        $compose = new \ReflectionMethod($builder, 'composePictureMarkers');
+        $config = [
+            'setName' => 'cta-image',
+            'imageId' => 893,
+        ];
+
+        $firstActivation = $compose->invoke($builder, $config);
+        $this->resetPictureInstanceScope($builder);
+        $secondActivation = $compose->invoke($builder, $config);
+
+        $this->assertSame('1', $firstActivation['data-picture-instance']);
+        $this->assertSame('1', $secondActivation['data-picture-instance']);
+    }
+
+    private function resetPictureInstanceScope(RenderContextBuilder $builder): void
+    {
+        $property = new \ReflectionProperty($builder, 'pictureInstanceScope');
+        $property->setValue($builder, null);
     }
 
     private function setBuilderPlugin(RenderContextBuilder $builder, ?Plugin $plugin): void

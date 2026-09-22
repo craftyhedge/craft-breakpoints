@@ -147,7 +147,8 @@ default; typically local only). Processing finds images with
 
 During processing, Breakpoints also adds internal marker attributes to
 `<picture>`, `<source>`, and `<img>` (`data-bp-*`, `data-set-width` /
-`data-set-height`, `data-picture-id`, `data-asset-id`, `data-uid`). Those exist
+`data-set-height`, `data-picture-id`, `data-picture-instance`, `data-asset-id`,
+`data-uid`). Those exist
 only inside the processing preview iframe. Custom templates that drop them can
 prevent processing and review from reading the image correctly.
 

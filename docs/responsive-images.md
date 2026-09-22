@@ -107,7 +107,8 @@ When transform editing is allowed (local default), `<picture>` includes
 
 During a processing request, Breakpoints also adds internal markers:
 `data-bp-*` and `data-set-width` / `data-set-height` on `<source>`, and
-`data-picture-id` / `data-asset-id` / `data-uid` on `<picture>` / `<img>`.
+`data-picture-id` / `data-picture-instance` / `data-asset-id` / `data-uid` on
+`<picture>` / `<img>`.
 Those extra markers are not on normal front-end output.
 
 Do not rely on these attributes in your templates, CSS, or JavaScript. They are

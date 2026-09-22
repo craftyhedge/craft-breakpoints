@@ -65,6 +65,7 @@ final class ImageRendererServiceTest extends Unit
 
         $this->assertStringContainsString('<picture data-set="default">', $html);
         $this->assertStringNotContainsString('data-picture-id=', $html);
+        $this->assertStringNotContainsString('data-picture-instance=', $html);
         $this->assertStringNotContainsString('data-breakpoint-states=', $html);
     }
 
