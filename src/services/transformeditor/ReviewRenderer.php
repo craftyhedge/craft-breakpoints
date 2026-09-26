@@ -1043,13 +1043,13 @@ final class ReviewRenderer
                 && $setReviewState === 'missing'
                 && $firstInstanceHidden;
             $missingHeading = $showHiddenFirstInstanceWarning
-                ? 'Hidden Set - Unable To Save'
+                ? 'Hidden Set — Cannot Save'
                 : 'Transform Set Missing';
             $missingDetailHtml = '<p>' . $this->escapeReviewHtml($missingSetMessage) . '</p>';
             if ($showHiddenFirstInstanceWarning) {
-                $missingDetailHtml = '<p>The first set instance is not visible. You may need to intervene to force the set visible before processing.</p>'
-                    . '<p>Processing uses the first instance when it tries to save.</p>'
-                    . '<p>This set might need to use the \'Allow Hidden During Processing\' option after your intervention and saving.</p>';
+                $missingDetailHtml = '<p>Processing saves the first copy of this set on the page, and that copy is hidden.</p>'
+                    . '<p>Force it visible, process again, then revert your change.</p>'
+                    . '<p>Once reverted, turn on Allow Hidden During Processing so this set is not flagged again.</p>';
             }
 
             $reactiveWarningsMarkup = $reactiveWarningsEnabled
@@ -1086,7 +1086,7 @@ final class ReviewRenderer
             $hiddenSetWarningMarkup = ($hasAllEnabledBreakpointsHiddenWarning && !$showHiddenFirstInstanceWarning)
                 ? '<div class="bpts-warning-item bpts-warning-item-danger">'
                     . '<div class="bpts-warning-copy"><h3 class="bpts-warning-heading">Image Set Hidden</h3></div>'
-                    . '<div class="bpts-warning-detail"><p>This image set is hidden in the latest processing run.</p><p>Images that are hidden on page load need developer intervention to force them visible for processing.</p><p>Use the Allow Hidden During Processing option after reverting the intervention.</p></div>'
+                    . '<div class="bpts-warning-detail"><p>This image set is hidden in the latest processing run.</p><p>Force it visible, process again, then revert your change.</p><p>Once reverted, turn on Allow Hidden During Processing so this set is not flagged again.</p></div>'
                     . '</div>'
                 : '';
 
