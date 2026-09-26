@@ -947,17 +947,17 @@ final class TransformEditorServiceTest extends Unit
 
         $html = (string)($result['visualResultsHtml'] ?? '');
         $xpath = $this->createReviewMarkupXPath($html);
-        $this->assertReviewWarningMarkup($html, 'Hidden Set - Unable To Save');
+        $this->assertReviewWarningMarkup($html, 'Hidden Set — Cannot Save');
         $this->assertStringContainsString(
-            'The first set instance is not visible. You may need to intervene to force the set visible before processing.',
+            'Processing saves the first copy of this set on the page, and that copy is hidden.',
             $html,
         );
         $this->assertStringContainsString(
-            'Processing uses the first instance when it tries to save.',
+            'Force it visible, process again, then revert your change.',
             $html,
         );
         $this->assertStringContainsString(
-            'This set might need to use the \'Allow Hidden During Processing\' option after your intervention and saving.',
+            'Once reverted, turn on Allow Hidden During Processing so this set is not flagged again.',
             $html,
         );
         $this->assertSame(0, $this->countWarningHeadings($xpath, 'Transform Set Missing'));
