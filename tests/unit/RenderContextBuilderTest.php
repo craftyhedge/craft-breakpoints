@@ -312,8 +312,7 @@ final class RenderContextBuilderTest extends Unit
 
     public function testComposePictureMarkersStampDistinctInstanceIdsForSameSetAndAsset(): void
     {
-        $builder = Plugin::getInstance()->getRenderContextBuilder();
-        $this->resetPictureInstanceScope($builder);
+        $builder = new RenderContextBuilder();
 
         $compose = new \ReflectionMethod($builder, 'composePictureMarkers');
         $config = [
@@ -332,29 +331,25 @@ final class RenderContextBuilderTest extends Unit
         $this->assertSame('2', $second['data-picture-instance']);
     }
 
-    public function testComposePictureMarkersResetInstanceSequenceWhenRequestChanges(): void
+    public function testComposePictureMarkersRestartInstanceSequencePerBuilder(): void
     {
-        $builder = Plugin::getInstance()->getRenderContextBuilder();
-        $this->resetPictureInstanceScope($builder);
-
-        $compose = new \ReflectionMethod($builder, 'composePictureMarkers');
         $config = [
             'setName' => 'cta-image',
             'imageId' => 893,
         ];
 
-        $firstActivation = $compose->invoke($builder, $config);
-        $this->resetPictureInstanceScope($builder);
-        $secondActivation = $compose->invoke($builder, $config);
+        $firstBuilder = new RenderContextBuilder();
+        $firstActivation = (new \ReflectionMethod($firstBuilder, 'composePictureMarkers'))
+            ->invoke($firstBuilder, $config);
+
+        // Craft builds a new component per request, which is what restarts the
+        // sequence at 1.
+        $secondBuilder = new RenderContextBuilder();
+        $secondActivation = (new \ReflectionMethod($secondBuilder, 'composePictureMarkers'))
+            ->invoke($secondBuilder, $config);
 
         $this->assertSame('1', $firstActivation['data-picture-instance']);
         $this->assertSame('1', $secondActivation['data-picture-instance']);
-    }
-
-    private function resetPictureInstanceScope(RenderContextBuilder $builder): void
-    {
-        $property = new \ReflectionProperty($builder, 'pictureInstanceScope');
-        $property->setValue($builder, null);
     }
 
     private function setBuilderPlugin(RenderContextBuilder $builder, ?Plugin $plugin): void
