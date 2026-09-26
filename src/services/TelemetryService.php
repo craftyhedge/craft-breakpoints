@@ -25,17 +25,8 @@ class TelemetryService extends Component
     private const DISPLAY_ASSET_URL_MAX_LENGTH = 1024;
     private const ASSET_ID_MAX_LENGTH = 255;
     private const AUTO_DIMENSION_MAX_LENGTH = 16;
+    private const PICTURE_INSTANCE_MAX_LENGTH = 64;
     private const RUN_ID_MAX_LENGTH = 64;
-    private const LIVE_RUN_SESSION_KEY = 'bpiLiveRunRows';
-
-    /**
-     * Flattened live-run extract rows for the current CP session, including
-     * processing-only instance ids. Used by apply/auto-apply; never written
-     * to the snapshot tables.
-     *
-     * @var array<int, array<string, mixed>>|null
-     */
-    private ?array $liveRunRows = null;
 
     /** @var array<string, bool> */
     private const VALID_RUN_STATUSES = [
@@ -348,7 +339,6 @@ class TelemetryService extends Component
             $transformMetadataJson = '{}';
         }
         $snapshotRows = $this->normalizeSnapshotRowsBySlot($payload['rowsBySlot'] ?? []);
-        $this->rememberLiveRunRows($payload['rowsBySlot'] ?? []);
         $savedDimensionsByTransform = $this->collectSavedDimensionsAtPersistTime();
 
         $transaction = $db->beginTransaction();
@@ -382,6 +372,7 @@ class TelemetryService extends Component
                         $row['breakpointWidth'],
                         $row['measureWidth'],
                         $row['assetId'],
+                        $row['pictureInstance'],
                         $row['displayAssetUrl'],
                         $row['rowStatus'],
                         $row['isVisible'],
@@ -396,7 +387,7 @@ class TelemetryService extends Component
                 $db->createCommand()
                     ->batchInsert(
                         self::RUN_SNAPSHOT_ROWS_TABLE,
-                        ['snapshotId', 'transformHandle', 'slotKey', 'slotIndex', 'breakpointWidth', 'measureWidth', 'assetId', 'displayAssetUrl', 'rowStatus', 'isVisible', 'renderedWidth', 'renderedHeight', 'autoDimension', 'dateCreated', 'dateUpdated'],
+                        ['snapshotId', 'transformHandle', 'slotKey', 'slotIndex', 'breakpointWidth', 'measureWidth', 'assetId', 'pictureInstance', 'displayAssetUrl', 'rowStatus', 'isVisible', 'renderedWidth', 'renderedHeight', 'autoDimension', 'dateCreated', 'dateUpdated'],
                         $batchRows
                     )
                     ->execute();
@@ -477,23 +468,6 @@ class TelemetryService extends Component
     }
 
     /**
-     * Live-run extract rows for the current processing result, including
-     * instance ids. Empty when no run has been persisted in this session.
-     *
-     * @return array<int, array<string, mixed>>
-     */
-    public function getLiveRunRows(): array
-    {
-        if (is_array($this->liveRunRows)) {
-            return $this->liveRunRows;
-        }
-
-        $this->liveRunRows = $this->readLiveRunRowsFromSession();
-
-        return $this->liveRunRows;
-    }
-
-    /**
      * @return array<string, mixed>|null
      */
     public function getLatestRunSnapshot(): ?array
@@ -516,7 +490,7 @@ class TelemetryService extends Component
         $perAssetRows = [];
         if ($snapshotId > 0) {
             $perAssetRows = (new Query())
-                ->select(['transformHandle', 'slotKey', 'slotIndex', 'breakpointWidth', 'measureWidth', 'assetId', 'displayAssetUrl', 'rowStatus', 'isVisible', 'renderedWidth', 'renderedHeight', 'autoDimension'])
+                ->select(['transformHandle', 'slotKey', 'slotIndex', 'breakpointWidth', 'measureWidth', 'assetId', 'pictureInstance', 'displayAssetUrl', 'rowStatus', 'isVisible', 'renderedWidth', 'renderedHeight', 'autoDimension'])
                 ->from(self::RUN_SNAPSHOT_ROWS_TABLE)
                 ->where(['snapshotId' => $snapshotId])
                 ->orderBy(['transformHandle' => SORT_ASC, 'slotIndex' => SORT_ASC, 'id' => SORT_ASC])
@@ -545,6 +519,7 @@ class TelemetryService extends Component
                 'breakpointWidth' => $breakpointWidth,
                 'measureWidth' => $measureWidth,
                 'assetId' => (string)($row['assetId'] ?? ''),
+                'instance' => trim((string)($row['pictureInstance'] ?? '')),
                 'displayAssetUrl' => $row['displayAssetUrl'] !== null ? (string)$row['displayAssetUrl'] : null,
                 'rowStatus' => (string)($row['rowStatus'] ?? 'unprocessed'),
                 'isVisible' => ($row['isVisible'] ?? null) === null ? null : ((int)$row['isVisible'] === 1),
@@ -759,103 +734,6 @@ class TelemetryService extends Component
     }
 
     /**
-     * @param mixed $rawRowsBySlot
-     */
-    private function rememberLiveRunRows(mixed $rawRowsBySlot): void
-    {
-        $liveRows = [];
-        if (!is_array($rawRowsBySlot)) {
-            $this->liveRunRows = [];
-            $this->writeLiveRunRowsToSession([]);
-
-            return;
-        }
-
-        foreach ($rawRowsBySlot as $slotKeyFromMap => $rows) {
-            if (!is_array($rows)) {
-                continue;
-            }
-
-            foreach ($rows as $row) {
-                if (!is_array($row)) {
-                    continue;
-                }
-
-                $transformHandle = trim((string)($row['transform'] ?? ''));
-                $slotKey = trim((string)($row['slotKey'] ?? (is_string($slotKeyFromMap) ? $slotKeyFromMap : '')));
-                $slotIndex = is_numeric($row['slotIndex'] ?? null) ? (int)$row['slotIndex'] : -1;
-                if ($transformHandle === '' || $slotKey === '' || $slotIndex < 0) {
-                    continue;
-                }
-
-                $breakpointWidth = is_numeric($row['mediaWidth'] ?? null)
-                    ? (int)$row['mediaWidth']
-                    : (is_numeric($slotKeyFromMap) ? (int)$slotKeyFromMap : 0);
-
-                $liveRows[] = [
-                    'transformHandle' => $transformHandle,
-                    'slotKey' => $slotKey,
-                    'slotIndex' => $slotIndex,
-                    'breakpointWidth' => $breakpointWidth,
-                    'assetId' => trim((string)($row['assetId'] ?? '')),
-                    'instance' => trim((string)($row['instance'] ?? '')),
-                    'renderedWidth' => max(0, (int)($row['rendered']['width'] ?? 0)),
-                    'renderedHeight' => max(0, (int)($row['rendered']['height'] ?? 0)),
-                    'isVisible' => $row['isVisible'] ?? null,
-                ];
-            }
-        }
-
-        $this->liveRunRows = $liveRows;
-        $this->writeLiveRunRowsToSession($liveRows);
-    }
-
-    /**
-     * @return array<int, array<string, mixed>>
-     */
-    private function readLiveRunRowsFromSession(): array
-    {
-        try {
-            $request = Craft::$app->getRequest();
-            if ($request->getIsConsoleRequest()) {
-                return [];
-            }
-
-            $stored = Craft::$app->getSession()->get(self::LIVE_RUN_SESSION_KEY);
-            if (!is_array($stored)) {
-                return [];
-            }
-
-            $rows = [];
-            foreach ($stored as $row) {
-                if (is_array($row)) {
-                    $rows[] = $row;
-                }
-            }
-
-            return $rows;
-        } catch (\Throwable) {
-            return [];
-        }
-    }
-
-    /**
-     * @param array<int, array<string, mixed>> $rows
-     */
-    private function writeLiveRunRowsToSession(array $rows): void
-    {
-        try {
-            $request = Craft::$app->getRequest();
-            if ($request->getIsConsoleRequest()) {
-                return;
-            }
-
-            Craft::$app->getSession()->set(self::LIVE_RUN_SESSION_KEY, $rows);
-        } catch (\Throwable) {
-        }
-    }
-
-    /**
      * @return array<int, array<string, mixed>>
      */
     private function normalizeSnapshotRowsBySlot(mixed $rawRowsBySlot): array
@@ -895,6 +773,11 @@ class TelemetryService extends Component
                     $assetId = mb_substr($assetId, 0, self::ASSET_ID_MAX_LENGTH);
                 }
 
+                $pictureInstance = trim((string)($row['instance'] ?? ''));
+                if ($pictureInstance !== '' && mb_strlen($pictureInstance) > self::PICTURE_INSTANCE_MAX_LENGTH) {
+                    $pictureInstance = mb_substr($pictureInstance, 0, self::PICTURE_INSTANCE_MAX_LENGTH);
+                }
+
                 $displayAssetUrl = $this->normalizeDisplayAssetUrl($row);
 
                 $enabled = ($row['enabled'] ?? true) === true;
@@ -919,6 +802,7 @@ class TelemetryService extends Component
                     'breakpointWidth' => $breakpointWidth,
                     'measureWidth' => $measureWidth,
                     'assetId' => $assetId !== '' ? $assetId : null,
+                    'pictureInstance' => $pictureInstance !== '' ? $pictureInstance : null,
                     'displayAssetUrl' => $displayAssetUrl,
                     'rowStatus' => $rowStatus,
                     'isVisible' => $isVisible,

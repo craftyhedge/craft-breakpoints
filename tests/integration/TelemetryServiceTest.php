@@ -197,13 +197,26 @@ final class TelemetryServiceTest extends Unit
 
         $schema = $db->getTableSchema(DatabaseService::TABLE_RUN_SNAPSHOT_ROWS);
         $this->assertNotNull($schema);
-        $this->assertArrayNotHasKey('instance', $schema->columns);
+        $this->assertArrayHasKey('pictureInstance', $schema->columns);
         $this->assertArrayNotHasKey('pictureId', $schema->columns);
 
-        $liveRows = Plugin::getInstance()->getTelemetry()->getLiveRunRows();
-        $this->assertNotSame([], $liveRows);
-        $this->assertSame('3', $liveRows[0]['instance'] ?? null);
-        $this->assertArrayNotHasKey('pictureId', $liveRows[0]);
+        $storedInstances = (new Query())
+            ->select(['slotKey', 'pictureInstance'])
+            ->from(DatabaseService::TABLE_RUN_SNAPSHOT_ROWS)
+            ->where(['snapshotId' => 1, 'transformHandle' => 'hero'])
+            ->orderBy(['slotIndex' => SORT_ASC])
+            ->all($db);
+        $this->assertSame(
+            ['base' => '3', 'xs' => null],
+            array_column($storedInstances, 'pictureInstance', 'slotKey'),
+        );
+
+        $snapshot = Plugin::getInstance()->getTelemetry()->getLatestRunSnapshot();
+        $this->assertIsArray($snapshot);
+        $rowsPayload = $snapshot['rowsPayload'] ?? [];
+        $this->assertNotSame([], $rowsPayload);
+        $this->assertSame('3', $rowsPayload[0]['instance'] ?? null);
+        $this->assertArrayNotHasKey('pictureId', $rowsPayload[0]);
     }
 
     private function createMockSvgAsset(): Asset

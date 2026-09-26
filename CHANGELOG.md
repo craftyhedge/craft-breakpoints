@@ -7,6 +7,7 @@
 - When a missing set's first copy is hidden, the review explains that the set cannot be saved, that processing saves the first copy, and that Allow Hidden During Processing may be needed.
 - Custom templates that copy picture markup during processing need to keep `data-picture-instance`.
 - Removed the known limitation that said repeat uses of the same asset were dropped.
+- Added a `pictureInstance` column to the processing run snapshot so copy grouping survives across sessions. Existing installs get this from a migration; no reprocessing is required, though the first run after upgrading is what fills the new column.
 
 ## 1.0.0 - 2026-08-31
 

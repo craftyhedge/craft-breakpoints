@@ -84,6 +84,7 @@ class Install extends Migration
                 'breakpointWidth' => $this->integer()->notNull(),
                 'measureWidth' => $this->integer()->notNull(),
                 'assetId' => $this->string(255)->null()->defaultValue(null),
+                'pictureInstance' => $this->string(64)->null()->defaultValue(null),
                 'displayAssetUrl' => $this->string(1024)->null()->defaultValue(null),
                 'rowStatus' => $this->string(24)->notNull()->defaultValue('unprocessed'),
                 'isVisible' => $this->boolean()->null()->defaultValue(null),

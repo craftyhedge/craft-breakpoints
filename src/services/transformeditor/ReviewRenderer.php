@@ -1368,11 +1368,6 @@ final class ReviewRenderer
     }
 
     /**
-     * @param array<int, array<int, array<string, mixed>>> $rowsByBreakpoint
-     * @param array<int, int> $transformBreakpoints
-     * @return array<int, int>
-     */
-    /**
      * Page 1 is the first asset key. It is hidden when every enabled row for
      * that copy is not visible.
      *
@@ -1407,6 +1402,11 @@ final class ReviewRenderer
         return $sawEnabled;
     }
 
+    /**
+     * @param array<int, array<int, array<string, mixed>>> $rowsByBreakpoint
+     * @param array<int, int> $transformBreakpoints
+     * @return array<int, int>
+     */
     private function buildProcessedHiddenBreakpoints(array $rowsByBreakpoint, array $transformBreakpoints): array
     {
         $hiddenBreakpoints = [];

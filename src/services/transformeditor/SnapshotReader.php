@@ -154,18 +154,16 @@ final class SnapshotReader
             return [];
         }
 
-        $liveRows = $this->telemetry->getLiveRunRows();
         $snapshot = $this->getLatestRunSnapshot();
         $perAssetRows = is_array($snapshot) && isset($snapshot['rowsPayload']) && is_array($snapshot['rowsPayload'])
             ? $snapshot['rowsPayload']
             : [];
-        $sourceRows = $liveRows !== [] ? $liveRows : $perAssetRows;
-        if ($sourceRows === []) {
+        if ($perAssetRows === []) {
             return [];
         }
 
         $slotVisibility = [];
-        foreach ($sourceRows as $row) {
+        foreach ($perAssetRows as $row) {
             if (!is_array($row)) {
                 continue;
             }
@@ -271,7 +269,7 @@ final class SnapshotReader
      * and breakpoint from server-side telemetry sources.
      *
      * Resolution order:
-     *   1. The selected picture copy from live-run rows (or snapshot rows)
+     *   1. The selected picture copy from snapshot rows
      *   2. Fall back to previewCacheRows for first-asset evidence
      *   3. Return null (caller must produce an explicit user-facing error)
      *
@@ -326,14 +324,12 @@ final class SnapshotReader
             return [];
         }
 
-        $liveRows = $this->telemetry->getLiveRunRows();
         $snapshot = $this->getLatestRunSnapshot();
         $perAssetRows = is_array($snapshot) && isset($snapshot['rowsPayload']) && is_array($snapshot['rowsPayload'])
             ? $snapshot['rowsPayload']
             : [];
-        $sourceRows = $liveRows !== [] ? $liveRows : $perAssetRows;
 
-        $renderedRows = $this->pickCopyRowsForTransform($sourceRows, $transformName, $assetKey);
+        $renderedRows = $this->pickCopyRowsForTransform($perAssetRows, $transformName, $assetKey);
 
         if ($renderedRows === []) {
             $previewCacheRows = $this->getPreviewCacheRowsByTransformAndBreakpoint();
