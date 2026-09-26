@@ -772,7 +772,7 @@ class TransformsController extends Controller
         return $this->asDatastarEventStream([
             new PatchElements($cardHtml, [
                 'selector' => '#' . $cardId,
-                'mode' => 'replace',
+                'mode' => 'outer',
             ]),
         ]);
     }
