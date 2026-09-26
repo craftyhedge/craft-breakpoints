@@ -13,7 +13,7 @@ import {
     extractRowsForBreakpoint as processingExtractRowsForBreakpoint,
     finalizeRunReport as processingFinalizeRunReport,
     getMeasurementWidthForBreakpoint as processingGetMeasurementWidthForBreakpoint,
-    getPictureLoadKey as processingGetPictureLoadKey,
+    getPictureLoadKey,
     inspectProcessingMarkerHealth as processingInspectProcessingMarkerHealth,
     isImageLikelyBroken as processingIsImageLikelyBroken,
     isImageRenderable as processingIsImageRenderable,
@@ -1489,10 +1489,6 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
 
         const target = frameDocument.head || frameDocument.documentElement || frameDocument.body;
         target?.appendChild(style);
-    }
-
-    function getPictureLoadKey(picture, index) {
-        return processingGetPictureLoadKey(picture, index);
     }
 
     function getPrimarySourceForSlot(picture, slot) {
@@ -3415,7 +3411,8 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                     selectedReadiness = new Map();
 
                     selectedRows.forEach((row) => {
-                        const key = String(row?.instance || row?.pictureId || '').trim();
+                        const instance = String(row?.instance || '').trim();
+                        const key = instance !== '' ? instance : String(row?.pictureId || '').trim();
                         if (key === '') {
                             return;
                         }
