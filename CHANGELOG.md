@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.0 - 2026-09-29
 
 - Measured each use of a transform set on a page as its own copy, including repeated uses of the same asset. Review pages through those copies, and saving rendered values keeps one copy together instead of mixing breakpoints from different copies.
 - Kept rendered measurements visible when paging away from a hidden first copy.
