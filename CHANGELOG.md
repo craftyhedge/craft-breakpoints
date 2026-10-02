@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Added a "Used From Multiple Templates" notice when a transform set is used in more than one place on a page, such as a desktop menu and a mobile nav. If those places show the image at different sizes, each may need its own set. The notice appears in the review straight after processing.
+- Custom templates must keep the `data-include-stack` attribute on `<picture>` for this notice to work.
+- The Asset Mismatch warning now lists the templates the mismatched images came from, and its wording is shorter.
+
 ## 1.1.0 - 2026-09-29
 
 - Measured each use of a transform set on a page as its own copy, including repeated uses of the same asset. Review pages through those copies, and saving rendered values keeps one copy together instead of mixing breakpoints from different copies.

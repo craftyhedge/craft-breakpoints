@@ -1069,6 +1069,36 @@ describe('transforms runtime helper logic', () => {
         tracker.cleanup();
     });
 
+    it('copies the include stack marker into extract rows', () => {
+        const frameDocument = document.implementation.createHTMLDocument('preview');
+        frameDocument.body.innerHTML = `
+            <picture data-set="cta-image" data-picture-id="cta" data-picture-instance="1" data-asset-id="893" data-include-stack='["_layout","mega-menus","mega-menu-cta"]'>
+                <source data-bp-source="primary" data-bp-size="480" srcset="https://example.test/one.webp 1x" />
+                <img src="https://example.test/one.jpg" />
+            </picture>
+            <picture data-set="cta-image" data-picture-id="cta" data-picture-instance="2" data-asset-id="893">
+                <source data-bp-source="primary" data-bp-size="480" srcset="https://example.test/two.webp 1x" />
+                <img src="https://example.test/two.jpg" />
+            </picture>
+            <picture data-set="cta-image" data-picture-id="cta" data-picture-instance="3" data-asset-id="893" data-include-stack="not-json">
+                <source data-bp-source="primary" data-bp-size="480" srcset="https://example.test/three.webp 1x" />
+                <img src="https://example.test/three.jpg" />
+            </picture>
+        `;
+
+        hooks.setPreviewFrameForTests(frameDocument, {});
+        const tracker = hooks.buildBreakpointReadinessTracker(480, null);
+
+        const rows = hooks.extractRowsForBreakpoint(480, null, tracker.readinessByKey);
+        expect(rows.map((row) => row.includeStack)).toEqual([
+            ['_layout', 'mega-menus', 'mega-menu-cta'],
+            [],
+            [],
+        ]);
+
+        tracker.cleanup();
+    });
+
     it('pairs escape-width rows by instance when picture ids are shared', () => {
         const normalRows = [
             {

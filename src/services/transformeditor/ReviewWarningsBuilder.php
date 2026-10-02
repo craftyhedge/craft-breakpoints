@@ -2,13 +2,15 @@
 
 namespace craftyhedge\craftbreakpoints\services\transformeditor;
 
+use craftyhedge\craftbreakpoints\helpers\IncludeStack;
 use craftyhedge\craftbreakpoints\services\BreakpointPolicy;
 use craftyhedge\craftbreakpoints\services\ConfigService;
 use craftyhedge\craftbreakpoints\services\TelemetryService;
 
 /**
- * Builds per-transform review warnings (currently: missing set definitions)
- * and provides warning metadata used for rendering (class, label).
+ * Builds per-transform review warnings (missing set definitions, empty enabled
+ * breakpoints, multiple include origins) and provides warning metadata used
+ * for rendering (class, label).
  *
  * Depends on SnapshotReader for latest run entry data, ConfigService for
  * configured breakpoints, and TelemetryService for edit-permission decisions
@@ -18,6 +20,13 @@ final class ReviewWarningsBuilder
 {
     public const MISSING_SET_CAN_EDIT_MESSAGE = 'No transforms are saved for this set. Process the entry to capture rendered dimensions, or edit the transforms.';
     public const MISSING_SET_READ_ONLY_MESSAGE = 'No transforms are saved for this set. Process in a development environment.';
+    public const MULTIPLE_INCLUDE_ORIGINS_CODE = 'multiple-include-origins';
+
+    /**
+     * Advisory warnings are shown on the card but do not make it red or count
+     * towards the run's warning total.
+     */
+    public const ADVISORY_CODES = [self::MULTIPLE_INCLUDE_ORIGINS_CODE];
 
     public function __construct(
         private readonly SnapshotReader $snapshotReader,
@@ -55,27 +64,90 @@ final class ReviewWarningsBuilder
         }
 
         $missingDefinitions = array_values(array_diff($renderedTransformNames, $configTransformNames));
-        if ($missingDefinitions === []) {
-            return $warningsByTransform;
+        if ($missingDefinitions !== []) {
+            $snapshot = $this->snapshotReader->getLatestRunSnapshot();
+            $runEntryData = $this->snapshotReader->resolveRunEntryData($snapshot);
+            $entryId = is_array($runEntryData) ? (int)($runEntryData['id'] ?? 0) : 0;
+            $entryAvailable = is_array($runEntryData)
+                && $entryId > 0
+                && (string)($runEntryData['cpEditUrl'] ?? '') !== '#';
+            $entryMissing = $entryId > 0 && !$entryAvailable;
+
+            foreach ($missingDefinitions as $transformName) {
+                $warningsByTransform[$transformName][] = $this->buildMissingSetDefinitionWarning(
+                    $entryId,
+                    $entryAvailable,
+                    $entryMissing,
+                );
+            }
         }
 
-        $snapshot = $this->snapshotReader->getLatestRunSnapshot();
-        $runEntryData = $this->snapshotReader->resolveRunEntryData($snapshot);
-        $entryId = is_array($runEntryData) ? (int)($runEntryData['id'] ?? 0) : 0;
-        $entryAvailable = is_array($runEntryData)
-            && $entryId > 0
-            && (string)($runEntryData['cpEditUrl'] ?? '') !== '#';
-        $entryMissing = $entryId > 0 && !$entryAvailable;
+        foreach (self::collectIncludeStacksByTransform($rowsByBreakpoint) as $transformName => $stacks) {
+            if (count($stacks) < 2) {
+                continue;
+            }
 
-        foreach ($missingDefinitions as $transformName) {
-            $warningsByTransform[$transformName][] = $this->buildMissingSetDefinitionWarning(
-                $entryId,
-                $entryAvailable,
-                $entryMissing,
+            $warningsByTransform[$transformName][] = self::buildMultipleIncludeOriginsWarning(
+                self::resolveDivergentOrigins($stacks),
             );
         }
 
         return $warningsByTransform;
+    }
+
+    /**
+     * @param string[] $origins
+     * @return array<string, mixed>
+     */
+    public static function buildMultipleIncludeOriginsWarning(array $origins): array
+    {
+        $origins = array_values(array_unique(array_filter(
+            $origins,
+            static fn(string $origin): bool => $origin !== '',
+        )));
+
+        return [
+            'code' => self::MULTIPLE_INCLUDE_ORIGINS_CODE,
+            'message' => '',
+            'origins' => $origins,
+            'hint' => 'If they render at different sizes, each may need its own set.',
+        ];
+    }
+
+    /**
+     * Names each stack by its frame at the first index where not all stacks
+     * agree. A shorter stack that has run out uses its leaf.
+     *
+     * @param array<int, string[]> $stacks Root → leaf template names.
+     * @return string[]
+     */
+    public static function resolveDivergentOrigins(array $stacks): array
+    {
+        $stacks = array_values(array_filter($stacks, static fn(array $stack): bool => $stack !== []));
+        if (count($stacks) < 2) {
+            return [];
+        }
+
+        $maxDepth = max(array_map('count', $stacks));
+        $divergeIndex = null;
+        for ($index = 0; $index < $maxDepth; $index++) {
+            $frames = array_map(static fn(array $stack): ?string => $stack[$index] ?? null, $stacks);
+            if (count(array_unique(array_map(static fn(?string $frame): string => (string)$frame, $frames))) > 1) {
+                $divergeIndex = $index;
+                break;
+            }
+        }
+
+        if ($divergeIndex === null) {
+            return [];
+        }
+
+        $origins = [];
+        foreach ($stacks as $stack) {
+            $origins[] = $stack[$divergeIndex] ?? $stack[count($stack) - 1];
+        }
+
+        return array_values(array_unique($origins));
     }
 
     /**
@@ -135,10 +207,70 @@ final class ReviewWarningsBuilder
                 continue;
             }
 
-            $count += count($warnings);
+            foreach ($warnings as $warning) {
+                if (!self::isAdvisoryWarning($warning)) {
+                    $count++;
+                }
+            }
         }
 
         return $count;
+    }
+
+    /**
+     * @param array<int, mixed> $warnings
+     */
+    public static function hasNonAdvisoryWarning(array $warnings): bool
+    {
+        foreach ($warnings as $warning) {
+            if (!self::isAdvisoryWarning($warning)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static function isAdvisoryWarning(mixed $warning): bool
+    {
+        return is_array($warning)
+            && in_array((string)($warning['code'] ?? ''), self::ADVISORY_CODES, true);
+    }
+
+    /**
+     * Distinct non-empty include stacks per rendered set. Rows without a stack
+     * (PHP `craft.images.render()` callers, injected markup) are unknown and
+     * never count as an origin.
+     *
+     * @param array<int, array<int, array<string, mixed>>> $rowsByBreakpoint
+     * @return array<string, array<int, string[]>>
+     */
+    private static function collectIncludeStacksByTransform(array $rowsByBreakpoint): array
+    {
+        $stacksByTransform = [];
+        foreach ($rowsByBreakpoint as $rows) {
+            if (!is_array($rows)) {
+                continue;
+            }
+
+            foreach ($rows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $name = (string)($row['transform'] ?? '');
+                $stack = IncludeStack::normalize($row['includeStack'] ?? []);
+                if ($name === '' || $name === 'unknown' || $stack === []) {
+                    continue;
+                }
+
+                $stacksByTransform[$name][implode("\n", $stack)] = $stack;
+            }
+        }
+
+        ksort($stacksByTransform, SORT_STRING);
+
+        return array_map(static fn(array $stacks): array => array_values($stacks), $stacksByTransform);
     }
 
     /**

@@ -816,6 +816,30 @@ final class TransformEditorServiceTest extends Unit
         $this->assertHiddenAllowedIndicatorState($xpath, 'card-default', false);
     }
 
+    public function testRenderResultReviewMergesIncludeOriginsIntoAssetMismatchWarning(): void
+    {
+        $html = $this->renderAssetMismatchReview(
+            ['_layout', 'mega-menus', 'mega-menu-cta'],
+            ['_layout', 'nav-mobile', 'mega-menu-cta'],
+        );
+        $xpath = $this->createReviewMarkupXPath($html);
+
+        $this->assertSingleWarningHeading($xpath, 'Asset Mismatch');
+        $this->assertSame(0, $this->countWarningHeadings($xpath, 'Used From Multiple Templates'));
+        $this->assertStringContainsString('<li>mega-menus</li><li>nav-mobile</li>', $html);
+        $this->assertStringContainsString('Each may need its own set.', $html);
+    }
+
+    public function testRenderResultReviewShowsGenericAssetMismatchWithoutIncludeOrigins(): void
+    {
+        $html = $this->renderAssetMismatchReview([], []);
+        $xpath = $this->createReviewMarkupXPath($html);
+
+        $this->assertSingleWarningHeading($xpath, 'Asset Mismatch');
+        $this->assertStringContainsString('It may be used in layouts that need separate sets.', $html);
+        $this->assertStringNotContainsString('bpts-warning-origins', $html);
+    }
+
     public function testRenderResultReviewShowsHiddenAllowedPillAndSuppressesHiddenWarningWhenOptedIn(): void
     {
         $snapshot = $this->buildHiddenRunSnapshot('card-default');
@@ -2565,6 +2589,81 @@ final class TransformEditorServiceTest extends Unit
                 ]],
             ],
         ];
+    }
+
+    /**
+     * Two hero copies at the same slot whose rendered heights differ (asset
+     * mismatch in the latest snapshot), each with the given include stack.
+     *
+     * @param string[] $firstStack
+     * @param string[] $secondStack
+     */
+    private function renderAssetMismatchReview(array $firstStack, array $secondStack): string
+    {
+        $snapshotRow = static fn(string $assetId, int $height): array => [
+            'transformHandle' => 'hero',
+            'slotKey' => 'xs',
+            'slotIndex' => 1,
+            'breakpointWidth' => 640,
+            'assetId' => $assetId,
+            'renderedWidth' => 600,
+            'renderedHeight' => $height,
+            'rowStatus' => 'loaded',
+            'isVisible' => true,
+        ];
+        $rowsPayload = [$snapshotRow('100', 330), $snapshotRow('101', 350)];
+
+        $resultRow = static fn(string $assetId, string $instance, int $height, array $includeStack): array => [
+            'assetId' => $assetId,
+            'instance' => $instance,
+            'includeStack' => $includeStack,
+            'transform' => 'hero',
+            'enabled' => true,
+            'isVisible' => true,
+            'loaded' => true,
+            'rendered' => ['width' => 600, 'height' => $height],
+            'transformDimensions' => ['width' => 600, 'height' => 340, 'autoDimension' => null],
+        ];
+
+        $result = $this->withLatestRunSnapshot([
+            'runStatus' => 'completed',
+            'ranAt' => '2026-07-04 10:20:30',
+            'rowsPayload' => $rowsPayload,
+            'rows' => $rowsPayload,
+        ], function () use ($resultRow, $firstStack, $secondStack): array {
+            $editor = Plugin::getInstance()->getTransformEditor();
+
+            // Other slots are disabled so the empty-breakpoints warning does not
+            // suppress the mismatch banners.
+            $disabled = ['width' => null, 'height' => null, 'enabled' => false, 'autoDimension' => null];
+
+            return $this->withRuntimeSets([
+                'hero' => [
+                    'name' => 'hero',
+                    'includeEscapeWidth' => false,
+                    'variants' => [
+                        'base' => $disabled,
+                        'xs' => ['width' => 600, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
+                        'sm' => $disabled,
+                        'md' => $disabled,
+                        'lg' => $disabled,
+                        'xl' => $disabled,
+                        '2xl' => $disabled,
+                    ],
+                    'config' => [],
+                ],
+            ], fn() => $editor->renderResultReview([
+                'breakpoints' => [640],
+                'rowsByBreakpoint' => [
+                    640 => [
+                        $resultRow('100', '1', 330, $firstStack),
+                        $resultRow('101', '2', 350, $secondStack),
+                    ],
+                ],
+            ]));
+        });
+
+        return (string)($result['visualResultsHtml'] ?? '');
     }
 
     private function assertSingleWarningHeading(\DOMXPath $xpath, string $heading): void

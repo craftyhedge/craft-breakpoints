@@ -635,6 +635,12 @@
     margin: 0;
 }
 
+.bpts-warning-item .bpts-warning-detail .bpts-warning-origins {
+    margin: 4px 0;
+    padding-left: 18px;
+    list-style: disc;
+}
+
 .bpts-warning-actions {
     margin-top: 8px;
     display: flex;

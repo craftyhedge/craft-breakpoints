@@ -4,6 +4,7 @@ namespace craftyhedge\craftbreakpoints\services\transformeditor;
 
 use Craft;
 use craft\web\View;
+use craftyhedge\craftbreakpoints\helpers\IncludeStack;
 use craftyhedge\craftbreakpoints\Plugin;
 
 /**
@@ -398,7 +399,7 @@ final class ReviewRenderer
                 && !$hasCurrentBreakpointMismatch,
             'hasCardWarningDanger' => $hasCurrentBreakpointMismatch
                 || $hasCurrentAssetMismatch
-                || !empty($warningsByTransform[$normalized]),
+                || ReviewWarningsBuilder::hasNonAdvisoryWarning($warningsByTransform[$normalized] ?? []),
         ];
     }
 
@@ -1016,6 +1017,21 @@ final class ReviewRenderer
                     static fn($w): bool => !is_array($w) || (string)($w['code'] ?? '') !== 'missing-set-definitions',
                 ))
                 : $cardWarnings;
+
+            // When the asset mismatch banner shows, it carries the include origins
+            // itself, so the separate origins notice is dropped.
+            $showAssetMismatchWarning = $hasAssetMismatchWarning && !$suppressMismatchBanners;
+            $assetMismatchOrigins = [];
+            if ($showAssetMismatchWarning) {
+                foreach ($staticCardWarnings as $index => $w) {
+                    if (is_array($w) && (string)($w['code'] ?? '') === ReviewWarningsBuilder::MULTIPLE_INCLUDE_ORIGINS_CODE) {
+                        $assetMismatchOrigins = is_array($w['origins'] ?? null) ? $w['origins'] : [];
+                        unset($staticCardWarnings[$index]);
+                    }
+                }
+                $staticCardWarnings = array_values($staticCardWarnings);
+            }
+
             $staticWarningsMarkup = $this->renderReviewWarningsMarkup(
                 $staticCardWarnings,
                 false,
@@ -1076,11 +1092,8 @@ final class ReviewRenderer
                     . '</div>'
                 : '';
 
-            $assetMismatchWarningMarkup = ($hasAssetMismatchWarning && !$suppressMismatchBanners)
-                ? '<div class="bpts-warning-item bpts-warning-item-neutral">'
-                    . '<div class="bpts-warning-copy"><h3 class="bpts-warning-heading">Asset Mismatch</h3></div>'
-                    . '<div class="bpts-warning-detail"><p>One or more assets have mismatched values that need reviewed.</p><p>It is likely the set has multiple use cases creating different outputs.</p><p>Sets should always produce the same output dimensions. You might need to split this in to separate sets.</p></div>'
-                    . '</div>'
+            $assetMismatchWarningMarkup = $showAssetMismatchWarning
+                ? $this->buildAssetMismatchWarningMarkup($assetMismatchOrigins)
                 : '';
 
             $hiddenSetWarningMarkup = ($hasAllEnabledBreakpointsHiddenWarning && !$showHiddenFirstInstanceWarning)
@@ -1106,8 +1119,9 @@ final class ReviewRenderer
 
             // The card's red border tracks danger-level warnings. Static/mismatch warnings
             // are fixed per render; the missing-set danger toggles reactively via signal,
-            // while the neutral "process again" notice must NOT make the card red.
-            $staticWarningPresent = $staticWarningsMarkup !== ''
+            // while the neutral "process again" notice and advisory warnings must NOT
+            // make the card red.
+            $staticWarningPresent = ReviewWarningsBuilder::hasNonAdvisoryWarning($staticCardWarnings)
                 || $hiddenSetWarningMarkup !== ''
                 || $breakpointMismatchWarningMarkup !== ''
                 || $assetMismatchWarningMarkup !== '';
@@ -1496,6 +1510,7 @@ final class ReviewRenderer
                     'measureWidth' => Support::normalizeNullablePositiveInt($row['measureWidth'] ?? null),
                     'pictureId' => $pictureId,
                     'instance' => $instance,
+                    'includeStack' => IncludeStack::normalize($row['includeStack'] ?? []),
                     'assetId' => $assetId,
                     'assetKey' => $this->buildReviewAssetKey($transformName, $assetId, $sourceUsed, $src, $title, $pictureId, $instance),
                     'transform' => $transformName,
@@ -1647,7 +1662,7 @@ final class ReviewRenderer
             if (!empty($assetMismatchTransformNames[$name])) {
                 return 1;
             }
-            if (!empty($warningsByTransform[$name])) {
+            if (ReviewWarningsBuilder::hasNonAdvisoryWarning($warningsByTransform[$name] ?? [])) {
                 return 2;
             }
 
@@ -2231,6 +2246,31 @@ final class ReviewRenderer
         }
 
         return $rows;
+    }
+
+    /**
+     * @param array<int, mixed> $origins Include origins from the multiple-include-origins warning.
+     */
+    private function buildAssetMismatchWarningMarkup(array $origins): string
+    {
+        $originItems = '';
+        foreach ($origins as $origin) {
+            if (is_string($origin) && $origin !== '') {
+                $originItems .= '<li>' . $this->escapeReviewHtml($origin) . '</li>';
+            }
+        }
+
+        $detail = $originItems !== ''
+            ? '<p>Images in this set did not all render at the same size. They come from:</p>'
+                . '<ul class="bpts-warning-origins">' . $originItems . '</ul>'
+                . '<p>Each may need its own set.</p>'
+            : '<p>Images in this set did not all render at the same size.</p>'
+                . '<p>It may be used in layouts that need separate sets.</p>';
+
+        return '<div class="bpts-warning-item bpts-warning-item-neutral">'
+            . '<div class="bpts-warning-copy"><h3 class="bpts-warning-heading">Asset Mismatch</h3></div>'
+            . '<div class="bpts-warning-detail">' . $detail . '</div>'
+            . '</div>';
     }
 
     private function escapeReviewHtml(string $value): string

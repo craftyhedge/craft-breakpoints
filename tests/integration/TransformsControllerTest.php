@@ -721,6 +721,32 @@ final class TransformsControllerTest extends Unit
         $this->assertTrue($controller->postRequestChecked);
     }
 
+    public function testRenderResultReviewWarnsWhenSetCopiesComeFromDifferentTemplates(): void
+    {
+        $response = $this->renderResultReviewWithCtaStacks(
+            ['_layout', 'mega-menus', 'mega-menu-cta'],
+            ['_layout', 'nav-mobile', 'mega-menu-cta'],
+        );
+
+        $html = (string)($response->data['visualResultsHtml'] ?? '');
+        $this->assertStringContainsString('Used From Multiple Templates', $html);
+        $this->assertStringContainsString('<li>mega-menus</li>', $html);
+        $this->assertStringContainsString('<li>nav-mobile</li>', $html);
+    }
+
+    public function testRenderResultReviewDoesNotWarnWhenSetCopiesShareOneTemplateStack(): void
+    {
+        $response = $this->renderResultReviewWithCtaStacks(
+            ['_layout', 'mega-menus', 'mega-menu-cta'],
+            ['_layout', 'mega-menus', 'mega-menu-cta'],
+        );
+
+        $this->assertStringNotContainsString(
+            'Used From Multiple Templates',
+            (string)($response->data['visualResultsHtml'] ?? ''),
+        );
+    }
+
     public function testRenderInitialReviewCoercesNonArrayPayloadsToArrays(): void
     {
         $controller = $this->controllerWithBody([
@@ -781,6 +807,43 @@ final class TransformsControllerTest extends Unit
         $this->request()->setBodyParams($bodyParams);
 
         return new TestTransformsController('transforms', Craft::$app);
+    }
+
+    /**
+     * @param string[] $firstStack
+     * @param string[] $secondStack
+     */
+    private function renderResultReviewWithCtaStacks(array $firstStack, array $secondStack): Response
+    {
+        $row = static fn(string $instance, array $includeStack): array => [
+            'assetId' => '893',
+            'instance' => $instance,
+            'includeStack' => $includeStack,
+            'transform' => 'cta-image',
+            'enabled' => true,
+            'isVisible' => true,
+            'loaded' => true,
+            'rendered' => ['width' => 600, 'height' => 340],
+            'transformDimensions' => ['width' => 600, 'height' => 340, 'autoDimension' => null],
+        ];
+
+        $controller = $this->controllerWithBody([
+            'result' => [
+                'breakpoints' => [640],
+                'rowsByBreakpoint' => [
+                    640 => [
+                        $row('1', $firstStack),
+                        $row('2', $secondStack),
+                    ],
+                ],
+            ],
+        ]);
+
+        $response = $controller->actionRenderResultReview();
+        $this->assertSame(Response::FORMAT_JSON, $response->format);
+        $this->assertIsArray($response->data);
+
+        return $response;
     }
 
     private function request(): Request

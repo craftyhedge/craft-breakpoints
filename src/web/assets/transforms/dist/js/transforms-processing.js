@@ -743,6 +743,7 @@ export function buildReadinessDiagnosticsSnapshot({
             measurementWidth,
             key: String(entry?.key || ''),
             pictureId: String(entry?.picture?.getAttribute?.('data-picture-id') || ''),
+            includeStack: getPictureIncludeStack(entry?.picture),
             assetId: getSourceAssetId(source, img, entry?.picture),
             transform: String(entry?.picture?.getAttribute?.('data-set') || ''),
             enabled: entry?.enabled === true,
@@ -1620,6 +1621,22 @@ function getSourceAssetTitle(source, picture = null) {
     );
 }
 
+export function getPictureIncludeStack(picture) {
+    const raw = String(picture?.getAttribute?.('data-include-stack') || '').trim();
+    if (raw === '') {
+        return [];
+    }
+
+    try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed)
+            ? parsed.filter((name) => typeof name === 'string' && name.trim() !== '')
+            : [];
+    } catch (_error) {
+        return [];
+    }
+}
+
 export function extractRowsForBreakpoint({
     breakpoint,
     slot = null,
@@ -1703,6 +1720,7 @@ export function extractRowsForBreakpoint({
             measureWidth: Number.isFinite(Number(slot?.measureWidth)) ? Number(slot.measureWidth) : toPositiveIntOrNullFn(source?.getAttribute('data-bp-measure-width')),
             pictureId: picture?.getAttribute('data-picture-id') || null,
             instance: picture?.getAttribute('data-picture-instance') || null,
+            includeStack: getPictureIncludeStack(picture),
             assetId,
             transform: picture?.getAttribute('data-set') || 'unknown',
             title: getSourceAssetTitle(source, picture),

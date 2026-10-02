@@ -8,6 +8,9 @@ use Codeception\Test\Unit;
 use craft\elements\Asset;
 use craftyhedge\craftbreakpoints\Plugin;
 use craftyhedge\craftbreakpoints\services\RenderContextBuilder;
+use Twig\Environment;
+use Twig\Loader\ArrayLoader;
+use Twig\TwigFunction;
 
 final class RenderContextBuilderTest extends Unit
 {
@@ -350,6 +353,45 @@ final class RenderContextBuilderTest extends Unit
 
         $this->assertSame('1', $firstActivation['data-picture-instance']);
         $this->assertSame('1', $secondActivation['data-picture-instance']);
+    }
+
+    public function testComposePictureMarkersOmitIncludeStackOutsideTwig(): void
+    {
+        $builder = new RenderContextBuilder();
+
+        $markers = (new \ReflectionMethod($builder, 'composePictureMarkers'))
+            ->invoke($builder, ['setName' => 'cta-image', 'imageId' => 893]);
+
+        $this->assertArrayNotHasKey('data-include-stack', $markers);
+    }
+
+    public function testComposePictureMarkersStampIncludeStackFromTwig(): void
+    {
+        $builder = new RenderContextBuilder();
+        $compose = new \ReflectionMethod($builder, 'composePictureMarkers');
+
+        $twig = new Environment(new ArrayLoader([
+            '_partials/mega-menus.twig' => "{% include '_partials/mega-menu-cta.twig' %}",
+            '_partials/mega-menu-cta.twig' => '{{ markers() }}',
+        ]), ['autoescape' => false]);
+        $twig->addFunction(new TwigFunction(
+            'markers',
+            static fn(): string => (string)($compose->invoke($builder, ['setName' => 'cta-image', 'imageId' => 893])['data-include-stack'] ?? ''),
+        ));
+
+        $this->assertSame(
+            ['_partials/mega-menus', '_partials/mega-menu-cta'],
+            json_decode($twig->render('_partials/mega-menus.twig'), true),
+        );
+    }
+
+    public function testGetPictureAttributesOmitIncludeStackWithoutProcessing(): void
+    {
+        $builder = Plugin::getInstance()->getRenderContextBuilder();
+
+        $attributes = $builder->getPictureAttributes(['setName' => 'default']);
+
+        $this->assertArrayNotHasKey('data-include-stack', $attributes);
     }
 
     private function setBuilderPlugin(RenderContextBuilder $builder, ?Plugin $plugin): void

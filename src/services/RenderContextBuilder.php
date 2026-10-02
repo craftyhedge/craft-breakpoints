@@ -3,6 +3,7 @@
 namespace craftyhedge\craftbreakpoints\services;
 
 use craft\elements\Asset;
+use craftyhedge\craftbreakpoints\helpers\IncludeStack;
 use craftyhedge\craftbreakpoints\helpers\ProcessingRequest;
 use craftyhedge\craftbreakpoints\Plugin;
 use yii\base\Component;
@@ -318,7 +319,7 @@ class RenderContextBuilder extends Component
         $pictureId = $this->buildPictureId($setName, $assetId, $config);
         $set = $this->_plugin?->getTransformSets()->getSet($setName);
 
-        return [
+        $markers = [
             'data-set' => $setName,
             'data-include-escape-width' => ($this->_plugin?->getBreakpointPolicy()->resolveIncludeEscapeWidth($config, $set) ?? false)
                 ? 'true'
@@ -329,6 +330,16 @@ class RenderContextBuilder extends Component
             'data-asset-title' => (string)($config['assetTitle'] ?? ''),
             'data-breakpoint-states' => $this->buildBreakpointStatesJson($config),
         ];
+
+        $includeStack = IncludeStack::capture();
+        if ($includeStack !== []) {
+            $encodedStack = json_encode($includeStack, JSON_UNESCAPED_SLASHES);
+            if (is_string($encodedStack)) {
+                $markers['data-include-stack'] = $encodedStack;
+            }
+        }
+
+        return $markers;
     }
 
     private function nextPictureInstanceId(): string
