@@ -16,7 +16,7 @@
       - passHeightIndicatorHiddenClass, passHeightIndicatorText, allowHiddenDuringProcessingIndicatorHiddenClass
       - breakpointColumns, cardBreakpointsHiddenClass
       - renderedApplyHiddenClass, deleteSetHiddenClass, editScopeAllCheckedAttr
-      - assetPaginationHtml, editPanelId
+      - assetPaginationHtml, includeOriginHtml, editPanelId
       - dimensions/ratio/settings tab class/selected/tabindex attrs
       - dimensionsPanelActiveClass, dimensionsPanelHiddenAttr
       - ratioPanelActiveClass, ratioPanelHiddenAttr
@@ -111,14 +111,7 @@
                     <div class="bpts-transform-note-preview-body" data-text="$editor.cards.{{ signalKey }}.notesInput || ''">{{ notesInput }}</div>
                 </div>
             </div>
-            <div class="bpts-transform-header-actions">
-                <button type="button" class="btn small bpts-transform-delete-set {{ deleteSetHiddenClass }}"
-                    data-bpts-action="deleteSet"
-                    aria-label="Delete transform set"
-                    title="Delete transform set"
-                    data-class:bpts-force-hidden="String($editor.cards.{{ signalKey }}.setReviewState || '') === 'missing'"
-                    data-on:click__throttle.300ms="if(!window.confirm('Delete this transform set?')){ return; } const card=el.closest('.bpts-transform-card'); const setName=String($editor.cards.{{ signalKey }}.setName || card?.dataset?.set || ''); @post($_applyCardOperationUrl, {contentType: 'json', headers: {'X-CSRF-Token': $_csrfToken}, payload: {setName, operation: 'set.delete', baseVersion: String($editor.baseVersion || '')}})"><span class="icon" data-icon="trash" aria-hidden="true"></span></button>
-            </div>
+            {{ includeOriginHtml }}
         </header>
         <div class="bpts-breakpoint-grid {{ cardBreakpointsHiddenClass }}">{{ breakpointColumns }}</div>
         <div class="bpts-breakpoint-grid-actions {{ cardBreakpointsHiddenClass }}">
@@ -316,5 +309,14 @@
                     </div>
                 </div>
             </div>
+            <footer class="bpts-transform-card-footer {{ deleteSetHiddenClass }}"
+                data-class:bpts-force-hidden="String($editor.cards.{{ signalKey }}.setReviewState || '') === 'missing'">
+                <button type="button" class="btn small bpts-transform-delete-set {{ deleteSetHiddenClass }}"
+                    data-bpts-action="deleteSet"
+                    aria-label="Delete transform set"
+                    title="Delete transform set"
+                    data-class:bpts-force-hidden="String($editor.cards.{{ signalKey }}.setReviewState || '') === 'missing'"
+                    data-on:click__throttle.300ms="if(!window.confirm('Delete this transform set?')){ return; } const card=el.closest('.bpts-transform-card'); const setName=String($editor.cards.{{ signalKey }}.setName || card?.dataset?.set || ''); @post($_applyCardOperationUrl, {contentType: 'json', headers: {'X-CSRF-Token': $_csrfToken}, payload: {setName, operation: 'set.delete', baseVersion: String($editor.baseVersion || '')}})"><span class="icon" data-icon="trash" aria-hidden="true"></span></button>
+            </footer>
         </section>
     </section>{% endautoescape %}

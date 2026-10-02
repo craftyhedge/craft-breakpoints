@@ -469,6 +469,40 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         });
     }
 
+    function bindIncludeOriginCopyButtons() {
+        if (document.documentElement.dataset.bpiIncludeOriginCopyBound === '1') {
+            return;
+        }
+
+        document.documentElement.dataset.bpiIncludeOriginCopyBound = '1';
+
+        document.addEventListener('click', (event) => {
+            const target = event.target instanceof Element
+                ? event.target.closest('button.bpts-transform-include-origin-copy[data-bpts-action="copyIncludeOrigin"]')
+                : null;
+
+            if (!(target instanceof HTMLButtonElement)) {
+                return;
+            }
+
+            event.preventDefault();
+
+            const templateName = String(target.dataset.templateName || '').trim();
+            if (templateName === '') {
+                return;
+            }
+
+            void (async () => {
+                try {
+                    await navigator.clipboard.writeText(templateName);
+                    displayCpNotice(`Copied ${templateName}`);
+                } catch (error) {
+                    displayCpError('Copy failed.');
+                }
+            })();
+        });
+    }
+
     function updateCopyButtonVisibility() {
         if (!elements.btnCopy) {
             return;
@@ -3742,6 +3776,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     bindEntrySlideoutLinks();
     bindProcessAgainButtons();
     bindProcessWarningEntryButtons();
+    bindIncludeOriginCopyButtons();
     bindTransformSidebarCardNavigation();
     setButtonsDisabled(false);
     setupDragToScroll();

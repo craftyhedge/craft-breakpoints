@@ -968,6 +968,9 @@ final class ReviewRenderer
                 $signalKey,
                 $hideAssetPagination,
             );
+            $includeOriginHtml = $isProcessedReview
+                ? $this->buildIncludeOriginMarkup($assetCollection['rowsByAssetByBreakpoint'][$selectedAssetKey] ?? [])
+                : '';
 
             $slug = Support::slugifyTransformName($transformName);
             $editPanelId = 'bpts-edit-panel-' . $slug;
@@ -1173,6 +1176,7 @@ final class ReviewRenderer
                 'deleteSetHiddenClass' => $setReviewState === 'missing' ? 'bpts-force-hidden' : '',
                 'breakpointColumns' => $breakpointColumns,
                 'assetPaginationHtml' => $assetPaginationHtml,
+                'includeOriginHtml' => $includeOriginHtml,
                 'editPanelId' => $this->escapeReviewHtml($editPanelId),
                 'signalPathBase' => $this->escapeReviewHtml($signalPathBase),
                 'editScopeDefaultLabel' => $this->escapeReviewHtml($scopeLabel),
@@ -2246,6 +2250,35 @@ final class ReviewRenderer
         }
 
         return $rows;
+    }
+
+    /**
+     * Names the template that rendered the selected copy, with its full include
+     * stack as a tooltip.
+     *
+     * @param array<int, array<int, array<string, mixed>>> $rowsByBreakpoint Rows of the selected copy.
+     */
+    private function buildIncludeOriginMarkup(array $rowsByBreakpoint): string
+    {
+        foreach ($rowsByBreakpoint as $rows) {
+            foreach ($rows as $row) {
+                $stack = IncludeStack::normalize($row['includeStack'] ?? []);
+                if ($stack === []) {
+                    continue;
+                }
+
+                $leaf = $this->escapeReviewHtml($stack[count($stack) - 1]);
+
+                return '<div class="bpts-transform-include-origin">'
+                    . '<button type="button" class="bpts-transform-include-origin-copy" data-bpts-action="copyIncludeOrigin" data-template-name="' . $leaf . '"'
+                    . ' title="' . $this->escapeReviewHtml(implode(' › ', $stack)) . '" aria-label="Copy template name ' . $leaf . '">'
+                    . '<code>' . $leaf . '</code>'
+                    . '</button>'
+                    . '</div>';
+            }
+        }
+
+        return '';
     }
 
     /**

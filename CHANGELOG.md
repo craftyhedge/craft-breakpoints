@@ -3,8 +3,10 @@
 ## Unreleased
 
 - Added a "Used From Multiple Templates" notice when a transform set is used in more than one place on a page, such as a desktop menu and a mobile nav. If those places show the image at different sizes, each may need its own set. The notice appears in the review straight after processing.
-- Custom templates must keep the `data-include-stack` attribute on `<picture>` for this notice to work.
+- Each processed set card now shows, top right, which template rendered the selected copy. Hover it to see the full include path, or click it to copy the template name.
+- Custom templates must keep the `data-include-stack` attribute on `<picture>` for these to work.
 - The Asset Mismatch warning now lists the templates the mismatched images came from, and its wording is shorter.
+- Moved the delete set button to the bottom right of the set card.
 
 ## 1.1.0 - 2026-09-29
 

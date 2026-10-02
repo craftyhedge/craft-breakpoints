@@ -840,6 +840,27 @@ final class TransformEditorServiceTest extends Unit
         $this->assertStringNotContainsString('bpts-warning-origins', $html);
     }
 
+    public function testRenderResultReviewNamesTemplateThatRenderedSelectedCopy(): void
+    {
+        $html = $this->renderAssetMismatchReview(
+            ['_layout', 'mega-menus', 'mega-menu-cta'],
+            ['_layout', 'nav-mobile', 'mobile-cta'],
+        );
+
+        $this->assertStringContainsString(
+            '<div class="bpts-transform-include-origin"><button type="button" class="bpts-transform-include-origin-copy" data-bpts-action="copyIncludeOrigin" data-template-name="mega-menu-cta" title="_layout › mega-menus › mega-menu-cta" aria-label="Copy template name mega-menu-cta"><code>mega-menu-cta</code></button></div>',
+            $html,
+        );
+        $this->assertStringNotContainsString('mobile-cta</code>', $html);
+    }
+
+    public function testRenderResultReviewOmitsIncludeOriginWithoutStack(): void
+    {
+        $html = $this->renderAssetMismatchReview([], []);
+
+        $this->assertStringNotContainsString('bpts-transform-include-origin', $html);
+    }
+
     public function testRenderResultReviewShowsHiddenAllowedPillAndSuppressesHiddenWarningWhenOptedIn(): void
     {
         $snapshot = $this->buildHiddenRunSnapshot('card-default');

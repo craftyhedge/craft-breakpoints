@@ -512,7 +512,7 @@
     display: inline-flex;
 }
 
-.bpts-transforms-page[data-show-card-settings="0"] .bpts-transform-header-actions,
+.bpts-transforms-page[data-show-card-settings="0"] .bpts-transform-card-footer,
 .bpts-transforms-page[data-show-card-settings="0"] .bpts-breakpoint-grid-actions,
 .bpts-transforms-page[data-show-card-settings="0"] .bpts-transform-quick-row,
 .bpts-transforms-page[data-show-card-settings="0"] .bpts-transform-edit-panel,
@@ -581,7 +581,7 @@
 .bpts-warning-item {
     border-bottom: 1px solid var(--border-hairline-medium);
     border-radius: 8px 8px 0px 0px;
-    padding: 12px 24px;
+    padding: 16px 24px;
     background: var(--gray-050);
     color: var(--text-color);
     font-size: 12px;
@@ -740,19 +740,6 @@
     gap: 8px;
     min-width: 0;
     max-width: 100%;
-}
-
-.bpts-transform-header-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-left: auto;
-    min-width: 0;
-}
-
-.bpts-transform-header-actions .bpts-transform-edit-inline-checkbox {
-    white-space: nowrap;
-    font-size: 11px;
 }
 
 .bpts-transform-update-status {
@@ -2227,6 +2214,48 @@ button.bpts-transform-input-addon:hover:not(:disabled) {
     flex-wrap: wrap;
     gap: 4px;
     padding: 16px 24px 0px;
+}
+
+.bpts-transform-include-origin {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+    min-width: 0;
+    max-width: 50%;
+    min-height: 22px;
+    font-size: 12px;
+    white-space: nowrap;
+    color: var(--gray-600, #606d7b);
+}
+
+.bpts-transform-card-footer {
+    position: absolute;
+    right: 24px;
+    bottom: 24px;
+}
+
+.bpts-transform-include-origin-copy {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+    max-width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+}
+
+.bpts-transform-include-origin-copy code {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 12px;
+}
+
+.bpts-transform-include-origin-copy:hover,
+.bpts-transform-include-origin-copy:focus-visible {
+    color: var(--gray-700, #3f4d5a);
 }
 
 .bpts-transform-asset-page-mismatch {
