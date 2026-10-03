@@ -8,10 +8,11 @@ During development, when your layout has settled, process the page in the contro
 Breakpoints measures the rendered image sizes, applies new transform sets
 automatically, and lets you review or edit the final dimensions.
 
-> Processing is intended for local development only, with the transform sets being
-> committed to git.
+> **Important:** Processing is intended for local development only, with the
+> transform sets being committed to git.
 
-> When processing pages you must keep your browser at the default 100% zoom level.
+> **Warning:** When processing pages you must keep your browser at the default
+> 100% zoom level.
 
 ## 1. How It Works
 
