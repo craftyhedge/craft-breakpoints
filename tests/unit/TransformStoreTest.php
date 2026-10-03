@@ -36,6 +36,43 @@ final class TransformStoreTest extends Unit
         }
     }
 
+    public function testPersistSetsNormalizesRenderedFrom(): void
+    {
+        $store = Plugin::getInstance()->getTransformStore();
+        $longName = 'site/' . str_repeat('a', 200);
+
+        $result = $store->persistSets([
+            'trimmed' => $this->buildRenderedFromSet('trimmed', '  site/includes/cards/menu.twig  '),
+            'capped' => $this->buildRenderedFromSet('capped', $longName),
+            'empty' => $this->buildRenderedFromSet('empty', '   '),
+            'string-template' => $this->buildRenderedFromSet('string-template', '__string_template__abc123'),
+            'missing' => $this->buildRenderedFromSet('missing', null),
+        ], $store->getCurrentVersion());
+
+        $this->assertTrue($result['persisted']);
+
+        $store->reload();
+        $this->assertSame('site/includes/cards/menu', $store->getSet('trimmed')['renderedFrom'] ?? null);
+        $this->assertSame(mb_substr($longName, 0, 160), $store->getSet('capped')['renderedFrom'] ?? null);
+        $this->assertArrayNotHasKey('renderedFrom', $store->getSet('empty') ?? []);
+        $this->assertArrayNotHasKey('renderedFrom', $store->getSet('string-template') ?? []);
+        $this->assertArrayNotHasKey('renderedFrom', $store->getSet('missing') ?? []);
+    }
+
+    public function testGetTransformsCarriesRenderedFromWhenSet(): void
+    {
+        $store = Plugin::getInstance()->getTransformStore();
+
+        $store->persistSets([
+            'with-origin' => $this->buildRenderedFromSet('with-origin', 'site/includes/cards/menu'),
+            'without-origin' => $this->buildRenderedFromSet('without-origin', null),
+        ], $store->getCurrentVersion());
+
+        $transforms = $store->getTransforms();
+        $this->assertSame('site/includes/cards/menu', $transforms['with-origin']['renderedFrom'] ?? null);
+        $this->assertArrayNotHasKey('renderedFrom', $transforms['without-origin'] ?? []);
+    }
+
     public function testReplaceSetsForRuntimeKeepsOnlyAllowedSavedOptions(): void
     {
         $store = Plugin::getInstance()->getTransformStore();
@@ -242,5 +279,26 @@ final class TransformStoreTest extends Unit
         });
 
         return $asset;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildRenderedFromSet(string $name, ?string $renderedFrom): array
+    {
+        $set = [
+            'name' => $name,
+            'includeEscapeWidth' => false,
+            'variants' => [
+                'xs' => ['width' => 640, 'height' => 340, 'enabled' => true, 'autoDimension' => null],
+            ],
+            'config' => [],
+        ];
+
+        if ($renderedFrom !== null) {
+            $set['renderedFrom'] = $renderedFrom;
+        }
+
+        return $set;
     }
 }

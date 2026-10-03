@@ -2327,6 +2327,7 @@ describe('transforms runtime helper logic', () => {
         expect(requestedSets).toEqual([{
             name: 'image-test',
             selectedAssetKey: 'asset:image-test:2458',
+            renderedFrom: '',
         }]);
     });
 
@@ -2355,6 +2356,36 @@ describe('transforms runtime helper logic', () => {
         expect(requestedSets).toEqual([{
             name: 'cta-image',
             selectedAssetKey: 'picture:cta-image:1',
+            renderedFrom: '',
+        }]);
+    });
+
+    it('auto-apply descriptors take renderedFrom from the chosen row', () => {
+        const requestedSets = hooks.buildAutoApplyNewSetDescriptors({
+            rowsBySlot: {
+                base: [
+                    {
+                        instance: '1',
+                        assetId: '893',
+                        transform: 'cta-image',
+                        includeStack: ['site/_layout', 'site/includes/cards/menu'],
+                        loaded: true,
+                    },
+                    {
+                        instance: '2',
+                        assetId: '893',
+                        transform: 'cta-image',
+                        includeStack: ['site/_layout', 'site/includes/nav-mobile'],
+                        loaded: true,
+                    },
+                ],
+            },
+        });
+
+        expect(requestedSets).toEqual([{
+            name: 'cta-image',
+            selectedAssetKey: 'picture:cta-image:1',
+            renderedFrom: 'site/includes/cards/menu',
         }]);
     });
 

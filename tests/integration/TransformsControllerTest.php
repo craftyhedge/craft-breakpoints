@@ -10,6 +10,7 @@ use craft\web\Request;
 use craftyhedge\craftbreakpoints\controllers\TransformsController;
 use craftyhedge\craftbreakpoints\Plugin;
 use craftyhedge\craftbreakpoints\services\TelemetryService;
+use craftyhedge\craftbreakpoints\services\TransformEditor;
 use yii\web\Response;
 
 final class TransformsControllerTest extends Unit
@@ -547,6 +548,59 @@ final class TransformsControllerTest extends Unit
 
         $this->assertTrue($controller->cpRequestChecked);
         $this->assertTrue($controller->postRequestChecked);
+    }
+
+    public function testApplyCardOperationRenderedValuesApplyStoresNormalizedRenderedFrom(): void
+    {
+        $previousTelemetry = Plugin::getInstance()->getTelemetry();
+        Plugin::getInstance()->set('telemetry', new class() extends TelemetryService {
+            public function canEditTransforms(): bool
+            {
+                return true;
+            }
+            public function getLatestRunSnapshot(): ?array
+            {
+                return [
+                    'runStatus' => 'completed',
+                    'ranAt' => '2026-05-01 10:00:00',
+                    'rowsPayload' => [
+                        [
+                            'transformHandle' => 'rendered-from-hero',
+                            'slotKey' => 'xs',
+                            'slotIndex' => 1,
+                            'breakpointWidth' => 640,
+                            'assetId' => '100',
+                            'renderedWidth' => 600,
+                            'renderedHeight' => 340,
+                            'rowStatus' => 'loaded',
+                        ],
+                    ],
+                    'rows' => [],
+                ];
+            }
+        });
+
+        $previousEditor = Plugin::getInstance()->get('transformEditor');
+        Plugin::getInstance()->set('transformEditor', TransformEditor::class);
+        $store = Plugin::getInstance()->getTransformStore();
+
+        try {
+            $controller = $this->controllerWithBody([
+                'baseVersion' => $store->getCurrentVersion(),
+                'operation' => 'renderedValues.apply',
+                'setName' => 'rendered-from-hero',
+                'includeEscapeWidth' => false,
+                'renderedFrom' => '  site/includes/cards/menu.twig  ',
+            ]);
+            $response = $controller->actionApplyCardOperation();
+
+            $this->assertSame(Response::FORMAT_RAW, $response->format);
+            $this->assertSame('site/includes/cards/menu', $store->getSet('rendered-from-hero')['renderedFrom'] ?? null);
+            $this->assertStringContainsString('"savedRenderedFrom":"site\\/includes\\/cards\\/menu"', (string)$response->content);
+        } finally {
+            Plugin::getInstance()->set('telemetry', $previousTelemetry);
+            Plugin::getInstance()->set('transformEditor', $previousEditor);
+        }
     }
 
     public function testApplyCardOperationRatioCopyReturnsErrorWhenBreakpointHasNoRatioSource(): void

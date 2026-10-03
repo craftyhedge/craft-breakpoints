@@ -2217,15 +2217,18 @@ button.bpts-transform-input-addon:hover:not(:disabled) {
 }
 
 .bpts-transform-include-origin {
-    display: flex;
-    align-items: center;
+    display: grid;
+    grid-template-columns: auto minmax(0, auto);
+    align-content: center;
+    justify-content: end;
+    column-gap: 8px;
+    row-gap: 4px;
     margin-left: auto;
     min-width: 0;
     max-width: 50%;
     min-height: 22px;
     font-size: 12px;
     white-space: nowrap;
-    color: var(--gray-600, #606d7b);
 }
 
 .bpts-transform-card-footer {
@@ -2234,28 +2237,42 @@ button.bpts-transform-input-addon:hover:not(:disabled) {
     bottom: 24px;
 }
 
-.bpts-transform-include-origin-copy {
-    display: inline-flex;
-    align-items: center;
+.bpts-transform-include-origin-row {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    align-items: baseline;
     min-width: 0;
-    max-width: 100%;
+}
+
+.bpts-transform-include-origin-label {
+    justify-self: end;
+    font-size: 10px;
+    line-height: 13px;
+    color: var(--gray-500, #7b8793);
+}
+
+.bpts-transform-include-origin-row code {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 13px;
+    text-align: left;
+}
+
+.bpts-transform-include-origin-copy {
     padding: 0;
     border: 0;
     background: none;
     font: inherit;
-    color: inherit;
+    color: var(--gray-600, #606d7b);
+    text-align: left;
     cursor: pointer;
 }
 
-.bpts-transform-include-origin-copy code {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    line-height: 12px;
-}
-
-.bpts-transform-include-origin-copy:hover,
-.bpts-transform-include-origin-copy:focus-visible {
-    color: var(--gray-700, #3f4d5a);
+.bpts-transform-include-origin-copy:hover code,
+.bpts-transform-include-origin-copy:focus-visible code {
+    color: var(--gray-800, #33404d);
 }
 
 .bpts-transform-asset-page-mismatch {

@@ -3,9 +3,9 @@
 ## Unreleased
 
 - Added a "Used From Multiple Templates" notice when a transform set is used in more than one place on a page, such as a desktop menu and a mobile nav. If those places show the image at different sizes, each may need its own set. The notice appears in the review straight after processing.
-- Each processed set card now shows, top right, which template rendered the selected copy. Hover it to see the full include path, or click it to copy the template name.
-- Custom templates must keep the `data-include-stack` attribute on `<picture>` for these to work.
+- Each processed set card now shows, top right, which template rendered the selected copy ("Rendered from"). Hover it to see the full include path, or click it to copy the template name.
 - The Asset Mismatch warning now lists the templates the mismatched images came from, and its wording is shorter.
+- Applying rendered values now records the template they came from as `renderedFrom` on the set in `transform-sets.json`. The saved view shows it top right on the set card as "Rendered from". After processing, the card labels the selected copy's template "Rendered from" and adds a "Saved values from" line when the selected copy came from a different template, and a Breakpoint Mismatch from a different template says where the saved values came from and where this run rendered from.
 - Moved the delete set button to the bottom right of the set card.
 
 ## 1.1.0 - 2026-09-29

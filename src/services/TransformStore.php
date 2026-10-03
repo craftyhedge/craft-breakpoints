@@ -5,6 +5,7 @@ namespace craftyhedge\craftbreakpoints\services;
 use Craft;
 use InvalidArgumentException;
 use RuntimeException;
+use craftyhedge\craftbreakpoints\helpers\IncludeStack;
 use craftyhedge\craftbreakpoints\Plugin;
 use yii\base\Component;
 
@@ -368,6 +369,13 @@ class TransformStore extends Component
                 'config' => $config,
                 'lastUpdatedAt' => $lastUpdatedAt,
             ]);
+
+            $renderedFrom = $this->normalizeRenderedFrom($setDefinition['renderedFrom'] ?? null);
+            if ($renderedFrom !== null) {
+                $normalized[$setName]['renderedFrom'] = $renderedFrom;
+            } else {
+                unset($normalized[$setName]['renderedFrom']);
+            }
         }
 
         return $normalized;
@@ -394,6 +402,13 @@ class TransformStore extends Component
     private function normalizeNotes(string $value): string
     {
         return trim(str_replace(["\r\n", "\r"], "\n", $value));
+    }
+
+    private function normalizeRenderedFrom(mixed $value): ?string
+    {
+        $names = IncludeStack::normalize([$value]);
+
+        return $names !== [] ? $names[count($names) - 1] : null;
     }
 
     /**
@@ -531,6 +546,11 @@ class TransformStore extends Component
                     ? $this->filterSavedConfigOptions($setDefinition['config'])
                     : [],
             ];
+
+            $renderedFrom = $this->normalizeRenderedFrom($setDefinition['renderedFrom'] ?? null);
+            if ($renderedFrom !== null) {
+                $legacy[$setName]['renderedFrom'] = $renderedFrom;
+            }
         }
 
         return $legacy;

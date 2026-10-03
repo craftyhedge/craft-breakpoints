@@ -2958,6 +2958,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                     name: transformName,
                     selectedAssetKey: '',
                     selectedAssetId: '',
+                    renderedFrom: '',
                 });
             }
 
@@ -2966,8 +2967,10 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             if (!descriptor.selectedAssetKey) {
                 const assetKey = buildReviewAssetKeyFromRow(transformName, row);
                 if (assetKey !== '') {
+                    const includeStack = Array.isArray(row?.includeStack) ? row.includeStack : [];
                     descriptor.selectedAssetKey = assetKey;
                     descriptor.selectedAssetId = String(row?.assetId || '').trim();
+                    descriptor.renderedFrom = String(includeStack[includeStack.length - 1] || '').trim();
                 }
             }
         });

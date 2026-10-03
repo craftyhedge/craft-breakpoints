@@ -2,6 +2,7 @@
 
 namespace craftyhedge\craftbreakpoints\services\transformeditor;
 
+use craftyhedge\craftbreakpoints\helpers\IncludeStack;
 use yii\web\Request;
 
 /**
@@ -99,6 +100,7 @@ final class CardOperationRequest
         public readonly bool $hasValidOperation,
         /** @var array<int, int> Slot ids (1-based) flagged as hidden by the latest processing run. */
         public readonly array $hiddenBreakpoints = [],
+        public readonly ?string $renderedFrom = null,
     ) {
     }
 
@@ -113,6 +115,9 @@ final class CardOperationRequest
 
         $rawSelectedAssetKey = trim((string)$request->getBodyParam('selectedAssetKey', ''));
         $selectedAssetKey = $rawSelectedAssetKey !== '' ? $rawSelectedAssetKey : null;
+
+        $renderedFromNames = IncludeStack::normalize([$request->getBodyParam('renderedFrom', '')]);
+        $renderedFrom = $renderedFromNames !== [] ? $renderedFromNames[count($renderedFromNames) - 1] : null;
 
         return new self(
             setName: trim((string)$request->getBodyParam('setName', '')),
@@ -142,6 +147,7 @@ final class CardOperationRequest
             valueRaw: $request->getBodyParam('value'),
             hasValidOperation: $operation !== '',
             hiddenBreakpoints: self::parseSlotIdList($request->getBodyParam('hiddenBreakpoints')),
+            renderedFrom: $renderedFrom,
         );
     }
 

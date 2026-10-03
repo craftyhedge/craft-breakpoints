@@ -464,6 +464,7 @@ class TransformEditor extends Component
         bool $clearAuto = false,
         ?string $expectedVersion = null,
         array $hiddenBreakpointSlotIds = [],
+        ?string $renderedFrom = null,
     ): array {
         if ($this->_operationsService === null) {
             return ['persisted' => false, 'validation' => $this->defaultValidation()];
@@ -476,6 +477,7 @@ class TransformEditor extends Component
             $clearAuto,
             $expectedVersion,
             $hiddenBreakpointSlotIds,
+            $renderedFrom,
         );
     }
 
@@ -653,7 +655,7 @@ class TransformEditor extends Component
      * Compute the current signal deltas for all breakpoints of a transform.
      * Used after operations to send PatchSignals instead of re-rendering the card.
      *
-     * @return array{signalKey: string, rowsByBreakpoint: array<int|string, array<string, mixed>>, hasCurrentBreakpointMismatch?: bool, hasResolvedBreakpointMismatchAwaitingVerification?: bool, hasCardWarningDanger?: bool}
+     * @return array{signalKey: string, rowsByBreakpoint: array<int|string, array<string, mixed>>, hasCurrentBreakpointMismatch?: bool, hasResolvedBreakpointMismatchAwaitingVerification?: bool, hasCardWarningDanger?: bool, savedRenderedFrom?: string}
      */
     public function buildSignalDeltasForTransform(
         string $setName,

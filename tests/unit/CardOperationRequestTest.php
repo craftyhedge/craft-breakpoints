@@ -46,6 +46,29 @@ final class CardOperationRequestTest extends Unit
         $this->assertSame('v123', $operation->baseVersion);
     }
 
+    public function testFromRequestNormalizesRenderedFrom(): void
+    {
+        $this->request()->setBodyParams([
+            'operation' => 'renderedValues.apply',
+            'renderedFrom' => '  site/includes/cards/menu.twig  ',
+        ]);
+        $this->assertSame(
+            'site/includes/cards/menu',
+            CardOperationRequest::fromRequest($this->request(), 'fallback-version')->renderedFrom,
+        );
+
+        $this->request()->setBodyParams([
+            'operation' => 'renderedValues.apply',
+            'renderedFrom' => '__string_template__abc123',
+        ]);
+        $this->assertNull(CardOperationRequest::fromRequest($this->request(), 'fallback-version')->renderedFrom);
+
+        $this->request()->setBodyParams([
+            'operation' => 'renderedValues.apply',
+        ]);
+        $this->assertNull(CardOperationRequest::fromRequest($this->request(), 'fallback-version')->renderedFrom);
+    }
+
     public function testFromRequestRejectsUnsupportedOperation(): void
     {
         $this->request()->setBodyParams([

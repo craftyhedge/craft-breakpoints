@@ -1148,6 +1148,153 @@ final class ServerAuthorityOperationsTest extends Unit
         }
     }
 
+    public function testApplyRenderedValuesOperationStoresRenderedFromAndOtherOperationsKeepIt(): void
+    {
+        $plugin = Plugin::getInstance();
+        $previousTelemetry = $plugin->getTelemetry();
+        $plugin->set('telemetry', $this->buildHeroSnapshotTelemetry());
+
+        try {
+            $this->withRuntimeSets([
+                'hero' => [
+                    'name' => 'hero',
+                    'includeEscapeWidth' => false,
+                    'variants' => [
+                        'xs' => ['width' => null, 'height' => null, 'enabled' => true, 'autoDimension' => null],
+                    ],
+                    'config' => [],
+                ],
+            ], function () use ($plugin): void {
+                $service = $this->buildOperationsService();
+                $store = $plugin->getTransformStore();
+
+                $result = $service->applyRenderedValuesOperation(
+                    'hero',
+                    null,
+                    false,
+                    false,
+                    $store->getCurrentVersion(),
+                    [],
+                    'site/includes/cards/menu',
+                );
+
+                $this->assertTrue(($result['persisted'] ?? false) === true);
+                $this->assertSame('site/includes/cards/menu', $store->getSets()['hero']['renderedFrom'] ?? null);
+
+                $notesResult = $service->applySetNotesOperation('hero', 'Menu card image', false, $store->getCurrentVersion());
+                $this->assertTrue(($notesResult['persisted'] ?? false) === true);
+                $this->assertSame('site/includes/cards/menu', $store->getSets()['hero']['renderedFrom'] ?? null);
+
+                $dimensionResult = $service->applySetDimensionOperation('hero', 'all', null, null, 500, 'width', false, $store->getCurrentVersion());
+                $this->assertTrue(($dimensionResult['persisted'] ?? false) === true);
+                $this->assertSame(500, $store->getSets()['hero']['variants']['xs']['width'] ?? null);
+                $this->assertSame('site/includes/cards/menu', $store->getSets()['hero']['renderedFrom'] ?? null);
+            });
+        } finally {
+            $plugin->set('telemetry', $previousTelemetry);
+        }
+    }
+
+    public function testApplyRenderedValuesOperationWithoutRenderedFromKeepsSavedValue(): void
+    {
+        $plugin = Plugin::getInstance();
+        $previousTelemetry = $plugin->getTelemetry();
+        $plugin->set('telemetry', $this->buildHeroSnapshotTelemetry());
+
+        try {
+            $this->withRuntimeSets([
+                'hero' => [
+                    'name' => 'hero',
+                    'includeEscapeWidth' => false,
+                    'variants' => [
+                        'xs' => ['width' => null, 'height' => null, 'enabled' => true, 'autoDimension' => null],
+                    ],
+                    'config' => [],
+                    'renderedFrom' => 'site/includes/cards/menu',
+                ],
+            ], function () use ($plugin): void {
+                $store = $plugin->getTransformStore();
+
+                $result = $this->buildOperationsService()->applyRenderedValuesOperation(
+                    'hero',
+                    null,
+                    false,
+                    false,
+                    $store->getCurrentVersion(),
+                );
+
+                $this->assertTrue(($result['persisted'] ?? false) === true);
+                $this->assertSame(600, $store->getSets()['hero']['variants']['xs']['width'] ?? null);
+                $this->assertSame('site/includes/cards/menu', $store->getSets()['hero']['renderedFrom'] ?? null);
+            });
+        } finally {
+            $plugin->set('telemetry', $previousTelemetry);
+        }
+    }
+
+    public function testAutoApplyRenderedValuesForNewSetsStoresRenderedFromFromDescriptor(): void
+    {
+        $plugin = Plugin::getInstance();
+        $previousTelemetry = $plugin->getTelemetry();
+        $plugin->set('telemetry', $this->buildHeroSnapshotTelemetry());
+
+        try {
+            $this->withRuntimeSets([], function () use ($plugin): void {
+                $store = $plugin->getTransformStore();
+
+                $result = $this->buildOperationsService()->autoApplyRenderedValuesForNewSets(
+                    [['name' => 'hero', 'selectedAssetKey' => '', 'renderedFrom' => 'site/includes/nav-mobile']],
+                    $store->getCurrentVersion(),
+                );
+
+                $this->assertTrue(($result['persisted'] ?? false) === true);
+                $this->assertSame(1, $result['appliedCount'] ?? 0);
+                $this->assertSame('site/includes/nav-mobile', $store->getSets()['hero']['renderedFrom'] ?? null);
+            });
+        } finally {
+            $plugin->set('telemetry', $previousTelemetry);
+        }
+    }
+
+    private function buildHeroSnapshotTelemetry(): TelemetryService
+    {
+        return new class() extends TelemetryService {
+            public function getLatestRunSnapshot(): ?array
+            {
+                return [
+                    'runStatus' => 'completed',
+                    'ranAt' => '2026-05-01 10:00:00',
+                    'rowsPayload' => [
+                        [
+                            'transformHandle' => 'hero',
+                            'slotKey' => 'xs',
+                            'slotIndex' => 1,
+                            'breakpointWidth' => 640,
+                            'assetId' => '100',
+                            'renderedWidth' => 600,
+                            'renderedHeight' => 340,
+                            'rowStatus' => 'loaded',
+                        ],
+                    ],
+                    'rows' => [],
+                ];
+            }
+        };
+    }
+
+    private function buildOperationsService(): OperationsService
+    {
+        $plugin = Plugin::getInstance();
+
+        return new OperationsService(
+            $plugin->getTransformStore(),
+            $plugin->getConfigService(),
+            $plugin->getTelemetry(),
+            $plugin->getBreakpointPolicy(),
+            new SnapshotReader($plugin->getTransformStore(), $plugin->getTelemetry()),
+        );
+    }
+
     /**
      * @param array<string, array<string, mixed>> $sets
      */

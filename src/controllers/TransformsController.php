@@ -5,6 +5,7 @@ namespace craftyhedge\craftbreakpoints\controllers;
 use Craft;
 use craft\helpers\Json;
 use craft\web\Controller;
+use craftyhedge\craftbreakpoints\helpers\IncludeStack;
 use craftyhedge\craftbreakpoints\Plugin;
 use craftyhedge\craftbreakpoints\services\TransformEditor;
 use craftyhedge\craftbreakpoints\services\transformeditor\CardOperationRequest;
@@ -374,6 +375,7 @@ class TransformsController extends Controller
             $operation->clearAuto,
             $operation->baseVersion,
             $operation->hiddenBreakpoints,
+            $operation->renderedFrom,
         );
     }
 
@@ -592,6 +594,9 @@ class TransformsController extends Controller
                     if (array_key_exists($deltaKey, $deltas)) {
                         $cardSignalPatch[$deltaKey] = (bool)($deltas[$deltaKey] ?? false);
                     }
+                }
+                if (array_key_exists('savedRenderedFrom', $deltas)) {
+                    $cardSignalPatch['savedRenderedFrom'] = (string)$deltas['savedRenderedFrom'];
                 }
                 if (!empty($deltas['rowsByBreakpoint'])) {
                     $cardSignalPatch['rowsByBreakpoint'] = $deltas['rowsByBreakpoint'];
@@ -1178,7 +1183,7 @@ class TransformsController extends Controller
 
     /**
      * @param array<int, mixed> $rawSets
-     * @return array<int, array{name: string, selectedAssetKey: string}>
+     * @return array<int, array{name: string, selectedAssetKey: string, renderedFrom: string}>
      */
     private function normalizeAutoApplyRequestedSets(array $rawSets): array
     {
@@ -1194,13 +1199,17 @@ class TransformsController extends Controller
                 $normalized[] = [
                     'name' => '',
                     'selectedAssetKey' => '',
+                    'renderedFrom' => '',
                 ];
                 continue;
             }
 
+            $renderedFromNames = IncludeStack::normalize([$rawSet['renderedFrom'] ?? '']);
+
             $normalized[] = [
                 'name' => $name,
                 'selectedAssetKey' => trim((string)($rawSet['selectedAssetKey'] ?? '')),
+                'renderedFrom' => $renderedFromNames !== [] ? $renderedFromNames[count($renderedFromNames) - 1] : '',
             ];
         }
 

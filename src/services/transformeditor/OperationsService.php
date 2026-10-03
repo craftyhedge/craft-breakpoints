@@ -1320,6 +1320,7 @@ final class OperationsService
      * @param array<int, int> $hiddenBreakpointSlotIds Slot ids (1-based) that the
      *        latest processing run flagged as hidden. Those breakpoints are
      *        disabled as part of applying the rendered values.
+     * @param string|null $renderedFrom Leaf template of the applied copy; null keeps the saved value.
      * @return array<string, mixed>
      */
     public function applyRenderedValuesOperation(
@@ -1329,6 +1330,7 @@ final class OperationsService
         bool $clearAuto = false,
         ?string $expectedVersion = null,
         array $hiddenBreakpointSlotIds = [],
+        ?string $renderedFrom = null,
     ): array {
         $validation = Support::defaultValidation();
 
@@ -1384,6 +1386,9 @@ final class OperationsService
 
         $setDefinition = is_array($mutation['set'] ?? null) ? $mutation['set'] : $setDefinition;
         $setDefinition['name'] = (string)($setDefinition['name'] ?? $transformName);
+        if ($renderedFrom !== null && $renderedFrom !== '') {
+            $setDefinition['renderedFrom'] = $renderedFrom;
+        }
 
         $sets[$transformName] = $setDefinition;
 
@@ -1458,7 +1463,13 @@ final class OperationsService
                 continue;
             }
 
-            $sets[$transformName] = $mutation['set'];
+            $newSet = $mutation['set'];
+            $renderedFrom = Support::parseNullableNonEmptyString($requestedSet['renderedFrom'] ?? null);
+            if ($renderedFrom !== null) {
+                $newSet['renderedFrom'] = $renderedFrom;
+            }
+
+            $sets[$transformName] = $newSet;
             $appliedCount += 1;
         }
 
