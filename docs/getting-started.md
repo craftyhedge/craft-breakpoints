@@ -133,11 +133,24 @@ After processing, review any transform cards marked as needing attention before
 you treat the saved values as final.
 
 Warnings can appear when a transform set is missing, when enabled breakpoint
-values are empty, or when the rendered image sizes no longer match the saved
-transform dimensions.
+values are empty, when the rendered image sizes no longer match the saved
+transform dimensions, or when a set is used from more than one template on the
+page.
 
 Resolve the warning shown on the card, then process the entry again to verify
 the updated values. A clean run should show no warnings detected.
+
+### Template labels
+
+After processing, the top right of each card shows where the selected copy
+came from:
+
+- **Rendered from**: the template that rendered the selected copy. Hover it to
+  see the full include path.
+- **Saved values from**: shown underneath when the set's saved values were
+  applied from a different template.
+
+Click either one to copy the template name.
 
 ### Empty Enabled Breakpoints
 
@@ -147,7 +160,7 @@ if the component should not generate an image there.
 
 Images that are truly not visible when processed have a width and height of zero and are automatically disabled when sets are saved. If you enable one of these, you will see this warning.
 
-### Mismatched Assets
+### Asset Mismatch
 
 Transform set not producing consistent measured sizes.
 
@@ -155,11 +168,23 @@ Transform sets can be reused across templates, so every use of the same set
 handle should render at the same dimensions.
 
 When processing finds multiple assets using the same set handle, those assets
-are grouped together in the transform set card. 
+are grouped together in the transform set card. When the images come from
+different templates, the warning lists those templates.
 
-You can use the pagination to view the different assets and find the mismatch.
+Page through the copies to find the mismatch. The card's top right shows
+**Rendered from** for each one, so you can see which template renders the copy
+at a different size.
 
 This might require some layout/CSS changes to fix the front-end inconsistency or separating use cases by creating new transform set handles.
+
+### Used From Multiple Templates
+
+The set was rendered from more than one template in this run, such as a
+desktop menu and a mobile nav. The notice lists those templates.
+
+This is a notice, not an error. If the images render at the same size, no
+action is needed. If they render at different sizes, the templates are listed
+in the [Asset Mismatch](#asset-mismatch) warning instead.
 
 ### Breakpoint Mismatch
 
@@ -168,13 +193,20 @@ saved transform dimensions.
 
 Mismatches usually mean the front-end was changed and the transform set needs updated.
 
-
+If the saved values came from a different template, the warning names both:
+where the saved values came from and where this run rendered from. The set may
+be used in layouts that need different sizes, or the layout in this template
+may need fixing. Either fix the layout, create a separate set for this
+template, or apply the rendered values if this template is now the main use.
 
 ## 5. Review and edit saved transform sets
 
 The default Transform Sets view shows saved transform sets in a non-editing
 state, so you can review the current dimensions and settings without changing
 anything by accident.
+
+In this view, **Rendered from** at the top right of a card shows the template
+the saved values were applied from. Click it to copy the template name.
 
 To make changes, enable the edit toggle, then update the saved set values as
 needed. Edits are saved automatically.
@@ -213,13 +245,17 @@ Only one height setting can be active at a time.
 
 ### Allow Hidden During Processing
 
-This is a separate setting for transform sets
-whose image is hidden on page load in normal use, such as navigation card
-images that only appear on interaction. Processing requires the image to be
-visible, so you'd normally intervene to force it visible, process it, then
-revert the intervention — after which re-processing would flag the set as a
-mismatch because the image is hidden again. Enabling this setting prevents
-that false mismatch.
+Use this for sets whose image is hidden when the page loads, such as images in
+a navigation menu that only appear on interaction.
+
+Processing can only measure visible images. To save values for a hidden image,
+make it visible temporarily, process the page, then put it back. Without this
+setting, the next run reports the set as a mismatch, or as hidden, because the
+image is hidden again.
+
+With **Allow Hidden During Processing** enabled, hidden breakpoints keep their
+saved values and do not cause warnings. Applying rendered values also leaves
+them enabled instead of disabling them.
 
 ## Notes
 
@@ -229,8 +265,12 @@ Use the **Notes** tab to record information that should stay with a transform
 set, such as its intended component, layout constraints, unusual dimensions,
 or decisions made while reviewing processing results.
 
+Notes are saved in `config/breakpoints/transform-sets.json` with the set, so
+they are committed to git and shared with everyone on the project. Use them to
+tell teammates what they need to know about a set.
+
 Enter the note and select **Save notes**. Saved notes are shown on the transform
-card so they are visible when the set is reviewed later.
+card, so the next person to review or process the set sees them first.
 
    ![notes](images/notes.png)
 
