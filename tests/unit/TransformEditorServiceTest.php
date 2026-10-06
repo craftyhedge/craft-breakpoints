@@ -827,7 +827,7 @@ final class TransformEditorServiceTest extends Unit
         $this->assertSingleWarningHeading($xpath, 'Asset Mismatch');
         $this->assertSame(0, $this->countWarningHeadings($xpath, 'Used From Multiple Templates'));
         $this->assertStringContainsString('<li>mega-menus</li><li>nav-mobile</li>', $html);
-        $this->assertStringContainsString('Each may need its own set.', $html);
+        $this->assertStringContainsString('Each may need its own set, or the layout or CSS may need fixing so they match.', $html);
     }
 
     public function testRenderResultReviewShowsGenericAssetMismatchWithoutIncludeOrigins(): void
@@ -836,19 +836,23 @@ final class TransformEditorServiceTest extends Unit
         $xpath = $this->createReviewMarkupXPath($html);
 
         $this->assertSingleWarningHeading($xpath, 'Asset Mismatch');
-        $this->assertStringContainsString('It may be used in layouts that need separate sets.', $html);
+        $this->assertStringContainsString('It may be used in layouts that need separate sets, or the layout or CSS may need fixing so they match.', $html);
         $this->assertStringNotContainsString('bpts-warning-origins', $html);
     }
 
     public function testRenderResultReviewNamesTemplateThatRenderedSelectedCopy(): void
     {
         $html = $this->renderAssetMismatchReview(
-            ['_layout', 'mega-menus', 'mega-menu-cta'],
-            ['_layout', 'nav-mobile', 'mobile-cta'],
+            [['template' => 'page', 'extends' => ['_layout']], 'mega-menus', 'mega-menu-cta'],
+            [['template' => 'page', 'extends' => ['_layout']], 'nav-mobile', 'mobile-cta'],
         );
 
         $this->assertStringContainsString(
-            '<div class="bpts-transform-include-origin"><button type="button" class="bpts-transform-include-origin-row bpts-transform-include-origin-copy" data-bpts-action="copyIncludeOrigin" data-origin-source="rendered" data-template-name="mega-menu-cta" title="_layout › mega-menus › mega-menu-cta" aria-label="Copy template name mega-menu-cta"><span class="bpts-transform-include-origin-label">Rendered from</span><code>mega-menu-cta</code></button>',
+            '<div class="bpts-transform-include-origin"><div class="bpts-transform-include-origin-row" data-origin-source="rendered" data-include-stack="[{&quot;template&quot;:&quot;page&quot;,&quot;extends&quot;:[&quot;_layout&quot;]},{&quot;template&quot;:&quot;mega-menus&quot;},{&quot;template&quot;:&quot;mega-menu-cta&quot;}]">'
+                . '<span class="bpts-transform-include-origin-label">Rendered from</span><span class="bpts-transform-include-origin-value">'
+                . '<button type="button" class="bpts-transform-include-origin-copy" data-bpts-action="copyIncludeOrigin" data-template-name="mega-menu-cta" title="Copy template name" aria-label="Copy template name mega-menu-cta"><code>mega-menu-cta</code></button>'
+                . '<button type="button" class="bpts-transform-include-origin-stack" data-bpts-action="showIncludeStack" title="Show include stack" aria-label="Show include stack (4 templates)">+3</button>'
+                . '</span></div>',
             $html,
         );
         $this->assertStringNotContainsString('mobile-cta</code>', $html);
@@ -856,38 +860,84 @@ final class TransformEditorServiceTest extends Unit
 
     public function testBreakpointMismatchNamesSavedAndRenderedTemplatesWhenTheyDiffer(): void
     {
-        $html = $this->renderBreakpointMismatchReview('site/cards & menus', ['_layout', 'site/nav-mobile']);
+        $page = ['template' => 'page', 'extends' => ['_layout']];
+        $html = $this->renderBreakpointMismatchReview([$page, 'site/cards & menus'], [$page, 'site/nav-mobile']);
         $xpath = $this->createReviewMarkupXPath($html);
 
         $this->assertSingleWarningHeading($xpath, 'Breakpoint Mismatch');
         $this->assertStringContainsString(
-            '<p>Saved values came from site/cards &amp; menus. This run rendered from site/nav-mobile. This set may be used in layouts that need separate sets.</p>',
+            '<p>The saved values came from a different template:</p>'
+                . '<ul class="bpts-warning-origins"><li>Saved values: site/cards &amp; menus</li><li>This run: site/nav-mobile</li></ul>'
+                . '<p>This template may need a separate set, its layout or CSS may need fixing, or the saved values may be out of date and need updating.</p>',
             $html,
         );
         $this->assertStringNotContainsString('&amp;amp;', $html);
 
         $note = $this->findSavedRenderedFromNote($xpath);
         $this->assertSavedRenderedFromNoteHidden($note, false);
+        $this->assertSame('div', $note->nodeName);
+        $this->assertSame('saved', $note->getAttribute('data-origin-source'));
+        $this->assertSame('[{"template":"page","extends":["_layout"]},{"template":"site/cards & menus"}]', $note->getAttribute('data-include-stack'));
+        $this->assertStringContainsString('.savedRenderedFromStack', $note->getAttribute('data-attr:data-include-stack'));
+        $this->assertStringContainsString('.savedRenderedFromStack', $note->getAttribute('data-class:bpts-force-hidden'));
+        $this->assertStringContainsString('site/nav-mobile', $note->getAttribute('data-class:bpts-force-hidden'));
         $this->assertSame('Saved values from', $this->queryTextWithin($xpath, ".//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-include-origin-label ')]", $note));
         $this->assertSame('site/cards & menus', $this->queryTextWithin($xpath, './/code', $note));
-        $this->assertSame('Saved values came from site/cards & menus', $note->getAttribute('title'));
-        $this->assertSame('button', $note->nodeName);
-        $this->assertSame('copyIncludeOrigin', $note->getAttribute('data-bpts-action'));
-        $this->assertSame('saved', $note->getAttribute('data-origin-source'));
-        $this->assertSame('site/cards & menus', $note->getAttribute('data-template-name'));
-        $this->assertStringContainsString('.savedRenderedFrom', $note->getAttribute('data-attr:data-template-name'));
-        $this->assertStringContainsString('.savedRenderedFrom', $note->getAttribute('data-class:bpts-force-hidden'));
-        $this->assertStringContainsString('"site/nav-mobile"', $note->getAttribute('data-class:bpts-force-hidden'));
-        $this->assertStringContainsString('"savedRenderedFrom":"site/cards & menus"', $this->findHeroCard($xpath)->getAttribute('data-signals'));
+
+        $copy = $this->queryElementWithin($xpath, ".//button[@data-bpts-action='copyIncludeOrigin']", $note);
+        $this->assertSame('site/cards & menus', $copy->getAttribute('data-template-name'));
+        $this->assertStringContainsString('.savedRenderedFrom', $copy->getAttribute('data-attr:data-template-name'));
+
+        $stackButton = $this->queryElementWithin($xpath, ".//button[@data-bpts-action='showIncludeStack']", $note);
+        $this->assertSame('+2', trim($stackButton->textContent));
+        $this->assertStringContainsString('.savedRenderedFromMore', $stackButton->getAttribute('data-text'));
+
+        $signals = $this->findHeroCard($xpath)->getAttribute('data-signals');
+        $this->assertStringContainsString('"savedRenderedFrom":"site/cards & menus"', $signals);
+        $this->assertStringContainsString('"savedRenderedFromStack":"[{\\"template\\":\\"page\\",\\"extends\\":[\\"_layout\\"]},{\\"template\\":\\"site/cards & menus\\"}]"', $signals);
+        $this->assertStringContainsString('"savedRenderedFromMore":2', $signals);
+    }
+
+    public function testBreakpointMismatchDescribesLayoutsWhenOnlyTheLayoutDiffers(): void
+    {
+        $html = $this->renderBreakpointMismatchReview(
+            [['template' => 'page', 'extends' => ['_layout']], 'site/card'],
+            [['template' => 'page', 'extends' => ['_wide']], 'site/card'],
+        );
+        $xpath = $this->createReviewMarkupXPath($html);
+
+        $this->assertStringContainsString(
+            '<p>The saved values came from a different template:</p>'
+                . '<ul class="bpts-warning-origins"><li>Saved values: page (extends _layout)</li><li>This run: page (extends _wide)</li></ul>'
+                . '<p>This template may need a separate set, its layout or CSS may need fixing, or the saved values may be out of date and need updating.</p>',
+            $html,
+        );
+        $this->assertSavedRenderedFromNoteHidden($this->findSavedRenderedFromNote($xpath), false);
+    }
+
+    public function testBreakpointMismatchNamesTemplatesWhereStacksSplitWhenLeavesMatch(): void
+    {
+        $html = $this->renderBreakpointMismatchReview(['_layout', 'site/grid', 'site/card'], ['_layout', 'site/sidebar', 'site/card']);
+        $xpath = $this->createReviewMarkupXPath($html);
+
+        $this->assertSingleWarningHeading($xpath, 'Breakpoint Mismatch');
+        $this->assertStringContainsString(
+            '<p>The saved values came from a different template:</p>'
+                . '<ul class="bpts-warning-origins"><li>Saved values: site/grid</li><li>This run: site/sidebar</li></ul>'
+                . '<p>This template may need a separate set, its layout or CSS may need fixing, or the saved values may be out of date and need updating.</p>',
+            $html,
+        );
+        $this->assertSavedRenderedFromNoteHidden($this->findSavedRenderedFromNote($xpath), false);
     }
 
     public function testBreakpointMismatchStaysPlainWhenTemplatesMatch(): void
     {
-        $html = $this->renderBreakpointMismatchReview('site/cards & menus', ['_layout', 'site/cards & menus']);
+        $html = $this->renderBreakpointMismatchReview(['_layout', 'site/cards & menus'], ['_layout', 'site/cards & menus']);
         $xpath = $this->createReviewMarkupXPath($html);
 
         $this->assertSingleWarningHeading($xpath, 'Breakpoint Mismatch');
-        $this->assertStringNotContainsString('<p>Saved values came from', $html);
+        $this->assertStringNotContainsString('<li>Saved values: ', $html);
+        $this->assertStringContainsString('<p>The saved values may be out of date and need updating, or the layout or CSS may need fixing.</p>', $html);
         $this->assertSavedRenderedFromNoteHidden($this->findSavedRenderedFromNote($xpath), true);
     }
 
@@ -897,9 +947,10 @@ final class TransformEditorServiceTest extends Unit
         $xpath = $this->createReviewMarkupXPath($html);
 
         $this->assertSingleWarningHeading($xpath, 'Breakpoint Mismatch');
-        $this->assertStringNotContainsString('<p>Saved values came from', $html);
+        $this->assertStringNotContainsString('<li>Saved values: ', $html);
         $this->assertSavedRenderedFromNoteHidden($this->findSavedRenderedFromNote($xpath), true);
         $this->assertStringContainsString('"savedRenderedFrom":""', $this->findHeroCard($xpath)->getAttribute('data-signals'));
+        $this->assertStringContainsString('"savedRenderedFromStack":""', $this->findHeroCard($xpath)->getAttribute('data-signals'));
     }
 
     public function testBreakpointMismatchStaysPlainWithoutIncludeStack(): void
@@ -908,7 +959,7 @@ final class TransformEditorServiceTest extends Unit
         $xpath = $this->createReviewMarkupXPath($html);
 
         $this->assertSingleWarningHeading($xpath, 'Breakpoint Mismatch');
-        $this->assertStringNotContainsString('<p>Saved values came from', $html);
+        $this->assertStringNotContainsString('<li>Saved values: ', $html);
     }
 
     public function testRenderInitialStoredReviewNamesSavedRenderedFrom(): void
@@ -923,20 +974,45 @@ final class TransformEditorServiceTest extends Unit
                     'xs' => ['width' => 640, 'height' => null, 'enabled' => true, 'autoDimension' => null],
                 ],
                 'config' => [],
-                'renderedFrom' => 'site/cards & menus.twig',
+                'renderedFrom' => [['template' => 'page.twig', 'extends' => ['_layout.twig']], 'site/cards & menus.twig'],
             ],
         ], fn() => $editor->renderInitialStoredReview());
 
         $this->assertStringContainsString(
-            '<div class="bpts-transform-include-origin"><button type="button" class="bpts-transform-include-origin-row bpts-transform-include-origin-copy" data-bpts-action="copyIncludeOrigin" data-origin-source="saved" data-template-name="site/cards &amp; menus" title="Saved values were rendered from site/cards &amp; menus" aria-label="Copy template name site/cards &amp; menus (rendered from)"><span class="bpts-transform-include-origin-label">Rendered from</span><code>site/cards &amp; menus</code></button></div>',
+            '<div class="bpts-transform-include-origin"><div class="bpts-transform-include-origin-row" data-origin-source="saved" data-include-stack="[{&quot;template&quot;:&quot;page&quot;,&quot;extends&quot;:[&quot;_layout&quot;]},{&quot;template&quot;:&quot;site/cards &amp; menus&quot;}]">'
+                . '<span class="bpts-transform-include-origin-label">Rendered from</span><span class="bpts-transform-include-origin-value">'
+                . '<button type="button" class="bpts-transform-include-origin-copy" data-bpts-action="copyIncludeOrigin" data-template-name="site/cards &amp; menus" title="Copy template name" aria-label="Copy template name site/cards &amp; menus"><code>site/cards &amp; menus</code></button>'
+                . '<button type="button" class="bpts-transform-include-origin-stack" data-bpts-action="showIncludeStack" title="Show include stack" aria-label="Show include stack (3 templates)">+2</button>'
+                . '</span></div></div>',
             (string)($result['visualResultsHtml'] ?? ''),
         );
+    }
+
+    public function testRenderInitialStoredReviewOmitsStackButtonForSingleTemplate(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+
+        $result = $this->withRuntimeSets([
+            'hero' => [
+                'name' => 'hero',
+                'includeEscapeWidth' => false,
+                'variants' => [
+                    'xs' => ['width' => 640, 'height' => null, 'enabled' => true, 'autoDimension' => null],
+                ],
+                'config' => [],
+                'renderedFrom' => 'site/cards/menu',
+            ],
+        ], fn() => $editor->renderInitialStoredReview());
+
+        $html = (string)($result['visualResultsHtml'] ?? '');
+        $this->assertStringContainsString('<code>site/cards/menu</code>', $html);
+        $this->assertStringNotContainsString('bpts-transform-include-origin-stack', $html);
     }
 
     public function testBuildSignalDeltasForTransformIncludesSavedRenderedFrom(): void
     {
         $editor = Plugin::getInstance()->getTransformEditor();
-        $set = static fn(?string $renderedFrom): array => array_filter([
+        $set = static fn(?array $renderedFrom): array => array_filter([
             'name' => 'hero',
             'includeEscapeWidth' => false,
             'variants' => [
@@ -946,11 +1022,15 @@ final class TransformEditorServiceTest extends Unit
             'renderedFrom' => $renderedFrom,
         ], static fn(mixed $value): bool => $value !== null);
 
-        $withOrigin = $this->withRuntimeSets(['hero' => $set('site/cards/menu')], fn() => $editor->buildSignalDeltasForTransform('hero'));
+        $withOrigin = $this->withRuntimeSets(['hero' => $set([['template' => 'page', 'extends' => ['_layout']], 'site/cards/menu'])], fn() => $editor->buildSignalDeltasForTransform('hero'));
         $this->assertSame('site/cards/menu', $withOrigin['savedRenderedFrom'] ?? null);
+        $this->assertSame('[{"template":"page","extends":["_layout"]},{"template":"site/cards/menu"}]', $withOrigin['savedRenderedFromStack'] ?? null);
+        $this->assertSame(2, $withOrigin['savedRenderedFromMore'] ?? null);
 
         $withoutOrigin = $this->withRuntimeSets(['hero' => $set(null)], fn() => $editor->buildSignalDeltasForTransform('hero'));
         $this->assertSame('', $withoutOrigin['savedRenderedFrom'] ?? null);
+        $this->assertSame('', $withoutOrigin['savedRenderedFromStack'] ?? null);
+        $this->assertSame(0, $withoutOrigin['savedRenderedFromMore'] ?? null);
     }
 
     public function testRenderInitialStoredReviewOmitsLabelWithoutSavedRenderedFrom(): void
@@ -2733,8 +2813,8 @@ final class TransformEditorServiceTest extends Unit
      * Two hero copies at the same slot whose rendered heights differ (asset
      * mismatch in the latest snapshot), each with the given include stack.
      *
-     * @param string[] $firstStack
-     * @param string[] $secondStack
+     * @param array<int, mixed> $firstStack
+     * @param array<int, mixed> $secondStack
      */
     private function renderAssetMismatchReview(array $firstStack, array $secondStack): string
     {
@@ -2808,9 +2888,10 @@ final class TransformEditorServiceTest extends Unit
      * One hero copy rendered narrower than its saved width (breakpoint mismatch
      * in the latest snapshot), with the given saved `renderedFrom` and include stack.
      *
-     * @param string[] $includeStack
+     * @param string|array<int, mixed>|null $renderedFrom
+     * @param array<int, mixed> $includeStack
      */
-    private function renderBreakpointMismatchReview(?string $renderedFrom, array $includeStack): string
+    private function renderBreakpointMismatchReview(string|array|null $renderedFrom, array $includeStack): string
     {
         $rowsPayload = [[
             'transformHandle' => 'hero',
@@ -3001,6 +3082,18 @@ final class TransformEditorServiceTest extends Unit
         $this->assertInstanceOf(\DOMElement::class, $note);
 
         return $note;
+    }
+
+    private function queryElementWithin(\DOMXPath $xpath, string $expression, \DOMNode $context): \DOMElement
+    {
+        $nodes = $xpath->query($expression, $context);
+        $this->assertNotFalse($nodes);
+        $this->assertSame(1, $nodes->length, 'Expected one element for ' . $expression);
+
+        $node = $nodes->item(0);
+        $this->assertInstanceOf(\DOMElement::class, $node);
+
+        return $node;
     }
 
     private function queryTextWithin(\DOMXPath $xpath, string $expression, \DOMNode $context): string

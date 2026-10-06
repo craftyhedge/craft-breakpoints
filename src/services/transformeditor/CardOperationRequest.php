@@ -100,7 +100,8 @@ final class CardOperationRequest
         public readonly bool $hasValidOperation,
         /** @var array<int, int> Slot ids (1-based) flagged as hidden by the latest processing run. */
         public readonly array $hiddenBreakpoints = [],
-        public readonly ?string $renderedFrom = null,
+        /** @var array<int, array<string, mixed>> Include levels (root → leaf) of the applied copy; empty keeps the saved value. */
+        public readonly array $renderedFrom = [],
     ) {
     }
 
@@ -115,9 +116,6 @@ final class CardOperationRequest
 
         $rawSelectedAssetKey = trim((string)$request->getBodyParam('selectedAssetKey', ''));
         $selectedAssetKey = $rawSelectedAssetKey !== '' ? $rawSelectedAssetKey : null;
-
-        $renderedFromNames = IncludeStack::normalize([$request->getBodyParam('renderedFrom', '')]);
-        $renderedFrom = $renderedFromNames !== [] ? $renderedFromNames[count($renderedFromNames) - 1] : null;
 
         return new self(
             setName: trim((string)$request->getBodyParam('setName', '')),
@@ -147,7 +145,7 @@ final class CardOperationRequest
             valueRaw: $request->getBodyParam('value'),
             hasValidOperation: $operation !== '',
             hiddenBreakpoints: self::parseSlotIdList($request->getBodyParam('hiddenBreakpoints')),
-            renderedFrom: $renderedFrom,
+            renderedFrom: IncludeStack::fromValue($request->getBodyParam('renderedFrom')),
         );
     }
 

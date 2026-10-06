@@ -1630,7 +1630,10 @@ export function getPictureIncludeStack(picture) {
     try {
         const parsed = JSON.parse(raw);
         return Array.isArray(parsed)
-            ? parsed.filter((name) => typeof name === 'string' && name.trim() !== '')
+            ? parsed.filter((level) => (
+                (typeof level === 'string' && level.trim() !== '')
+                || (level && typeof level === 'object' && typeof level.template === 'string' && level.template.trim() !== '')
+            ))
             : [];
     } catch (_error) {
         return [];

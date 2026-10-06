@@ -503,6 +503,225 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         });
     }
 
+    function normalizeIncludeStackLevels(levels) {
+        if (!Array.isArray(levels)) {
+            return [];
+        }
+
+        const toNames = (names) => (Array.isArray(names) ? names : [])
+            .map((name) => String(name || '').trim())
+            .filter((name) => name !== '');
+
+        return levels
+            .map((level) => (typeof level === 'string' ? { template: level } : level))
+            .filter((level) => level && typeof level === 'object' && String(level.template || '').trim() !== '')
+            .map((level) => {
+                const normalized = { template: String(level.template).trim() };
+                const parents = toNames(level.extends);
+                const embeds = toNames(level.embeds);
+                const inTemplate = String(level.in || '').trim();
+                if (parents.length > 0) {
+                    normalized.extends = parents;
+                }
+                if (embeds.length > 0) {
+                    normalized.embeds = embeds;
+                }
+                if (inTemplate !== '' && inTemplate !== normalized.template) {
+                    normalized.in = inTemplate;
+                }
+
+                return normalized;
+            });
+    }
+
+    function parseIncludeStackAttribute(node) {
+        const raw = String(node?.dataset?.includeStack || '').trim();
+        if (raw === '') {
+            return [];
+        }
+
+        try {
+            return normalizeIncludeStackLevels(JSON.parse(raw));
+        } catch (_error) {
+            return [];
+        }
+    }
+
+    function findIncludeStackSplitIndex(stack, otherStack) {
+        if (stack.length === 0 || otherStack.length === 0) {
+            return -1;
+        }
+
+        const levelKey = (level) => (level ? JSON.stringify(normalizeIncludeStackLevels([level])[0] || null) : '');
+        const maxLength = Math.max(stack.length, otherStack.length);
+        for (let index = 0; index < maxLength; index += 1) {
+            if (levelKey(stack[index]) !== levelKey(otherStack[index])) {
+                return index < stack.length ? index : -1;
+            }
+        }
+
+        return -1;
+    }
+
+    function buildIncludeStackCopyButton(name, isLeaf = false) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'bpts-transform-include-origin-copy';
+        if (isLeaf) {
+            button.classList.add('is-leaf');
+        }
+        button.dataset.bptsAction = 'copyIncludeOrigin';
+        button.dataset.templateName = name;
+        button.title = 'Copy template name';
+        button.setAttribute('aria-label', `Copy template name ${name}`);
+
+        const code = document.createElement('code');
+        code.textContent = name;
+        button.appendChild(code);
+
+        return button;
+    }
+
+    function buildIncludeStackTag(text, title, className = '') {
+        const tag = document.createElement('span');
+        tag.className = 'bpts-include-stack-hud-tag';
+        if (className !== '') {
+            tag.classList.add(className);
+        }
+        tag.textContent = text;
+        tag.title = title;
+
+        return tag;
+    }
+
+    function appendIncludeStackName(container, name, leafName) {
+        const isLeaf = name === leafName;
+        container.appendChild(buildIncludeStackCopyButton(name, isLeaf));
+        if (isLeaf) {
+            container.appendChild(buildIncludeStackTag('image()', 'image() is called in this template'));
+        }
+    }
+
+    function buildIncludeStackRelation(label, names, leafName) {
+        const line = document.createElement('div');
+        line.className = 'bpts-include-stack-hud-relation';
+
+        const labelNode = document.createElement('span');
+        labelNode.className = 'bpts-include-stack-hud-relation-label';
+        labelNode.textContent = label;
+        line.appendChild(labelNode);
+
+        names.forEach((name, index) => {
+            if (index > 0) {
+                const separator = document.createElement('span');
+                separator.className = 'bpts-include-stack-hud-separator';
+                separator.setAttribute('aria-hidden', 'true');
+                separator.textContent = '›';
+                line.appendChild(separator);
+            }
+            appendIncludeStackName(line, name, leafName);
+        });
+
+        return line;
+    }
+
+    function buildIncludeStackHudBody(rawStack, splitIndex) {
+        const stack = normalizeIncludeStackLevels(rawStack);
+        const body = document.createElement('div');
+        body.className = 'bpts-include-stack-hud';
+
+        const heading = document.createElement('h2');
+        heading.className = 'bpts-include-stack-hud-heading';
+        heading.textContent = 'Include stack';
+        body.appendChild(heading);
+
+        const list = document.createElement('ol');
+        list.className = 'bpts-include-stack-hud-list';
+
+        stack.forEach((level, index) => {
+            const isLastLevel = index === stack.length - 1;
+            const leafName = isLastLevel ? (level.in || level.template) : null;
+
+            const item = document.createElement('li');
+            item.className = 'bpts-include-stack-hud-item';
+            if (isLastLevel) {
+                item.classList.add('is-leaf-level');
+            }
+            if (index === splitIndex) {
+                item.classList.add('is-split');
+            }
+
+            const line = document.createElement('div');
+            line.className = 'bpts-include-stack-hud-line';
+            appendIncludeStackName(line, level.template, leafName);
+            if (index === splitIndex) {
+                line.appendChild(buildIncludeStackTag('Differs', 'The saved and rendered stacks differ from here', 'is-split'));
+            }
+            item.appendChild(line);
+
+            if (level.extends) {
+                item.appendChild(buildIncludeStackRelation('extends', level.extends, leafName));
+            }
+            if (level.embeds) {
+                item.appendChild(buildIncludeStackRelation('embeds', level.embeds, leafName));
+            }
+
+            list.appendChild(item);
+        });
+
+        body.appendChild(list);
+
+        return body;
+    }
+
+    function bindIncludeStackButtons() {
+        if (document.documentElement.dataset.bpiIncludeStackBound === '1') {
+            return;
+        }
+
+        document.documentElement.dataset.bpiIncludeStackBound = '1';
+
+        document.addEventListener('click', (event) => {
+            const target = event.target instanceof Element
+                ? event.target.closest('button.bpts-transform-include-origin-stack[data-bpts-action="showIncludeStack"]')
+                : null;
+
+            if (!(target instanceof HTMLButtonElement)) {
+                return;
+            }
+
+            event.preventDefault();
+
+            if (typeof Garnish === 'undefined' || typeof Garnish.HUD !== 'function' || typeof window.jQuery !== 'function') {
+                return;
+            }
+
+            const row = target.closest('.bpts-transform-include-origin-row');
+            const stack = parseIncludeStackAttribute(row);
+            if (stack.length === 0) {
+                return;
+            }
+
+            const otherRow = Array.from(row?.parentElement?.querySelectorAll('.bpts-transform-include-origin-row') || [])
+                .find((node) => node !== row && !node.classList.contains('bpts-force-hidden'));
+            const splitIndex = findIncludeStackSplitIndex(stack, parseIncludeStackAttribute(otherRow));
+
+            const hud = new Garnish.HUD(window.jQuery(target), window.jQuery(buildIncludeStackHudBody(stack, splitIndex)), {
+                orientations: ['bottom', 'top', 'left', 'right'],
+                showOnInit: false,
+                onHide: () => {
+                    hud.destroy();
+                },
+            });
+
+            [hud.$hud, hud.$shade].forEach((node) => {
+                applyDatastarIgnoreAttribute(getElementNode(node));
+            });
+
+            hud.show();
+        });
+    }
+
     function updateCopyButtonVisibility() {
         if (!elements.btnCopy) {
             return;
@@ -2958,7 +3177,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
                     name: transformName,
                     selectedAssetKey: '',
                     selectedAssetId: '',
-                    renderedFrom: '',
+                    renderedFrom: [],
                 });
             }
 
@@ -2967,10 +3186,9 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             if (!descriptor.selectedAssetKey) {
                 const assetKey = buildReviewAssetKeyFromRow(transformName, row);
                 if (assetKey !== '') {
-                    const includeStack = Array.isArray(row?.includeStack) ? row.includeStack : [];
                     descriptor.selectedAssetKey = assetKey;
                     descriptor.selectedAssetId = String(row?.assetId || '').trim();
-                    descriptor.renderedFrom = String(includeStack[includeStack.length - 1] || '').trim();
+                    descriptor.renderedFrom = Array.isArray(row?.includeStack) ? row.includeStack : [];
                 }
             }
         });
@@ -3731,6 +3949,8 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
             resolveSelectedSourceUrl,
             persistRunSnapshot,
             buildAutoApplyNewSetDescriptors,
+            findIncludeStackSplitIndex,
+            buildIncludeStackHudBody,
             summarizeFailureReasonCountsFromReport,
             collectReviewEditStateFromDom,
             parseServerStatusFromPatchSignalsArgs,
@@ -3780,6 +4000,7 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     bindProcessAgainButtons();
     bindProcessWarningEntryButtons();
     bindIncludeOriginCopyButtons();
+    bindIncludeStackButtons();
     bindTransformSidebarCardNavigation();
     setButtonsDisabled(false);
     setupDragToScroll();

@@ -146,12 +146,18 @@ the updated values. A clean run should show no warnings detected.
 After processing, the top right of each card shows where the selected copy
 came from:
 
-- **Rendered from**: the template that rendered the selected copy. Hover it to
-  see the full include path.
+- **Rendered from**: the template that rendered the selected copy.
 - **Saved values from**: shown underneath when the set's saved values were
-  applied from a different template.
+  applied from a different include path, even if the last template is the
+  same, such as one card partial used from a grid and from a sidebar.
 
-Click either one to copy the template name.
+Click a template name to copy it. When other templates are involved, a **+N**
+button follows the name. Click it to see the full include stack: one row per
+`{% include %}`, from the page template down to the one that rendered the
+image. Layouts a template `{% extends %}` and templates it `{% embed %}`s are
+listed under that template's row rather than as extra rows. Click any template
+in the list to copy it. When the saved and rendered stacks differ, the list
+marks the row where they split.
 
 ### Empty Enabled Breakpoints
 
@@ -192,13 +198,16 @@ in the [Asset Mismatch](#asset-mismatch) warning instead.
 After processing, Breakpoints compares the latest rendered image sizes with the
 saved transform dimensions. 
 
-Mismatches usually mean the front-end was changed and the transform set needs updated.
+Mismatches usually mean the front-end was changed and the saved values are out
+of date, so apply the rendered values. They can also mean the layout or CSS
+needs fixing.
 
-If the saved values came from a different template, the warning names both:
-where the saved values came from and where this run rendered from. The set may
-be used in layouts that need different sizes, or the layout in this template
-may need fixing. Either fix the layout, create a separate set for this
-template, or apply the rendered values if this template is now the main use.
+If the saved values came from a different include path, the warning lists
+both, using the templates where the paths split: **Saved values** and
+**This run**. The set may be used in layouts that need different sizes, or the layout in this template
+may need fixing. Either fix the layout or CSS, create a separate set for this
+template, or apply the rendered values if the saved values are out of date or
+this template is now the main use.
 
 ## 5. Review and edit saved transform sets
 
@@ -207,7 +216,8 @@ state, so you can review the current dimensions and settings without changing
 anything by accident.
 
 In this view, **Rendered from** at the top right of a card shows the template
-the saved values were applied from. Click it to copy the template name.
+the saved values were applied from. Click it to copy the template name, or
+click **+N** to see the full include stack.
 
 To make changes, enable the edit toggle, then update the saved set values as
 needed. Edits are saved automatically.

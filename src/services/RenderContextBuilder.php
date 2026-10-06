@@ -331,12 +331,9 @@ class RenderContextBuilder extends Component
             'data-breakpoint-states' => $this->buildBreakpointStatesJson($config),
         ];
 
-        $includeStack = IncludeStack::capture();
-        if ($includeStack !== []) {
-            $encodedStack = json_encode($includeStack, JSON_UNESCAPED_SLASHES);
-            if (is_string($encodedStack)) {
-                $markers['data-include-stack'] = $encodedStack;
-            }
+        $encodedStack = IncludeStack::encode(IncludeStack::capture());
+        if ($encodedStack !== '') {
+            $markers['data-include-stack'] = $encodedStack;
         }
 
         return $markers;

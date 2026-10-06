@@ -2224,6 +2224,7 @@ button.bpts-transform-input-addon:hover:not(:disabled) {
     column-gap: 8px;
     row-gap: 4px;
     margin-left: auto;
+    margin-bottom: 6px;
     min-width: 0;
     max-width: 50%;
     min-height: 22px;
@@ -2252,7 +2253,21 @@ button.bpts-transform-input-addon:hover:not(:disabled) {
     color: var(--gray-500, #7b8793);
 }
 
+.bpts-transform-include-origin-value {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    min-width: 0;
+}
+
+.bpts-transform-include-origin-value .bpts-transform-include-origin-copy {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+}
+
 .bpts-transform-include-origin-row code {
+    display: block;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2273,6 +2288,156 @@ button.bpts-transform-input-addon:hover:not(:disabled) {
 .bpts-transform-include-origin-copy:hover code,
 .bpts-transform-include-origin-copy:focus-visible code {
     color: var(--gray-800, #33404d);
+}
+
+.bpts-transform-include-origin-stack {
+    flex-shrink: 0;
+    padding: 0 4px;
+    border: 0;
+    border-radius: 3px;
+    background: var(--gray-100, #edf0f3);
+    font: inherit;
+    font-size: 10px;
+    line-height: 13px;
+    color: var(--gray-600, #606d7b);
+    cursor: pointer;
+}
+
+.bpts-transform-include-origin-stack:hover,
+.bpts-transform-include-origin-stack:focus-visible,
+.bpts-transform-include-origin-stack[aria-expanded="true"] {
+    background: var(--gray-200, #dfe4ea);
+    color: var(--gray-800, #33404d);
+}
+
+.bpts-include-stack-hud {
+    max-width: 460px;
+    font-size: 12px;
+}
+
+.bpts-include-stack-hud-heading {
+    margin: 0 0 12px;
+    font-size: 13px;
+}
+
+.bpts-include-stack-hud-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.bpts-include-stack-hud-item {
+    position: relative;
+    padding: 0 0 12px 20px;
+}
+
+.bpts-include-stack-hud-item:last-child {
+    padding-bottom: 0;
+}
+
+.bpts-include-stack-hud-item::before {
+    content: '';
+    position: absolute;
+    top: 14px;
+    bottom: 0;
+    left: 4px;
+    width: 1px;
+    background: var(--gray-200, #dfe4ea);
+}
+
+.bpts-include-stack-hud-item:last-child::before {
+    display: none;
+}
+
+.bpts-include-stack-hud-item::after {
+    content: '';
+    position: absolute;
+    top: 4px;
+    left: 0;
+    box-sizing: border-box;
+    width: 9px;
+    height: 9px;
+    border: 2px solid var(--gray-300, #cdd8e4);
+    border-radius: 50%;
+    background: var(--white, #fff);
+}
+
+.bpts-include-stack-hud-item.is-leaf-level::after {
+    border-color: #4f83b7;
+    background: #4f83b7;
+}
+
+.bpts-include-stack-hud-item.is-split::after {
+    border-color: #b94134;
+    background: #fbeceb;
+}
+
+.bpts-include-stack-hud-line,
+.bpts-include-stack-hud-relation {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 6px;
+    min-width: 0;
+}
+
+.bpts-include-stack-hud-relation {
+    margin-top: 3px;
+    gap: 2px 4px;
+}
+
+.bpts-include-stack-hud .bpts-transform-include-origin-copy {
+    margin: -1px -3px;
+    padding: 1px 3px;
+    border-radius: 3px;
+}
+
+.bpts-include-stack-hud .bpts-transform-include-origin-copy:hover,
+.bpts-include-stack-hud .bpts-transform-include-origin-copy:focus-visible {
+    background: var(--gray-050, #f3f7fc);
+}
+
+.bpts-include-stack-hud code {
+    font-size: 12px;
+    color: var(--gray-700, #3f4d5a);
+    word-break: break-all;
+}
+
+.bpts-include-stack-hud-relation code {
+    font-size: 11px;
+    color: var(--gray-500, #7b8793);
+}
+
+.bpts-include-stack-hud .is-leaf code {
+    font-weight: 600;
+    color: var(--gray-800, #33404d);
+}
+
+.bpts-include-stack-hud-relation-label {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--gray-400, #9aa5b1);
+}
+
+.bpts-include-stack-hud-separator {
+    color: var(--gray-300, #cdd8e4);
+}
+
+.bpts-include-stack-hud-tag {
+    padding: 0 6px;
+    border-radius: 8px;
+    background: rgba(79, 131, 183, 0.12);
+    font-size: 10px;
+    line-height: 15px;
+    white-space: nowrap;
+    color: #1f5a93;
+}
+
+.bpts-include-stack-hud-tag.is-split {
+    background: rgba(185, 65, 52, 0.12);
+    color: #8f2f26;
 }
 
 .bpts-transform-asset-page-mismatch {

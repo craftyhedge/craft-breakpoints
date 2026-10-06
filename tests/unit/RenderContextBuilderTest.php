@@ -380,7 +380,7 @@ final class RenderContextBuilderTest extends Unit
         ));
 
         $this->assertSame(
-            ['_partials/mega-menus', '_partials/mega-menu-cta'],
+            [['template' => '_partials/mega-menus'], ['template' => '_partials/mega-menu-cta']],
             json_decode($twig->render('_partials/mega-menus.twig'), true),
         );
     }

@@ -370,8 +370,8 @@ class TransformStore extends Component
                 'lastUpdatedAt' => $lastUpdatedAt,
             ]);
 
-            $renderedFrom = $this->normalizeRenderedFrom($setDefinition['renderedFrom'] ?? null);
-            if ($renderedFrom !== null) {
+            $renderedFrom = IncludeStack::fromValue($setDefinition['renderedFrom'] ?? null);
+            if ($renderedFrom !== []) {
                 $normalized[$setName]['renderedFrom'] = $renderedFrom;
             } else {
                 unset($normalized[$setName]['renderedFrom']);
@@ -402,13 +402,6 @@ class TransformStore extends Component
     private function normalizeNotes(string $value): string
     {
         return trim(str_replace(["\r\n", "\r"], "\n", $value));
-    }
-
-    private function normalizeRenderedFrom(mixed $value): ?string
-    {
-        $names = IncludeStack::normalize([$value]);
-
-        return $names !== [] ? $names[count($names) - 1] : null;
     }
 
     /**
@@ -547,8 +540,8 @@ class TransformStore extends Component
                     : [],
             ];
 
-            $renderedFrom = $this->normalizeRenderedFrom($setDefinition['renderedFrom'] ?? null);
-            if ($renderedFrom !== null) {
+            $renderedFrom = IncludeStack::fromValue($setDefinition['renderedFrom'] ?? null);
+            if ($renderedFrom !== []) {
                 $legacy[$setName]['renderedFrom'] = $renderedFrom;
             }
         }

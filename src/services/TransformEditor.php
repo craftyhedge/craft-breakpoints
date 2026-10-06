@@ -455,6 +455,7 @@ class TransformEditor extends Component
 
     /**
      * @param array<int, int> $hiddenBreakpointSlotIds Slot ids (1-based) flagged as hidden by processing.
+     * @param array<int, array<string, mixed>> $renderedFrom Include levels (root → leaf) of the applied copy; empty keeps the saved value.
      * @return array<string, mixed>
      */
     public function applyRenderedValuesOperation(
@@ -464,7 +465,7 @@ class TransformEditor extends Component
         bool $clearAuto = false,
         ?string $expectedVersion = null,
         array $hiddenBreakpointSlotIds = [],
-        ?string $renderedFrom = null,
+        array $renderedFrom = [],
     ): array {
         if ($this->_operationsService === null) {
             return ['persisted' => false, 'validation' => $this->defaultValidation()];
@@ -655,7 +656,7 @@ class TransformEditor extends Component
      * Compute the current signal deltas for all breakpoints of a transform.
      * Used after operations to send PatchSignals instead of re-rendering the card.
      *
-     * @return array{signalKey: string, rowsByBreakpoint: array<int|string, array<string, mixed>>, hasCurrentBreakpointMismatch?: bool, hasResolvedBreakpointMismatchAwaitingVerification?: bool, hasCardWarningDanger?: bool, savedRenderedFrom?: string}
+     * @return array{signalKey: string, rowsByBreakpoint: array<int|string, array<string, mixed>>, hasCurrentBreakpointMismatch?: bool, hasResolvedBreakpointMismatchAwaitingVerification?: bool, hasCardWarningDanger?: bool, savedRenderedFrom?: string, savedRenderedFromStack?: string, savedRenderedFromMore?: int}
      */
     public function buildSignalDeltasForTransform(
         string $setName,

@@ -1072,7 +1072,7 @@ describe('transforms runtime helper logic', () => {
     it('copies the include stack marker into extract rows', () => {
         const frameDocument = document.implementation.createHTMLDocument('preview');
         frameDocument.body.innerHTML = `
-            <picture data-set="cta-image" data-picture-id="cta" data-picture-instance="1" data-asset-id="893" data-include-stack='["_layout","mega-menus","mega-menu-cta"]'>
+            <picture data-set="cta-image" data-picture-id="cta" data-picture-instance="1" data-asset-id="893" data-include-stack='[{"template":"page","extends":["_layout"]},{"template":"mega-menus"},{"template":"mega-menu-cta"}]'>
                 <source data-bp-source="primary" data-bp-size="480" srcset="https://example.test/one.webp 1x" />
                 <img src="https://example.test/one.jpg" />
             </picture>
@@ -1091,7 +1091,7 @@ describe('transforms runtime helper logic', () => {
 
         const rows = hooks.extractRowsForBreakpoint(480, null, tracker.readinessByKey);
         expect(rows.map((row) => row.includeStack)).toEqual([
-            ['_layout', 'mega-menus', 'mega-menu-cta'],
+            [{ template: 'page', extends: ['_layout'] }, { template: 'mega-menus' }, { template: 'mega-menu-cta' }],
             [],
             [],
         ]);
@@ -2327,7 +2327,7 @@ describe('transforms runtime helper logic', () => {
         expect(requestedSets).toEqual([{
             name: 'image-test',
             selectedAssetKey: 'asset:image-test:2458',
-            renderedFrom: '',
+            renderedFrom: [],
         }]);
     });
 
@@ -2356,11 +2356,11 @@ describe('transforms runtime helper logic', () => {
         expect(requestedSets).toEqual([{
             name: 'cta-image',
             selectedAssetKey: 'picture:cta-image:1',
-            renderedFrom: '',
+            renderedFrom: [],
         }]);
     });
 
-    it('auto-apply descriptors take renderedFrom from the chosen row', () => {
+    it('auto-apply descriptors take the include stack of the chosen row as renderedFrom', () => {
         const requestedSets = hooks.buildAutoApplyNewSetDescriptors({
             rowsBySlot: {
                 base: [
@@ -2368,14 +2368,14 @@ describe('transforms runtime helper logic', () => {
                         instance: '1',
                         assetId: '893',
                         transform: 'cta-image',
-                        includeStack: ['site/_layout', 'site/includes/cards/menu'],
+                        includeStack: [{ template: 'site/page', extends: ['site/_layout'] }, { template: 'site/includes/cards/menu' }],
                         loaded: true,
                     },
                     {
                         instance: '2',
                         assetId: '893',
                         transform: 'cta-image',
-                        includeStack: ['site/_layout', 'site/includes/nav-mobile'],
+                        includeStack: [{ template: 'site/page', extends: ['site/_layout'] }, { template: 'site/includes/nav-mobile' }],
                         loaded: true,
                     },
                 ],
@@ -2385,8 +2385,59 @@ describe('transforms runtime helper logic', () => {
         expect(requestedSets).toEqual([{
             name: 'cta-image',
             selectedAssetKey: 'picture:cta-image:1',
-            renderedFrom: 'site/includes/cards/menu',
+            renderedFrom: [{ template: 'site/page', extends: ['site/_layout'] }, { template: 'site/includes/cards/menu' }],
         }]);
+    });
+
+    it('include stack split index points at the first differing level of the opened stack', () => {
+        const page = { template: 'page', extends: ['_layout'] };
+        expect(hooks.findIncludeStackSplitIndex([page, { template: 'grid' }, { template: 'card' }], [page, { template: 'sidebar' }, { template: 'card' }])).toBe(1);
+        expect(hooks.findIncludeStackSplitIndex([page, { template: 'card' }], [{ template: 'page', extends: ['_wide'] }, { template: 'card' }])).toBe(0);
+        expect(hooks.findIncludeStackSplitIndex([page, { template: 'card' }], [page, { template: 'card' }])).toBe(-1);
+        expect(hooks.findIncludeStackSplitIndex([page, { template: 'card' }, { template: 'extra' }], [page, { template: 'card' }])).toBe(2);
+        expect(hooks.findIncludeStackSplitIndex([page, { template: 'card' }], [page, { template: 'card' }, { template: 'extra' }])).toBe(-1);
+        expect(hooks.findIncludeStackSplitIndex([page], [])).toBe(-1);
+    });
+
+    it('include stack HUD body lists one row per include level with extends and embeds parents', () => {
+        const body = hooks.buildIncludeStackHudBody([
+            { template: 'site/pages/_entry', extends: ['site/wrappers/default', 'site/wrappers/includes/config'] },
+            { template: 'site/includes/page-content' },
+            { template: 'site/includes/page-content/images', embeds: ['site/wrappers/component'] },
+        ], 1);
+        const items = Array.from(body.querySelectorAll('li'));
+
+        expect(items.map((item) => item.querySelector('.bpts-include-stack-hud-line > button code')?.textContent)).toEqual([
+            'site/pages/_entry',
+            'site/includes/page-content',
+            'site/includes/page-content/images',
+        ]);
+        expect(Array.from(items[0].querySelectorAll('.bpts-include-stack-hud-relation button')).map((button) => button.dataset.templateName)).toEqual([
+            'site/wrappers/default',
+            'site/wrappers/includes/config',
+        ]);
+        expect(items[0].querySelector('.bpts-include-stack-hud-relation-label')?.textContent).toBe('extends');
+        expect(items[2].querySelector('.bpts-include-stack-hud-relation-label')?.textContent).toBe('embeds');
+        expect(items[1].classList.contains('is-split')).toBe(true);
+        expect(items[0].classList.contains('is-split')).toBe(false);
+        expect(Array.from(body.querySelectorAll('button.is-leaf')).map((button) => button.dataset.templateName)).toEqual([
+            'site/includes/page-content/images',
+        ]);
+        expect(items[2].classList.contains('is-leaf-level')).toBe(true);
+        expect(items[1].querySelector('.bpts-include-stack-hud-tag.is-split')?.textContent).toBe('Differs');
+        expect(Array.from(body.querySelectorAll('.bpts-include-stack-hud-tag:not(.is-split)')).map((tag) => tag.previousElementSibling?.dataset?.templateName)).toEqual([
+            'site/includes/page-content/images',
+        ]);
+    });
+
+    it('include stack HUD body marks the parent template that called image() as the leaf', () => {
+        const body = hooks.buildIncludeStackHudBody([
+            { template: 'site/pages/_entry', extends: ['site/wrappers/default'], in: 'site/wrappers/default' },
+        ], -1);
+
+        expect(Array.from(body.querySelectorAll('button.is-leaf')).map((button) => button.dataset.templateName)).toEqual([
+            'site/wrappers/default',
+        ]);
     });
 
     it('reports cancelled processing when wait is aborted and avoids publishing results', async () => {

@@ -291,7 +291,7 @@ final class ReviewRenderer
     }
 
     /**
-     * @return array{signalKey: string, rowsByBreakpoint: array<int|string, array<string, mixed>>, hasCurrentBreakpointMismatch?: bool, hasResolvedBreakpointMismatchAwaitingVerification?: bool, hasCardWarningDanger?: bool, savedRenderedFrom?: string}
+     * @return array{signalKey: string, rowsByBreakpoint: array<int|string, array<string, mixed>>, hasCurrentBreakpointMismatch?: bool, hasResolvedBreakpointMismatchAwaitingVerification?: bool, hasCardWarningDanger?: bool, savedRenderedFrom?: string, savedRenderedFromStack?: string, savedRenderedFromMore?: int}
      */
     public function buildSignalDeltasForTransform(
         string $setName,
@@ -390,6 +390,8 @@ final class ReviewRenderer
         $editedSinceProcess = $reviewMode === self::REVIEW_MODE_PROCESSED
             && (($this->buildEditedTransformsMap($latestRunSnapshot, true)[$normalized] ?? false) === true);
 
+        $savedRenderedFromStack = IncludeStack::fromValue($transformConfig['renderedFrom'] ?? null);
+
         return [
             'signalKey' => $signalKey,
             'rowsByBreakpoint' => $rowsByBreakpoint,
@@ -400,7 +402,9 @@ final class ReviewRenderer
             'hasCardWarningDanger' => $hasCurrentBreakpointMismatch
                 || $hasCurrentAssetMismatch
                 || ReviewWarningsBuilder::hasNonAdvisoryWarning($warningsByTransform[$normalized] ?? []),
-            'savedRenderedFrom' => Support::parseNullableNonEmptyString($transformConfig['renderedFrom'] ?? null) ?? '',
+            'savedRenderedFrom' => IncludeStack::leaf($savedRenderedFromStack) ?? '',
+            'savedRenderedFromStack' => IncludeStack::encode($savedRenderedFromStack),
+            'savedRenderedFromMore' => max(0, IncludeStack::templateCount($savedRenderedFromStack) - 1),
         ];
     }
 
@@ -969,13 +973,13 @@ final class ReviewRenderer
                 $signalKey,
                 $hideAssetPagination,
             );
-            $selectedIncludeOriginLeaf = $isProcessedReview
-                ? $this->resolveIncludeOriginLeaf($assetCollection['rowsByAssetByBreakpoint'][$selectedAssetKey] ?? [])
-                : null;
-            $savedRenderedFrom = Support::parseNullableNonEmptyString($storedTransformConfig['renderedFrom'] ?? null);
+            $selectedIncludeStack = $isProcessedReview
+                ? $this->resolveIncludeOriginStack($assetCollection['rowsByAssetByBreakpoint'][$selectedAssetKey] ?? [])
+                : [];
+            $savedRenderedFromStack = IncludeStack::fromValue($storedTransformConfig['renderedFrom'] ?? null);
             $includeOriginHtml = $isProcessedReview
-                ? $this->buildIncludeOriginMarkup($assetCollection['rowsByAssetByBreakpoint'][$selectedAssetKey] ?? [], $savedRenderedFrom, $signalKey)
-                : $this->buildSavedRenderedFromMarkup($savedRenderedFrom);
+                ? $this->buildIncludeOriginMarkup($selectedIncludeStack, $savedRenderedFromStack, $signalKey)
+                : $this->buildSavedRenderedFromMarkup($savedRenderedFromStack);
 
             $slug = Support::slugifyTransformName($transformName);
             $editPanelId = 'bpts-edit-panel-' . $slug;
@@ -1096,7 +1100,8 @@ final class ReviewRenderer
                         . ($editedSinceProcess
                             ? '<p>Saved values have been edited since the last process. Process to review these changes.</p>'
                             : '<p>Rendered values do not match the saved transform for one or more breakpoints.</p>'
-                                . $this->buildRenderedFromMismatchMarkup($savedRenderedFrom, $selectedIncludeOriginLeaf))
+                                . ($this->buildRenderedFromMismatchMarkup($savedRenderedFromStack, $selectedIncludeStack)
+                                    ?: '<p>The saved values may be out of date and need updating, or the layout or CSS may need fixing.</p>'))
                     . '</div>'
                     . '</div>'
                 : '';
@@ -1145,7 +1150,9 @@ final class ReviewRenderer
             $cardSignalsStructural['editor']['cards'][$signalKey]['hasCurrentBreakpointMismatch'] = $hasBreakpointMismatchWarning;
             $cardSignalsStructural['editor']['cards'][$signalKey]['hasResolvedBreakpointMismatchAwaitingVerification'] = $hasResolvedBreakpointMismatchAwaitingVerification;
             $cardSignalsStructural['editor']['cards'][$signalKey]['hasCardWarningDanger'] = $staticWarningPresent;
-            $cardSignalsStructural['editor']['cards'][$signalKey]['savedRenderedFrom'] = $savedRenderedFrom ?? '';
+            $cardSignalsStructural['editor']['cards'][$signalKey]['savedRenderedFrom'] = IncludeStack::leaf($savedRenderedFromStack) ?? '';
+            $cardSignalsStructural['editor']['cards'][$signalKey]['savedRenderedFromStack'] = IncludeStack::encode($savedRenderedFromStack);
+            $cardSignalsStructural['editor']['cards'][$signalKey]['savedRenderedFromMore'] = max(0, IncludeStack::templateCount($savedRenderedFromStack) - 1);
             $cardSignalsStructuralJson = json_encode($cardSignalsStructural, JSON_UNESCAPED_SLASHES);
             if (!is_string($cardSignalsStructuralJson)) {
                 $cardSignalsStructuralJson = '{"editor":{"cards":{}}}';
@@ -2260,120 +2267,143 @@ final class ReviewRenderer
     }
 
     /**
-     * Names the template that rendered the selected copy, with its full include
-     * stack as a tooltip.
+     * Names the template that rendered the selected copy, with a "+N" button that
+     * opens its full include stack.
      *
      * Adds a muted "Saved values from" row when the set's saved values came from a
-     * different template.
+     * different include stack.
      *
-     * @param array<int, array<int, array<string, mixed>>> $rowsByBreakpoint Rows of the selected copy.
+     * @param array<int, array<string, mixed>> $stack Include levels (root → leaf) of the selected copy.
+     * @param array<int, array<string, mixed>> $savedStack Saved `renderedFrom` stack.
      */
-    private function buildIncludeOriginMarkup(array $rowsByBreakpoint, ?string $savedRenderedFrom = null, string $signalKey = ''): string
+    private function buildIncludeOriginMarkup(array $stack, array $savedStack = [], string $signalKey = ''): string
     {
-        $stack = $this->resolveIncludeOriginStack($rowsByBreakpoint);
         if ($stack === []) {
             return '';
         }
 
-        $rawLeaf = $stack[count($stack) - 1];
-        $leaf = $this->escapeReviewHtml($rawLeaf);
-        $savedNote = $this->buildSavedRenderedFromNoteMarkup($savedRenderedFrom, $rawLeaf, $signalKey);
-
         return '<div class="bpts-transform-include-origin">'
-            . '<button type="button" class="bpts-transform-include-origin-row bpts-transform-include-origin-copy" data-bpts-action="copyIncludeOrigin" data-origin-source="rendered" data-template-name="' . $leaf . '"'
-            . ' title="' . $this->escapeReviewHtml(implode(' › ', $stack)) . '" aria-label="Copy template name ' . $leaf . '">'
-            . '<span class="bpts-transform-include-origin-label">Rendered from</span><code>' . $leaf . '</code>'
-            . '</button>'
-            . $savedNote
+            . $this->buildIncludeOriginRowMarkup($stack, 'rendered', 'Rendered from')
+            . $this->buildSavedRenderedFromNoteMarkup($savedStack, $stack, $signalKey)
             . '</div>';
     }
 
     /**
      * Names the template the saved values were applied from, for the saved view.
+     *
+     * @param array<int, array<string, mixed>> $savedStack Saved `renderedFrom` stack.
      */
-    private function buildSavedRenderedFromMarkup(?string $renderedFrom): string
+    private function buildSavedRenderedFromMarkup(array $savedStack): string
     {
-        if ($renderedFrom === null) {
+        if ($savedStack === []) {
             return '';
         }
 
-        $leaf = $this->escapeReviewHtml($renderedFrom);
-
         return '<div class="bpts-transform-include-origin">'
-            . '<button type="button" class="bpts-transform-include-origin-row bpts-transform-include-origin-copy" data-bpts-action="copyIncludeOrigin" data-origin-source="saved" data-template-name="' . $leaf . '"'
-            . ' title="Saved values were rendered from ' . $leaf . '" aria-label="Copy template name ' . $leaf . ' (rendered from)">'
-            . '<span class="bpts-transform-include-origin-label">Rendered from</span><code>' . $leaf . '</code>'
-            . '</button>'
+            . $this->buildIncludeOriginRowMarkup($savedStack, 'saved', 'Rendered from')
+            . '</div>';
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $stack Root → leaf include levels.
+     */
+    private function buildIncludeOriginRowMarkup(array $stack, string $source, string $label, string $extraClass = ''): string
+    {
+        $leaf = $this->escapeReviewHtml(IncludeStack::leaf($stack) ?? '');
+        $templateCount = IncludeStack::templateCount($stack);
+        $moreCount = $templateCount - 1;
+
+        return '<div class="bpts-transform-include-origin-row' . ($extraClass !== '' ? ' ' . $extraClass : '') . '" data-origin-source="' . $source . '" data-include-stack="' . $this->escapeReviewHtml(IncludeStack::encode($stack)) . '">'
+            . '<span class="bpts-transform-include-origin-label">' . $label . '</span>'
+            . '<span class="bpts-transform-include-origin-value">'
+            . '<button type="button" class="bpts-transform-include-origin-copy" data-bpts-action="copyIncludeOrigin" data-template-name="' . $leaf . '"'
+            . ' title="Copy template name" aria-label="Copy template name ' . $leaf . '"><code>' . $leaf . '</code></button>'
+            . ($moreCount > 0
+                ? '<button type="button" class="bpts-transform-include-origin-stack" data-bpts-action="showIncludeStack"'
+                    . ' title="Show include stack" aria-label="Show include stack (' . $templateCount . ' templates)">+' . $moreCount . '</button>'
+                : '')
+            . '</span>'
             . '</div>';
     }
 
     /**
      * Muted "Saved values from" row under the processed label. Bound to the card's
-     * `savedRenderedFrom` signal so it updates or hides after an apply; hidden
-     * when the saved template matches the selected copy or none is saved.
+     * `savedRenderedFrom*` signals so it updates or hides after an apply; hidden
+     * when the saved stack matches the selected copy or none is saved.
+     *
+     * @param array<int, array<string, mixed>> $savedStack Saved `renderedFrom` stack.
+     * @param array<int, array<string, mixed>> $renderedStack Include stack of the selected copy.
      */
-    private function buildSavedRenderedFromNoteMarkup(?string $savedRenderedFrom, string $renderedLeaf, string $signalKey): string
+    private function buildSavedRenderedFromNoteMarkup(array $savedStack, array $renderedStack, string $signalKey): string
     {
-        $savedName = $savedRenderedFrom ?? '';
-        $hidden = $savedName === '' || $savedName === $renderedLeaf;
-
-        $name = $this->escapeReviewHtml($savedName);
-        $buttonStart = '<button type="button" class="bpts-transform-include-origin-row bpts-transform-include-origin-copy bpts-transform-include-origin-saved';
+        $savedJson = IncludeStack::encode($savedStack);
+        $renderedJson = IncludeStack::encode($renderedStack);
+        $hidden = $savedStack === [] || $savedJson === $renderedJson;
 
         if ($signalKey === '') {
             return $hidden
                 ? ''
-                : $buttonStart . '" data-bpts-action="copyIncludeOrigin" data-origin-source="saved" data-template-name="' . $name . '"'
-                    . ' title="Saved values came from ' . $name . '" aria-label="Copy template name ' . $name . ' (saved values from)">'
-                    . '<span class="bpts-transform-include-origin-label">Saved values from</span><code>' . $name . '</code>'
-                    . '</button>';
+                : $this->buildIncludeOriginRowMarkup($savedStack, 'saved', 'Saved values from', 'bpts-transform-include-origin-saved');
         }
 
-        $savedExpr = "String(\$editor.cards." . $signalKey . ".savedRenderedFrom || '')";
-        $leafJs = (string)json_encode($renderedLeaf, JSON_UNESCAPED_SLASHES);
+        $name = $this->escapeReviewHtml(IncludeStack::leaf($savedStack) ?? '');
+        $moreCount = max(0, IncludeStack::templateCount($savedStack) - 1);
+        $leafExpr = "String(\$editor.cards." . $signalKey . ".savedRenderedFrom || '')";
+        $stackExpr = "String(\$editor.cards." . $signalKey . ".savedRenderedFromStack || '')";
+        $countExpr = "Number(\$editor.cards." . $signalKey . ".savedRenderedFromMore || 0)";
+        $renderedJsonJs = (string)json_encode($renderedJson, JSON_UNESCAPED_SLASHES);
 
-        return $buttonStart . ($hidden ? ' bpts-force-hidden' : '') . '"'
-            . ' data-bpts-action="copyIncludeOrigin" data-origin-source="saved" data-template-name="' . $name . '"'
-            . ' title="Saved values came from ' . $name . '" aria-label="Copy template name ' . $name . ' (saved values from)"'
-            . ' data-class:bpts-force-hidden="' . $this->escapeReviewHtml($savedExpr . " === '' || " . $savedExpr . ' === ' . $leafJs) . '"'
-            . ' data-attr:data-template-name="' . $this->escapeReviewHtml($savedExpr) . '"'
-            . ' data-attr:title="' . $this->escapeReviewHtml("'Saved values came from ' + " . $savedExpr) . '"'
-            . ' data-attr:aria-label="' . $this->escapeReviewHtml("'Copy template name ' + " . $savedExpr . " + ' (saved values from)'") . '">'
+        return '<div class="bpts-transform-include-origin-row bpts-transform-include-origin-saved' . ($hidden ? ' bpts-force-hidden' : '') . '"'
+            . ' data-origin-source="saved" data-include-stack="' . $this->escapeReviewHtml($savedJson) . '"'
+            . ' data-class:bpts-force-hidden="' . $this->escapeReviewHtml($stackExpr . " === '' || " . $stackExpr . ' === ' . $renderedJsonJs) . '"'
+            . ' data-attr:data-include-stack="' . $this->escapeReviewHtml($stackExpr) . '">'
             . '<span class="bpts-transform-include-origin-label">Saved values from</span>'
-            . '<code data-text="' . $this->escapeReviewHtml($savedExpr) . '">' . $name . '</code>'
-            . '</button>';
+            . '<span class="bpts-transform-include-origin-value">'
+            . '<button type="button" class="bpts-transform-include-origin-copy" data-bpts-action="copyIncludeOrigin" data-template-name="' . $name . '"'
+            . ' title="Copy template name" aria-label="Copy template name ' . $name . ' (saved values from)"'
+            . ' data-attr:data-template-name="' . $this->escapeReviewHtml($leafExpr) . '"'
+            . ' data-attr:aria-label="' . $this->escapeReviewHtml("'Copy template name ' + " . $leafExpr . " + ' (saved values from)'") . '">'
+            . '<code data-text="' . $this->escapeReviewHtml($leafExpr) . '">' . $name . '</code>'
+            . '</button>'
+            . '<button type="button" class="bpts-transform-include-origin-stack' . ($moreCount > 0 ? '' : ' bpts-force-hidden') . '" data-bpts-action="showIncludeStack"'
+            . ' title="Show include stack" aria-label="Show include stack (' . ($moreCount + 1) . ' templates)"'
+            . ' data-class:bpts-force-hidden="' . $this->escapeReviewHtml($countExpr . ' < 1') . '"'
+            . ' data-attr:aria-label="' . $this->escapeReviewHtml("'Show include stack (' + (" . $countExpr . " + 1) + ' templates)'") . '"'
+            . ' data-text="' . $this->escapeReviewHtml("'+' + " . $countExpr) . '">+' . $moreCount . '</button>'
+            . '</span>'
+            . '</div>';
     }
 
     /**
      * Explains a Breakpoint Mismatch when the saved values came from a different
-     * template than the copy rendered in this run.
+     * include stack than the copy rendered in this run, naming each by the
+     * template where the stacks split.
+     *
+     * @param array<int, array<string, mixed>> $savedStack
+     * @param array<int, array<string, mixed>> $renderedStack
      */
-    private function buildRenderedFromMismatchMarkup(?string $savedRenderedFrom, ?string $renderedLeaf): string
+    private function buildRenderedFromMismatchMarkup(array $savedStack, array $renderedStack): string
     {
-        if ($savedRenderedFrom === null || $renderedLeaf === null || $savedRenderedFrom === $renderedLeaf) {
+        if ($savedStack === [] || $renderedStack === [] || IncludeStack::encode($savedStack) === IncludeStack::encode($renderedStack)) {
             return '';
         }
 
-        return '<p>Saved values came from ' . $this->escapeReviewHtml($savedRenderedFrom) . '.'
-            . ' This run rendered from ' . $this->escapeReviewHtml($renderedLeaf) . '.'
-            . ' This set may be used in layouts that need separate sets.</p>';
-    }
+        $origins = ReviewWarningsBuilder::resolveDivergentOrigins([$savedStack, $renderedStack]);
+        [$savedName, $renderedName] = count($origins) === 2
+            ? $origins
+            : [IncludeStack::leaf($savedStack), IncludeStack::leaf($renderedStack)];
 
-    /**
-     * Raw (unescaped) leaf template of the first row with an include stack.
-     *
-     * @param array<int, array<int, array<string, mixed>>> $rowsByBreakpoint Rows of the selected copy.
-     */
-    private function resolveIncludeOriginLeaf(array $rowsByBreakpoint): ?string
-    {
-        $stack = $this->resolveIncludeOriginStack($rowsByBreakpoint);
-
-        return $stack !== [] ? $stack[count($stack) - 1] : null;
+        return '<p>The saved values came from a different template:</p>'
+            . '<ul class="bpts-warning-origins">'
+            . '<li>Saved values: ' . $this->escapeReviewHtml((string)$savedName) . '</li>'
+            . '<li>This run: ' . $this->escapeReviewHtml((string)$renderedName) . '</li>'
+            . '</ul>'
+            . '<p>This template may need a separate set, its layout or CSS may need fixing, or the saved values may be out of date and need updating.</p>';
     }
 
     /**
      * @param array<int, array<int, array<string, mixed>>> $rowsByBreakpoint Rows of the selected copy.
-     * @return string[]
+     * @return array<int, array<string, mixed>>
      */
     private function resolveIncludeOriginStack(array $rowsByBreakpoint): array
     {
@@ -2404,9 +2434,9 @@ final class ReviewRenderer
         $detail = $originItems !== ''
             ? '<p>Images in this set did not all render at the same size. They come from:</p>'
                 . '<ul class="bpts-warning-origins">' . $originItems . '</ul>'
-                . '<p>Each may need its own set.</p>'
+                . '<p>Each may need its own set, or the layout or CSS may need fixing so they match.</p>'
             : '<p>Images in this set did not all render at the same size.</p>'
-                . '<p>It may be used in layouts that need separate sets.</p>';
+                . '<p>It may be used in layouts that need separate sets, or the layout or CSS may need fixing so they match.</p>';
 
         return '<div class="bpts-warning-item bpts-warning-item-neutral">'
             . '<div class="bpts-warning-copy"><h3 class="bpts-warning-heading">Asset Mismatch</h3></div>'

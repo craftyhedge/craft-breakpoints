@@ -115,15 +115,20 @@ final class ReviewWarningsBuilder
     }
 
     /**
-     * Names each stack by its frame at the first index where not all stacks
-     * agree. A shorter stack that has run out uses its leaf.
+     * Names each stack by its level at the first index where not all stacks
+     * agree. A shorter stack that has run out uses its last level. Levels are
+     * named by template, or described with their parents when the templates
+     * are the same and only the layouts differ.
      *
-     * @param array<int, string[]> $stacks Root → leaf template names.
+     * @param array<int, array<int, mixed>> $stacks Root → leaf include levels (or bare template names).
      * @return string[]
      */
     public static function resolveDivergentOrigins(array $stacks): array
     {
-        $stacks = array_values(array_filter($stacks, static fn(array $stack): bool => $stack !== []));
+        $stacks = array_values(array_filter(
+            array_map(static fn(array $stack): array => IncludeStack::normalize($stack), $stacks),
+            static fn(array $stack): bool => $stack !== [],
+        ));
         if (count($stacks) < 2) {
             return [];
         }
@@ -131,8 +136,11 @@ final class ReviewWarningsBuilder
         $maxDepth = max(array_map('count', $stacks));
         $divergeIndex = null;
         for ($index = 0; $index < $maxDepth; $index++) {
-            $frames = array_map(static fn(array $stack): ?string => $stack[$index] ?? null, $stacks);
-            if (count(array_unique(array_map(static fn(?string $frame): string => (string)$frame, $frames))) > 1) {
+            $keys = array_map(
+                static fn(array $stack): string => isset($stack[$index]) ? IncludeStack::encode([$stack[$index]]) : '',
+                $stacks,
+            );
+            if (count(array_unique($keys)) > 1) {
                 $divergeIndex = $index;
                 break;
             }
@@ -142,10 +150,20 @@ final class ReviewWarningsBuilder
             return [];
         }
 
-        $origins = [];
-        foreach ($stacks as $stack) {
-            $origins[] = $stack[$divergeIndex] ?? $stack[count($stack) - 1];
-        }
+        $levels = array_map(
+            static fn(array $stack): array => $stack[$divergeIndex] ?? $stack[count($stack) - 1],
+            $stacks,
+        );
+        $templates = array_map(static fn(array $level): string => $level['template'], $levels);
+        $describe = count(array_unique($templates)) < count(array_unique(array_map(
+            static fn(array $level): string => IncludeStack::encode([$level]),
+            $levels,
+        )));
+
+        $origins = array_map(
+            static fn(array $level): string => $describe ? IncludeStack::describeLevel($level) : $level['template'],
+            $levels,
+        );
 
         return array_values(array_unique($origins));
     }
@@ -243,7 +261,7 @@ final class ReviewWarningsBuilder
      * never count as an origin.
      *
      * @param array<int, array<int, array<string, mixed>>> $rowsByBreakpoint
-     * @return array<string, array<int, string[]>>
+     * @return array<string, array<int, array<int, array<string, mixed>>>>
      */
     private static function collectIncludeStacksByTransform(array $rowsByBreakpoint): array
     {
@@ -264,7 +282,7 @@ final class ReviewWarningsBuilder
                     continue;
                 }
 
-                $stacksByTransform[$name][implode("\n", $stack)] = $stack;
+                $stacksByTransform[$name][IncludeStack::encode($stack)] = $stack;
             }
         }
 

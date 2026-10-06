@@ -1175,20 +1175,20 @@ final class ServerAuthorityOperationsTest extends Unit
                     false,
                     $store->getCurrentVersion(),
                     [],
-                    'site/includes/cards/menu',
+                    [['template' => 'page', 'extends' => ['_layout']], ['template' => 'site/includes/cards/menu']],
                 );
 
                 $this->assertTrue(($result['persisted'] ?? false) === true);
-                $this->assertSame('site/includes/cards/menu', $store->getSets()['hero']['renderedFrom'] ?? null);
+                $this->assertSame([['template' => 'page', 'extends' => ['_layout']], ['template' => 'site/includes/cards/menu']], $store->getSets()['hero']['renderedFrom'] ?? null);
 
                 $notesResult = $service->applySetNotesOperation('hero', 'Menu card image', false, $store->getCurrentVersion());
                 $this->assertTrue(($notesResult['persisted'] ?? false) === true);
-                $this->assertSame('site/includes/cards/menu', $store->getSets()['hero']['renderedFrom'] ?? null);
+                $this->assertSame([['template' => 'page', 'extends' => ['_layout']], ['template' => 'site/includes/cards/menu']], $store->getSets()['hero']['renderedFrom'] ?? null);
 
                 $dimensionResult = $service->applySetDimensionOperation('hero', 'all', null, null, 500, 'width', false, $store->getCurrentVersion());
                 $this->assertTrue(($dimensionResult['persisted'] ?? false) === true);
                 $this->assertSame(500, $store->getSets()['hero']['variants']['xs']['width'] ?? null);
-                $this->assertSame('site/includes/cards/menu', $store->getSets()['hero']['renderedFrom'] ?? null);
+                $this->assertSame([['template' => 'page', 'extends' => ['_layout']], ['template' => 'site/includes/cards/menu']], $store->getSets()['hero']['renderedFrom'] ?? null);
             });
         } finally {
             $plugin->set('telemetry', $previousTelemetry);
@@ -1210,7 +1210,7 @@ final class ServerAuthorityOperationsTest extends Unit
                         'xs' => ['width' => null, 'height' => null, 'enabled' => true, 'autoDimension' => null],
                     ],
                     'config' => [],
-                    'renderedFrom' => 'site/includes/cards/menu',
+                    'renderedFrom' => [['template' => 'page', 'extends' => ['_layout']], ['template' => 'site/includes/cards/menu']],
                 ],
             ], function () use ($plugin): void {
                 $store = $plugin->getTransformStore();
@@ -1225,7 +1225,7 @@ final class ServerAuthorityOperationsTest extends Unit
 
                 $this->assertTrue(($result['persisted'] ?? false) === true);
                 $this->assertSame(600, $store->getSets()['hero']['variants']['xs']['width'] ?? null);
-                $this->assertSame('site/includes/cards/menu', $store->getSets()['hero']['renderedFrom'] ?? null);
+                $this->assertSame([['template' => 'page', 'extends' => ['_layout']], ['template' => 'site/includes/cards/menu']], $store->getSets()['hero']['renderedFrom'] ?? null);
             });
         } finally {
             $plugin->set('telemetry', $previousTelemetry);
@@ -1243,13 +1243,13 @@ final class ServerAuthorityOperationsTest extends Unit
                 $store = $plugin->getTransformStore();
 
                 $result = $this->buildOperationsService()->autoApplyRenderedValuesForNewSets(
-                    [['name' => 'hero', 'selectedAssetKey' => '', 'renderedFrom' => 'site/includes/nav-mobile']],
+                    [['name' => 'hero', 'selectedAssetKey' => '', 'renderedFrom' => [['template' => 'page', 'extends' => ['_layout']], ['template' => 'site/includes/nav-mobile']]]],
                     $store->getCurrentVersion(),
                 );
 
                 $this->assertTrue(($result['persisted'] ?? false) === true);
                 $this->assertSame(1, $result['appliedCount'] ?? 0);
-                $this->assertSame('site/includes/nav-mobile', $store->getSets()['hero']['renderedFrom'] ?? null);
+                $this->assertSame([['template' => 'page', 'extends' => ['_layout']], ['template' => 'site/includes/nav-mobile']], $store->getSets()['hero']['renderedFrom'] ?? null);
             });
         } finally {
             $plugin->set('telemetry', $previousTelemetry);

@@ -42,6 +42,7 @@ final class TransformStoreTest extends Unit
         $longName = 'site/' . str_repeat('a', 200);
 
         $result = $store->persistSets([
+            'stack' => $this->buildRenderedFromSet('stack', [['template' => 'page.twig', 'extends' => ['_layout.twig'], 'in' => 'page'], ' site/includes/cards/menu.twig ']),
             'trimmed' => $this->buildRenderedFromSet('trimmed', '  site/includes/cards/menu.twig  '),
             'capped' => $this->buildRenderedFromSet('capped', $longName),
             'empty' => $this->buildRenderedFromSet('empty', '   '),
@@ -52,8 +53,9 @@ final class TransformStoreTest extends Unit
         $this->assertTrue($result['persisted']);
 
         $store->reload();
-        $this->assertSame('site/includes/cards/menu', $store->getSet('trimmed')['renderedFrom'] ?? null);
-        $this->assertSame(mb_substr($longName, 0, 160), $store->getSet('capped')['renderedFrom'] ?? null);
+        $this->assertSame([['template' => 'page', 'extends' => ['_layout']], ['template' => 'site/includes/cards/menu']], $store->getSet('stack')['renderedFrom'] ?? null);
+        $this->assertSame([['template' => 'site/includes/cards/menu']], $store->getSet('trimmed')['renderedFrom'] ?? null);
+        $this->assertSame([['template' => mb_substr($longName, 0, 160)]], $store->getSet('capped')['renderedFrom'] ?? null);
         $this->assertArrayNotHasKey('renderedFrom', $store->getSet('empty') ?? []);
         $this->assertArrayNotHasKey('renderedFrom', $store->getSet('string-template') ?? []);
         $this->assertArrayNotHasKey('renderedFrom', $store->getSet('missing') ?? []);
@@ -64,12 +66,12 @@ final class TransformStoreTest extends Unit
         $store = Plugin::getInstance()->getTransformStore();
 
         $store->persistSets([
-            'with-origin' => $this->buildRenderedFromSet('with-origin', 'site/includes/cards/menu'),
+            'with-origin' => $this->buildRenderedFromSet('with-origin', [['template' => 'page', 'extends' => ['_layout']], ['template' => 'site/includes/cards/menu']]),
             'without-origin' => $this->buildRenderedFromSet('without-origin', null),
         ], $store->getCurrentVersion());
 
         $transforms = $store->getTransforms();
-        $this->assertSame('site/includes/cards/menu', $transforms['with-origin']['renderedFrom'] ?? null);
+        $this->assertSame([['template' => 'page', 'extends' => ['_layout']], ['template' => 'site/includes/cards/menu']], $transforms['with-origin']['renderedFrom'] ?? null);
         $this->assertArrayNotHasKey('renderedFrom', $transforms['without-origin'] ?? []);
     }
 
@@ -282,9 +284,10 @@ final class TransformStoreTest extends Unit
     }
 
     /**
+     * @param string|array<int, mixed>|null $renderedFrom
      * @return array<string, mixed>
      */
-    private function buildRenderedFromSet(string $name, ?string $renderedFrom): array
+    private function buildRenderedFromSet(string $name, string|array|null $renderedFrom): array
     {
         $set = [
             'name' => $name,

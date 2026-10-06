@@ -50,10 +50,28 @@ final class CardOperationRequestTest extends Unit
     {
         $this->request()->setBodyParams([
             'operation' => 'renderedValues.apply',
+            'renderedFrom' => [['template' => 'page.twig', 'extends' => ['_layout.twig']], '  site/includes/cards/menu.twig  ', '__string_template__abc123'],
+        ]);
+        $this->assertSame(
+            [['template' => 'page', 'extends' => ['_layout']], ['template' => 'site/includes/cards/menu']],
+            CardOperationRequest::fromRequest($this->request(), 'fallback-version')->renderedFrom,
+        );
+
+        $this->request()->setBodyParams([
+            'operation' => 'renderedValues.apply',
+            'renderedFrom' => '[{"template":"page","extends":["_layout"]},{"template":"site/includes/cards/menu"}]',
+        ]);
+        $this->assertSame(
+            [['template' => 'page', 'extends' => ['_layout']], ['template' => 'site/includes/cards/menu']],
+            CardOperationRequest::fromRequest($this->request(), 'fallback-version')->renderedFrom,
+        );
+
+        $this->request()->setBodyParams([
+            'operation' => 'renderedValues.apply',
             'renderedFrom' => '  site/includes/cards/menu.twig  ',
         ]);
         $this->assertSame(
-            'site/includes/cards/menu',
+            [['template' => 'site/includes/cards/menu']],
             CardOperationRequest::fromRequest($this->request(), 'fallback-version')->renderedFrom,
         );
 
@@ -61,12 +79,12 @@ final class CardOperationRequestTest extends Unit
             'operation' => 'renderedValues.apply',
             'renderedFrom' => '__string_template__abc123',
         ]);
-        $this->assertNull(CardOperationRequest::fromRequest($this->request(), 'fallback-version')->renderedFrom);
+        $this->assertSame([], CardOperationRequest::fromRequest($this->request(), 'fallback-version')->renderedFrom);
 
         $this->request()->setBodyParams([
             'operation' => 'renderedValues.apply',
         ]);
-        $this->assertNull(CardOperationRequest::fromRequest($this->request(), 'fallback-version')->renderedFrom);
+        $this->assertSame([], CardOperationRequest::fromRequest($this->request(), 'fallback-version')->renderedFrom);
     }
 
     public function testFromRequestRejectsUnsupportedOperation(): void

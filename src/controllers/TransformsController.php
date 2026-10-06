@@ -595,8 +595,13 @@ class TransformsController extends Controller
                         $cardSignalPatch[$deltaKey] = (bool)($deltas[$deltaKey] ?? false);
                     }
                 }
-                if (array_key_exists('savedRenderedFrom', $deltas)) {
-                    $cardSignalPatch['savedRenderedFrom'] = (string)$deltas['savedRenderedFrom'];
+                foreach (['savedRenderedFrom', 'savedRenderedFromStack'] as $deltaKey) {
+                    if (array_key_exists($deltaKey, $deltas)) {
+                        $cardSignalPatch[$deltaKey] = (string)$deltas[$deltaKey];
+                    }
+                }
+                if (array_key_exists('savedRenderedFromMore', $deltas)) {
+                    $cardSignalPatch['savedRenderedFromMore'] = (int)$deltas['savedRenderedFromMore'];
                 }
                 if (!empty($deltas['rowsByBreakpoint'])) {
                     $cardSignalPatch['rowsByBreakpoint'] = $deltas['rowsByBreakpoint'];
@@ -1183,7 +1188,7 @@ class TransformsController extends Controller
 
     /**
      * @param array<int, mixed> $rawSets
-     * @return array<int, array{name: string, selectedAssetKey: string, renderedFrom: string}>
+     * @return array<int, array{name: string, selectedAssetKey: string, renderedFrom: array<int, array<string, mixed>>}>
      */
     private function normalizeAutoApplyRequestedSets(array $rawSets): array
     {
@@ -1199,17 +1204,15 @@ class TransformsController extends Controller
                 $normalized[] = [
                     'name' => '',
                     'selectedAssetKey' => '',
-                    'renderedFrom' => '',
+                    'renderedFrom' => [],
                 ];
                 continue;
             }
 
-            $renderedFromNames = IncludeStack::normalize([$rawSet['renderedFrom'] ?? '']);
-
             $normalized[] = [
                 'name' => $name,
                 'selectedAssetKey' => trim((string)($rawSet['selectedAssetKey'] ?? '')),
-                'renderedFrom' => $renderedFromNames !== [] ? $renderedFromNames[count($renderedFromNames) - 1] : '',
+                'renderedFrom' => IncludeStack::fromValue($rawSet['renderedFrom'] ?? null),
             ];
         }
 

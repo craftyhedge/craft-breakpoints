@@ -590,13 +590,14 @@ final class TransformsControllerTest extends Unit
                 'operation' => 'renderedValues.apply',
                 'setName' => 'rendered-from-hero',
                 'includeEscapeWidth' => false,
-                'renderedFrom' => '  site/includes/cards/menu.twig  ',
+                'renderedFrom' => [['template' => 'page.twig', 'extends' => ['_layout.twig']], '  site/includes/cards/menu.twig  '],
             ]);
             $response = $controller->actionApplyCardOperation();
 
             $this->assertSame(Response::FORMAT_RAW, $response->format);
-            $this->assertSame('site/includes/cards/menu', $store->getSet('rendered-from-hero')['renderedFrom'] ?? null);
+            $this->assertSame([['template' => 'page', 'extends' => ['_layout']], ['template' => 'site/includes/cards/menu']], $store->getSet('rendered-from-hero')['renderedFrom'] ?? null);
             $this->assertStringContainsString('"savedRenderedFrom":"site\\/includes\\/cards\\/menu"', (string)$response->content);
+            $this->assertStringContainsString('"savedRenderedFromStack":"[{\\"template\\":\\"page\\",\\"extends\\":[\\"_layout\\"]},{\\"template\\":\\"site\\/includes\\/cards\\/menu\\"}]"', (string)$response->content);
         } finally {
             Plugin::getInstance()->set('telemetry', $previousTelemetry);
             Plugin::getInstance()->set('transformEditor', $previousEditor);

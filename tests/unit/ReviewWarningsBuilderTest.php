@@ -88,6 +88,17 @@ final class ReviewWarningsBuilderTest extends Unit
         );
     }
 
+    public function testResolveDivergentOriginsDescribesLevelsWhenOnlyLayoutsDiffer(): void
+    {
+        $this->assertSame(
+            ['page (extends _layout)', 'page (extends _wide)'],
+            ReviewWarningsBuilder::resolveDivergentOrigins([
+                [['template' => 'page', 'extends' => ['_layout']], ['template' => 'card']],
+                [['template' => 'page', 'extends' => ['_wide']], ['template' => 'card']],
+            ]),
+        );
+    }
+
     public function testAdvisoryWarningsDoNotCountOrMarkDanger(): void
     {
         $advisory = ReviewWarningsBuilder::buildMultipleIncludeOriginsWarning(['a', 'b']);

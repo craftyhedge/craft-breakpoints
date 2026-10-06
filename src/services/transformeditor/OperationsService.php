@@ -3,6 +3,7 @@
 namespace craftyhedge\craftbreakpoints\services\transformeditor;
 
 use Throwable;
+use craftyhedge\craftbreakpoints\helpers\IncludeStack;
 use craftyhedge\craftbreakpoints\Plugin;
 use craftyhedge\craftbreakpoints\services\BreakpointPolicy;
 use craftyhedge\craftbreakpoints\services\ConfigService;
@@ -1320,7 +1321,7 @@ final class OperationsService
      * @param array<int, int> $hiddenBreakpointSlotIds Slot ids (1-based) that the
      *        latest processing run flagged as hidden. Those breakpoints are
      *        disabled as part of applying the rendered values.
-     * @param string|null $renderedFrom Leaf template of the applied copy; null keeps the saved value.
+     * @param array<int, array<string, mixed>> $renderedFrom Include levels (root → leaf) of the applied copy; empty keeps the saved value.
      * @return array<string, mixed>
      */
     public function applyRenderedValuesOperation(
@@ -1330,7 +1331,7 @@ final class OperationsService
         bool $clearAuto = false,
         ?string $expectedVersion = null,
         array $hiddenBreakpointSlotIds = [],
-        ?string $renderedFrom = null,
+        array $renderedFrom = [],
     ): array {
         $validation = Support::defaultValidation();
 
@@ -1386,7 +1387,8 @@ final class OperationsService
 
         $setDefinition = is_array($mutation['set'] ?? null) ? $mutation['set'] : $setDefinition;
         $setDefinition['name'] = (string)($setDefinition['name'] ?? $transformName);
-        if ($renderedFrom !== null && $renderedFrom !== '') {
+        $renderedFrom = IncludeStack::normalize($renderedFrom);
+        if ($renderedFrom !== []) {
             $setDefinition['renderedFrom'] = $renderedFrom;
         }
 
@@ -1464,8 +1466,8 @@ final class OperationsService
             }
 
             $newSet = $mutation['set'];
-            $renderedFrom = Support::parseNullableNonEmptyString($requestedSet['renderedFrom'] ?? null);
-            if ($renderedFrom !== null) {
+            $renderedFrom = IncludeStack::fromValue($requestedSet['renderedFrom'] ?? null);
+            if ($renderedFrom !== []) {
                 $newSet['renderedFrom'] = $renderedFrom;
             }
 
