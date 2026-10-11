@@ -1050,17 +1050,6 @@ input.bpts-init-value::placeholder {
     min-width: 0;
 }
 
-.bpts-transform-last-process-pane {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    white-space: nowrap;
-    position: absolute;
-    top: 16px;
-    right: 24px;
-    z-index: 1;
-}
-
 .bpts-transform-last-process-status-icon {
     width: 18px;
     height: 18px;
@@ -1093,46 +1082,6 @@ input.bpts-init-value::placeholder {
     color: var(--fg-subtle);
 }
 
-.bpts-transform-last-process-icon-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    padding: 0;
-    border: none;
-    border-radius: 4px;
-    background: transparent;
-    color: var(--fg-subtle);
-    cursor: pointer;
-    flex-shrink: 0;
-    text-decoration: none;
-}
-
-.bpts-transform-last-process-icon-btn [data-icon] {
-    font-size: 12px;
-    line-height: 1;
-}
-
-.bpts-transform-last-process-icon-btn [data-icon]::before {
-    margin: 0;
-    line-height: 1;
-}
-
-.bpts-transform-last-process-icon-btn:hover:not([disabled]) {
-    background: var(--gray-100, var(--bpts-color-surface-muted));
-    color: var(--link-color);
-}
-
-.bpts-transform-last-process-icon-btn[disabled] {
-    opacity: 0.4;
-    cursor: not-allowed;
-}
-
-.bpts-transform-last-process-empty {
-    margin: 0;
-    font-size: 11px;
-}
 
 .bpts-transform-edit-grid {
     display: grid;

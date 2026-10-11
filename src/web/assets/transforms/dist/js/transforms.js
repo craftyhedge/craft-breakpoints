@@ -254,55 +254,6 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
     }
 
-    function openEntrySlideout(link) {
-        const elementId = parsePositiveInt(link?.dataset?.entryId);
-        const fallbackSiteId = parsePositiveInt(elements.page?.dataset?.siteId)
-            || parsePositiveInt(typeof Craft !== 'undefined' ? Craft.siteId : null);
-        const siteId = parsePositiveInt(link?.dataset?.siteId) || fallbackSiteId;
-
-        if (!elementId || !siteId || typeof Craft?.createElementEditor !== 'function') {
-            return false;
-        }
-
-        Craft.createElementEditor('craft\\elements\\Entry', {
-            elementId,
-            siteId,
-            params: {
-                fresh: 1,
-            },
-        });
-
-        return true;
-    }
-
-    function bindEntrySlideoutLinks() {
-        if (document.documentElement.dataset.bpiEntrySlideoutBound === '1') {
-            return;
-        }
-
-        document.documentElement.dataset.bpiEntrySlideoutBound = '1';
-
-        document.addEventListener('click', (event) => {
-            const target = event.target instanceof Element
-                ? event.target.closest('.bpts-entry-link[data-bpts-open-entry="true"]')
-                : null;
-
-            if (!(target instanceof Element)) {
-                return;
-            }
-
-            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
-                return;
-            }
-
-            const opened = openEntrySlideout(target);
-            if (opened) {
-                event.preventDefault();
-            }
-        });
-    }
-
-
     function getSourceEntrySelectInput() {
         if (!elements.sourceEntry || typeof window.jQuery !== 'function') {
             return null;
@@ -383,48 +334,6 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
         setButtonsDisabled(false);
 
         return getSelectedEntryId() === entryId;
-    }
-
-    function bindProcessAgainButtons() {
-        if (document.documentElement.dataset.bpiProcessAgainBound === '1') {
-            return;
-        }
-
-        document.documentElement.dataset.bpiProcessAgainBound = '1';
-
-        document.addEventListener('click', (event) => {
-            const target = event.target instanceof Element
-                ? event.target.closest('.bpts-process-again-button[data-bpts-process-again="true"]')
-                : null;
-
-            if (!(target instanceof Element)) {
-                return;
-            }
-
-            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
-                return;
-            }
-
-            event.preventDefault();
-
-            void (async () => {
-                const entryId = parsePositiveInt(target.dataset.entryId);
-                if (!entryId) {
-                    setStatus('No entry is associated with this run.');
-                    return;
-                }
-
-                const selected = await setSourceEntryFromRun(entryId);
-                if (!selected) {
-                    setStatus('Could not select the run entry.');
-                    return;
-                }
-
-                if (elements.btnRun) {
-                    elements.btnRun.click();
-                }
-            })();
-        });
     }
 
     function bindProcessWarningEntryButtons() {
@@ -3996,8 +3905,6 @@ import { bindHorizontalDragScroll } from './drag-scroll-util.js';
     state.selectedSourceSignature = getSelectedSourceSignature();
     setupDatastarModalIgnoreGuard();
     bindSourceSelectionSync();
-    bindEntrySlideoutLinks();
-    bindProcessAgainButtons();
     bindProcessWarningEntryButtons();
     bindIncludeOriginCopyButtons();
     bindIncludeStackButtons();

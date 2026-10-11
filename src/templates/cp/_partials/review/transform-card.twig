@@ -25,7 +25,7 @@
       - widthInputId, heightInputId, ratioWidthInputId, ratioHeightInputId
     - ratioFloatInputId
       - ratioSourceName, passHeightToggleId, allowAnyHeightToggleId, allowHiddenDuringProcessingToggleId, notesInputId
-      - ratioSourceBreakpointOptions, lastProcessPanelHtml
+      - ratioSourceBreakpointOptions
 #}
 {% autoescape false %}
 {%- set disabledWhenInactive -%}String($editor.cards.{{ signalKey }}.scopeMode || 'unset') === 'unset'{%- endset -%}
@@ -148,7 +148,6 @@
             </div>
         </section>
         <section class="bpts-transform-edit-panel {{ cardBreakpointsHiddenClass }}" id="{{ editPanelId }}">
-            {{ lastProcessPanelHtml }}
             <div class="bpts-transform-edit-layout">
                 <div class="bpts-transform-edit-main">
                     <div class="bpts-transform-edit-grid">

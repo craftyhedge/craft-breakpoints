@@ -660,7 +660,6 @@ final class ReviewRenderer
             return $this->renderReviewPartial('_partials/review/empty-state', []);
         }
 
-        $runEntryData = $this->resolveRunEntryData($latestRunSnapshot);
         $snapshotTransformMetadata = isset($latestRunSnapshot['transformMetadata']) && is_array($latestRunSnapshot['transformMetadata'])
             ? $latestRunSnapshot['transformMetadata']
             : [];
@@ -1163,13 +1162,6 @@ final class ReviewRenderer
                 $cardSignalsStructuralJson = '{"editor":{"cards":{}}}';
             }
 
-            $lastProcessPanelHtml = $this->buildLastProcessPanelMarkup(
-                $latestRunSnapshot,
-                $latestRunSummaryForTransform,
-                $transformName,
-                $runEntryData,
-            );
-
             $cards[] = $this->renderReviewPartial('_partials/review/transform-card', [
                 'cardId' => $this->escapeReviewHtml('bpts-card-' . $signalKey),
                 'transformNameEscaped' => $this->escapeReviewHtml($transformName),
@@ -1235,7 +1227,6 @@ final class ReviewRenderer
                 'passHeightIndicatorHiddenClass' => ($passHeightWhenRenderedLteSaved || $allowAnyHeight) ? '' : 'bpts-force-hidden',
                 'passHeightIndicatorText' => $allowAnyHeight ? 'All heights allowed' : 'Shorter heights allowed',
                 'ratioSourceBreakpointOptions' => $ratioSourceBreakpointOptions,
-                'lastProcessPanelHtml' => $lastProcessPanelHtml,
             ]);
         }
 
@@ -1954,67 +1945,6 @@ final class ReviewRenderer
     }
 
     /**
-     * @param array<string, mixed>|null $snapshot
-     * @param array<string, mixed>|null $transformSummary
-     * @param string $transformHandle
-     * @param array<string, mixed>|null $runEntryData
-     */
-    private function buildLastProcessPanelMarkup(
-        ?array $snapshot,
-        ?array $transformSummary,
-        string $transformHandle,
-        ?array $runEntryData,
-    ): string {
-        if (!is_array($snapshot)) {
-            return $this->renderReviewPartial('_partials/review/last-process-panel', [
-                'hasSnapshot' => false,
-                'statusIconClass' => '',
-                'statusLabel' => '',
-                'statusIconName' => '',
-                'ranAtLabel' => '',
-                'runEntry' => null,
-                'runSourceUrl' => '',
-            ]);
-        }
-
-        $ranAtLabel = $this->formatLatestRunTimestamp($snapshot['ranAt'] ?? null);
-        $hasHealthData = is_array($transformSummary);
-        $hasBreakpointMismatchCount = $hasHealthData
-            && is_numeric($transformSummary['breakpointMismatchBreakpointCount'] ?? null)
-            && (int)$transformSummary['breakpointMismatchBreakpointCount'] > 0;
-        $hasAssetMismatchCount = $hasHealthData
-            && is_numeric($transformSummary['assetMismatchBreakpointCount'] ?? null)
-            && (int)$transformSummary['assetMismatchBreakpointCount'] > 0;
-        $hasMismatch = $hasBreakpointMismatchCount || $hasAssetMismatchCount;
-
-        if (!$hasHealthData) {
-            $statusIconClass = 'bpts-transform-last-process-status-icon-unknown';
-            $statusLabel = 'No Health Data';
-            $statusIconName = 'alert';
-        } elseif ($hasMismatch) {
-            $statusIconClass = 'bpts-transform-last-process-status-icon-failed';
-            $statusLabel = 'Needs Review';
-            $statusIconName = 'alert';
-        } else {
-            $statusIconClass = 'bpts-transform-last-process-status-icon-success';
-            $statusLabel = 'Transform Sets Valid';
-            $statusIconName = 'check';
-        }
-
-        $runSourceUrl = trim((string)($snapshot['sourceUrl'] ?? ''));
-
-        return $this->renderReviewPartial('_partials/review/last-process-panel', [
-            'hasSnapshot' => true,
-            'statusIconClass' => $statusIconClass,
-            'statusLabel' => $statusLabel,
-            'statusIconName' => $statusIconName,
-            'ranAtLabel' => $ranAtLabel,
-            'runEntry' => is_array($runEntryData) ? $runEntryData : null,
-            'runSourceUrl' => $runSourceUrl,
-        ]);
-    }
-
-    /**
      * @param array<string, mixed> $variables
      */
     private function renderReviewPartial(string $template, array $variables): string
@@ -2030,30 +1960,6 @@ final class ReviewRenderer
             );
         } finally {
             $view->setTemplateMode($originalMode);
-        }
-    }
-
-    /**
-     * @param array<string, mixed>|null $snapshot
-     * @return array<string, mixed>|null
-     */
-    private function resolveRunEntryData(?array $snapshot): ?array
-    {
-        return $this->snapshotReader->resolveRunEntryData($snapshot);
-    }
-
-    private function formatLatestRunTimestamp(mixed $rawValue): string
-    {
-        $raw = trim((string)$rawValue);
-        if ($raw === '') {
-            return '-';
-        }
-
-        try {
-            $date = new \DateTimeImmutable($raw);
-            return $date->format('Y-m-d H:i:s');
-        } catch (\Throwable) {
-            return $raw;
         }
     }
 

@@ -2,12 +2,12 @@
 
 ## Unreleased
 
-- Added a "Used From Multiple Templates" notice when a transform set is used in more than one place on a page, such as a desktop menu and a mobile nav. If those places show the image at different sizes, each may need its own set. The notice appears in the review straight after processing.
-- Each processed set card now shows, in a table under the copy pager, which template rendered the selected copy ("Rendered from"). Click it to copy the template name, or click the stack button next to it, which shows how many templates are in the stack, to see the full include stack, one row per include with extended layouts and embeds listed under their template, and each template copyable.
-- The Asset Mismatch warning now lists the templates the mismatched images came from, and its wording is shorter.
-- Applying rendered values now records the full include stack they came from as `renderedFrom` on the set in `transform-sets.json`: one entry per include, with each template's `extends` layouts and `embeds` parents listed on its entry. The saved view shows it on the set card as "Saved from". After processing, the card's table lists "Saved from" above "Rendered from";  both templates are green when they match and red when the selected copy came from a different include stack, even when the last template is the same. A Breakpoint Mismatch from a different include stack lists the templates where the saved and rendered stacks split.
+- Set cards now have a table under the copy pager showing when the set was last saved, the template its saved values came from, and the template that rendered the selected copy. Click a template to copy its name, or open its full include stack. Matching templates show in green, different ones in red.
+- Applying rendered values now saves the include stack they came from as `renderedFrom` in `transform-sets.json`.
+- Added a "Used From Multiple Templates" notice when a set is used from more than one template on a page.
+- The Asset Mismatch warning now lists the templates the mismatched images came from, and the Breakpoint Mismatch warning names the saved and rendered templates when they differ.
 - Moved the delete set button to the bottom right of the set card.
-- Set cards now show how long ago the set was last saved, such as "Last saved: 3 days ago", in the table under the copy pager. Hover it for the exact date and time. It updates after an apply or edit.
+- Removed the last-run icons from set cards.
 
 ## 1.1.0 - 2026-09-29
 

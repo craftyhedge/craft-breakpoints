@@ -1849,12 +1849,10 @@ final class TransformEditorServiceTest extends Unit
             ], fn() => $editor->renderInitialStoredReview());
 
             $this->assertStringContainsString('data-set="hero"', (string)($result['visualResultsHtml'] ?? ''));
-            $this->assertStringContainsString('bpts-transform-last-process-pane', (string)($result['visualResultsHtml'] ?? ''));
-            $this->assertStringContainsString('bpts-transform-last-process-status-icon-success', (string)($result['visualResultsHtml'] ?? ''));
-            $this->assertStringContainsString('data-icon="check"', (string)($result['visualResultsHtml'] ?? ''));
-            $this->assertStringContainsString('data-bpts-process-again="true"', (string)($result['visualResultsHtml'] ?? ''));
-            $this->assertStringContainsString('data-entry-id="123"', (string)($result['visualResultsHtml'] ?? ''));
-            $this->assertStringContainsString('2026-04-16 10:20:30', (string)($result['visualResultsHtml'] ?? ''));
+            $this->assertStringNotContainsString('bpts-transform-last-process-pane', (string)($result['visualResultsHtml'] ?? ''));
+            $this->assertStringNotContainsString('data-bpts-process-again', (string)($result['visualResultsHtml'] ?? ''));
+            $this->assertStringNotContainsString('data-bpts-open-entry', (string)($result['visualResultsHtml'] ?? ''));
+            $this->assertStringNotContainsString('2026-04-16 10:20:30', (string)($result['visualResultsHtml'] ?? ''));
             $this->assertStringNotContainsString('4321 ms', (string)($result['visualResultsHtml'] ?? ''));
             $this->assertStringNotContainsString('Saved breakpoints', (string)($result['visualResultsHtml'] ?? ''));
             $this->assertStringNotContainsString('<dt>Status</dt>', (string)($result['visualResultsHtml'] ?? ''));
