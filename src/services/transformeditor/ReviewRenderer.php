@@ -291,7 +291,7 @@ final class ReviewRenderer
     }
 
     /**
-     * @return array{signalKey: string, rowsByBreakpoint: array<int|string, array<string, mixed>>, hasCurrentBreakpointMismatch?: bool, hasResolvedBreakpointMismatchAwaitingVerification?: bool, hasCardWarningDanger?: bool, savedRenderedFrom?: string, savedRenderedFromStack?: string, savedRenderedFromMore?: int}
+     * @return array{signalKey: string, rowsByBreakpoint: array<int|string, array<string, mixed>>, hasCurrentBreakpointMismatch?: bool, hasResolvedBreakpointMismatchAwaitingVerification?: bool, hasCardWarningDanger?: bool, savedRenderedFrom?: string, savedRenderedFromStack?: string, savedRenderedFromMore?: int, savedAt?: string, savedAtLabel?: string, savedAtTitle?: string}
      */
     public function buildSignalDeltasForTransform(
         string $setName,
@@ -405,6 +405,7 @@ final class ReviewRenderer
             'savedRenderedFrom' => IncludeStack::leaf($savedRenderedFromStack) ?? '',
             'savedRenderedFromStack' => IncludeStack::encode($savedRenderedFromStack),
             'savedRenderedFromMore' => max(0, IncludeStack::templateCount($savedRenderedFromStack) - 1),
+            ...$this->buildSavedAtSignals($transformConfig['lastUpdatedAt'] ?? null),
         ];
     }
 
@@ -977,9 +978,10 @@ final class ReviewRenderer
                 ? $this->resolveIncludeOriginStack($assetCollection['rowsByAssetByBreakpoint'][$selectedAssetKey] ?? [])
                 : [];
             $savedRenderedFromStack = IncludeStack::fromValue($storedTransformConfig['renderedFrom'] ?? null);
+            $savedAtSignals = $this->buildSavedAtSignals($storedTransformConfig['lastUpdatedAt'] ?? null);
             $includeOriginHtml = $isProcessedReview
-                ? $this->buildIncludeOriginMarkup($selectedIncludeStack, $savedRenderedFromStack, $signalKey)
-                : $this->buildSavedRenderedFromMarkup($savedRenderedFromStack);
+                ? $this->buildIncludeOriginMarkup($selectedIncludeStack, $savedRenderedFromStack, $signalKey, $savedAtSignals)
+                : $this->buildSavedRenderedFromMarkup($savedRenderedFromStack, $savedAtSignals, $signalKey);
 
             $slug = Support::slugifyTransformName($transformName);
             $editPanelId = 'bpts-edit-panel-' . $slug;
@@ -1153,6 +1155,9 @@ final class ReviewRenderer
             $cardSignalsStructural['editor']['cards'][$signalKey]['savedRenderedFrom'] = IncludeStack::leaf($savedRenderedFromStack) ?? '';
             $cardSignalsStructural['editor']['cards'][$signalKey]['savedRenderedFromStack'] = IncludeStack::encode($savedRenderedFromStack);
             $cardSignalsStructural['editor']['cards'][$signalKey]['savedRenderedFromMore'] = max(0, IncludeStack::templateCount($savedRenderedFromStack) - 1);
+            foreach ($savedAtSignals as $savedAtKey => $savedAtValue) {
+                $cardSignalsStructural['editor']['cards'][$signalKey][$savedAtKey] = $savedAtValue;
+            }
             $cardSignalsStructuralJson = json_encode($cardSignalsStructural, JSON_UNESCAPED_SLASHES);
             if (!is_string($cardSignalsStructuralJson)) {
                 $cardSignalsStructuralJson = '{"editor":{"cards":{}}}';
@@ -2267,69 +2272,125 @@ final class ReviewRenderer
     }
 
     /**
-     * Names the template that rendered the selected copy, with a "+N" button that
-     * opens its full include stack.
-     *
-     * Adds a muted "Saved values from" row when the set's saved values came from a
-     * different include stack.
+     * Table under the copy pager: when the set was last saved, the template its
+     * saved values came from, and the template that rendered the selected copy.
+     * Both templates are green when they match and red when they differ. Each
+     * template has a "+N templates" button that opens its full include stack.
      *
      * @param array<int, array<string, mixed>> $stack Include levels (root → leaf) of the selected copy.
      * @param array<int, array<string, mixed>> $savedStack Saved `renderedFrom` stack.
+     * @param array{savedAt: string, savedAtLabel: string, savedAtTitle: string}|null $savedAtSignals
      */
-    private function buildIncludeOriginMarkup(array $stack, array $savedStack = [], string $signalKey = ''): string
+    private function buildIncludeOriginMarkup(array $stack, array $savedStack = [], string $signalKey = '', ?array $savedAtSignals = null): string
     {
-        if ($stack === []) {
+        $rowsHtml = $this->buildSavedAtRowMarkup($savedAtSignals, $signalKey);
+        if ($stack !== []) {
+            $rowsHtml .= $this->buildSavedRenderedFromNoteMarkup($savedStack, $stack, $signalKey)
+                . $this->buildIncludeOriginRowMarkup($stack, 'rendered', 'Rendered from');
+        }
+
+        return $this->buildIncludeOriginTableMarkup($rowsHtml);
+    }
+
+    /**
+     * When the set was last saved and the template its saved values were
+     * applied from, for the saved view.
+     *
+     * @param array<int, array<string, mixed>> $savedStack Saved `renderedFrom` stack.
+     * @param array{savedAt: string, savedAtLabel: string, savedAtTitle: string}|null $savedAtSignals
+     */
+    private function buildSavedRenderedFromMarkup(array $savedStack, ?array $savedAtSignals = null, string $signalKey = ''): string
+    {
+        $rowsHtml = $this->buildSavedAtRowMarkup($savedAtSignals, $signalKey);
+        if ($savedStack !== []) {
+            $rowsHtml .= $this->buildIncludeOriginRowMarkup($savedStack, 'saved', 'Saved from');
+        }
+
+        return $this->buildIncludeOriginTableMarkup($rowsHtml);
+    }
+
+    private function buildIncludeOriginTableMarkup(string $rowsHtml): string
+    {
+        if ($rowsHtml === '') {
             return '';
         }
 
         return '<div class="bpts-transform-include-origin">'
-            . $this->buildIncludeOriginRowMarkup($stack, 'rendered', 'Rendered from')
-            . $this->buildSavedRenderedFromNoteMarkup($savedStack, $stack, $signalKey)
+            . '<table class="data bpts-transform-include-origin-table"><tbody>' . $rowsHtml . '</tbody></table>'
             . '</div>';
     }
 
     /**
-     * Names the template the saved values were applied from, for the saved view.
+     * "Last saved" row, bound to the card's `savedAt*` signals so it updates after
+     * an apply or edit. Omitted when the set has no `lastUpdatedAt`.
      *
-     * @param array<int, array<string, mixed>> $savedStack Saved `renderedFrom` stack.
+     * @param array{savedAt: string, savedAtLabel: string, savedAtTitle: string}|null $savedAtSignals
      */
-    private function buildSavedRenderedFromMarkup(array $savedStack): string
+    private function buildSavedAtRowMarkup(?array $savedAtSignals, string $signalKey): string
     {
-        if ($savedStack === []) {
+        if ($savedAtSignals === null || $savedAtSignals['savedAtLabel'] === '') {
             return '';
         }
 
-        return '<div class="bpts-transform-include-origin">'
-            . $this->buildIncludeOriginRowMarkup($savedStack, 'saved', 'Rendered from')
-            . '</div>';
+        $bind = fn(string $attribute, string $field): string => $signalKey !== ''
+            ? ' ' . $attribute . '="' . $this->escapeReviewHtml("String(\$editor.cards." . $signalKey . '.' . $field . " || '')") . '"'
+            : '';
+
+        return '<tr class="bpts-transform-saved-at-row">'
+            . '<th scope="row" class="bpts-transform-include-origin-label">Last saved</th>'
+            . '<td class="bpts-transform-include-origin-value" colspan="2">'
+            . '<time class="bpts-transform-saved-at" datetime="' . $this->escapeReviewHtml($savedAtSignals['savedAt']) . '"'
+            . ' title="' . $this->escapeReviewHtml($savedAtSignals['savedAtTitle']) . '"'
+            . $bind('data-attr:datetime', 'savedAt')
+            . $bind('data-attr:title', 'savedAtTitle')
+            . $bind('data-text', 'savedAtLabel') . '>'
+            . $this->escapeReviewHtml($savedAtSignals['savedAtLabel'])
+            . '</time>'
+            . '</td>'
+            . '</tr>';
     }
 
     /**
      * @param array<int, array<string, mixed>> $stack Root → leaf include levels.
      */
-    private function buildIncludeOriginRowMarkup(array $stack, string $source, string $label, string $extraClass = ''): string
+    private function buildIncludeOriginRowMarkup(array $stack, string $source, string $label): string
     {
         $leaf = $this->escapeReviewHtml(IncludeStack::leaf($stack) ?? '');
         $templateCount = IncludeStack::templateCount($stack);
         $moreCount = $templateCount - 1;
 
-        return '<div class="bpts-transform-include-origin-row' . ($extraClass !== '' ? ' ' . $extraClass : '') . '" data-origin-source="' . $source . '" data-include-stack="' . $this->escapeReviewHtml(IncludeStack::encode($stack)) . '">'
-            . '<span class="bpts-transform-include-origin-label">' . $label . '</span>'
-            . '<span class="bpts-transform-include-origin-value">'
+        return '<tr class="bpts-transform-include-origin-row" data-origin-source="' . $source . '" data-include-stack="' . $this->escapeReviewHtml(IncludeStack::encode($stack)) . '">'
+            . '<th scope="row" class="bpts-transform-include-origin-label">' . $label . '</th>'
+            . '<td class="bpts-transform-include-origin-value">'
             . '<button type="button" class="bpts-transform-include-origin-copy" data-bpts-action="copyIncludeOrigin" data-template-name="' . $leaf . '"'
             . ' title="Copy template name" aria-label="Copy template name ' . $leaf . '"><code>' . $leaf . '</code></button>'
+            . '</td>'
+            . '<td class="bpts-transform-include-origin-more">'
             . ($moreCount > 0
                 ? '<button type="button" class="bpts-transform-include-origin-stack" data-bpts-action="showIncludeStack"'
-                    . ' title="Show include stack" aria-label="Show include stack (' . $templateCount . ' templates)">+' . $moreCount . '</button>'
+                    . ' title="Show include stack" aria-label="Show include stack (' . $templateCount . ' templates)">' . $this->buildIncludeStackButtonContent($templateCount) . '</button>'
                 : '')
-            . '</span>'
-            . '</div>';
+            . '</td>'
+            . '</tr>';
     }
 
     /**
-     * Muted "Saved values from" row under the processed label. Bound to the card's
-     * `savedRenderedFrom*` signals so it updates or hides after an apply; hidden
-     * when the saved stack matches the selected copy or none is saved.
+     * Stack icon and total template count for a "show include stack" button.
+     * `$countAttrs` binds the count text when it is signal-driven.
+     */
+    private function buildIncludeStackButtonContent(int $templateCount, string $countAttrs = ''): string
+    {
+        return '<svg class="bpts-transform-include-origin-stack-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" focusable="false" aria-hidden="true">'
+            . '<path stroke-linecap="round" stroke-linejoin="round" d="M6.429 9.75 2.25 12l4.179 2.25m0-4.5 5.571 3 5.571-3m-11.142 0L2.25 7.5 12 2.25l9.75 5.25-4.179 2.25m0 0L21.75 12l-4.179 2.25m0 0 4.179 2.25L12 21.75 2.25 16.5l4.179-2.25m11.142 0-5.571 3-5.571-3"></path>'
+            . '</svg>'
+            . '<span class="bpts-transform-include-origin-stack-count"' . $countAttrs . '>' . $templateCount . ($templateCount === 1 ? ' template' : ' templates') . '</span>';
+    }
+
+    /**
+     * "Saved from" row above the rendered row. Bound to the card's
+     * `savedRenderedFrom*` signals so it updates after an apply. Marked
+     * `is-match` or `is-different` against the selected copy (the CSS colours
+     * both template rows from it), and hidden when none is saved.
      *
      * @param array<int, array<string, mixed>> $savedStack Saved `renderedFrom` stack.
      * @param array<int, array<string, mixed>> $renderedStack Include stack of the selected copy.
@@ -2338,12 +2399,11 @@ final class ReviewRenderer
     {
         $savedJson = IncludeStack::encode($savedStack);
         $renderedJson = IncludeStack::encode($renderedStack);
-        $hidden = $savedStack === [] || $savedJson === $renderedJson;
+        $hidden = $savedStack === [];
+        $matches = !$hidden && $savedJson === $renderedJson;
 
-        if ($signalKey === '') {
-            return $hidden
-                ? ''
-                : $this->buildIncludeOriginRowMarkup($savedStack, 'saved', 'Saved values from', 'bpts-transform-include-origin-saved');
+        if ($signalKey === '' && $hidden) {
+            return '';
         }
 
         $name = $this->escapeReviewHtml(IncludeStack::leaf($savedStack) ?? '');
@@ -2352,26 +2412,40 @@ final class ReviewRenderer
         $stackExpr = "String(\$editor.cards." . $signalKey . ".savedRenderedFromStack || '')";
         $countExpr = "Number(\$editor.cards." . $signalKey . ".savedRenderedFromMore || 0)";
         $renderedJsonJs = (string)json_encode($renderedJson, JSON_UNESCAPED_SLASHES);
+        $matchesExpr = $stackExpr . ' === ' . $renderedJsonJs;
+        $bind = fn(string $attribute, string $expression): string => $signalKey !== ''
+            ? ' ' . $attribute . '="' . $this->escapeReviewHtml($expression) . '"'
+            : '';
 
-        return '<div class="bpts-transform-include-origin-row bpts-transform-include-origin-saved' . ($hidden ? ' bpts-force-hidden' : '') . '"'
+        $rowClass = 'bpts-transform-include-origin-row bpts-transform-include-origin-saved'
+            . ($hidden ? ' bpts-force-hidden' : '')
+            . ($matches ? ' is-match' : '')
+            . (!$hidden && !$matches ? ' is-different' : '');
+
+        return '<tr class="' . $rowClass . '"'
             . ' data-origin-source="saved" data-include-stack="' . $this->escapeReviewHtml($savedJson) . '"'
-            . ' data-class:bpts-force-hidden="' . $this->escapeReviewHtml($stackExpr . " === '' || " . $stackExpr . ' === ' . $renderedJsonJs) . '"'
-            . ' data-attr:data-include-stack="' . $this->escapeReviewHtml($stackExpr) . '">'
-            . '<span class="bpts-transform-include-origin-label">Saved values from</span>'
-            . '<span class="bpts-transform-include-origin-value">'
+            . $bind('data-class:bpts-force-hidden', $stackExpr . " === ''")
+            . $bind('data-class:is-match', $matchesExpr)
+            . $bind('data-class:is-different', $stackExpr . " !== '' && !(" . $matchesExpr . ')')
+            . $bind('data-attr:data-include-stack', $stackExpr) . '>'
+            . '<th scope="row" class="bpts-transform-include-origin-label">Saved from</th>'
+            . '<td class="bpts-transform-include-origin-value">'
             . '<button type="button" class="bpts-transform-include-origin-copy" data-bpts-action="copyIncludeOrigin" data-template-name="' . $name . '"'
-            . ' title="Copy template name" aria-label="Copy template name ' . $name . ' (saved values from)"'
-            . ' data-attr:data-template-name="' . $this->escapeReviewHtml($leafExpr) . '"'
-            . ' data-attr:aria-label="' . $this->escapeReviewHtml("'Copy template name ' + " . $leafExpr . " + ' (saved values from)'") . '">'
-            . '<code data-text="' . $this->escapeReviewHtml($leafExpr) . '">' . $name . '</code>'
+            . ' title="Copy template name" aria-label="Copy template name ' . $name . ' (saved from)"'
+            . $bind('data-attr:data-template-name', $leafExpr)
+            . $bind('data-attr:aria-label', "'Copy template name ' + " . $leafExpr . " + ' (saved from)'") . '>'
+            . '<code' . $bind('data-text', $leafExpr) . '>' . $name . '</code>'
             . '</button>'
+            . '</td>'
+            . '<td class="bpts-transform-include-origin-more">'
             . '<button type="button" class="bpts-transform-include-origin-stack' . ($moreCount > 0 ? '' : ' bpts-force-hidden') . '" data-bpts-action="showIncludeStack"'
             . ' title="Show include stack" aria-label="Show include stack (' . ($moreCount + 1) . ' templates)"'
-            . ' data-class:bpts-force-hidden="' . $this->escapeReviewHtml($countExpr . ' < 1') . '"'
-            . ' data-attr:aria-label="' . $this->escapeReviewHtml("'Show include stack (' + (" . $countExpr . " + 1) + ' templates)'") . '"'
-            . ' data-text="' . $this->escapeReviewHtml("'+' + " . $countExpr) . '">+' . $moreCount . '</button>'
-            . '</span>'
-            . '</div>';
+            . $bind('data-class:bpts-force-hidden', $countExpr . ' < 1')
+            . $bind('data-attr:aria-label', "'Show include stack (' + (" . $countExpr . " + 1) + ' templates)'") . '>'
+            . $this->buildIncludeStackButtonContent($moreCount + 1, $bind('data-text', "(" . $countExpr . " + 1) + ' templates'"))
+            . '</button>'
+            . '</td>'
+            . '</tr>';
     }
 
     /**
@@ -2432,16 +2506,65 @@ final class ReviewRenderer
         }
 
         $detail = $originItems !== ''
-            ? '<p>Images in this set did not all render at the same size. They come from:</p>'
+            ? '<p>Images in this set rendered at different sizes.</p>'
+                . '<p>They were rendered from these templates:</p>'
                 . '<ul class="bpts-warning-origins">' . $originItems . '</ul>'
-                . '<p>Each may need its own set, or the layout or CSS may need fixing so they match.</p>'
-            : '<p>Images in this set did not all render at the same size.</p>'
+                . '<p>Give each template its own set, or fix the layout or CSS so they render at the same size.</p>'
+            : '<p>Images in this set rendered at different sizes.</p>'
                 . '<p>It may be used in layouts that need separate sets, or the layout or CSS may need fixing so they match.</p>';
 
         return '<div class="bpts-warning-item bpts-warning-item-neutral">'
             . '<div class="bpts-warning-copy"><h3 class="bpts-warning-heading">Asset Mismatch</h3></div>'
             . '<div class="bpts-warning-detail">' . $detail . '</div>'
             . '</div>';
+    }
+
+    /**
+     * "3 days ago" for the card's "Last saved" row, with the exact time (in the
+     * user's timezone) for its tooltip. Empty strings when the set has no
+     * `lastUpdatedAt`.
+     *
+     * @return array{savedAt: string, savedAtLabel: string, savedAtTitle: string}
+     */
+    private function buildSavedAtSignals(mixed $lastUpdatedAt): array
+    {
+        $empty = ['savedAt' => '', 'savedAtLabel' => '', 'savedAtTitle' => ''];
+        if (!is_string($lastUpdatedAt) || trim($lastUpdatedAt) === '') {
+            return $empty;
+        }
+
+        try {
+            $savedAt = new \DateTimeImmutable($lastUpdatedAt);
+        } catch (\Throwable) {
+            return $empty;
+        }
+
+        return [
+            'savedAt' => $savedAt->format(DATE_ATOM),
+            'savedAtLabel' => $this->formatTimeAgo($savedAt, time()),
+            'savedAtTitle' => Craft::$app->getFormatter()->asDatetime($savedAt->getTimestamp(), 'medium'),
+        ];
+    }
+
+    private function formatTimeAgo(\DateTimeImmutable $time, int $now): string
+    {
+        $seconds = max(0, $now - $time->getTimestamp());
+        $units = [
+            ['year', 365 * 86400],
+            ['month', 30 * 86400],
+            ['day', 86400],
+            ['hour', 3600],
+            ['minute', 60],
+        ];
+        foreach ($units as [$unit, $size]) {
+            if ($seconds >= $size) {
+                $count = intdiv($seconds, $size);
+
+                return $count . ' ' . $unit . ($count === 1 ? '' : 's') . ' ago';
+            }
+        }
+
+        return 'just now';
     }
 
     private function escapeReviewHtml(string $value): string

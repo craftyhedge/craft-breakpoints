@@ -2217,19 +2217,8 @@ button.bpts-transform-input-addon:hover:not(:disabled) {
 }
 
 .bpts-transform-include-origin {
-    display: grid;
-    grid-template-columns: auto minmax(0, auto);
-    align-content: center;
-    justify-content: end;
-    column-gap: 8px;
-    row-gap: 4px;
-    margin-left: auto;
-    margin-bottom: 6px;
     min-width: 0;
-    max-width: 50%;
-    min-height: 22px;
-    font-size: 12px;
-    white-space: nowrap;
+    padding: 12px 24px 0;
 }
 
 .bpts-transform-card-footer {
@@ -2238,69 +2227,129 @@ button.bpts-transform-input-addon:hover:not(:disabled) {
     bottom: 24px;
 }
 
-.bpts-transform-include-origin-row {
-    display: grid;
-    grid-column: 1 / -1;
-    grid-template-columns: subgrid;
-    align-items: baseline;
-    min-width: 0;
+.bpts-transform-include-origin-table.data {
+    width: auto;
+    max-width: 100%;
+    border: 1px solid var(--hairline-color, #e3e5e8);
+    border-radius: var(--small-border-radius, 4px);
+    border-collapse: separate;
+    border-spacing: 0;
+    overflow: hidden;
+    font-size: 12px;
+}
+
+.bpts-transform-include-origin-table.data th,
+.bpts-transform-include-origin-table.data td {
+    height: 20px;
+    padding: 5px 10px;
+    border: 0;
+    line-height: 20px;
+    vertical-align: middle;
+    background: transparent;
+}
+
+.bpts-transform-include-origin-table.data tr:not(:first-child) > th,
+.bpts-transform-include-origin-table.data tr:not(:first-child) > td {
+    border-top: 1px solid var(--hairline-color, #e3e5e8);
 }
 
 .bpts-transform-include-origin-label {
-    justify-self: end;
-    font-size: 10px;
-    line-height: 13px;
+    font-weight: 400;
+    text-align: left;
+    white-space: nowrap;
     color: var(--gray-500, #7b8793);
 }
 
+.bpts-transform-include-origin-table.data th.bpts-transform-include-origin-label {
+    font-weight: 400;
+    background: var(--gray-050, #f3f7fc);
+}
+
 .bpts-transform-include-origin-value {
-    display: flex;
-    align-items: baseline;
-    gap: 4px;
     min-width: 0;
 }
 
-.bpts-transform-include-origin-value .bpts-transform-include-origin-copy {
-    display: block;
-    min-width: 0;
-    overflow: hidden;
+.bpts-transform-include-origin-more {
+    text-align: right;
+    white-space: nowrap;
 }
 
 .bpts-transform-include-origin-row code {
     display: block;
-    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    font-size: 12px;
+    line-height: 20px;
+    max-width: 640px;
     overflow: hidden;
     text-overflow: ellipsis;
-    line-height: 13px;
+    white-space: nowrap;
     text-align: left;
 }
 
 .bpts-transform-include-origin-copy {
+    display: block;
+    max-width: 100%;
     padding: 0;
     border: 0;
     background: none;
     font: inherit;
-    color: var(--gray-600, #606d7b);
+    color: var(--gray-700, #3f4d5a);
     text-align: left;
     cursor: pointer;
 }
 
+.bpts-transform-include-origin-table .bpts-transform-include-origin-copy {
+    display: flex;
+    align-items: center;
+    height: 20px;
+    margin: 0;
+    line-height: 20px;
+}
+
 .bpts-transform-include-origin-copy:hover code,
 .bpts-transform-include-origin-copy:focus-visible code {
-    color: var(--gray-800, #33404d);
+    color: var(--gray-900, #1f2a37);
+}
+
+.bpts-transform-saved-at {
+    color: var(--gray-700, #3f4d5a);
+    cursor: default;
+}
+
+.bpts-transform-include-origin-row.is-match code,
+.bpts-transform-include-origin-table tbody:has(> .bpts-transform-include-origin-row.is-match) > .bpts-transform-include-origin-row[data-origin-source="rendered"] code {
+    color: var(--success-color, #0a8a5f);
+}
+
+.bpts-transform-include-origin-row.is-different code,
+.bpts-transform-include-origin-table tbody:has(> .bpts-transform-include-origin-row.is-different) > .bpts-transform-include-origin-row[data-origin-source="rendered"] code {
+    color: #b94134;
 }
 
 .bpts-transform-include-origin-stack {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     flex-shrink: 0;
-    padding: 0 4px;
+    padding: 1px 6px;
     border: 0;
     border-radius: 3px;
     background: var(--gray-100, #edf0f3);
     font: inherit;
-    font-size: 10px;
-    line-height: 13px;
+    font-size: 11px;
+    line-height: 15px;
     color: var(--gray-600, #606d7b);
+    white-space: nowrap;
     cursor: pointer;
+}
+
+.bpts-transform-include-origin-stack-icon {
+    flex-shrink: 0;
+    width: 12px;
+    height: 12px;
 }
 
 .bpts-transform-include-origin-stack:hover,

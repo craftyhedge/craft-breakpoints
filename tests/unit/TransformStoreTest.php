@@ -73,6 +73,8 @@ final class TransformStoreTest extends Unit
         $transforms = $store->getTransforms();
         $this->assertSame([['template' => 'page', 'extends' => ['_layout']], ['template' => 'site/includes/cards/menu']], $transforms['with-origin']['renderedFrom'] ?? null);
         $this->assertArrayNotHasKey('renderedFrom', $transforms['without-origin'] ?? []);
+        $this->assertSame($store->getSets()['with-origin']['lastUpdatedAt'] ?? null, $transforms['with-origin']['lastUpdatedAt'] ?? null);
+        $this->assertNotNull($transforms['with-origin']['lastUpdatedAt'] ?? null);
     }
 
     public function testReplaceSetsForRuntimeKeepsOnlyAllowedSavedOptions(): void

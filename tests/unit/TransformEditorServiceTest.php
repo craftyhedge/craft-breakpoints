@@ -827,7 +827,8 @@ final class TransformEditorServiceTest extends Unit
         $this->assertSingleWarningHeading($xpath, 'Asset Mismatch');
         $this->assertSame(0, $this->countWarningHeadings($xpath, 'Used From Multiple Templates'));
         $this->assertStringContainsString('<li>mega-menus</li><li>nav-mobile</li>', $html);
-        $this->assertStringContainsString('Each may need its own set, or the layout or CSS may need fixing so they match.', $html);
+        $this->assertStringContainsString('<p>Images in this set rendered at different sizes.</p><p>They were rendered from these templates:</p>', $html);
+        $this->assertStringContainsString('Give each template its own set, or fix the layout or CSS so they render at the same size.', $html);
     }
 
     public function testRenderResultReviewShowsGenericAssetMismatchWithoutIncludeOrigins(): void
@@ -847,15 +848,41 @@ final class TransformEditorServiceTest extends Unit
             [['template' => 'page', 'extends' => ['_layout']], 'nav-mobile', 'mobile-cta'],
         );
 
-        $this->assertStringContainsString(
-            '<div class="bpts-transform-include-origin"><div class="bpts-transform-include-origin-row" data-origin-source="rendered" data-include-stack="[{&quot;template&quot;:&quot;page&quot;,&quot;extends&quot;:[&quot;_layout&quot;]},{&quot;template&quot;:&quot;mega-menus&quot;},{&quot;template&quot;:&quot;mega-menu-cta&quot;}]">'
-                . '<span class="bpts-transform-include-origin-label">Rendered from</span><span class="bpts-transform-include-origin-value">'
-                . '<button type="button" class="bpts-transform-include-origin-copy" data-bpts-action="copyIncludeOrigin" data-template-name="mega-menu-cta" title="Copy template name" aria-label="Copy template name mega-menu-cta"><code>mega-menu-cta</code></button>'
-                . '<button type="button" class="bpts-transform-include-origin-stack" data-bpts-action="showIncludeStack" title="Show include stack" aria-label="Show include stack (4 templates)">+3</button>'
-                . '</span></div>',
-            $html,
-        );
+        $xpath = $this->createReviewMarkupXPath($html);
+
+        $row = $this->findRenderedFromRow($xpath);
+        $this->assertSame('[{"template":"page","extends":["_layout"]},{"template":"mega-menus"},{"template":"mega-menu-cta"}]', $row->getAttribute('data-include-stack'));
+        $this->assertSame('Rendered from', $this->queryTextWithin($xpath, './th', $row));
+
+        $copy = $this->queryElementWithin($xpath, ".//button[@data-bpts-action='copyIncludeOrigin']", $row);
+        $this->assertSame('mega-menu-cta', $copy->getAttribute('data-template-name'));
+        $this->assertSame('mega-menu-cta', $this->queryTextWithin($xpath, './/code', $copy));
+        $this->assertStringNotContainsString('bpts-force-hidden', $copy->getAttribute('class'));
+
+        $stackButton = $this->queryElementWithin($xpath, ".//button[@data-bpts-action='showIncludeStack']", $row);
+        $this->assertSame('4 templates', trim($stackButton->textContent));
+        $stackIcons = $xpath->query('.//svg', $stackButton);
+        $this->assertNotFalse($stackIcons);
+        $this->assertSame(1, $stackIcons->length);
+        $this->assertSame('Show include stack (4 templates)', $stackButton->getAttribute('aria-label'));
+
         $this->assertStringNotContainsString('mobile-cta</code>', $html);
+    }
+
+    public function testIncludeOriginTableListsSavedRowAboveRenderedRow(): void
+    {
+        $html = $this->renderBreakpointMismatchReview(['_layout', 'site/grid'], ['_layout', 'site/sidebar']);
+        $xpath = $this->createReviewMarkupXPath($html);
+
+        $rows = $xpath->query("//table[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-include-origin-table ')]//tr[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-include-origin-row ')]");
+        $this->assertNotFalse($rows);
+        $sources = [];
+        foreach ($rows as $row) {
+            if ($row instanceof \DOMElement) {
+                $sources[] = $row->getAttribute('data-origin-source');
+            }
+        }
+        $this->assertSame(['saved', 'rendered'], $sources);
     }
 
     public function testBreakpointMismatchNamesSavedAndRenderedTemplatesWhenTheyDiffer(): void
@@ -875,13 +902,15 @@ final class TransformEditorServiceTest extends Unit
 
         $note = $this->findSavedRenderedFromNote($xpath);
         $this->assertSavedRenderedFromNoteHidden($note, false);
-        $this->assertSame('div', $note->nodeName);
+        $this->assertSavedRenderedFromNoteMatches($note, false);
+        $this->assertSame('tr', $note->nodeName);
         $this->assertSame('saved', $note->getAttribute('data-origin-source'));
         $this->assertSame('[{"template":"page","extends":["_layout"]},{"template":"site/cards & menus"}]', $note->getAttribute('data-include-stack'));
         $this->assertStringContainsString('.savedRenderedFromStack', $note->getAttribute('data-attr:data-include-stack'));
         $this->assertStringContainsString('.savedRenderedFromStack', $note->getAttribute('data-class:bpts-force-hidden'));
-        $this->assertStringContainsString('site/nav-mobile', $note->getAttribute('data-class:bpts-force-hidden'));
-        $this->assertSame('Saved values from', $this->queryTextWithin($xpath, ".//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-include-origin-label ')]", $note));
+        $this->assertStringContainsString('site/nav-mobile', $note->getAttribute('data-class:is-match'));
+        $this->assertStringContainsString('site/nav-mobile', $note->getAttribute('data-class:is-different'));
+        $this->assertSame('Saved from', $this->queryTextWithin($xpath, ".//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-include-origin-label ')]", $note));
         $this->assertSame('site/cards & menus', $this->queryTextWithin($xpath, './/code', $note));
 
         $copy = $this->queryElementWithin($xpath, ".//button[@data-bpts-action='copyIncludeOrigin']", $note);
@@ -889,8 +918,10 @@ final class TransformEditorServiceTest extends Unit
         $this->assertStringContainsString('.savedRenderedFrom', $copy->getAttribute('data-attr:data-template-name'));
 
         $stackButton = $this->queryElementWithin($xpath, ".//button[@data-bpts-action='showIncludeStack']", $note);
-        $this->assertSame('+2', trim($stackButton->textContent));
-        $this->assertStringContainsString('.savedRenderedFromMore', $stackButton->getAttribute('data-text'));
+        $this->assertSame('3 templates', trim($stackButton->textContent));
+        $count = $this->queryElementWithin($xpath, ".//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-include-origin-stack-count ')]", $stackButton);
+        $this->assertStringContainsString('.savedRenderedFromMore', $count->getAttribute('data-text'));
+        $this->assertSame('', (string)$stackButton->getAttribute('data-text'));
 
         $signals = $this->findHeroCard($xpath)->getAttribute('data-signals');
         $this->assertStringContainsString('"savedRenderedFrom":"site/cards & menus"', $signals);
@@ -938,7 +969,19 @@ final class TransformEditorServiceTest extends Unit
         $this->assertSingleWarningHeading($xpath, 'Breakpoint Mismatch');
         $this->assertStringNotContainsString('<li>Saved values: ', $html);
         $this->assertStringContainsString('<p>The saved values may be out of date and need updating, or the layout or CSS may need fixing.</p>', $html);
-        $this->assertSavedRenderedFromNoteHidden($this->findSavedRenderedFromNote($xpath), true);
+
+        $note = $this->findSavedRenderedFromNote($xpath);
+        $this->assertSavedRenderedFromNoteHidden($note, false);
+        $this->assertSavedRenderedFromNoteMatches($note, true);
+        $this->assertSame('site/cards & menus', $this->queryTextWithin($xpath, './/code', $note));
+        $savedCopy = $this->queryElementWithin($xpath, ".//button[@data-bpts-action='copyIncludeOrigin']", $note);
+        $this->assertStringNotContainsString('bpts-force-hidden', $savedCopy->getAttribute('class'));
+
+        $row = $this->findRenderedFromRow($xpath);
+        $this->assertSame('site/cards & menus', $this->queryTextWithin($xpath, './/code', $row));
+        $copy = $this->queryElementWithin($xpath, ".//button[@data-bpts-action='copyIncludeOrigin']", $row);
+        $this->assertStringNotContainsString('bpts-force-hidden', $copy->getAttribute('class'));
+        $this->assertStringNotContainsString('Same as', $html);
     }
 
     public function testBreakpointMismatchStaysPlainWithoutSavedRenderedFrom(): void
@@ -979,11 +1022,16 @@ final class TransformEditorServiceTest extends Unit
         ], fn() => $editor->renderInitialStoredReview());
 
         $this->assertStringContainsString(
-            '<div class="bpts-transform-include-origin"><div class="bpts-transform-include-origin-row" data-origin-source="saved" data-include-stack="[{&quot;template&quot;:&quot;page&quot;,&quot;extends&quot;:[&quot;_layout&quot;]},{&quot;template&quot;:&quot;site/cards &amp; menus&quot;}]">'
-                . '<span class="bpts-transform-include-origin-label">Rendered from</span><span class="bpts-transform-include-origin-value">'
+            '<div class="bpts-transform-include-origin"><table class="data bpts-transform-include-origin-table"><tbody>'
+                . '<tr class="bpts-transform-include-origin-row" data-origin-source="saved" data-include-stack="[{&quot;template&quot;:&quot;page&quot;,&quot;extends&quot;:[&quot;_layout&quot;]},{&quot;template&quot;:&quot;site/cards &amp; menus&quot;}]">'
+                . '<th scope="row" class="bpts-transform-include-origin-label">Saved from</th><td class="bpts-transform-include-origin-value">'
                 . '<button type="button" class="bpts-transform-include-origin-copy" data-bpts-action="copyIncludeOrigin" data-template-name="site/cards &amp; menus" title="Copy template name" aria-label="Copy template name site/cards &amp; menus"><code>site/cards &amp; menus</code></button>'
-                . '<button type="button" class="bpts-transform-include-origin-stack" data-bpts-action="showIncludeStack" title="Show include stack" aria-label="Show include stack (3 templates)">+2</button>'
-                . '</span></div></div>',
+                . '</td><td class="bpts-transform-include-origin-more">'
+                . '<button type="button" class="bpts-transform-include-origin-stack" data-bpts-action="showIncludeStack" title="Show include stack" aria-label="Show include stack (3 templates)">',
+            (string)($result['visualResultsHtml'] ?? ''),
+        );
+        $this->assertStringContainsString(
+            '<span class="bpts-transform-include-origin-stack-count">3 templates</span></button></td></tr></tbody></table></div>',
             (string)($result['visualResultsHtml'] ?? ''),
         );
     }
@@ -1031,6 +1079,68 @@ final class TransformEditorServiceTest extends Unit
         $this->assertSame('', $withoutOrigin['savedRenderedFrom'] ?? null);
         $this->assertSame('', $withoutOrigin['savedRenderedFromStack'] ?? null);
         $this->assertSame(0, $withoutOrigin['savedRenderedFromMore'] ?? null);
+    }
+
+    public function testBuildSignalDeltasForTransformIncludesSavedAt(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+        $set = static fn(?string $lastUpdatedAt): array => array_filter([
+            'name' => 'hero',
+            'includeEscapeWidth' => false,
+            'variants' => [
+                'xs' => ['width' => 640, 'height' => null, 'enabled' => true, 'autoDimension' => null],
+            ],
+            'config' => [],
+            'lastUpdatedAt' => $lastUpdatedAt,
+        ], static fn(mixed $value): bool => $value !== null);
+
+        $savedAt = gmdate('c', time() - (3 * 86400) - 600);
+        $withDate = $this->withRuntimeSets(['hero' => $set($savedAt)], fn() => $editor->buildSignalDeltasForTransform('hero'));
+        $this->assertSame((new \DateTimeImmutable($savedAt))->format(DATE_ATOM), $withDate['savedAt'] ?? null);
+        $this->assertSame('3 days ago', $withDate['savedAtLabel'] ?? null);
+        $this->assertNotSame('', (string)($withDate['savedAtTitle'] ?? ''));
+
+        $recent = $this->withRuntimeSets(['hero' => $set(gmdate('c', time() - 3600))], fn() => $editor->buildSignalDeltasForTransform('hero'));
+        $this->assertSame('1 hour ago', $recent['savedAtLabel'] ?? null);
+
+        $withoutDate = $this->withRuntimeSets(['hero' => $set(null)], fn() => $editor->buildSignalDeltasForTransform('hero'));
+        $this->assertSame('', $withoutDate['savedAt'] ?? null);
+        $this->assertSame('', $withoutDate['savedAtLabel'] ?? null);
+        $this->assertSame('', $withoutDate['savedAtTitle'] ?? null);
+    }
+
+    public function testRenderInitialStoredReviewShowsLastSavedRow(): void
+    {
+        $editor = Plugin::getInstance()->getTransformEditor();
+        $set = static fn(?string $lastUpdatedAt): array => array_filter([
+            'name' => 'hero',
+            'includeEscapeWidth' => false,
+            'variants' => [
+                'xs' => ['width' => 640, 'height' => null, 'enabled' => true, 'autoDimension' => null],
+            ],
+            'config' => [],
+            'lastUpdatedAt' => $lastUpdatedAt,
+        ], static fn(mixed $value): bool => $value !== null);
+
+        $result = $this->withRuntimeSets(['hero' => $set(gmdate('c', time() - (2 * 86400) - 600))], fn() => $editor->renderInitialStoredReview());
+        $xpath = $this->createReviewMarkupXPath((string)($result['visualResultsHtml'] ?? ''));
+        $card = $this->findHeroCard($xpath);
+        $row = $this->queryElementWithin($xpath, ".//table[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-include-origin-table ')]//tr[1]", $card);
+        $this->assertStringContainsString('bpts-transform-saved-at-row', $row->getAttribute('class'));
+        $this->assertStringNotContainsString('bpts-transform-include-origin-row', $row->getAttribute('class'));
+        $this->assertSame('Last saved', $this->queryTextWithin($xpath, './th', $row));
+        $time = $this->queryElementWithin($xpath, './/time', $row);
+        $this->assertSame('2 days ago', trim($time->textContent));
+        $this->assertNotSame('', $time->getAttribute('datetime'));
+        $this->assertNotSame('', $time->getAttribute('title'));
+        $this->assertStringContainsString('.savedAtLabel', $time->getAttribute('data-text'));
+        $this->assertStringContainsString('.savedAtTitle', $time->getAttribute('data-attr:title'));
+        $headerTimes = $xpath->query('.//header//time', $card);
+        $this->assertNotFalse($headerTimes);
+        $this->assertSame(0, $headerTimes->length);
+
+        $result = $this->withRuntimeSets(['hero' => $set(null)], fn() => $editor->renderInitialStoredReview());
+        $this->assertStringNotContainsString('bpts-transform-saved-at-row', (string)($result['visualResultsHtml'] ?? ''));
     }
 
     public function testRenderInitialStoredReviewOmitsLabelWithoutSavedRenderedFrom(): void
@@ -3072,6 +3182,18 @@ final class TransformEditorServiceTest extends Unit
         $this->assertSame($expectedOrder, $actualOrder);
     }
 
+    private function findRenderedFromRow(\DOMXPath $xpath): \DOMElement
+    {
+        $rows = $xpath->query("//tr[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-include-origin-row ') and @data-origin-source='rendered']");
+        $this->assertNotFalse($rows);
+        $this->assertSame(1, $rows->length, 'Expected one rendered-from row.');
+
+        $row = $rows->item(0);
+        $this->assertInstanceOf(\DOMElement::class, $row);
+
+        return $row;
+    }
+
     private function findSavedRenderedFromNote(\DOMXPath $xpath): \DOMElement
     {
         $notes = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' bpts-transform-include-origin-saved ')]");
@@ -3111,6 +3233,18 @@ final class TransformEditorServiceTest extends Unit
             $this->assertStringContainsString(' bpts-force-hidden ', $class, 'Saved note should start hidden.');
         } else {
             $this->assertStringNotContainsString(' bpts-force-hidden ', $class, 'Saved note should start visible.');
+        }
+    }
+
+    private function assertSavedRenderedFromNoteMatches(\DOMElement $note, bool $expectMatch): void
+    {
+        $class = ' ' . preg_replace('/\s+/', ' ', trim($note->getAttribute('class'))) . ' ';
+        if ($expectMatch) {
+            $this->assertStringContainsString(' is-match ', $class);
+            $this->assertStringNotContainsString(' is-different ', $class);
+        } else {
+            $this->assertStringContainsString(' is-different ', $class);
+            $this->assertStringNotContainsString(' is-match ', $class);
         }
     }
 

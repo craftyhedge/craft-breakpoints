@@ -111,7 +111,6 @@
                     <div class="bpts-transform-note-preview-body" data-text="$editor.cards.{{ signalKey }}.notesInput || ''">{{ notesInput }}</div>
                 </div>
             </div>
-            {{ includeOriginHtml }}
         </header>
         <div class="bpts-breakpoint-grid {{ cardBreakpointsHiddenClass }}">{{ breakpointColumns }}</div>
         <div class="bpts-breakpoint-grid-actions {{ cardBreakpointsHiddenClass }}">
@@ -130,6 +129,7 @@
             </label>
         </div>
         <div class="{{ cardBreakpointsHiddenClass }}">{{ assetPaginationHtml }}</div>
+        <div class="{{ cardBreakpointsHiddenClass }}">{{ includeOriginHtml }}</div>
         <section class="bpts-transform-quick-row {{ cardBreakpointsHiddenClass }}" aria-label="Edit scope controls">
             <div class="bpts-transform-edit-tab-names-row">
                 <div class="bpts-transform-pane-tabs">

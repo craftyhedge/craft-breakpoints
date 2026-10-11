@@ -656,7 +656,7 @@ class TransformEditor extends Component
      * Compute the current signal deltas for all breakpoints of a transform.
      * Used after operations to send PatchSignals instead of re-rendering the card.
      *
-     * @return array{signalKey: string, rowsByBreakpoint: array<int|string, array<string, mixed>>, hasCurrentBreakpointMismatch?: bool, hasResolvedBreakpointMismatchAwaitingVerification?: bool, hasCardWarningDanger?: bool, savedRenderedFrom?: string, savedRenderedFromStack?: string, savedRenderedFromMore?: int}
+     * @return array{signalKey: string, rowsByBreakpoint: array<int|string, array<string, mixed>>, hasCurrentBreakpointMismatch?: bool, hasResolvedBreakpointMismatchAwaitingVerification?: bool, hasCardWarningDanger?: bool, savedRenderedFrom?: string, savedRenderedFromStack?: string, savedRenderedFromMore?: int, savedAt?: string, savedAtLabel?: string, savedAtTitle?: string}
      */
     public function buildSignalDeltasForTransform(
         string $setName,

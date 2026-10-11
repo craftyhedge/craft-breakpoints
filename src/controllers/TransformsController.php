@@ -595,7 +595,7 @@ class TransformsController extends Controller
                         $cardSignalPatch[$deltaKey] = (bool)($deltas[$deltaKey] ?? false);
                     }
                 }
-                foreach (['savedRenderedFrom', 'savedRenderedFromStack'] as $deltaKey) {
+                foreach (['savedRenderedFrom', 'savedRenderedFromStack', 'savedAt', 'savedAtLabel', 'savedAtTitle'] as $deltaKey) {
                     if (array_key_exists($deltaKey, $deltas)) {
                         $cardSignalPatch[$deltaKey] = (string)$deltas[$deltaKey];
                     }

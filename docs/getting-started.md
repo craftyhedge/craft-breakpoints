@@ -143,16 +143,22 @@ the updated values. A clean run should show no warnings detected.
 
 ### Template labels
 
-After processing, the top right of each card shows where the selected copy
-came from:
+After processing, a small table under the copy pager on each card shows where
+the selected copy came from:
 
+- **Last saved**: how long ago the set was last saved, from any apply or edit.
+  Hover it for the exact date and time.
+- **Saved from**: the template the set's saved values were applied
+  from.
 - **Rendered from**: the template that rendered the selected copy.
-- **Saved values from**: shown underneath when the set's saved values were
-  applied from a different include path, even if the last template is the
-  same, such as one card partial used from a grid and from a sidebar.
 
-Click a template name to copy it. When other templates are involved, a **+N**
-button follows the name. Click it to see the full include stack: one row per
+When both come from the same include path, both templates are green. When the
+selected copy came from a different include path, even if the last template is
+the same, such as one card partial used from a grid and from a sidebar, both
+are red, since either could be the one that needs fixing.
+
+Click a template name to copy it. When other templates are involved, a
+button follows the name, showing how many templates are in the include stack, such as **6 templates**. Click it to see the full include stack: one row per
 `{% include %}`, from the page template down to the one that rendered the
 image. Layouts a template `{% extends %}` and templates it `{% embed %}`s are
 listed under that template's row rather than as extra rows. Click any template
@@ -178,8 +184,8 @@ When processing finds multiple assets using the same set handle, those assets
 are grouped together in the transform set card. When the images come from
 different templates, the warning lists those templates.
 
-Page through the copies to find the mismatch. The card's top right shows
-**Rendered from** for each one, so you can see which template renders the copy
+Page through the copies to find the mismatch. The table under the copy pager
+shows **Rendered from** for each one, so you can see which template renders the copy
 at a different size.
 
 This might require some layout/CSS changes to fix the front-end inconsistency or separating use cases by creating new transform set handles.
@@ -215,9 +221,13 @@ The default Transform Sets view shows saved transform sets in a non-editing
 state, so you can review the current dimensions and settings without changing
 anything by accident.
 
-In this view, **Rendered from** at the top right of a card shows the template
-the saved values were applied from. Click it to copy the template name, or
-click **+N** to see the full include stack.
+**Last saved** in the table under a card's breakpoints shows how long ago the
+set was last saved, from any apply or edit. Hover it for the exact date and
+time.
+
+In this view, **Saved from** under the breakpoints of a card shows the
+template the saved values were applied from. Click it to copy the template
+name, or click the **templates** button to see the full include stack.
 
 To make changes, enable the edit toggle, then update the saved set values as
 needed. Edits are saved automatically.

@@ -598,6 +598,7 @@ final class TransformsControllerTest extends Unit
             $this->assertSame([['template' => 'page', 'extends' => ['_layout']], ['template' => 'site/includes/cards/menu']], $store->getSet('rendered-from-hero')['renderedFrom'] ?? null);
             $this->assertStringContainsString('"savedRenderedFrom":"site\\/includes\\/cards\\/menu"', (string)$response->content);
             $this->assertStringContainsString('"savedRenderedFromStack":"[{\\"template\\":\\"page\\",\\"extends\\":[\\"_layout\\"]},{\\"template\\":\\"site\\/includes\\/cards\\/menu\\"}]"', (string)$response->content);
+            $this->assertStringContainsString('"savedAtLabel":"just now"', (string)$response->content);
         } finally {
             Plugin::getInstance()->set('telemetry', $previousTelemetry);
             Plugin::getInstance()->set('transformEditor', $previousEditor);

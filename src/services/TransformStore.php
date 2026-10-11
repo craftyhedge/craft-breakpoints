@@ -544,6 +544,11 @@ class TransformStore extends Component
             if ($renderedFrom !== []) {
                 $legacy[$setName]['renderedFrom'] = $renderedFrom;
             }
+
+            $lastUpdatedAt = $this->normalizeIsoDateTime($setDefinition['lastUpdatedAt'] ?? null);
+            if ($lastUpdatedAt !== null) {
+                $legacy[$setName]['lastUpdatedAt'] = $lastUpdatedAt;
+            }
         }
 
         return $legacy;
