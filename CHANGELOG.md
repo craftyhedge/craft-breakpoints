@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.2.0 - 2026-10-11
 
 - Set cards now have a table under the copy pager showing when the set was last saved, the template its saved values came from, and the template that rendered the selected copy. Click a template to copy its name, or open its full include stack. Matching templates show in green, different ones in red.
 - Applying rendered values now saves the include stack they came from as `renderedFrom` in `transform-sets.json`.
